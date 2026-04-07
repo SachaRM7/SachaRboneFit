@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(/bin/bash:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(cmd:*)",
+      "Bash(npx create-next-app@latest app-sport-perso --typescript --tailwind --app --src-dir --eslint --no-import-alias)",
+      "Bash(npx shadcn@latest init -y)",
+      "Bash(npx shadcn@latest init --defaults)",
+      "Bash(npx shadcn@latest add button input label card dialog drawer select slider switch toast sonner badge separator skeleton -y)",
+      "Bash(npx shadcn@latest add button input label card dialog drawer select slider switch sonner badge separator skeleton -y)",
+      "Bash(bash:*)",
+      "Bash(npx shadcn@latest add textarea -y)",
+      "Bash(node -e \"require\\('dotenv/config'\\); console.log\\('DATABASE_URL:', process.env.DATABASE_URL\\)\")",
+      "Bash(npx tsx:*)",
+      "WebFetch(domain:minimax-algeng-chat-tts-us.oss-us-east-1.aliyuncs.com)",
+      "Bash(cd /app-sport-perso)",
+      "Bash(pnpm exec:*)",
+      "Bash(cygpath -w /)",
+      "Bash(pnpm --version)",
+      "Bash(export PWD=\"/d/Documents/SachaRboneFit/SachaRboneFit\")",
+      "Bash(node -e \"console.log\\(process.cwd\\(\\)\\)\")",
+      "Bash(powershell.exe:*)"
+    ]
+  }
+}
