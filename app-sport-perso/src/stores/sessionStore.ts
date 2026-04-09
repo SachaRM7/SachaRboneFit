@@ -9,6 +9,7 @@ export type DraftSet = {
   rpeEffectif: number | null;
   notes?: string;
   validatedAt?: number;
+  reposReelSecondes?: number | null;
 };
 
 export type ActiveSession = {
@@ -19,14 +20,26 @@ export type ActiveSession = {
   sets: DraftSet[];
   currentExerciseIndex: number;
   notesSeance: string;
+  // Rest timer state
+  restStartTimestamp: number | null;
+  restDurationSeconds: number | null;
+  restExerciseIndex: number | null;
+  // Completion tracking
+  completedAt: number | null;
 };
 
 type SessionStore = {
   active: ActiveSession | null;
-  start: (s: Omit<ActiveSession, "id" | "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance">) => void;
+  start: (s: Omit<ActiveSession, "id" | "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt">) => void;
   upsertSet: (set: DraftSet) => void;
   setCurrentExerciseIndex: (i: number) => void;
   setNotes: (notes: string) => void;
+  // Rest timer actions
+  startRest: (durationSeconds: number, exerciseIndex: number) => void;
+  clearRest: () => void;
+  extendRest: (extraSeconds: number) => void;
+  // Session completion
+  complete: () => void;
   clear: () => void;
 };
 
@@ -42,6 +55,10 @@ export const useSessionStore = create<SessionStore>()(
           sets: [],
           currentExerciseIndex: 0,
           notesSeance: "",
+          restStartTimestamp: null,
+          restDurationSeconds: null,
+          restExerciseIndex: null,
+          completedAt: null,
         },
       }),
       upsertSet: (newSet) => set((state) => {
@@ -59,6 +76,38 @@ export const useSessionStore = create<SessionStore>()(
       ),
       setNotes: (notes) => set((state) =>
         state.active ? { active: { ...state.active, notesSeance: notes } } : state
+      ),
+      startRest: (durationSeconds, exerciseIndex) => set((state) =>
+        state.active ? {
+          active: {
+            ...state.active,
+            restStartTimestamp: Date.now(),
+            restDurationSeconds: durationSeconds,
+            restExerciseIndex: exerciseIndex,
+          }
+        } : state
+      ),
+      clearRest: () => set((state) =>
+        state.active ? {
+          active: {
+            ...state.active,
+            restStartTimestamp: null,
+            restDurationSeconds: null,
+            restExerciseIndex: null,
+          }
+        } : state
+      ),
+      extendRest: (extraSeconds) => set((state) => {
+        if (!state.active?.restStartTimestamp || !state.active?.restDurationSeconds) return state;
+        return {
+          active: {
+            ...state.active,
+            restDurationSeconds: state.active.restDurationSeconds + extraSeconds,
+          }
+        };
+      }),
+      complete: () => set((state) =>
+        state.active ? { active: { ...state.active, completedAt: Date.now() } } : state
       ),
       clear: () => set({ active: null }),
     }),

@@ -1,0 +1,126 @@
+"use client";
+import { useEffect, useState } from "react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { CHART_THEME } from "@/lib/chart-theme";
+
+interface DataPoint {
+  date: string;
+  best1RM: number;
+  totalVolume: number;
+  bestSet: { charge: number; reps: number };
+}
+
+interface ExerciseProgressionChartProps {
+  instanceId: string;
+  months: number;
+}
+
+export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgressionChartProps) {
+  const [data, setData] = useState<DataPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mode, setMode] = useState<"1rm" | "volume">("1rm");
+
+  useEffect(() => {
+    if (!instanceId) return;
+    setLoading(true);
+    fetch(`/api/progression/exercise?instanceId=${instanceId}&months=${months}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setData(d);
+        setLoading(false);
+      });
+  }, [instanceId, months]);
+
+  if (loading) {
+    return <div className="h-64 bg-zinc-800/50 rounded-lg animate-pulse" />;
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="text-zinc-500 text-center py-12">
+        Pas encore de données. Enregistre ta première séance !
+      </div>
+    );
+  }
+
+  const chartData = data.map((d) => ({
+    date: new Date(d.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
+    value: mode === "1rm" ? d.best1RM : d.totalVolume,
+  }));
+
+  return (
+    <div className="space-y-4">
+      {/* Toggle 1RM / Volume */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setMode("1rm")}
+          className={`px-3 py-1 rounded text-sm ${
+            mode === "1rm" ? "bg-zinc-700 text-white" : "bg-zinc-800 text-zinc-400"
+          }`}
+        >
+          1RM estimé
+        </button>
+        <button
+          onClick={() => setMode("volume")}
+          className={`px-3 py-1 rounded text-sm ${
+            mode === "volume" ? "bg-zinc-700 text-white" : "bg-zinc-800 text-zinc-400"
+          }`}
+        >
+          Volume total
+        </button>
+      </div>
+
+      {/* Chart */}
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData}>
+            <XAxis
+              dataKey="date"
+              tick={{ fill: CHART_THEME.textColor, fontSize: CHART_THEME.fontSize.sm }}
+              axisLine={{ stroke: CHART_THEME.gridColor }}
+            />
+            <YAxis
+              tick={{ fill: CHART_THEME.textColor, fontSize: CHART_THEME.fontSize.sm }}
+              axisLine={{ stroke: CHART_THEME.gridColor }}
+              width={40}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: CHART_THEME.tooltipBg,
+                border: `1px solid ${CHART_THEME.tooltipBorder}`,
+                borderRadius: "8px",
+                color: "#fff",
+              }}
+              formatter={(value, name, props: any) => {
+                const point = data[props.dataPointIndex];
+                if (!point) return [value, mode === "1rm" ? "1RM" : "Volume"];
+                return [
+                  `${value}${mode === "1rm" ? "kg" : "kg×rep"}`,
+                  mode === "1rm"
+                    ? `1RM estimé — ${point.bestSet.charge}kg × ${point.bestSet.reps}`
+                    : `Volume total`,
+                ];
+              }}
+            />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke="#22c55e"
+              strokeWidth={2}
+              dot={{ fill: "#22c55e", strokeWidth: 0, r: 4 }}
+              activeDot={{ r: 6 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Data summary */}
+      <div className="text-zinc-500 text-sm text-center">
+        {data.length} séance{data.length > 1 ? "s" : ""} —{" "}
+        {mode === "1rm"
+          ? `Meilleur 1RM: ${Math.max(...data.map((d) => d.best1RM))}kg`
+          : `Volume total: ${Math.round(data.reduce((sum, d) => sum + d.totalVolume, 0))}kg×rep`}
+      </div>
+    </div>
+  );
+}

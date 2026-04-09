@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Dumbbell, BookOpen, MapPin, Menu } from "lucide-react";
+import { LayoutDashboard, Dumbbell, BookOpen, MapPin, Menu, TrendingUp } from "lucide-react";
 
 const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/sessions/new", label: "Séance", icon: Dumbbell },
   { href: "/exercises", label: "Exercices", icon: BookOpen },
+  { href: "/progression", label: "Progression", icon: TrendingUp },
   { href: "/gyms", label: "Salles", icon: MapPin },
   { href: "/settings", label: "Plus", icon: Menu },
 ];

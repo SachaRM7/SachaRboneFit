@@ -31,7 +31,9 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
 
       <Dialog>
         <DialogTrigger>
-          <Button variant="destructive" className="w-full mt-8">Supprimer</Button>
+          <span className="inline-flex items-center justify-center w-full px-4 py-2 mt-8 text-sm font-medium text-white bg-red-600 rounded-md cursor-pointer hover:bg-red-700">
+            Supprimer
+          </span>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>

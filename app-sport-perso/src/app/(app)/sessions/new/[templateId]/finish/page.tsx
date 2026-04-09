@@ -6,6 +6,33 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { ProgressionSummary } from "@/components/session/ProgressionSummary";
+
+const PILIER_COLORS: Record<string, string> = {
+  "poussee": "bg-blue-600",
+  "tirage": "bg-green-600",
+  "squat": "bg-orange-600",
+  "hanche": "bg-red-600",
+  "epaules": "bg-purple-600",
+  "bras": "bg-cyan-600",
+  "jambes_iso": "bg-yellow-600",
+  "core": "bg-zinc-600",
+};
+
+function FeuIndicator({ feu, label }: { feu: string | null; label: string }) {
+  if (!feu) return null;
+  const colorMap: Record<string, string> = {
+    vert: "bg-green-500",
+    orange: "bg-orange-500",
+    rouge: "bg-red-500",
+  };
+  return (
+    <div className="flex items-center gap-2">
+      <div className={`w-3 h-3 rounded-full ${colorMap[feu] || "bg-zinc-500"}`} />
+      <span className="text-sm text-zinc-400">{label}: {feu}</span>
+    </div>
+  );
+}
 
 export default function FinishSessionPage() {
   const { templateId } = useParams();
@@ -14,12 +41,53 @@ export default function FinishSessionPage() {
   const [energie, setEnergie] = useState(75);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [feuTendance, setFeuTendance] = useState<string | null>(null);
+  const [feuTendanceRaison, setFeuTendanceRaison] = useState<string | null>(null);
+  const [feuJour, setFeuJour] = useState<string | null>(null);
 
   useEffect(() => {
     if (!active) {
       router.replace(`/sessions/new/${templateId}`);
+      return;
     }
-  }, [active, templateId]);
+    // Compute feu tendency before finishing
+    computeTendance();
+  }, [active]);
+
+  const computeTendance = async () => {
+    if (!active) return;
+    try {
+      const res = await fetch(`/api/sessions/tendency?seanceTemplateId=${active.seanceTemplateId}&limit=3`);
+      if (res.ok) {
+        const data = await res.json();
+        // Import dynamically to avoid issues
+        const { computeFeuTendance } = await import("@/lib/engine/feu-biologique");
+        // Build sessions array including current (with current sets)
+        const sessionsForTendance = data.sessions || [];
+        // Add current session as the latest
+        const currentPerf = active.sets
+          .filter(s => s.repsEffectuees !== null && s.charge !== null)
+          .map(s => ({
+            exerciseInstanceId: s.exerciseInstanceId,
+            exerciseName: "Exercice",
+            volumeTotal: (s.charge || 0) * (s.repsEffectuees || 0),
+            estimated1RM: (s.charge || 0) * (1 + (s.repsEffectuees || 0) / 30),
+          }));
+        if (currentPerf.length > 0) {
+          sessionsForTendance.unshift({
+            date: new Date().toISOString().split("T")[0],
+            feuJour: null,
+            pilierPerfs: currentPerf,
+          });
+        }
+        const result = computeFeuTendance({ sessions: sessionsForTendance });
+        setFeuTendance(result.feu);
+        setFeuTendanceRaison(result.raison);
+      }
+    } catch {
+      // Silently fail
+    }
+  };
 
   const handleSubmit = async () => {
     if (!active) return;
@@ -46,6 +114,7 @@ export default function FinishSessionPage() {
           energieFin: energie,
           notesSeance: notes,
           sets: validSets,
+          feuBiologiqueTendance: feuTendance,
         }),
       });
 
@@ -68,6 +137,18 @@ export default function FinishSessionPage() {
   const now = new Date();
   const duration = Math.round((now.getTime() - startedAt.getTime()) / 60000);
 
+  const feuTendanceDisplay = feuTendance ? (
+    <div className="flex items-center gap-2">
+      <div className={`w-3 h-3 rounded-full ${
+        feuTendance === "vert" ? "bg-green-500" :
+        feuTendance === "orange" ? "bg-orange-500" : "bg-red-500"
+      }`} />
+      <span className="text-sm text-zinc-300">{feuTendanceRaison || `Tendance ${feuTendance}`}</span>
+    </div>
+  ) : (
+    <span className="text-sm text-zinc-500">Analyse en cours...</span>
+  );
+
   return (
     <div className="p-4 space-y-6">
       <h1 className="text-xl font-bold text-white">Terminer la séance</h1>
@@ -88,6 +169,18 @@ export default function FinishSessionPage() {
           <span className="text-white font-medium">{active.sets.length}</span>
         </div>
       </div>
+
+      {/* Feu de tendance */}
+      <div className="bg-zinc-900 rounded-lg p-4 space-y-2">
+        <p className="text-zinc-500 text-sm">Feu biologique de tendance</p>
+        {feuTendanceDisplay}
+      </div>
+
+      {/* Résumé des progressions */}
+      <ProgressionSummary
+        sets={active.sets.filter(s => s.repsEffectuees !== null && s.charge !== null) as Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number }>}
+        templateId={active.seanceTemplateId}
+      />
 
       <div className="space-y-2">
         <Label>Énergie de fin (0-100)</Label>

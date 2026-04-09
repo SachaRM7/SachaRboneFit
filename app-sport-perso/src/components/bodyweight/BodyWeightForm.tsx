@@ -8,7 +8,7 @@ import { bodyWeightSchema } from "@/lib/schemas/bodyweight";
 
 export function BodyWeightForm() {
   const [loading, setLoading] = useState(false);
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0] ?? "");
   const [poids, setPoids] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
