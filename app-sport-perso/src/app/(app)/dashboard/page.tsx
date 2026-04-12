@@ -16,6 +16,17 @@ interface DashboardData {
   feuTendance: "vert" | "orange" | "rouge" | null;
   alertesPreSeance: any[];
   poids30jours: Array<{ date: string; poids: number }>;
+  precalcSession: { contenu: string } | null;
+  weeklyDebrief: { contenu: string; weekStart: string } | null;
+  recentSessions: Array<{
+    id: string;
+    date: string;
+    dureeMinutes: number | null;
+    energieFin: number | null;
+    templateNom: string | null;
+    templateLettre: string | null;
+    gymNom: string | null;
+  }>;
 }
 
 export default function DashboardPage() {
@@ -224,6 +235,79 @@ export default function DashboardPage() {
                 <div key={i} className="text-sm text-yellow-300 border-l-2 border-yellow-600 pl-3">
                   {alert.message}
                 </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Precalc session preview */}
+        {data?.precalcSession && (
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardHeader>
+              <CardTitle className="text-zinc-300 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                Seance de demain
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-zinc-400 text-sm whitespace-pre-wrap">{data.precalcSession.contenu}</p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Weekly debrief */}
+        {data?.weeklyDebrief && (
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardHeader>
+              <CardTitle className="text-zinc-300 flex items-center gap-2">
+                <Activity className="w-4 h-4" />
+                Debrief hebdomadaire
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <details className="cursor-pointer">
+                <summary className="text-zinc-400 text-sm font-medium">
+                  Semaine du {data.weeklyDebrief.weekStart}
+                </summary>
+                <p className="text-zinc-300 text-sm mt-2 whitespace-pre-wrap">
+                  {data.weeklyDebrief.contenu}
+                </p>
+              </details>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Dernieres seances */}
+        {data?.recentSessions && data.recentSessions.length > 0 && (
+          <Card className="bg-zinc-900 border-zinc-800">
+            <CardHeader>
+              <CardTitle className="text-zinc-300 flex items-center gap-2">
+                <Dumbbell className="w-4 h-4" />
+                Seances recentes
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {data.recentSessions.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => router.push(`/sessions/${s.id}?templateLettre=${encodeURIComponent(s.templateLettre || "")}&sessionDate=${encodeURIComponent(s.date)}`)}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors text-left"
+                >
+                  <div>
+                    <p className="text-white font-medium text-sm">
+                      {s.templateNom || "Seance libre"}
+                      {s.templateLettre && <span className="text-zinc-500 ml-1">({s.templateLettre})</span>}
+                    </p>
+                    <p className="text-zinc-500 text-xs">
+                      {s.date}
+                      {s.gymNom && ` — ${s.gymNom}`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    {s.dureeMinutes && <p className="text-zinc-300 text-sm">{s.dureeMinutes} min</p>}
+                    {s.energieFin && <p className="text-zinc-500 text-xs">Énergie {s.energieFin}%</p>}
+                  </div>
+                </button>
               ))}
             </CardContent>
           </Card>

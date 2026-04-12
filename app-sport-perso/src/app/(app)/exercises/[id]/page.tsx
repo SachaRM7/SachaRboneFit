@@ -1,17 +1,24 @@
-import { notFound } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db/client";
 import { exercises, exerciseInstances } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, and } from "drizzle-orm";
 import { PilierBadge } from "@/components/exercises/PilierBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function ExerciseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const { id } = await params;
 
   const exercise = await db.query.exercises.findFirst({
-    where: and(eq(exercises.id, id), eq(exercises.userId, MOCK_USER_ID)),
+    where: and(eq(exercises.id, id), eq(exercises.userId, user.id)),
   });
 
   if (!exercise) notFound();

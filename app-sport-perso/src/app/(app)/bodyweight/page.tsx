@@ -1,14 +1,22 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { db } from "@/db/client";
+import { bodyWeights } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
 import { BodyWeightForm } from "@/components/bodyweight/BodyWeightForm";
 import { WeightSparkline } from "@/components/bodyweight/WeightSparkline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { db } from "@/db/client";
-import { bodyWeights } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
-import { eq, desc } from "drizzle-orm";
 
 export default async function BodyweightPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const weights = await db.query.bodyWeights.findMany({
-    where: eq(bodyWeights.userId, MOCK_USER_ID),
+    where: eq(bodyWeights.userId, user.id),
     orderBy: [desc(bodyWeights.date)],
     limit: 30,
   });

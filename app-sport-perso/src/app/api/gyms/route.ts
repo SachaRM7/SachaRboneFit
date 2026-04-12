@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { gyms } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET() {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const allGyms = await db.query.gyms.findMany({
-      where: eq(gyms.userId, MOCK_USER_ID),
+      where: eq(gyms.userId, userId),
     });
     return NextResponse.json(allGyms);
   } catch (error) {
@@ -17,11 +20,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
     const { nom, horairesOuverture, est24h, notes } = body;
 
     const [newGym] = await db.insert(gyms).values({
-      userId: MOCK_USER_ID,
+      userId,
       nom,
       horairesOuverture: horairesOuverture || null,
       est24h: est24h || false,

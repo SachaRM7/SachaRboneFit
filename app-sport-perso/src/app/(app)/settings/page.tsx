@@ -1,11 +1,17 @@
 "use client";
+
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, LogOut } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
+import { useSessionStore } from "@/stores/sessionStore";
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const clearSession = useSessionStore((state) => state.clear);
   const [exporting, setExporting] = useState(false);
 
   const handleExportJSON = async () => {
@@ -29,8 +35,12 @@ export default function SettingsPage() {
   };
 
   const handleLogout = async () => {
-    // Placeholder for auth logout
-    toast.info("Déconnexion non implémentée (Phase 3 Auth)");
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    clearSession();
+    toast.success("Déconnecté");
+    router.push("/login");
+    router.refresh();
   };
 
   return (
@@ -71,11 +81,11 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-zinc-500 text-sm">
-              La gestion de compte et la déconnexion seront disponibles avec l&apos;authentification Phase 3.
+              Déconnecte-toi pour changer de compte.
             </p>
             <Button
               variant="outline"
-              className="w-full bg-zinc-800 border-zinc-700 text-zinc-400"
+              className="w-full bg-zinc-800 border-zinc-700 hover:bg-zinc-700"
               onClick={handleLogout}
             >
               Se déconnecter

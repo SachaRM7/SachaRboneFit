@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { bodyWeights } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, desc, gte } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const months = parseInt(searchParams.get("months") || "6", 10);
 
@@ -14,7 +17,7 @@ export async function GET(request: Request) {
 
   const weights = await db.query.bodyWeights.findMany({
     where: (bw, { eq, and, gte }) =>
-      and(eq(bw.userId, MOCK_USER_ID), gte(bw.date, cutoffStr)),
+      and(eq(bw.userId, userId), gte(bw.date, cutoffStr)),
     orderBy: [desc(bodyWeights.date)],
   });
 

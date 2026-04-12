@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, desc } from "drizzle-orm";
-import { computeFeuTendance, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import type { SessionPilierPerf } from "@/lib/engine/feu-biologique";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const seanceTemplateId = searchParams.get("seanceTemplateId");
   const limit = parseInt(searchParams.get("limit") || "3", 10);
@@ -18,12 +21,14 @@ export async function GET(request: Request) {
   const sessions = await db.query.sessionLogs.findMany({
     where: eq(sessionLogs.seanceTemplateId, seanceTemplateId),
     orderBy: [desc(sessionLogs.createdAt)],
-    limit,
   });
 
   const result = [];
 
   for (const session of sessions) {
+    // Only include sessions belonging to the authenticated user
+    if (session.userId !== userId) continue;
+
     // Get set logs for this session with exercise instance info
     const sets = await db.query.setLogs.findMany({
       where: eq(setLogs.sessionLogId, session.id),

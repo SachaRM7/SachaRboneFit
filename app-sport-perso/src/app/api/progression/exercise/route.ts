@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, desc, gte } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const instanceId = searchParams.get("instanceId");
   const months = parseInt(searchParams.get("months") || "3", 10);
@@ -32,7 +35,7 @@ export async function GET(request: Request) {
     });
 
     if (!session || session.date < cutoffStr) continue;
-    if (session.userId !== MOCK_USER_ID) continue;
+    if (session.userId !== userId) continue;
 
     const estimated1RM = set.charge * (1 + set.repsEffectuees / 30);
     const volume = set.charge * set.repsEffectuees;

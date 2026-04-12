@@ -1,12 +1,20 @@
-import { ExerciseLibrary } from "@/components/exercises/ExerciseLibrary";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db/client";
 import { exercises } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq } from "drizzle-orm";
+import { ExerciseLibrary } from "@/components/exercises/ExerciseLibrary";
 
 export default async function ExercisesPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const allExercises = await db.query.exercises.findMany({
-    where: eq(exercises.userId, MOCK_USER_ID),
+    where: eq(exercises.userId, user.id),
   });
 
   return (

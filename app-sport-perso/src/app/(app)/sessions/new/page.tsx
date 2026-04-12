@@ -1,14 +1,21 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { SeanceTemplate, ProgrammeBloc } from "@/db/schema";
 import { db } from "@/db/client";
 import { programmeBlocs, seanceTemplates } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, and } from "drizzle-orm";
 import Link from "next/link";
 
 export default async function NewSessionPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(eq(programmeBlocs.userId, MOCK_USER_ID), eq(programmeBlocs.actif, true)),
+    where: and(eq(programmeBlocs.userId, user.id), eq(programmeBlocs.actif, true)),
   });
 
   if (!bloc) {

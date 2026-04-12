@@ -23,65 +23,63 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
   const [courbatures, setCourbatures] = useState<Courbature[]>([]);
   const [gyms, setGyms] = useState<{ id: string; nom: string }[]>([]);
   const [defaultGymId, setDefaultGymId] = useState<string>(preselectedGymId || "");
+  const [sommeil, setSommeil] = useState(7);
+  const [energie, setEnergie] = useState(5);
+  const [jeune, setJeune] = useState(false);
+  const [shiftRecent, setShiftRecent] = useState(false);
+  const [shiftType, setShiftType] = useState<"jour" | "nuit" | "aucun">("aucun");
+  const [dernierRepas, setDernierRepas] = useState<string | null>(null);
+  const [horairePrevu, setHorairePrevu] = useState<string | null>(null);
 
   // Fetch gyms
   useEffect(() => {
     fetch("/api/gyms")
       .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) setGyms(data);
-      });
+      .then(data => { if (Array.isArray(data)) setGyms(data); });
   }, []);
 
-  // Load existing daily state for this date
+  // Load existing daily state
   useEffect(() => {
     fetch(`/api/daily-state?date=${initialDate}`)
       .then(r => r.json())
       .then(data => {
         if (data && data.id) {
-          setValue("sommeilHeures", data.sommeilHeures ?? 7);
-          setValue("jeuneBool", data.jeuneBool ?? false);
-          setValue("shiftRecentBool", data.shiftRecentBool ?? false);
-          setValue("shiftType", data.shiftType ?? "aucun");
-          setValue("energieDepart", data.energieDepart ?? 5);
-          setValue("dernierRepasHeure", data.dernierRepasHeure ?? null);
-          setValue("horaireSeancePrevu", data.horaireSeancePrevu ?? null);
+          setSommeil(data.sommeilHeures ?? 7);
+          setJeune(data.jeuneBool ?? false);
+          setShiftRecent(data.shiftRecentBool ?? false);
+          setShiftType((data.shiftType as "jour" | "nuit" | "aucun") ?? "aucun");
+          setEnergie(data.energieDepart ?? 5);
+          setDernierRepas(data.dernierRepasHeure ?? null);
+          setHorairePrevu(data.horaireSeancePrevu ?? null);
           if (data.courbatures) setCourbatures(data.courbatures);
           if (data.gymId) setDefaultGymId(data.gymId);
         }
       });
   }, [initialDate]);
 
-  const { register, setValue, watch, formState: { errors } } = useForm<DailyStateInput>({
-    resolver: zodResolver(dailyStateSchema),
-    defaultValues: {
-      date: initialDate,
-      sommeilHeures: 7,
-      jeuneBool: false,
-      shiftRecentBool: false,
-      shiftType: "aucun",
-      energieDepart: 5,
-      courbatures: [],
-    },
-  });
-
-  const sommeilHeures = watch("sommeilHeures");
-  const jeunebool = watch("jeuneBool");
-  const shiftRecentBool = watch("shiftRecentBool");
-  const shiftType = watch("shiftType");
-  const energieDepart = watch("energieDepart");
-
-  const onSubmit = async (data: DailyStateInput) => {
+  const onSubmit = async () => {
     if (!defaultGymId) {
       toast.error("Sélectionne une salle");
       return;
     }
     setLoading(true);
     try {
+      const payload = {
+        date: initialDate,
+        sommeilHeures: sommeil,
+        jeuneBool: jeune,
+        shiftRecentBool: shiftRecent,
+        shiftType: shiftRecent ? shiftType : "aucun",
+        energieDepart: energie,
+        courbatures,
+        dernierRepasHeure: dernierRepas,
+        horaireSeancePrevu: horairePrevu,
+      };
+
       const res = await fetch("/api/daily-state", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, date: initialDate, courbatures }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -99,11 +97,10 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
     }
   };
 
-  const HOURS = Array.from({ length: 25 }, (_, i) => i); // 0-24
+  const HOURS = Array.from({ length: 25 }, (_, i) => i);
 
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit({ date: initialDate, sommeilHeures, jeuneBool: jeunebool, shiftRecentBool, shiftType, energieDepart, courbatures, dernierRepasHeure: null, horaireSeancePrevu: null }); }} className="space-y-6 p-4 max-w-md mx-auto">
-
+    <div className="space-y-6 p-4 max-w-md mx-auto">
       {/* Salle */}
       <div>
         <Label className="text-zinc-400 text-xs mb-2 block">Salle du jour</Label>
@@ -123,11 +120,11 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       <div>
         <div className="flex justify-between items-center mb-2">
           <Label className="text-zinc-400 text-xs">Sommeil</Label>
-          <span className="text-white font-medium">{sommeilHeures}h</span>
+          <span className="text-white font-medium">{sommeil}h</span>
         </div>
         <Slider
-          value={[sommeilHeures ?? 7]}
-          onValueChange={(v) => setValue("sommeilHeures", (v as readonly number[])[0]!)}
+          value={[sommeil]}
+          onValueChange={(v) => setSommeil(Array.isArray(v) ? v[0]! : v)}
           min={0}
           max={12}
           step={0.5}
@@ -142,22 +139,16 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       {/* Jeûne */}
       <div className="flex items-center justify-between">
         <Label className="text-zinc-300">Jeûne</Label>
-        <Switch
-          checked={jeunebool ?? false}
-          onCheckedChange={(v) => setValue("jeuneBool", v)}
-        />
+        <Switch checked={jeune} onCheckedChange={(v) => setJeune(v)} />
       </div>
 
       {/* Shift récent */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <Label className="text-zinc-300">Shift récent (48h)</Label>
-          <Switch
-            checked={shiftRecentBool ?? false}
-            onCheckedChange={(v) => setValue("shiftRecentBool", v)}
-          />
+          <Switch checked={shiftRecent} onCheckedChange={(v) => setShiftRecent(v)} />
         </div>
-        {shiftRecentBool && (
+        {shiftRecent && (
           <div className="flex gap-2 pl-4">
             {(["jour", "nuit"] as const).map(type => (
               <label key={type} className="flex items-center gap-2 cursor-pointer">
@@ -165,7 +156,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
                   type="radio"
                   value={type}
                   checked={shiftType === type}
-                  onChange={() => setValue("shiftType", type)}
+                  onChange={() => setShiftType(type)}
                   className="text-white"
                 />
                 <span className="text-zinc-300 text-sm capitalize">{type}</span>
@@ -179,11 +170,11 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       <div>
         <div className="flex justify-between items-center mb-2">
           <Label className="text-zinc-400 text-xs">Énergie au réveil</Label>
-          <span className="text-white font-medium">{energieDepart ?? 5}/10</span>
+          <span className="text-white font-medium">{energie}/10</span>
         </div>
         <Slider
-          value={[energieDepart ?? 5]}
-          onValueChange={(v) => setValue("energieDepart", (v as readonly number[])[0]!)}
+          value={[energie]}
+          onValueChange={(v) => setEnergie(Array.isArray(v) ? v[0]! : v)}
           min={1}
           max={10}
           step={1}
@@ -204,19 +195,14 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       {/* Dernier repas */}
       <div>
         <Label className="text-zinc-400 text-xs mb-2 block">Dernier repas</Label>
-        <Select
-          value={watch("dernierRepasHeure") || "none"}
-          onValueChange={(v) => setValue("dernierRepasHeure", v === "none" ? null : v)}
-        >
+        <Select value={dernierRepas || "none"} onValueChange={(v) => setDernierRepas(v === "none" ? null : v)}>
           <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white">
             <SelectValue placeholder="Sélectionner" />
           </SelectTrigger>
           <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
             <SelectItem value="none">Non renseigné</SelectItem>
             {HOURS.filter(h => h >= 6 && h <= 23).map(h => (
-              <SelectItem key={h} value={`${h.toString().padStart(2, "0")}:00`}>
-                {h}h
-              </SelectItem>
+              <SelectItem key={h} value={`${h.toString().padStart(2, "0")}:00`}>{h}h</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -225,31 +211,26 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       {/* Horaire prévu */}
       <div>
         <Label className="text-zinc-400 text-xs mb-2 block">Horaire séance prévu</Label>
-        <Select
-          value={watch("horaireSeancePrevu") || "none"}
-          onValueChange={(v) => setValue("horaireSeancePrevu", v === "none" ? null : v)}
-        >
+        <Select value={horairePrevu || "none"} onValueChange={(v) => setHorairePrevu(v === "none" ? null : v)}>
           <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white">
             <SelectValue placeholder="Sélectionner" />
           </SelectTrigger>
           <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
             <SelectItem value="none">Non renseigné</SelectItem>
             {HOURS.filter(h => h >= 5 && h <= 23).map(h => (
-              <SelectItem key={h} value={`${h.toString().padStart(2, "0")}:00`}>
-                {h}h
-              </SelectItem>
+              <SelectItem key={h} value={`${h.toString().padStart(2, "0")}:00`}>{h}h</SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
 
       <Button
-        type="submit"
+        onClick={onSubmit}
         disabled={loading}
         className="w-full h-14 text-base bg-white text-black hover:bg-zinc-200"
       >
         {loading ? "Enregistrement..." : "Valider → Voir la séance ajustée"}
       </Button>
-    </form>
+    </div>
   );
 }

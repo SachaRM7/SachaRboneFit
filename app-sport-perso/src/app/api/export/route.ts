@@ -4,19 +4,22 @@ import {
   users, sessionLogs, setLogs, dailyStates, bodyWeights,
   programmeBlocs, seanceTemplates, exerciseInTemplate, exerciseInstances, exercises, gyms
 } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const format = searchParams.get("format") || "json";
 
   // Get all user data
-  const user = await db.query.users.findFirst({ where: eq(users.id, MOCK_USER_ID) });
-  const sessions = await db.query.sessionLogs.findMany({ where: eq(sessionLogs.userId, MOCK_USER_ID) });
-  const dailyStatesData = await db.query.dailyStates.findMany({ where: eq(dailyStates.userId, MOCK_USER_ID) });
-  const bodyWeightsData = await db.query.bodyWeights.findMany({ where: eq(bodyWeights.userId, MOCK_USER_ID) });
-  const programmes = await db.query.programmeBlocs.findMany({ where: eq(programmeBlocs.userId, MOCK_USER_ID) });
+  const user = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  const sessions = await db.query.sessionLogs.findMany({ where: eq(sessionLogs.userId, userId) });
+  const dailyStatesData = await db.query.dailyStates.findMany({ where: eq(dailyStates.userId, userId) });
+  const bodyWeightsData = await db.query.bodyWeights.findMany({ where: eq(bodyWeights.userId, userId) });
+  const programmes = await db.query.programmeBlocs.findMany({ where: eq(programmeBlocs.userId, userId) });
 
   // Get all set logs for user sessions
   const sessionIds = sessions.map(s => s.id);

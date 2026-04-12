@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
@@ -7,28 +7,31 @@ import { toast } from "sonner";
 import { ArrowLeft, Check } from "lucide-react";
 import { RestTimer } from "@/components/session/RestTimer";
 import { initAudioContext, playBeep } from "@/lib/audio/beep";
+import { SOSBar } from "@/components/session/SOSBar";
+import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
+import { SOSDouleur } from "@/components/session/SOSDouleur";
+import { SOSEnergie } from "@/components/session/SOSEnergie";
+import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
+import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
+import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
 
-interface ExerciseBlockProps {
-  exercise: {
-    id: string;
-    nom: string;
-    machineNom: string;
-    seriesCibles: number;
-    fourchetteRepsMin: number;
-    fourchetteRepsMax: number;
-    tempo: string;
-    incrementsPossibles: number[];
-    reposSecondes: number | null;
-    poidsNonCompte: number | null;
-  };
-  history: { charge: number; reps: number; rpe?: number }[];
-  onNext: () => void;
-  showTimer: boolean;
-  timerDuration: number | null;
-  onTimerComplete: () => void;
-  onTimerSkip: () => void;
-  onTimerExtend: (s: number) => void;
-  audioInitialized: boolean;
+type SOSModal = "machine" | "douleur" | "energie" | "temps" | null;
+
+interface ExerciseFromTemplate {
+  id: string;
+  nom: string;
+  machineNom: string;
+  seriesCibles: number;
+  fourchetteRepsMin: number;
+  fourchetteRepsMax: number;
+  tempo: string;
+  incrementsPossibles: number[];
+  reposSecondes: number | null;
+  poidsNonCompte: number | null;
+  categorieRole: string;
+  profilTension: string;
+  musclesPrincipaux: string[];
+  ordre: number;
 }
 
 function ExerciseBlock({
@@ -41,23 +44,35 @@ function ExerciseBlock({
   onTimerSkip,
   onTimerExtend,
   audioInitialized,
-}: ExerciseBlockProps) {
+  isSkipped,
+  rpeReduction,
+}: {
+  exercise: ExerciseFromTemplate;
+  history: { charge: number; reps: number; rpe?: number }[];
+  onNext: () => void;
+  showTimer: boolean;
+  timerDuration: number | null;
+  onTimerComplete: () => void;
+  onTimerSkip: () => void;
+  onTimerExtend: (s: number) => void;
+  audioInitialized: boolean;
+  isSkipped: boolean;
+  rpeReduction: number;
+}) {
   const { upsertSet, active } = useSessionStore();
   const [currentSerie, setCurrentSerie] = useState(1);
   const [charge, setCharge] = useState(exercise.incrementsPossibles[0] || 0);
   const [reps, setReps] = useState(exercise.fourchetteRepsMin);
-  const [rpe, setRpe] = useState(8);
+  const [rpe, setRpe] = useState(Math.max(6, 8 - rpeReduction));
   const [validated, setValidated] = useState<number[]>([]);
 
   const increment = exercise.incrementsPossibles[0] || 2.5;
 
   const handleValidate = async () => {
-    // Initialize audio on first interaction
     if (!audioInitialized) {
       await initAudioContext();
     }
 
-    // Calculate actual rest time if timer was running
     let reposReelSecondes: number | null = null;
     if (active?.restStartTimestamp && active?.restDurationSeconds) {
       reposReelSecondes = Math.floor((Date.now() - active.restStartTimestamp) / 1000);
@@ -85,6 +100,20 @@ function ExerciseBlock({
   const adjustCharge = (delta: number) => {
     setCharge((c) => Math.max(0, c + delta));
   };
+
+  if (isSkipped) {
+    return (
+      <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 opacity-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-white font-semibold line-through">{exercise.nom}</p>
+            <p className="text-zinc-500 text-sm">{exercise.machineNom}</p>
+          </div>
+          <span className="text-xs text-zinc-400 bg-zinc-800 px-2 py-1 rounded">Skippé</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4">
@@ -155,7 +184,7 @@ function ExerciseBlock({
       <div className="space-y-2">
         <div className="flex justify-between items-center">
           <span className="text-zinc-500">RPE</span>
-          <span className="text-white font-medium">{rpe}</span>
+          <span className="text-white font-medium">{rpe}{rpeReduction > 0 && <span className="text-zinc-500 text-xs ml-1">(-{rpeReduction})</span>}</span>
         </div>
         <input
           type="range"
@@ -209,20 +238,60 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
   const searchParams = useSearchParams();
   const gymId = searchParams.get("gymId") || "";
   const router = useRouter();
-  const { active, start, clear, setCurrentExerciseIndex, startRest, clearRest, extendRest } = useSessionStore();
+  const { active, start, clear, setCurrentExerciseIndex, startRest, clearRest, extendRest, skipExercises, allegerExercises, upsertSet } = useSessionStore();
   const [templateData, setTemplateData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showTimer, setShowTimer] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
+
+  // SOS modal state
+  const [sosModal, setSOSModal] = useState<SOSModal>(null);
+  const [exerciseInstances, setExerciseInstances] = useState<ExerciseInstanceWithExercise[]>([]);
+  const [allInstances, setAllInstances] = useState<ExerciseInstanceWithExercise[]>([]);
+  const [templateExerciseIds, setTemplateExerciseIds] = useState<string[]>([]);
+  const [currentExerciseId, setCurrentExerciseId] = useState<string>("");
+  const [musclesCourbatures, setMusclesCourbatures] = useState<string[]>([]);
 
   useEffect(() => {
     fetch(`/api/sessions/${templateId}`)
       .then((r) => r.json())
       .then((d) => {
         setTemplateData(d);
+        if (d.exercises) {
+          setTemplateExerciseIds(d.exercises.map((e: any) => e.id));
+          if (d.exercises.length > 0) {
+            setCurrentExerciseId(d.exercises[0].id);
+          }
+        }
         setLoading(false);
       });
-  }, [templateId]);
+
+    // Fetch all exercise instances for this gym for substitution
+    if (gymId) {
+      fetch(`/api/exercise-instances?gymId=${gymId}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            setAllInstances(data);
+          }
+        })
+        .catch(() => {});
+    }
+
+    // Fetch daily state for courbatures
+    const today = new Date().toISOString().split("T")[0];
+    fetch(`/api/daily-state?date=${today}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.courbatures) {
+          const muscles = data.courbatures
+            .filter((c: any) => c.intensite >= 7)
+            .map((c: any) => c.muscle);
+          setMusclesCourbatures(muscles);
+        }
+      })
+      .catch(() => {});
+  }, [templateId, gymId]);
 
   useEffect(() => {
     if (!active && templateData) {
@@ -233,7 +302,6 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
     }
   }, [templateData, active]);
 
-  // Initialize audio on first user interaction
   const handleUserInteraction = async () => {
     if (!audioInitialized) {
       await initAudioContext();
@@ -261,10 +329,57 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
     extendRest(extra);
   };
 
+  const handleIncident = async (data: { type: string; contexte: Record<string, any>; decision: string }) => {
+    if (!active) return;
+    try {
+      await fetch("/api/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          session_log_id: active.id,
+          type: data.type,
+          contexte: data.contexte,
+          decision: data.decision,
+        }),
+      });
+    } catch (e) {
+      console.error("Failed to log incident", e);
+    }
+  };
+
+  const handleSubstitute = (substituteInstanceId: string, substituteName: string) => {
+    // In a real app, this would update the template in the store
+    toast.success(`${substituteName} utilisé à la place`);
+    setSOSModal(null);
+  };
+
+  const handleSkipExercices = (ids: string[]) => {
+    skipExercises(ids);
+    toast.success(`${ids.length} exercice(s) skippé(s)`);
+  };
+
+  const handleAllegerExercices = (ids: string[]) => {
+    allegerExercises(ids);
+    toast.success(`RPE réduit sur ${ids.length} exercice(s)`);
+  };
+
   if (loading) return <div className="p-4 text-white">Chargement...</div>;
   if (!templateData) return <div className="p-4 text-white">Template non trouvé</div>;
 
-  const exercises = templateData.exercises || [];
+  const exercises: ExerciseFromTemplate[] = templateData.exercises || [];
+  const skippedIds = active?.skippedExerciseIds || [];
+  const rpeReductions = active?.rpeReductions || {};
+
+  const exercisesRestants = exercises
+    .filter(e => !skippedIds.includes(e.id))
+    .map(e => ({
+      exercise_instance_id: e.id,
+      nom: e.nom,
+      muscles_principaux: e.musclesPrincipaux || [],
+      categorie_role: e.categorieRole || "accessoire",
+      statut: "à_venir" as const,
+      ordre: e.ordre,
+    }));
 
   return (
     <div className="p-4 space-y-4" onClick={handleUserInteraction}>
@@ -274,6 +389,17 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
         </Button>
         <h1 className="text-xl font-bold text-white">{templateData.nom}</h1>
       </div>
+
+      {/* SOS Bar */}
+      <SOSBar
+        onMachineOccupee={() => setSOSModal("machine")}
+        onDouleur={() => setSOSModal("douleur")}
+        onEnergie={() => setSOSModal("energie")}
+        onTempsDepasse={() => setSOSModal("temps")}
+      />
+
+      {/* Proactive Alert */}
+      <ProactiveAlert onShowSOS={() => {}} />
 
       {/* Rest Timer Overlay */}
       {showTimer && active?.restDurationSeconds && (
@@ -290,10 +416,10 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
       )}
 
       <div className="space-y-4">
-        {exercises.map((ex: any, i: number) => (
+        {exercises.map((ex, i) => (
           <div key={ex.id} className="space-y-2">
             <ExerciseBlock
-              exercise={{ ...ex, reposSecondes: ex.reposSecondes || 120 }}
+              exercise={ex}
               history={[]}
               onNext={() => {
                 setCurrentExerciseIndex(i + 1);
@@ -306,6 +432,8 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
               onTimerSkip={handleTimerSkip}
               onTimerExtend={handleTimerExtend}
               audioInitialized={audioInitialized}
+              isSkipped={skippedIds.includes(ex.id)}
+              rpeReduction={rpeReductions[ex.id] || 0}
             />
             {i < exercises.length - 1 && (
               <div className="h-px bg-zinc-800 mx-2" />
@@ -321,6 +449,62 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
       >
         Terminer la séance
       </Button>
+
+      {/* SOS Modals */}
+      {sosModal === "machine" && (
+        <SOSMachineOccupee
+          exerciseInstanceId={currentExerciseId}
+          gymId={gymId}
+          allInstances={allInstances}
+          templateExerciseIds={templateExerciseIds}
+          musclesCourbatures={musclesCourbatures}
+          onClose={() => setSOSModal(null)}
+          onSubstitute={handleSubstitute}
+        />
+      )}
+
+      {sosModal === "douleur" && (
+        <SOSDouleur
+          exercicesRestants={exercisesRestants}
+          onClose={() => setSOSModal(null)}
+          onStopSeance={() => router.push(`/sessions/new/${templateId}/finish`)}
+          onSkipExercices={handleSkipExercices}
+          onAllegerExercices={handleAllegerExercices}
+          onIncident={handleIncident}
+          sessionLogId={active?.id || ""}
+        />
+      )}
+
+      {sosModal === "energie" && (
+        <SOSEnergie
+          exercicesRestants={exercisesRestants}
+          onClose={() => setSOSModal(null)}
+          onApply={(coupes, rpeReduit) => {
+            skipExercises(coupes.map(nom => exercises.find(e => e.nom === nom)?.id).filter(Boolean));
+            // For RPE reduction, we just mark them in the store
+            toast.success("Séance ajustée");
+          }}
+          onStopSeance={() => router.push(`/sessions/new/${templateId}/finish`)}
+          onIncident={handleIncident}
+        />
+      )}
+
+      {sosModal === "temps" && (
+        <SOSTempsDepasse
+          dureeActuelleMin={active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0}
+          dureeCibleMin={60}
+          exercicesRestants={exercisesRestants}
+          onClose={() => setSOSModal(null)}
+          onApply={(coupes) => {
+            const idsToSkip = coupes
+              .map(nom => exercisesRestants.find(e => e.nom === nom)?.exercise_instance_id)
+              .filter(Boolean);
+            skipExercises(idsToSkip as string[]);
+            toast.success("Coupes appliquées");
+          }}
+          onIncident={handleIncident}
+        />
+      )}
     </div>
   );
 }

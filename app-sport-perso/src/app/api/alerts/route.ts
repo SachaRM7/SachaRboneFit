@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { programmeBlocs, sessionLogs, seanceTemplates } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { computeAlerts, type Alert } from "@/lib/engine/alerts";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const timing = searchParams.get("timing") as "pre_seance" | "post_seance";
   const seanceTemplateId = searchParams.get("seanceTemplateId");
@@ -23,7 +26,7 @@ export async function GET(request: Request) {
 
     // Check weeks since last deload
     const blocs = await db.query.programmeBlocs.findMany({
-      where: eq(programmeBlocs.userId, MOCK_USER_ID),
+      where: eq(programmeBlocs.userId, userId),
       orderBy: [desc(programmeBlocs.dateDebut)],
     });
 

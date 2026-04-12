@@ -2,11 +2,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { dailyStates } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, and } from "drizzle-orm";
 import { dailyStateSchema } from "@/lib/validators/daily-state";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
 
@@ -16,7 +19,7 @@ export async function GET(request: Request) {
 
   const state = await db.query.dailyStates.findFirst({
     where: and(
-      eq(dailyStates.userId, MOCK_USER_ID),
+      eq(dailyStates.userId, userId),
       eq(dailyStates.date, date),
     ),
   });
@@ -25,6 +28,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  console.log("[daily-state POST] userId:", userId);
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   try {
     const body = await request.json();
     const parsed = dailyStateSchema.safeParse(body);
@@ -38,7 +45,7 @@ export async function POST(request: Request) {
     // Upsert on (userId, date) unique constraint
     const existing = await db.query.dailyStates.findFirst({
       where: and(
-        eq(dailyStates.userId, MOCK_USER_ID),
+        eq(dailyStates.userId, userId),
         eq(dailyStates.date, data.date),
       ),
     });
@@ -61,7 +68,7 @@ export async function POST(request: Request) {
       return NextResponse.json(updated);
     } else {
       const [created] = await db.insert(dailyStates).values({
-        userId: MOCK_USER_ID,
+        userId,
         date: data.date,
         sommeilHeures: data.sommeilHeures,
         jeuneBool: data.jeuneBool,

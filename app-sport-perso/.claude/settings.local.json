@@ -42,7 +42,14 @@
       "Bash(rm:*)",
       "Bash(powershell:*)",
       "Bash(python3:*)",
-      "Bash(printf 'y\\\\n')"
+      "Bash(printf 'y\\\\n')",
+      "Bash(pnpm add:*)",
+      "mcp__ide__executeCode",
+      "mcp__ide__getDiagnostics",
+      "Bash(node.exe:*)",
+      "Bash(cd /d \"D:\\\\Documents\\\\SachaRboneFit\\\\SachaRboneFit\\\\app-sport-perso\")",
+      "Bash(cd /d \"D:\\\\Documents\\\\SachaRboneFit\\\\SachaRboneFit\\\\app-sport-perso\\\\src\\\\lib\\\\sos\")",
+      "Bash(find \"D:/Documents/SachaRboneFit/SachaRboneFit/app-sport-perso/.next\" -type f -delete)"
     ]
   }
 }

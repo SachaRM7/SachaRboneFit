@@ -1,23 +1,39 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { exerciseInstances } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const allInstances = await db.query.exerciseInstances.findMany({
-      where: eq(exerciseInstances.userId, MOCK_USER_ID),
-      with: { exercise: true, gym: true },
-    });
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const { searchParams } = new URL(request.url);
+    const gymId = searchParams.get("gymId");
+
+    let allInstances;
+    if (gymId) {
+      allInstances = await db.query.exerciseInstances.findMany({
+        where: (ei, { and, eq }) => and(eq(ei.userId, userId), eq(ei.gymId, gymId)),
+      });
+    } else {
+      allInstances = await db.query.exerciseInstances.findMany({
+        where: (ei, { eq }) => eq(ei.userId, userId),
+      });
+    }
     return NextResponse.json(allInstances);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch instances" }, { status: 500 });
+    console.error("[exercise-instances GET] error:", error);
+    return NextResponse.json({ error: "Failed to fetch instances", details: String(error) }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
     const {
       exerciseId, gymId, machineNom, typePoulie, conventionCharge,
@@ -25,7 +41,7 @@ export async function POST(request: Request) {
     } = body;
 
     const [newInstance] = await db.insert(exerciseInstances).values({
-      userId: MOCK_USER_ID,
+      userId,
       exerciseId,
       gymId,
       machineNom,

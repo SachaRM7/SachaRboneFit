@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { exercises } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET() {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const allExercises = await db.query.exercises.findMany({
-      where: eq(exercises.userId, MOCK_USER_ID),
+      where: eq(exercises.userId, userId),
     });
     return NextResponse.json(allExercises);
   } catch (error) {
@@ -17,11 +20,14 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
     const { nom, pilier, profilTension, type, categorieRole, musclesPrincipaux } = body;
 
     const [newExercise] = await db.insert(exercises).values({
-      userId: MOCK_USER_ID,
+      userId,
       nom,
       pilier,
       profilTension,

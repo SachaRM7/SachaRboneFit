@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { bodyWeights } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, and } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET() {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const weights = await db.query.bodyWeights.findMany({
-      where: eq(bodyWeights.userId, MOCK_USER_ID),
+      where: eq(bodyWeights.userId, userId),
       orderBy: (bw, { desc }) => [desc(bw.date)],
     });
     return NextResponse.json(weights);
@@ -18,12 +21,15 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
     const body = await request.json();
     const { date, poids, notes } = body;
 
     // Upsert on (userId, date)
     const existing = await db.query.bodyWeights.findFirst({
-      where: and(eq(bodyWeights.userId, MOCK_USER_ID), eq(bodyWeights.date, date)),
+      where: and(eq(bodyWeights.userId, userId), eq(bodyWeights.date, date)),
     });
 
     if (existing) {
@@ -35,7 +41,7 @@ export async function POST(request: Request) {
     }
 
     const [newWeight] = await db.insert(bodyWeights).values({
-      userId: MOCK_USER_ID,
+      userId,
       date,
       poids,
       notes: notes || null,

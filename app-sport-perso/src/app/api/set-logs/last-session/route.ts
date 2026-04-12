@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { setLogs, sessionLogs } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import type { SetLog } from "@/db/schema";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const exerciseInstanceId = searchParams.get("exerciseInstanceId");
 
@@ -27,6 +30,15 @@ export async function GET(request: Request) {
 
   // Find the most recent session_log_id
   const mostRecentSessionLogId = result[0]!.sessionLogId;
+
+  // Verify the session belongs to the authenticated user
+  const session = await db.query.sessionLogs.findFirst({
+    where: eq(sessionLogs.id, mostRecentSessionLogId),
+  });
+
+  if (!session || session.userId !== userId) {
+    return NextResponse.json(null);
+  }
 
   // Filter sets belonging to the most recent session
   const lastSessionSets = result

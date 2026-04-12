@@ -96,6 +96,8 @@ export default function FinishSessionPage() {
       (s) => s.repsEffectuees !== null && s.charge !== null
     );
 
+    console.log("[finish] validSets count:", validSets.length, "active sets:", active.sets.length);
+
     if (validSets.length === 0) {
       toast.error("Au moins une série est requise");
       return;
@@ -107,7 +109,7 @@ export default function FinishSessionPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          seanceTemplateId: active.seanceTemplateId,
+          seanceTemplateId: active.seanceTemplateId || null,
           gymId: active.gymId,
           date: new Date().toISOString().split("T")[0],
           dureeMinutes: Math.round((Date.now() - active.startedAt) / 60000),
@@ -123,7 +125,21 @@ export default function FinishSessionPage() {
       clear();
       const data = await res.json();
       toast.success("Séance enregistrée");
-      router.push(`/sessions/${data.id}`);
+
+      // Get template letter for the debrief
+      let templateLettre = templateId as string;
+      try {
+        const templateRes = await fetch(`/api/sessions/${active.seanceTemplateId}`);
+        if (templateRes.ok) {
+          const templateData = await templateRes.json();
+          templateLettre = templateData.lettre || templateId as string;
+        }
+      } catch {
+        // Use URL templateId as fallback
+      }
+
+      const today = new Date().toISOString().split("T")[0] ?? "";
+      router.push(`/sessions/${data.id}?templateLettre=${encodeURIComponent(templateLettre)}&sessionDate=${encodeURIComponent(today)}`);
     } catch {
       toast.error("Erreur lors de l'enregistrement");
     } finally {

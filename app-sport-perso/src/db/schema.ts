@@ -155,6 +155,66 @@ export const bodyWeights = pgTable("body_weights", {
   userDateUnique: unique("body_weights_user_date_unique").on(table.userId, table.date),
 }));
 
+export const coachConversations = pgTable("coach_conversations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  title: text("title"),
+  sessionLogId: uuid("session_log_id").references(() => sessionLogs.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const coachMessages = pgTable("coach_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  conversationId: uuid("conversation_id").references(() => coachConversations.id).notNull(),
+  role: text("role").notNull(), // 'user' | 'assistant' | 'system'
+  content: text("content").notNull(),
+  toolCalls: jsonb("tool_calls"),
+  toolResults: jsonb("tool_results"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const sessionIncidents = pgTable("session_incidents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionLogId: uuid("session_log_id").references(() => sessionLogs.id).notNull(),
+  type: text("type").notNull(), // 'machine_occupee' | 'douleur' | 'energie_chute' | 'temps_depasse'
+  contexte: jsonb("contexte").$type<Record<string, any>>().notNull(),
+  decision: text("decision").notNull(),
+  impactProgramme: text("impact_programme"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const precalcSessions = pgTable("precalc_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  targetDate: date("target_date").notNull(),
+  seanceTemplateId: uuid("seance_template_id").references(() => seanceTemplates.id),
+  contenu: text("contenu").notNull(),
+  contexteUtilise: jsonb("contexte_utilise").$type<Record<string, any>>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userDateUnique: unique("precalc_user_date_unique").on(table.userId, table.targetDate),
+}));
+
+export const weeklyDebriefs = pgTable("weekly_debriefs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  weekStart: date("week_start").notNull(),
+  weekEnd: date("week_end").notNull(),
+  contenu: text("contenu").notNull(),
+  stats: jsonb("stats").$type<{
+    nbSeances: number;
+    volumeTotal: number;
+    feux: { vert: number; orange: number; rouge: number };
+    progressions: string[];
+    stagnations: string[];
+    incidentsNb: number;
+  }>(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userWeekUnique: unique("weekly_debrief_user_week_unique").on(table.userId, table.weekStart),
+}));
+
 // Inferred types
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -178,3 +238,13 @@ export type SetLog = typeof setLogs.$inferSelect;
 export type NewSetLog = typeof setLogs.$inferInsert;
 export type BodyWeight = typeof bodyWeights.$inferSelect;
 export type NewBodyWeight = typeof bodyWeights.$inferInsert;
+export type CoachConversation = typeof coachConversations.$inferSelect;
+export type NewCoachConversation = typeof coachConversations.$inferInsert;
+export type CoachMessage = typeof coachMessages.$inferSelect;
+export type NewCoachMessage = typeof coachMessages.$inferInsert;
+export type SessionIncident = typeof sessionIncidents.$inferSelect;
+export type NewSessionIncident = typeof sessionIncidents.$inferInsert;
+export type PrecalcSession = typeof precalcSessions.$inferSelect;
+export type NewPrecalcSession = typeof precalcSessions.$inferInsert;
+export type WeeklyDebrief = typeof weeklyDebriefs.$inferSelect;
+export type NewWeeklyDebrief = typeof weeklyDebriefs.$inferInsert;

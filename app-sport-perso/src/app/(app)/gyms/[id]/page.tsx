@@ -1,16 +1,23 @@
-import { notFound } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db/client";
 import { gyms } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, and } from "drizzle-orm";
 import { GymForm } from "@/components/gyms/GymForm";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 export default async function GymDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const { id } = await params;
   const gym = await db.query.gyms.findFirst({
-    where: and(eq(gyms.id, id), eq(gyms.userId, MOCK_USER_ID)),
+    where: and(eq(gyms.id, id), eq(gyms.userId, user.id)),
   });
 
   if (!gym) notFound();

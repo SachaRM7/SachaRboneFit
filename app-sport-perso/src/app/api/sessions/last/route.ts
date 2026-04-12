@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, desc } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const exerciseInstanceId = searchParams.get("exerciseInstanceId");
   const gymId = searchParams.get("gymId");
@@ -49,7 +52,7 @@ export async function GET(request: Request) {
 
   const lastSession = await db.query.sessionLogs.findFirst({
     where: (sl, { eq, and }) =>
-      and(eq(sl.userId, MOCK_USER_ID), eq(sl.gymId, gymId)),
+      and(eq(sl.userId, userId), eq(sl.gymId, gymId)),
     orderBy: (sl, { desc }) => [desc(sl.createdAt)],
   });
 

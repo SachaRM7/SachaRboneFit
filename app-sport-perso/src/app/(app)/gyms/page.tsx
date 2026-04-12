@@ -1,15 +1,23 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { db } from "@/db/client";
+import { gyms } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { GymCard } from "@/components/gyms/GymCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-import { db } from "@/db/client";
-import { gyms } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
-import { eq } from "drizzle-orm";
 
 export default async function GymsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
   const allGyms = await db.query.gyms.findMany({
-    where: eq(gyms.userId, MOCK_USER_ID),
+    where: eq(gyms.userId, user.id),
   });
 
   return (

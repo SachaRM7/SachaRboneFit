@@ -26,11 +26,19 @@ export type ActiveSession = {
   restExerciseIndex: number | null;
   // Completion tracking
   completedAt: number | null;
+  // Last action timestamp for proactive checks
+  lastActionTimestamp: number;
+  // Skipped exercise instance IDs
+  skippedExerciseIds: string[];
+  // RPE reductions (exerciseInstanceId -> rpe reduction amount)
+  rpeReductions: Record<string, number>;
+  // Already shown proactive alerts
+  shownProactiveAlerts: string[];
 };
 
 type SessionStore = {
   active: ActiveSession | null;
-  start: (s: Omit<ActiveSession, "id" | "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt">) => void;
+  start: (s: Omit<ActiveSession, "id" | "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
   setCurrentExerciseIndex: (i: number) => void;
   setNotes: (notes: string) => void;
@@ -41,6 +49,11 @@ type SessionStore = {
   // Session completion
   complete: () => void;
   clear: () => void;
+  // SOS actions
+  skipExercises: (ids: string[]) => void;
+  allegerExercises: (ids: string[]) => void;
+  updateLastAction: () => void;
+  addProactiveAlertShown: (type: string) => void;
 };
 
 export const useSessionStore = create<SessionStore>()(
@@ -59,6 +72,10 @@ export const useSessionStore = create<SessionStore>()(
           restDurationSeconds: null,
           restExerciseIndex: null,
           completedAt: null,
+          lastActionTimestamp: Date.now(),
+          skippedExerciseIds: [],
+          rpeReductions: {},
+          shownProactiveAlerts: [],
         },
       }),
       upsertSet: (newSet) => set((state) => {
@@ -69,7 +86,7 @@ export const useSessionStore = create<SessionStore>()(
         const sets = [...state.active.sets];
         if (existing >= 0) sets[existing] = newSet;
         else sets.push(newSet);
-        return { active: { ...state.active, sets } };
+        return { active: { ...state.active, sets, lastActionTimestamp: Date.now() } };
       }),
       setCurrentExerciseIndex: (i) => set((state) =>
         state.active ? { active: { ...state.active, currentExerciseIndex: i } } : state
@@ -110,6 +127,35 @@ export const useSessionStore = create<SessionStore>()(
         state.active ? { active: { ...state.active, completedAt: Date.now() } } : state
       ),
       clear: () => set({ active: null }),
+      // SOS actions
+      skipExercises: (ids) => set((state) =>
+        state.active ? {
+          active: {
+            ...state.active,
+            skippedExerciseIds: [...(state.active.skippedExerciseIds ?? []), ...ids],
+            lastActionTimestamp: Date.now(),
+          }
+        } : state
+      ),
+      allegerExercises: (ids) => set((state) => {
+        if (!state.active) return state;
+        const newReductions = { ...(state.active.rpeReductions ?? {}) };
+        for (const id of ids) {
+          newReductions[id] = (newReductions[id] || 0) + 2;
+        }
+        return { active: { ...state.active, rpeReductions: newReductions, lastActionTimestamp: Date.now() } };
+      }),
+      updateLastAction: () => set((state) =>
+        state.active ? { active: { ...state.active, lastActionTimestamp: Date.now() } } : state
+      ),
+      addProactiveAlertShown: (type) => set((state) =>
+        state.active ? {
+          active: {
+            ...state.active,
+            shownProactiveAlerts: [...(state.active.shownProactiveAlerts ?? []), type],
+          }
+        } : state
+      ),
     }),
     { name: "active-session" }
   )

@@ -1,13 +1,16 @@
 import { config } from "dotenv";
 import path from "path";
 import postgres from "postgres";
-import { MOCK_USER_ID, MOCK_USER_EMAIL } from "@/lib/constants";
+import { MOCK_USER_EMAIL } from "@/lib/constants";
 
 // Load .env.local explicitly
 const projectRoot = path.resolve(__dirname, "../..");
 config({ path: path.join(projectRoot, ".env.local") });
 
 const db = postgres(process.env.DATABASE_URL!, { prepare: false });
+
+// Use SEED_USER_ID from env if provided, otherwise fall back to default for dev
+const SEED_USER_ID = process.env.SEED_USER_ID || "00000000-0000-0000-0000-000000000001";
 
 async function main() {
   console.log("🌱 Starting seed...");
@@ -24,17 +27,17 @@ async function main() {
 
   // 2. User
   await db`INSERT INTO users (id, email, nom, date_naissance, taille, phase_nutritionnelle, objectif_chiffre, date_cible)
-    VALUES (${MOCK_USER_ID}, ${MOCK_USER_EMAIL}, 'Sacha', '2001-02-22', 193, 'seche', '93 kg masse propre été 2026', '2026-08-01')
+    VALUES (${SEED_USER_ID}, ${MOCK_USER_EMAIL}, 'Sacha', '2001-02-22', 193, 'seche', '93 kg masse propre été 2026', '2026-08-01')
     ON CONFLICT (id) DO NOTHING`;
   console.log("✅ User inserted");
 
   // 3. Gyms
   const lalande = (await db`INSERT INTO gyms (user_id, nom, horaires_ouverture, est_24h, notes)
-    VALUES (${MOCK_USER_ID}, 'BasicFit Lalande', 'ferme 22h', false, 'Proche domicile, défaut')
+    VALUES (${SEED_USER_ID}, 'BasicFit Lalande', 'ferme 22h', false, 'Proche domicile, défaut')
     RETURNING id`.then(r => r[0]))!;
 
   const sesquiere = (await db`INSERT INTO gyms (user_id, nom, horaires_ouverture, est_24h, notes)
-    VALUES (${MOCK_USER_ID}, 'BasicFit Sesquière', '24/24', true, 'Tardives, jours fériés')
+    VALUES (${SEED_USER_ID}, 'BasicFit Sesquière', '24/24', true, 'Tardives, jours fériés')
     RETURNING id`.then(r => r[0]))!;
   console.log("✅ Gyms inserted");
 
@@ -68,7 +71,7 @@ async function main() {
   const insertedExercises: any[] = [];
   for (const e of exerciseData) {
     const row = (await db`INSERT INTO exercises (user_id, nom, pilier, profil_tension, type, categorie_role, muscles_principaux)
-      VALUES (${MOCK_USER_ID}, ${e.nom}, ${e.pilier}, ${e.profil_tension}, ${e.type}, ${e.categorie_role}, ${JSON.stringify(e.muscles_principaux)}::jsonb)
+      VALUES (${SEED_USER_ID}, ${e.nom}, ${e.pilier}, ${e.profil_tension}, ${e.type}, ${e.categorie_role}, ${JSON.stringify(e.muscles_principaux)}::jsonb)
       RETURNING *`.then(r => r[0]))!;
     insertedExercises.push(row);
   }
@@ -100,7 +103,7 @@ async function main() {
   const instances: any[] = [];
   for (const inst of instanceData) {
     const row = (await db`INSERT INTO exercise_instances (user_id, exercise_id, gym_id, machine_nom, type_poulie, convention_charge, increments_possibles, poids_non_compte)
-      VALUES (${MOCK_USER_ID}, ${inst.exerciseId}, ${lalande.id}, ${inst.machineNom}, ${inst.typePoulie}, ${inst.conventionCharge}, ${JSON.stringify(inst.incrementsPossibles)}::jsonb, ${inst.poidsNonCompte})
+      VALUES (${SEED_USER_ID}, ${inst.exerciseId}, ${lalande.id}, ${inst.machineNom}, ${inst.typePoulie}, ${inst.conventionCharge}, ${JSON.stringify(inst.incrementsPossibles)}::jsonb, ${inst.poidsNonCompte})
       RETURNING *`.then(r => r[0]))!;
     instances.push(row);
   }
@@ -110,7 +113,7 @@ async function main() {
 
   // 6. Bloc + Templates
   const bloc = (await db`INSERT INTO programme_blocs (user_id, nom, date_debut, type_cycle, semaine_actuelle, actif)
-    VALUES (${MOCK_USER_ID}, 'Bloc 1 Cycle 1 Mécanique', '2026-04-01', 'mecanique', 1, true)
+    VALUES (${SEED_USER_ID}, 'Bloc 1 Cycle 1 Mécanique', '2026-04-01', 'mecanique', 1, true)
     RETURNING *`.then(r => r[0]))!;
   console.log("✅ Programme bloc inserted");
 
@@ -140,7 +143,7 @@ async function main() {
 
   // 8. SessionLog 06/04/2026
   const sessionLog1 = (await db`INSERT INTO session_logs (user_id, seance_template_id, date, gym_id, duree_minutes, energie_fin, feu_biologique_jour, volume_ajuste_pct, volume_ajuste_raison)
-    VALUES (${MOCK_USER_ID}, ${seanceA.id}, '2026-04-06', ${lalande.id}, 65, 70, 'orange', -25, 'sommeil 4h seulement')
+    VALUES (${SEED_USER_ID}, ${seanceA.id}, '2026-04-06', ${lalande.id}, 65, 70, 'orange', -25, 'sommeil 4h seulement')
     RETURNING *`.then(r => r[0]))!;
 
   await db`INSERT INTO set_logs (session_log_id, exercise_instance_id, numero_serie, reps_effectuees, charge, rpe_effectif)
@@ -159,12 +162,12 @@ async function main() {
 
   // 9. SessionLog 04/04/2026 (sans dailyState)
   await db`INSERT INTO session_logs (user_id, seance_template_id, date, gym_id, duree_minutes, energie_fin)
-    VALUES (${MOCK_USER_ID}, ${seanceB.id}, '2026-04-04', ${lalande.id}, 55, 75)`;
+    VALUES (${SEED_USER_ID}, ${seanceB.id}, '2026-04-04', ${lalande.id}, 55, 75)`;
   console.log("✅ Session log 04/04 inserted");
 
   // 10. BodyWeight
   await db`INSERT INTO body_weights (user_id, date, poids, notes)
-    VALUES (${MOCK_USER_ID}, '2026-04-05', 90.55, 'Poids initial mesuré')`;
+    VALUES (${SEED_USER_ID}, '2026-04-05', 90.55, 'Poids initial mesuré')`;
   console.log("✅ Bodyweight inserted");
 
   console.log("✅ Seed terminé!");

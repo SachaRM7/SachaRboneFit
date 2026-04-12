@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs } from "@/db/schema";
-import { MOCK_USER_ID } from "@/lib/constants";
 import { eq, desc, gte, and } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET(request: Request) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
   const { searchParams } = new URL(request.url);
   const months = parseInt(searchParams.get("months") || "3", 10);
 
@@ -14,7 +17,7 @@ export async function GET(request: Request) {
 
   const sessions = await db.query.sessionLogs.findMany({
     where: (sl, { eq, and, gte }) =>
-      and(eq(sl.userId, MOCK_USER_ID), gte(sl.date, cutoffStr)),
+      and(eq(sl.userId, userId), gte(sl.date, cutoffStr)),
     orderBy: [desc(sessionLogs.date)],
   });
 
