@@ -14,34 +14,26 @@
  *   doit échouer visiblement plutôt que d'être silencieusement perdue.
  */
 
-const VERSION = "v2";
-const CACHE_COQUILLE = `coquille-${VERSION}`;
+const VERSION = "v3";
 const CACHE_ASSETS = `assets-${VERSION}`;
 const CACHE_API = `api-${VERSION}`;
 
-// `/` repond par une redirection 307 vers /login ou /dashboard selon la
-// session. Mise en cache, cette reponse porte `redirected: true`, et une
-// navigation ne peut pas etre servie par une reponse redirigee : le navigateur
-// la refuse et affiche sa page « cette page n'a pas pu se charger ». On
-// precharge donc la destination reelle, jamais la redirection.
-const A_PRECHARGER = ["/login", "/manifest.json"];
-
-/** Une reponse redirigee ne peut pas resservir une navigation : jamais en cache. */
+/**
+ * Une reponse redirigee ne peut pas resservir une navigation, et une reponse en
+ * erreur n'a rien a faire en cache. Aucune page n'est plus mise en cache du
+ * tout, mais la garde reste : elle protege aussi les illustrations et les API.
+ */
 function cachable(reponse) {
   return reponse && reponse.ok && !reponse.redirected && reponse.type !== "opaqueredirect";
 }
 
 self.addEventListener("install", (evenement) => {
-  evenement.waitUntil(
-    caches.open(CACHE_COQUILLE)
-      .then((cache) => cache.addAll(A_PRECHARGER))
-      .catch(() => undefined)
-      .then(() => self.skipWaiting()),
-  );
+  // Plus rien a precharger : les pages ne sont plus servies depuis le cache.
+  evenement.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener("activate", (evenement) => {
-  const actuels = [CACHE_COQUILLE, CACHE_ASSETS, CACHE_API];
+  const actuels = [CACHE_ASSETS, CACHE_API];
   evenement.waitUntil(
     caches.keys()
       .then((noms) => Promise.all(
@@ -99,12 +91,14 @@ self.addEventListener("fetch", (evenement) => {
     return;
   }
 
-  // Navigation : réseau d'abord, repli sur la page d'accueil mise en cache.
-  if (requete.mode === "navigate") {
-    evenement.respondWith(
-      reseauDAbord(requete, CACHE_COQUILLE).catch(() =>
-        caches.match("/login").then((r) => r ?? Response.error()),
-      ),
-    );
-  }
+  // Navigations : jamais interceptées.
+  //
+  // Elles l'étaient, avec repli sur une page mise en cache. Ce repli n'apportait
+  // presque rien — sans réseau l'application n'a de toute façon aucune donnée à
+  // afficher — et il a casse la navigation deux fois : une réponse redirigée
+  // mise en cache ne peut pas servir une navigation, et le navigateur refuse
+  // alors la page entière. Le risque est sans commune mesure avec le gain.
+  //
+  // Ce qui compte réellement hors ligne est conservé : les illustrations, et la
+  // dernière lecture des API.
 });
