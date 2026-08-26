@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms } from "@/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { computeFeuJour } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
 import { prochaineSeance } from "@/services/programmes";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { detailErreur } from "@/lib/erreurs";
 
 export async function GET() {
   try {
@@ -97,21 +98,36 @@ export async function GET() {
       limit: 5,
     });
 
-    const recentSessionsWithData = await Promise.all(
-      recentSessions.map(async (s) => {
-        const gym = s.gymId ? await db.query.gyms.findFirst({ where: eq(gyms.id, s.gymId) }) : null;
-        const template = s.seanceTemplateId ? await db.query.seanceTemplates.findFirst({ where: eq(seanceTemplates.id, s.seanceTemplateId) }) : null;
-        return {
-          id: s.id,
-          date: s.date,
-          dureeMinutes: s.dureeMinutes,
-          energieFin: s.energieFin,
-          templateNom: template?.nom ?? null,
-          templateLettre: template?.lettre ?? null,
-          gymNom: gym?.nom ?? null,
-        };
-      })
-    );
+    // Une requete par seance et par jointure : jusqu'a dix appels concurrents
+    // pour cinq lignes, la ou deux lectures groupees suffisent. Les salles et
+    // les gabarits d'un utilisateur se comptent en dizaines.
+    // `seanceTemplates` ne porte pas d'`user_id` : une lecture sans filtre
+    // remonterait les gabarits de tout le monde. On ne lit que les identifiants
+    // effectivement cites par les seances de cet utilisateur.
+    const idsGabarits = [...new Set(recentSessions.map((s) => s.seanceTemplateId).filter((v): v is string => Boolean(v)))];
+
+    const [sallesUtilisateur, gabaritsUtilisateur] = await Promise.all([
+      db.query.gyms.findMany({ where: eq(gyms.userId, userId) }),
+      idsGabarits.length
+        ? db.query.seanceTemplates.findMany({ where: inArray(seanceTemplates.id, idsGabarits) })
+        : Promise.resolve([]),
+    ]);
+    const salleParId = new Map(sallesUtilisateur.map((g) => [g.id, g]));
+    const gabaritParId = new Map(gabaritsUtilisateur.map((t) => [t.id, t]));
+
+    const recentSessionsWithData = recentSessions.map((s) => {
+      const gym = s.gymId ? salleParId.get(s.gymId) : undefined;
+      const template = s.seanceTemplateId ? gabaritParId.get(s.seanceTemplateId) : undefined;
+      return {
+        id: s.id,
+        date: s.date,
+        dureeMinutes: s.dureeMinutes,
+        energieFin: s.energieFin,
+        templateNom: template?.nom ?? null,
+        templateLettre: template?.lettre ?? null,
+        gymNom: gym?.nom ?? null,
+      };
+    });
 
     return NextResponse.json({
       user: {
@@ -145,7 +161,7 @@ export async function GET() {
     // Le message etait constant : toute panne — colonne absente, service en
     // echec, requete invalide — se presentait de la meme facon, et le client
     // n'avait aucun moyen de dire ce qui avait casse.
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = detailErreur(error);
     console.error("[api/dashboard]", detail, error);
     return NextResponse.json({ error: `Chargement du tableau de bord : ${detail}` }, { status: 500 });
   }

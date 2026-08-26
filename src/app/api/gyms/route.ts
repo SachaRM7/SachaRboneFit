@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { gyms } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { detailErreur } from "@/lib/erreurs";
 
 export async function GET() {
   try {
@@ -16,7 +17,7 @@ export async function GET() {
   } catch (error) {
     // Message constant auparavant : toute panne se presentait de la meme facon
     // et le client n'avait aucun moyen de dire ce qui avait casse.
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = detailErreur(error);
     console.error("[api/gyms]", detail, error);
     return NextResponse.json({ error: `Lecture des salles : ${detail}` }, { status: 500 });
   }
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(newGym, { status: 201 });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to create gym" }, { status: 500 });
+    const detail = detailErreur(error);
+    console.error("[api/gyms POST]", detail, error);
+    return NextResponse.json({ error: `Création de la salle : ${detail}` }, { status: 500 });
   }
 }
