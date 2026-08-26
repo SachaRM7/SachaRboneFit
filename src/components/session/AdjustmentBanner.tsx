@@ -26,8 +26,8 @@ export function AdjustmentBanner({
   return (
     <div className="space-y-2">
       {totalPct !== 0 && (
-        <Alert className="bg-yellow-900/20 border-yellow-700 text-yellow-200">
-          <AlertTriangle className="h-4 w-4 text-yellow-400" />
+        <Alert className="bg-feu-orange/10 border-feu-orange/30 text-feu-orange">
+          <AlertTriangle className="h-4 w-4 text-feu-orange" />
           <AlertTitle>Volume ajuste</AlertTitle>
           <AlertDescription>
             {raisons.length > 0 ? raisons.join(" + ") : `${totalPct}%`}
@@ -38,10 +38,10 @@ export function AdjustmentBanner({
                 <span
                   className={
                     feu === "vert"
-                      ? "text-green-400"
+                      ? "text-gain"
                       : feu === "orange"
-                      ? "text-yellow-400"
-                      : "text-red-400"
+                      ? "text-feu-orange"
+                      : "text-perte"
                   }
                 >
                   {feu}
@@ -53,8 +53,8 @@ export function AdjustmentBanner({
       )}
 
       {proposeDeloadImprovise && (
-        <Alert className="bg-red-900/20 border-red-700 text-red-200">
-          <Clock className="h-4 w-4 text-red-400" />
+        <Alert className="bg-perte-fond border-perte text-perte">
+          <Clock className="h-4 w-4 text-perte" />
           <AlertTitle>Deload improvise conseille</AlertTitle>
           <AlertDescription>
             Energie basse. Reduire le volume ou reporter la seance.
@@ -63,8 +63,8 @@ export function AdjustmentBanner({
       )}
 
       {proposeReport && musclesAReporter && musclesAReporter.length > 0 && (
-        <Alert className="bg-red-900/20 border-red-700 text-red-200">
-          <AlertTriangle className="h-4 w-4 text-red-400" />
+        <Alert className="bg-perte-fond border-perte text-perte">
+          <AlertTriangle className="h-4 w-4 text-perte" />
           <AlertTitle>Courbatures fortes</AlertTitle>
           <AlertDescription>
             Muscles concernes : {musclesAReporter.join(", ")}. Reporter ces exercices ?

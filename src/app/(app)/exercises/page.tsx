@@ -31,7 +31,7 @@ export default async function ExercisesPage() {
 
   return (
     <div className="pb-4">
-      <h1 className="text-xl font-bold text-white p-4">Exercices</h1>
+      <h1 className="text-xl font-bold text-encre p-4">Exercices</h1>
       <ExerciseLibrary
         exercises={avecInstances}
         salles={salles.map((g) => ({ id: g.id, nom: g.nom }))}

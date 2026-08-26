@@ -44,12 +44,12 @@ export function SOSEnergie({ exercicesRestants, onClose, onApply, onStopSeance, 
     ];
 
     return (
-      <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center">
-        <div className="bg-zinc-900 rounded-t-2xl w-full max-w-md p-4 space-y-4">
+      <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
+        <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Résultat</h2>
+            <h2 className="text-lg font-semibold text-encre">Résultat</h2>
             <button onClick={onClose} className="p-2">
-              <X className="w-5 h-5 text-zinc-400" />
+              <X className="w-5 h-5 text-encre-2" />
             </button>
           </div>
           <SOSResultat
@@ -66,19 +66,19 @@ export function SOSEnergie({ exercicesRestants, onClose, onApply, onStopSeance, 
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center">
-      <div className="bg-zinc-900 rounded-t-2xl w-full max-w-md p-4 space-y-4">
+    <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
+      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Énergie en chute</h2>
+          <h2 className="text-lg font-semibold text-encre">Énergie en chute</h2>
           <button onClick={onClose} className="p-2">
-            <X className="w-5 h-5 text-zinc-400" />
+            <X className="w-5 h-5 text-encre-2" />
           </button>
         </div>
 
         <div className="space-y-2">
           <div className="flex justify-between">
-            <label className="text-zinc-400 text-sm">Énergie actuelle</label>
-            <span className="text-white font-medium">{energie}/10</span>
+            <label className="text-encre-2 text-sm">Énergie actuelle</label>
+            <span className="text-encre font-medium">{energie}/10</span>
           </div>
           <Slider
             value={[energie]}
@@ -90,7 +90,7 @@ export function SOSEnergie({ exercicesRestants, onClose, onApply, onStopSeance, 
           />
         </div>
 
-        <p className="text-zinc-500 text-sm">
+        <p className="text-encre-3 text-sm">
           {exercicesRestants.length} exercice(s) restant(s)
         </p>
 

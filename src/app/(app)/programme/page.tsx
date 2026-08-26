@@ -90,8 +90,8 @@ export default async function ProgrammePage() {
   return (
     <div className="p-4 space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-white">Programme</h1>
-        <p className="text-zinc-500 text-sm mt-1">
+        <h1 className="text-xl font-bold text-encre">Programme</h1>
+        <p className="text-encre-3 text-sm mt-1">
           {bloc ? "Bloc actif, séances et exercices programmés." : "Crée un bloc pour commencer."}
         </p>
       </div>

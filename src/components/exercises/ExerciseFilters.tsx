@@ -41,14 +41,14 @@ export function ExerciseFilters({ onChange }: ExerciseFiltersProps) {
   return (
     <div className="space-y-3 p-4">
       <div>
-        <p className="text-zinc-500 text-xs mb-2">Pilier</p>
+        <p className="text-encre-3 text-xs mb-2">Pilier</p>
         <div className="flex flex-wrap gap-2">
           {PILIERS.map((p) => (
             <Button
               key={p}
               size="sm"
               variant={filters.piliers.includes(p) ? "default" : "outline"}
-              className={filters.piliers.includes(p) ? "bg-zinc-700" : "bg-zinc-900 border-zinc-700"}
+              className={filters.piliers.includes(p) ? "bg-papier-2" : "bg-carte border-filet"}
               onClick={() => toggle("piliers", p)}
             >
               {pilierLabels[p] || p}
@@ -58,14 +58,14 @@ export function ExerciseFilters({ onChange }: ExerciseFiltersProps) {
       </div>
 
       <div>
-        <p className="text-zinc-500 text-xs mb-2">Profil de tension</p>
+        <p className="text-encre-3 text-xs mb-2">Profil de tension</p>
         <div className="flex flex-wrap gap-2">
           {PROFILS.map((p) => (
             <Button
               key={p}
               size="sm"
               variant={filters.profils.includes(p) ? "default" : "outline"}
-              className={filters.profils.includes(p) ? "bg-zinc-700" : "bg-zinc-900 border-zinc-700"}
+              className={filters.profils.includes(p) ? "bg-papier-2" : "bg-carte border-filet"}
               onClick={() => toggle("profils", p)}
             >
               {p}
@@ -75,14 +75,14 @@ export function ExerciseFilters({ onChange }: ExerciseFiltersProps) {
       </div>
 
       <div>
-        <p className="text-zinc-500 text-xs mb-2">Rôle</p>
+        <p className="text-encre-3 text-xs mb-2">Rôle</p>
         <div className="flex flex-wrap gap-2">
           {ROLES.map((r) => (
             <Button
               key={r}
               size="sm"
               variant={filters.roles.includes(r) ? "default" : "outline"}
-              className={filters.roles.includes(r) ? "bg-zinc-700" : "bg-zinc-900 border-zinc-700"}
+              className={filters.roles.includes(r) ? "bg-papier-2" : "bg-carte border-filet"}
               onClick={() => toggle("roles", r)}
             >
               {r}

@@ -40,12 +40,12 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
   }, [instanceId, months]);
 
   if (loading) {
-    return <div className="h-64 bg-zinc-800/50 rounded-lg animate-pulse" />;
+    return <div className="h-64 bg-papier-2 rounded-lg animate-pulse" />;
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className="text-zinc-500 text-center py-12">
+      <div className="text-encre-3 text-center py-12">
         Pas encore de données. Enregistre ta première séance !
       </div>
     );
@@ -63,7 +63,7 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
         <button
           onClick={() => setMode("1rm")}
           className={`px-3 py-1 rounded text-sm ${
-            mode === "1rm" ? "bg-zinc-700 text-white" : "bg-zinc-800 text-zinc-400"
+            mode === "1rm" ? "bg-papier-2 text-encre" : "bg-papier-2 text-encre-2"
           }`}
         >
           1RM estimé
@@ -71,7 +71,7 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
         <button
           onClick={() => setMode("volume")}
           className={`px-3 py-1 rounded text-sm ${
-            mode === "volume" ? "bg-zinc-700 text-white" : "bg-zinc-800 text-zinc-400"
+            mode === "volume" ? "bg-papier-2 text-encre" : "bg-papier-2 text-encre-2"
           }`}
         >
           Volume total
@@ -123,7 +123,7 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
       </div>
 
       {/* Data summary */}
-      <div className="text-zinc-500 text-sm text-center">
+      <div className="text-encre-3 text-sm text-center">
         {data.length} séance{data.length > 1 ? "s" : ""} —{" "}
         {mode === "1rm"
           ? `Meilleur 1RM: ${Math.max(...data.map((d) => d.best1RM))}kg`

@@ -7,7 +7,7 @@ interface SparklineProps {
 
 export function Sparkline({ data, width = 80, height = 24, color }: SparklineProps) {
   if (!data || data.length < 2) {
-    return <div style={{ width, height }} className="flex items-center justify-center text-zinc-600 text-xs">N/A</div>;
+    return <div style={{ width, height }} className="flex items-center justify-center text-encre-3 text-xs">N/A</div>;
   }
 
   const min = Math.min(...data);

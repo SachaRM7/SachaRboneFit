@@ -21,7 +21,7 @@ export function InstanceHistory({ setLogs, exerciseName }: InstanceHistoryProps)
 
   return (
     <div className="space-y-3">
-      <h3 className="text-sm font-semibold text-zinc-400">Historique</h3>
+      <h3 className="text-sm font-semibold text-encre-2">Historique</h3>
       {Object.entries(grouped)
         .sort((a, b) => new Date(b[1].date).getTime() - new Date(a[1].date).getTime())
         .slice(0, 6)
@@ -33,10 +33,10 @@ export function InstanceHistory({ setLogs, exerciseName }: InstanceHistoryProps)
 
           return (
             <div key={sessionId} className="flex items-center justify-between text-sm">
-              <span className="text-zinc-500">{dateStr}</span>
-              <span className="text-white font-medium">
+              <span className="text-encre-3">{dateStr}</span>
+              <span className="text-encre font-medium">
                 {charge} kg × {reps}
-                {rpe && <span className="text-zinc-500"> — RPE {rpe}</span>}
+                {rpe && <span className="text-encre-3"> — RPE {rpe}</span>}
               </span>
             </div>
           );

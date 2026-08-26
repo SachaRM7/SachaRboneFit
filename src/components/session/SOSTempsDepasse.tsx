@@ -44,12 +44,12 @@ export function SOSTempsDepasse({
 
   if (showResult && resultData) {
     return (
-      <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center">
-        <div className="bg-zinc-900 rounded-t-2xl w-full max-w-md p-4 space-y-4">
+      <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
+        <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-white">Temps dépassé</h2>
+            <h2 className="text-lg font-semibold text-encre">Temps dépassé</h2>
             <button onClick={onClose} className="p-2">
-              <X className="w-5 h-5 text-zinc-400" />
+              <X className="w-5 h-5 text-encre-2" />
             </button>
           </div>
           <SOSResultat
@@ -66,18 +66,18 @@ export function SOSTempsDepasse({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center">
-      <div className="bg-zinc-900 rounded-t-2xl w-full max-w-md p-4 space-y-4">
+    <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
+      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Temps dépassé</h2>
+          <h2 className="text-lg font-semibold text-encre">Temps dépassé</h2>
           <button onClick={onClose} className="p-2">
-            <X className="w-5 h-5 text-zinc-400" />
+            <X className="w-5 h-5 text-encre-2" />
           </button>
         </div>
 
         <div className="text-center py-4">
-          <p className="text-4xl font-bold text-white">{dureeActuelleMin}<span className="text-xl text-zinc-500"> min</span></p>
-          <p className="text-zinc-500 text-sm">Objectif : {dureeCibleMin} min</p>
+          <p className="text-4xl font-bold text-encre">{dureeActuelleMin}<span className="text-xl text-encre-3"> min</span></p>
+          <p className="text-encre-3 text-sm">Objectif : {dureeCibleMin} min</p>
         </div>
 
         <Button className="w-full" onClick={handleApply}>

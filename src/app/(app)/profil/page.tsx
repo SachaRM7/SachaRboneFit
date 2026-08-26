@@ -16,8 +16,8 @@ export default async function ProfilPage() {
   return (
     <div className="p-4 space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Profil</h1>
-        <p className="text-zinc-500 text-sm mt-1">
+        <h1 className="text-xl font-bold text-encre">Profil</h1>
+        <p className="text-encre-3 text-sm mt-1">
           Ces informations orientent les séances proposées.
         </p>
       </div>

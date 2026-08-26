@@ -23,12 +23,12 @@ export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
   }, [months]);
 
   if (loading) {
-    return <div className="h-64 bg-zinc-800/50 rounded-lg animate-pulse" />;
+    return <div className="h-64 bg-papier-2 rounded-lg animate-pulse" />;
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className="text-zinc-500 text-center py-12">
+      <div className="text-encre-3 text-center py-12">
         Pas encore de données de volume par pilier
       </div>
     );

@@ -109,15 +109,15 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           {isOvertime ? (
             <div className="text-center">
-              <p className="text-3xl font-bold text-green-400">Repos terminé</p>
-              <p className="text-lg text-green-400/70">+ {overtimeSeconds}s</p>
+              <p className="text-3xl font-bold text-gain">Repos terminé</p>
+              <p className="text-lg text-gain/70">+ {overtimeSeconds}s</p>
             </div>
           ) : (
             <>
-              <p className={`text-4xl font-bold ${remaining <= 10 ? "text-orange-400" : "text-white"}`}>
+              <p className={`text-4xl font-bold ${remaining <= 10 ? "text-feu-orange" : "text-encre"}`}>
                 {timeDisplay}
               </p>
-              <p className="text-zinc-500 text-sm">de repos</p>
+              <p className="text-encre-3 text-sm">de repos</p>
             </>
           )}
         </div>
@@ -127,14 +127,14 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
       <div className="flex gap-4">
         <Button
           variant="outline"
-          className="w-20 h-14 text-base bg-zinc-800 border-zinc-700"
+          className="w-20 h-14 text-base bg-papier-2 border-filet"
           onClick={onSkip}
         >
           Skip
         </Button>
         <Button
           variant="outline"
-          className="w-20 h-14 text-base bg-zinc-800 border-zinc-700"
+          className="w-20 h-14 text-base bg-papier-2 border-filet"
           onClick={() => onExtend(30)}
         >
           +30s

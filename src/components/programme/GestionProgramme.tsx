@@ -150,8 +150,8 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
 
   if (!bloc) {
     return (
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-        <p className="text-zinc-400 text-sm">
+      <div className="bg-carte border border-filet rounded-lg p-4">
+        <p className="text-encre-2 text-sm">
           Aucun bloc actif. Crée un bloc pour commencer à programmer tes séances.
         </p>
       </div>
@@ -160,9 +160,9 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
 
   return (
     <div className="space-y-5">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-        <p className="text-white font-medium">{bloc.nom}</p>
-        <p className="text-zinc-500 text-sm mt-0.5">
+      <div className="bg-carte border border-filet rounded-lg p-4">
+        <p className="text-encre font-medium">{bloc.nom}</p>
+        <p className="text-encre-3 text-sm mt-0.5">
           Cycle {bloc.typeCycle}
           {bloc.semaineActuelle ? ` · semaine ${bloc.semaineActuelle}` : ""}
         </p>
@@ -171,8 +171,8 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
       {seances.map((s) => (
         <section key={s.id} className="space-y-2">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-white font-semibold">
-              <span className="text-zinc-500 mr-2">{s.lettre}</span>
+            <h2 className="text-encre font-semibold">
+              <span className="text-encre-3 mr-2">{s.lettre}</span>
               {s.nom}
             </h2>
             <Button variant="ghost" size="sm" onClick={() => setAjoutPour(s)}>
@@ -182,41 +182,41 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
           </div>
 
           {s.exercices.length === 0 ? (
-            <p className="text-zinc-500 text-sm bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+            <p className="text-encre-3 text-sm bg-carte border border-filet rounded-lg p-3">
               Séance vide — elle ne proposera aucun exercice.
             </p>
           ) : (
             <div className="space-y-2">
               {s.exercices.map((e) => (
-                <div key={e.ligneId} className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+                <div key={e.ligneId} className="bg-carte border border-filet rounded-lg p-3">
                   <div className="flex items-start gap-3">
-                    <span className="text-zinc-600 text-xs font-mono mt-1 w-4 shrink-0">{e.ordre}</span>
+                    <span className="text-encre-3 text-xs font-mono mt-1 w-4 shrink-0">{e.ordre}</span>
                     {e.exerciceSlug && (
                       <IllustrationExercice
                         slug={e.exerciceSlug}
                         nom={e.exerciceNom}
-                        className="w-9 h-9 shrink-0 text-zinc-400"
+                        className="w-9 h-9 shrink-0 text-encre-2"
                       />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium">{e.exerciceNom}</p>
-                      <p className="text-zinc-500 text-xs">{e.machineNom}</p>
+                      <p className="text-encre text-sm font-medium">{e.exerciceNom}</p>
+                      <p className="text-encre-3 text-xs">{e.machineNom}</p>
                       <div className="flex flex-wrap gap-2 mt-1.5">
-                        <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                        <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                           {e.seriesCibles} × {e.fourchetteRepsMin}-{e.fourchetteRepsMax}
                         </Badge>
                         {e.rpeCible && (
-                          <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                          <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                             RPE {e.rpeCible}
                           </Badge>
                         )}
                         {e.tempo && (
-                          <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                          <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                             tempo {e.tempo}
                           </Badge>
                         )}
                         {e.reposSecondes !== null && (
-                          <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                          <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                             {e.reposSecondes}s
                           </Badge>
                         )}
@@ -224,7 +224,7 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
                     </div>
                     <Button variant="ghost" size="icon" aria-label={`Retirer ${e.exerciceNom}`}
                       onClick={() => retirer(e)}>
-                      <Trash2 className="w-4 h-4 text-zinc-500" />
+                      <Trash2 className="w-4 h-4 text-encre-3" />
                     </Button>
                   </div>
                 </div>
@@ -234,15 +234,15 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
         </section>
       ))}
 
-      <Button variant="outline" className="w-full bg-zinc-900 border-zinc-700"
+      <Button variant="outline" className="w-full bg-carte border-filet"
         onClick={() => setCreationSeance(true)}>
         <Plus className="w-4 h-4 mr-2" />
         Ajouter une séance
       </Button>
 
       <Drawer open={creationSeance} onOpenChange={setCreationSeance}>
-        <DrawerContent className="bg-zinc-950 border-zinc-800 text-white">
-          <DrawerHeader><DrawerTitle className="text-white">Nouvelle séance</DrawerTitle></DrawerHeader>
+        <DrawerContent className="bg-papier border-filet text-encre">
+          <DrawerHeader><DrawerTitle className="text-encre">Nouvelle séance</DrawerTitle></DrawerHeader>
           <div className="px-4 pb-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="lettre">Lettre</Label>
@@ -262,18 +262,18 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
       </Drawer>
 
       <Drawer open={ajoutPour !== null} onOpenChange={(o) => !o && setAjoutPour(null)}>
-        <DrawerContent className="bg-zinc-950 border-zinc-800 text-white max-h-[90vh]">
+        <DrawerContent className="bg-papier border-filet text-encre max-h-[90vh]">
           <DrawerHeader>
-            <DrawerTitle className="text-white">Ajouter à « {ajoutPour?.nom} »</DrawerTitle>
+            <DrawerTitle className="text-encre">Ajouter à « {ajoutPour?.nom} »</DrawerTitle>
           </DrawerHeader>
           <div className="px-4 pb-6 space-y-4 overflow-y-auto">
             <div className="space-y-2">
               <Label>Machine</Label>
               {instanceId ? (
-                <div className="flex items-center justify-between gap-2 bg-zinc-900 border border-zinc-700 rounded-lg p-3">
-                  <span className="text-sm text-white min-w-0 truncate">
+                <div className="flex items-center justify-between gap-2 bg-carte border border-filet rounded-lg p-3">
+                  <span className="text-sm text-encre min-w-0 truncate">
                     {machines.find((m) => m.id === instanceId)?.exerciceNom}
-                    <span className="text-zinc-500"> · {machines.find((m) => m.id === instanceId)?.machineNom}</span>
+                    <span className="text-encre-3"> · {machines.find((m) => m.id === instanceId)?.machineNom}</span>
                   </span>
                   <Button variant="ghost" size="sm" onClick={() => setInstanceId("")}>Changer</Button>
                 </div>
@@ -281,22 +281,22 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
                 <>
                   <Input value={recherche} onChange={(e) => setRecherche(e.target.value)}
                     placeholder="Chercher une machine…" />
-                  <div className="max-h-56 overflow-y-auto space-y-1 border border-zinc-800 rounded-lg p-1">
+                  <div className="max-h-56 overflow-y-auto space-y-1 border border-filet rounded-lg p-1">
                     {machinesFiltrees.slice(0, 40).map((m) => (
                       <button key={m.id} type="button" onClick={() => setInstanceId(m.id)}
-                        className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-zinc-800 text-left">
+                        className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-papier-2 text-left">
                         {m.exerciceSlug && (
                           <IllustrationExercice slug={m.exerciceSlug} nom={m.exerciceNom}
-                            className="w-8 h-8 shrink-0 text-zinc-500" />
+                            className="w-8 h-8 shrink-0 text-encre-3" />
                         )}
                         <span className="flex-1 min-w-0">
-                          <span className="block text-white text-sm truncate">{m.exerciceNom}</span>
-                          <span className="block text-zinc-500 text-xs truncate">{m.machineNom} · {m.salleNom}</span>
+                          <span className="block text-encre text-sm truncate">{m.exerciceNom}</span>
+                          <span className="block text-encre-3 text-xs truncate">{m.machineNom} · {m.salleNom}</span>
                         </span>
                       </button>
                     ))}
                     {machinesFiltrees.length === 0 && (
-                      <p className="text-zinc-500 text-sm p-3">
+                      <p className="text-encre-3 text-sm p-3">
                         Aucune machine. Équipe d&apos;abord une salle.
                       </p>
                     )}

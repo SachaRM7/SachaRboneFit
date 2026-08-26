@@ -90,7 +90,7 @@ export function ProfilForm({ initial }: { initial: ProfilInitial }) {
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">Identité</h2>
+        <h2 className="text-sm font-semibold text-encre-2 uppercase tracking-wide">Identité</h2>
         <div className="space-y-2">
           <Label htmlFor="nom">Nom</Label>
           <Input id="nom" value={profil.nom ?? ""} onChange={(e) => modifier("nom", e.target.value)} />
@@ -110,7 +110,7 @@ export function ProfilForm({ initial }: { initial: ProfilInitial }) {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">Objectif</h2>
+        <h2 className="text-sm font-semibold text-encre-2 uppercase tracking-wide">Objectif</h2>
         <div className="space-y-2">
           <Label>Objectif principal</Label>
           <Select value={profil.objectifType ?? ""} onValueChange={(v) => modifier("objectifType", v)}>
@@ -134,7 +134,7 @@ export function ProfilForm({ initial }: { initial: ProfilInitial }) {
           </Select>
         </div>
         <div className="space-y-2">
-          <Label>Muscles prioritaires <span className="text-zinc-500">(4 max)</span></Label>
+          <Label>Muscles prioritaires <span className="text-encre-3">(4 max)</span></Label>
           <div className="flex flex-wrap gap-2">
             {MUSCLES.map((m) => {
               const actif = profil.objectifMusclesPrioritaires.includes(m);
@@ -142,7 +142,7 @@ export function ProfilForm({ initial }: { initial: ProfilInitial }) {
                 <button key={m} type="button" onClick={() => basculerMuscle(m)}
                   aria-pressed={actif}
                   className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                    actif ? "bg-white text-black border-white" : "bg-zinc-900 text-zinc-300 border-zinc-700"
+                    actif ? "bg-encre text-papier border-encre" : "bg-carte text-encre-2 border-filet"
                   }`}>
                   {LIBELLES[m]}
                 </button>
@@ -164,7 +164,7 @@ export function ProfilForm({ initial }: { initial: ProfilInitial }) {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">Entraînement</h2>
+        <h2 className="text-sm font-semibold text-encre-2 uppercase tracking-wide">Entraînement</h2>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
             <Label htmlFor="frequence">Séances par semaine</Label>

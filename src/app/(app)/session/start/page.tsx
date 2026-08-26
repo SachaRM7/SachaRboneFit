@@ -20,8 +20,8 @@ export default function SessionStartPage() {
 
 function EcranAttente({ message, erreur = false }: { message: string; erreur?: boolean }) {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center p-6">
-      <p className={erreur ? "text-red-500 text-center" : "text-white text-center"}>{message}</p>
+    <div className="min-h-screen bg-papier flex items-center justify-center p-6">
+      <p className={erreur ? "text-perte text-center" : "text-encre text-center"}>{message}</p>
     </div>
   );
 }
@@ -90,17 +90,17 @@ function ContenuDemarrage() {
 
   if (ecartes) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <div className="min-h-screen bg-papier flex items-center justify-center p-6">
         <div className="max-w-sm space-y-3">
-          <p className="text-white font-medium">Séance adaptée à cette salle</p>
+          <p className="text-encre font-medium">Séance adaptée à cette salle</p>
           <ul className="space-y-2">
             {ecartes.map((e) => (
-              <li key={e.exerciceNom} className="text-sm text-zinc-400">
-                <span className="text-zinc-300">{e.exerciceNom}</span> — {e.raison}
+              <li key={e.exerciceNom} className="text-sm text-encre-2">
+                <span className="text-encre-2">{e.exerciceNom}</span> — {e.raison}
               </li>
             ))}
           </ul>
-          <p className="text-zinc-600 text-xs">Ouverture de la séance…</p>
+          <p className="text-encre-3 text-xs">Ouverture de la séance…</p>
         </div>
       </div>
     );

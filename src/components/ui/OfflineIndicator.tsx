@@ -31,7 +31,7 @@ export function OfflineIndicator() {
 
   return (
     <div className="fixed top-2 right-2 z-50">
-      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-orange-600 text-white">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-feu-orange text-encre">
         <WifiOff className="w-3 h-3" />
         Hors ligne
       </div>

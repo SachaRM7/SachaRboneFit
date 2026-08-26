@@ -6,7 +6,7 @@ import { DailyStateForm } from "@/components/daily-state/DailyStateForm";
 
 export default function DailyStatePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><div className="text-zinc-500">Chargement...</div></div>}>
+    <Suspense fallback={<div className="min-h-screen bg-papier flex items-center justify-center"><div className="text-encre-3">Chargement...</div></div>}>
       <DailyStatePageContent />
     </Suspense>
   );
@@ -18,11 +18,11 @@ function DailyStatePageContent() {
   const preselectedGymId = searchParams.get("gymId") || undefined;
 
   return (
-    <div className="min-h-screen bg-black px-4 py-6">
+    <div className="min-h-screen bg-papier px-4 py-6">
       <div className="max-w-md mx-auto space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">État du jour</h1>
-          <p className="text-zinc-500 text-sm mt-1">Avant de démarrer ta séance</p>
+          <h1 className="text-2xl font-bold text-encre">État du jour</h1>
+          <p className="text-encre-3 text-sm mt-1">Avant de démarrer ta séance</p>
         </div>
         <DailyStateForm initialDate={date} preselectedGymId={preselectedGymId} />
       </div>

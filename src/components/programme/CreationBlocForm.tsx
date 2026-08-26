@@ -44,7 +44,7 @@ export function CreationBlocForm() {
   };
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4">
+    <div className="bg-carte border border-filet rounded-lg p-4 space-y-4">
       <div className="space-y-2">
         <Label htmlFor="nomBloc">Nom du bloc</Label>
         <Input id="nomBloc" value={nom} onChange={(e) => setNom(e.target.value)}

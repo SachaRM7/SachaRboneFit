@@ -33,39 +33,39 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
       <div>
         <div className="flex items-center gap-2 mb-2">
           <PilierBadge pilier={exercise.pilier} />
-          <Badge variant="outline" className="border-zinc-700 text-zinc-500">
+          <Badge variant="outline" className="border-filet text-encre-3">
             {exercise.profilTension}
           </Badge>
-          <Badge variant="outline" className="border-zinc-700 text-zinc-500">
+          <Badge variant="outline" className="border-filet text-encre-3">
             {exercise.type}
           </Badge>
         </div>
-        <h1 className="text-xl font-bold text-white">{exercise.nom}</h1>
+        <h1 className="text-xl font-bold text-encre">{exercise.nom}</h1>
         {exercise.musclesPrincipaux && exercise.musclesPrincipaux.length > 0 && (
-          <p className="text-zinc-500 text-sm mt-1">
+          <p className="text-encre-3 text-sm mt-1">
             Muscles: {exercise.musclesPrincipaux.join(", ")}
           </p>
         )}
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-white mb-3">Instances</h2>
+        <h2 className="text-lg font-semibold text-encre mb-3">Instances</h2>
         {instances.length === 0 ? (
-          <p className="text-zinc-500">Aucune instance. Ajoutez une machine dans une salle.</p>
+          <p className="text-encre-3">Aucune instance. Ajoutez une machine dans une salle.</p>
         ) : (
           <div className="space-y-3">
             {instances.map((inst) => (
-              <Card key={inst.id} className="bg-zinc-900 border-zinc-800">
+              <Card key={inst.id} className="bg-carte border-filet">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-white text-sm">{inst.machineNom}</CardTitle>
+                  <CardTitle className="text-encre text-sm">{inst.machineNom}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
-                  <p className="text-zinc-400 text-xs">{inst.gym?.nom}</p>
-                  <p className="text-zinc-500 text-xs">
+                  <p className="text-encre-2 text-xs">{inst.gym?.nom}</p>
+                  <p className="text-encre-3 text-xs">
                     Convention: {inst.conventionCharge} | Incréments: {inst.incrementsPossibles?.join(", ")}
                   </p>
                   {inst.poidsNonCompte && (
-                    <p className="text-zinc-500 text-xs">
+                    <p className="text-encre-3 text-xs">
                       Plateforme: {inst.poidsNonCompte} kg
                     </p>
                   )}

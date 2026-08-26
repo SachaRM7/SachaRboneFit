@@ -11,9 +11,9 @@ const sizeMap = {
 };
 
 const colorMap = {
-  vert: "bg-green-500",
-  orange: "bg-yellow-500",
-  rouge: "bg-red-500",
+  vert: "bg-feu-vert",
+  orange: "bg-feu-orange",
+  rouge: "bg-feu-rouge",
 };
 
 const labelMap = {
@@ -30,10 +30,10 @@ export function FeuBiologique({ feu, label, size = "md" }: FeuBiologiqueProps) {
   return (
     <div className="flex items-center gap-2">
       <div className={`${sizeClass} ${colorClass} rounded-full flex items-center justify-center`}>
-        <span className="text-white font-bold text-inherit">{displayLabel[0]!.toUpperCase()}</span>
+        <span className="text-encre font-bold text-inherit">{displayLabel[0]!.toUpperCase()}</span>
       </div>
       {label && size === "lg" && (
-        <span className="text-white text-sm font-medium">{label}</span>
+        <span className="text-encre text-sm font-medium">{label}</span>
       )}
     </div>
   );

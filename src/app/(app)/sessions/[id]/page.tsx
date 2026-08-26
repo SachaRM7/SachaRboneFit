@@ -51,15 +51,15 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold text-white">Séance du {session.date}</h1>
+      <h1 className="text-xl font-bold text-encre">Séance du {session.date}</h1>
 
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-carte border-filet">
         <CardContent className="pt-4 space-y-2">
-          {gym && <p className="text-zinc-400 text-sm">Salle: {gym.nom}</p>}
-          {template && <p className="text-zinc-400 text-sm">Template: {template.nom}</p>}
-          {session.dureeMinutes && <p className="text-zinc-400 text-sm">Durée: {session.dureeMinutes} min</p>}
-          {session.energieFin && <p className="text-zinc-400 text-sm">Énergie fin: {session.energieFin}/10</p>}
-          {session.notesSeance && <p className="text-zinc-500 text-sm mt-2">{session.notesSeance}</p>}
+          {gym && <p className="text-encre-2 text-sm">Salle: {gym.nom}</p>}
+          {template && <p className="text-encre-2 text-sm">Template: {template.nom}</p>}
+          {session.dureeMinutes && <p className="text-encre-2 text-sm">Durée: {session.dureeMinutes} min</p>}
+          {session.energieFin && <p className="text-encre-2 text-sm">Énergie fin: {session.energieFin}/10</p>}
+          {session.notesSeance && <p className="text-encre-3 text-sm mt-2">{session.notesSeance}</p>}
         </CardContent>
       </Card>
 
@@ -81,19 +81,19 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
           const machineNom = inst?.machineNom || "";
 
           return (
-            <Card key={exId} className="bg-zinc-900 border-zinc-800">
+            <Card key={exId} className="bg-carte border-filet">
               <CardHeader className="pb-2">
-                <CardTitle className="text-white text-sm">{exName}</CardTitle>
-                <p className="text-zinc-500 text-xs">{machineNom}</p>
+                <CardTitle className="text-encre text-sm">{exName}</CardTitle>
+                <p className="text-encre-3 text-xs">{machineNom}</p>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {exSets.map((set) => (
                     <div key={set.id} className="flex justify-between items-center text-sm">
-                      <span className="text-zinc-500">Série {set.numeroSerie}</span>
-                      <span className="text-white font-medium">
+                      <span className="text-encre-3">Série {set.numeroSerie}</span>
+                      <span className="text-encre font-medium">
                         {set.charge} kg × {set.repsEffectuees}
-                        {set.rpeEffectif && <span className="text-zinc-500"> — RPE {set.rpeEffectif}</span>}
+                        {set.rpeEffectif && <span className="text-encre-3"> — RPE {set.rpeEffectif}</span>}
                       </span>
                     </div>
                   ))}

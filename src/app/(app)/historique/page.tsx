@@ -7,9 +7,9 @@ import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { Badge } from "@/components/ui/badge";
 
 const COULEUR_FEU: Record<string, string> = {
-  vert: "bg-green-500",
-  orange: "bg-orange-500",
-  rouge: "bg-red-500",
+  vert: "bg-feu-vert",
+  orange: "bg-feu-orange",
+  rouge: "bg-feu-rouge",
 };
 
 function formaterDate(iso: string): string {
@@ -38,8 +38,8 @@ export default async function HistoriquePage() {
   if (seances.length === 0) {
     return (
       <div className="p-4">
-        <h1 className="text-xl font-bold text-white mb-4">Historique</h1>
-        <p className="text-zinc-500">Aucune séance enregistrée pour l&apos;instant.</p>
+        <h1 className="text-xl font-bold text-encre mb-4">Historique</h1>
+        <p className="text-encre-3">Aucune séance enregistrée pour l&apos;instant.</p>
       </div>
     );
   }
@@ -80,15 +80,15 @@ export default async function HistoriquePage() {
   return (
     <div className="p-4 space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-white">Historique</h1>
-        <p className="text-zinc-500 text-sm mt-1">
+        <h1 className="text-xl font-bold text-encre">Historique</h1>
+        <p className="text-encre-3 text-sm mt-1">
           {seances.length} séance{seances.length > 1 ? "s" : ""} enregistrée{seances.length > 1 ? "s" : ""}
         </p>
       </div>
 
       {[...parMois.entries()].map(([mois, liste]) => (
         <section key={mois} className="space-y-2">
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">
+          <h2 className="text-sm font-semibold text-encre-2 uppercase tracking-wide">
             {new Date(`${mois}-01T12:00:00`).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
           </h2>
           <div className="space-y-2">
@@ -97,44 +97,44 @@ export default async function HistoriquePage() {
               const template = s.seanceTemplateId ? nomTemplate.get(s.seanceTemplateId) : null;
               return (
                 <Link key={s.id} href={`/sessions/${s.id}`} className="block">
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3 hover:border-zinc-700 transition-colors">
+                  <div className="bg-carte border border-filet rounded-lg p-3 hover:border-filet transition-colors">
                     <div className="flex items-start gap-3">
                       {s.feuBiologiqueJour && (
                         <span
-                          className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${COULEUR_FEU[s.feuBiologiqueJour] ?? "bg-zinc-600"}`}
+                          className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${COULEUR_FEU[s.feuBiologiqueJour] ?? "bg-filet"}`}
                           aria-label={`Feu ${s.feuBiologiqueJour}`}
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-white font-medium text-sm">
+                        <p className="text-encre font-medium text-sm">
                           {template ? `${template.lettre} · ${template.nom}` : "Séance libre"}
                         </p>
-                        <p className="text-zinc-500 text-xs mt-0.5">
+                        <p className="text-encre-3 text-xs mt-0.5">
                           {formaterDate(s.date)}
                           {s.gymId && nomSalle.has(s.gymId) ? ` · ${nomSalle.get(s.gymId)}` : ""}
                         </p>
                         <div className="flex flex-wrap items-center gap-2 mt-1.5">
                           {stats ? (
                             <>
-                              <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                              <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                                 {stats.nbSeries} séries
                               </Badge>
-                              <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                              <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                                 {Math.round(stats.volume).toLocaleString("fr-FR")} kg de volume
                               </Badge>
                             </>
                           ) : (
-                            <Badge variant="outline" className="border-amber-700 text-amber-600 text-[10px]">
+                            <Badge variant="outline" className="border-feu-orange/40 text-feu-orange text-[10px]">
                               aucune série
                             </Badge>
                           )}
                           {s.dureeMinutes && (
-                            <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                            <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                               {s.dureeMinutes} min
                             </Badge>
                           )}
                           {s.volumeAjustePct !== null && s.volumeAjustePct !== 0 && (
-                            <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                            <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                               volume {s.volumeAjustePct} %
                             </Badge>
                           )}

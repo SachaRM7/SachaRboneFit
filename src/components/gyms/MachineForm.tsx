@@ -147,17 +147,17 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
         <div className="space-y-2">
           <Label htmlFor="recherche">Exercice réalisé sur cette machine</Label>
           {exerciceChoisi ? (
-            <div className="flex items-center gap-3 bg-zinc-900 border border-zinc-700 rounded-lg p-3">
+            <div className="flex items-center gap-3 bg-carte border border-filet rounded-lg p-3">
               {exerciceChoisi.slug && (
                 <IllustrationExercice
                   slug={exerciceChoisi.slug}
                   nom={exerciceChoisi.nom}
-                  className="w-9 h-9 shrink-0 text-zinc-400"
+                  className="w-9 h-9 shrink-0 text-encre-2"
                 />
               )}
               <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-medium">{exerciceChoisi.nom}</p>
-                <p className="text-zinc-500 text-xs">{exerciceChoisi.pilier}</p>
+                <p className="text-encre text-sm font-medium">{exerciceChoisi.nom}</p>
+                <p className="text-encre-3 text-xs">{exerciceChoisi.pilier}</p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setExerciseId("")}>
                 Changer
@@ -171,28 +171,28 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
                 onChange={(e) => setRecherche(e.target.value)}
                 placeholder="Chercher : développé, squat, tirage…"
               />
-              <div className="max-h-64 overflow-y-auto space-y-1 border border-zinc-800 rounded-lg p-1">
+              <div className="max-h-64 overflow-y-auto space-y-1 border border-filet rounded-lg p-1">
                 {resultats.map((e) => (
                   <button
                     key={e.id}
                     type="button"
                     onClick={() => setExerciseId(e.id)}
-                    className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-zinc-800 text-left"
+                    className="w-full flex items-center gap-3 p-2 rounded-md hover:bg-papier-2 text-left"
                   >
                     {e.slug && (
-                      <IllustrationExercice slug={e.slug} nom={e.nom} className="w-8 h-8 shrink-0 text-zinc-500" />
+                      <IllustrationExercice slug={e.slug} nom={e.nom} className="w-8 h-8 shrink-0 text-encre-3" />
                     )}
                     <span className="flex-1 min-w-0">
-                      <span className="block text-white text-sm truncate">{e.nom}</span>
-                      <span className="block text-zinc-500 text-xs">{e.pilier}</span>
+                      <span className="block text-encre text-sm truncate">{e.nom}</span>
+                      <span className="block text-encre-3 text-xs">{e.pilier}</span>
                     </span>
                     {e.dejaPresent && (
-                      <span className="text-[10px] text-amber-500 shrink-0">déjà dans la salle</span>
+                      <span className="text-[10px] text-feu-orange shrink-0">déjà dans la salle</span>
                     )}
                   </button>
                 ))}
                 {resultats.length === 0 && (
-                  <p className="text-zinc-500 text-sm p-3">Aucun exercice ne correspond.</p>
+                  <p className="text-encre-3 text-sm p-3">Aucun exercice ne correspond.</p>
                 )}
               </div>
             </>
@@ -208,7 +208,7 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
           onChange={(e) => setMachineNom(e.target.value)}
           placeholder="Matrix Perfect Squat, Pec Fly réglage 1…"
         />
-        <p className="text-zinc-600 text-xs">
+        <p className="text-encre-3 text-xs">
           Le nom que tu utilises dans cette salle. Le réglage fait partie de l&apos;identité de la machine.
         </p>
       </div>
@@ -252,13 +252,13 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
               key={p.libelle}
               type="button"
               onClick={() => setIncrements(p.valeurs.join(", "))}
-              className="px-2.5 py-1 rounded-full text-xs border border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white"
+              className="px-2.5 py-1 rounded-full text-xs border border-filet bg-carte text-encre-2 hover:text-encre"
             >
               {p.libelle}
             </button>
           ))}
         </div>
-        <p className="text-zinc-600 text-xs">
+        <p className="text-encre-3 text-xs">
           Les sauts réellement disponibles. C&apos;est ce qui détermine la charge proposée à la séance suivante.
         </p>
       </div>
@@ -273,7 +273,7 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
             onChange={(e) => setPoidsNonCompte(e.target.value)}
             placeholder="30.4"
           />
-          <p className="text-zinc-600 text-xs">Chariot à vide, barre guidée…</p>
+          <p className="text-encre-3 text-xs">Chariot à vide, barre guidée…</p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="chargeMax">Charge max (kg)</Label>
@@ -284,7 +284,7 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
             onChange={(e) => setChargeMax(e.target.value)}
             placeholder="100"
           />
-          <p className="text-zinc-600 text-xs">Plafond de la pile, si elle en a un.</p>
+          <p className="text-encre-3 text-xs">Plafond de la pile, si elle en a un.</p>
         </div>
       </div>
 
@@ -295,7 +295,7 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Souvent occupée aux heures de pointe, siège réglé au cran 4…"
-          className="bg-zinc-900 border-zinc-800 text-white"
+          className="bg-carte border-filet text-encre"
         />
       </div>
 

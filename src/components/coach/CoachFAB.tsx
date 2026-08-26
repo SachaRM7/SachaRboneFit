@@ -11,7 +11,7 @@ export function CoachFAB() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:bg-zinc-100 transition-colors"
+        className="fixed bottom-24 right-4 z-50 w-14 h-14 rounded-full bg-encre text-papier flex items-center justify-center shadow-lg hover:bg-encre/90 transition-colors"
         aria-label="Ouvrir le coach"
       >
         <MessageCircle className="w-6 h-6" />

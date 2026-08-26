@@ -68,8 +68,8 @@ export function GestionMachines({ gymId, machines, exercices }: Props) {
       </Button>
 
       {machines.length === 0 && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-          <p className="text-zinc-400 text-sm">
+        <div className="bg-carte border border-filet rounded-lg p-4">
+          <p className="text-encre-2 text-sm">
             Aucune machine référencée. Tant que le matériel n&apos;est pas décrit, une séance
             dans cette salle ne peut proposer aucun exercice.
           </p>
@@ -78,53 +78,53 @@ export function GestionMachines({ gymId, machines, exercices }: Props) {
 
       {[...parPilier.entries()].map(([pilier, liste]) => (
         <section key={pilier} className="space-y-2">
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wide">{pilier}</h2>
+          <h2 className="text-sm font-semibold text-encre-2 uppercase tracking-wide">{pilier}</h2>
           <div className="space-y-2">
             {liste.map((m) => (
-              <div key={m.id} className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
+              <div key={m.id} className="bg-carte border border-filet rounded-lg p-3">
                 <div className="flex items-start gap-3">
                   {m.exerciceSlug && (
                     <IllustrationExercice
                       slug={m.exerciceSlug}
                       nom={m.exerciceNom}
                       nbFrames={m.exerciceNbFrames}
-                      className="w-10 h-10 shrink-0 text-zinc-400"
+                      className="w-10 h-10 shrink-0 text-encre-2"
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium text-sm">{m.machineNom}</p>
-                    <p className="text-zinc-500 text-xs">{m.exerciceNom}</p>
+                    <p className="text-encre font-medium text-sm">{m.machineNom}</p>
+                    <p className="text-encre-3 text-xs">{m.exerciceNom}</p>
                     <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                      <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                      <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                         {LIBELLES_CONVENTION[m.conventionCharge as keyof typeof LIBELLES_CONVENTION] ?? m.conventionCharge}
                       </Badge>
                       {m.typePoulie && m.typePoulie !== "na" && (
-                        <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                        <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                           {LIBELLES_POULIE[m.typePoulie as keyof typeof LIBELLES_POULIE] ?? m.typePoulie}
                         </Badge>
                       )}
                       {m.chargeMax !== null && (
-                        <Badge variant="outline" className="border-zinc-700 text-zinc-500 text-[10px]">
+                        <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                           max {m.chargeMax} kg
                         </Badge>
                       )}
                     </div>
-                    <p className="text-zinc-600 text-xs mt-1.5">
+                    <p className="text-encre-3 text-xs mt-1.5">
                       Incréments : {m.incrementsPossibles?.join(", ")} kg
                       {m.poidsNonCompte ? ` · ${m.poidsNonCompte} kg non comptés` : ""}
                     </p>
                     {m.notesMachine && (
-                      <p className="text-zinc-600 text-xs mt-1 italic">{m.notesMachine}</p>
+                      <p className="text-encre-3 text-xs mt-1 italic">{m.notesMachine}</p>
                     )}
                   </div>
                   <div className="flex flex-col gap-1 shrink-0">
                     <Button variant="ghost" size="icon" aria-label={`Modifier ${m.machineNom}`}
                       onClick={() => ouvrirEdition(m)}>
-                      <Pencil className="w-4 h-4 text-zinc-400" />
+                      <Pencil className="w-4 h-4 text-encre-2" />
                     </Button>
                     <Button variant="ghost" size="icon" aria-label={`Supprimer ${m.machineNom}`}
                       disabled={suppression === m.id} onClick={() => supprimer(m)}>
-                      <Trash2 className="w-4 h-4 text-zinc-500" />
+                      <Trash2 className="w-4 h-4 text-encre-3" />
                     </Button>
                   </div>
                 </div>
@@ -135,9 +135,9 @@ export function GestionMachines({ gymId, machines, exercices }: Props) {
       ))}
 
       <Drawer open={ouvert} onOpenChange={setOuvert}>
-        <DrawerContent className="bg-zinc-950 border-zinc-800 text-white max-h-[90vh]">
+        <DrawerContent className="bg-papier border-filet text-encre max-h-[90vh]">
           <DrawerHeader>
-            <DrawerTitle className="text-white">
+            <DrawerTitle className="text-encre">
               {enEdition ? enEdition.machineNom : "Ajouter une machine"}
             </DrawerTitle>
           </DrawerHeader>

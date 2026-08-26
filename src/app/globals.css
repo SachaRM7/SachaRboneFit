@@ -172,6 +172,19 @@
   --feu-vert: #3F7A4A;
   --feu-orange: #C08418;
   --feu-rouge: #B23C2C;
+
+  /* Séries de graphique — la seule place où la couleur catégorise.
+     Ordre fixe, jamais recyclé : une 9ᵉ série devient « Autre ».
+     Validée : bande de clarté, plancher de chroma, séparation daltonisme
+     (ΔE ≥ 10 sur toutes les paires voisines) et contraste ≥ 3:1 sur le papier. */
+  --serie-1: #1F6FA8;
+  --serie-2: #B8641A;
+  --serie-3: #7A3A8C;
+  --serie-4: #3E8C3A;
+  --serie-5: #4A46B5;
+  --serie-6: #B5303F;
+  --serie-7: #0F8FA0;
+  --serie-8: #8C7A18;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -196,10 +209,21 @@
     --feu-vert: #6FBF87;
     --feu-orange: #DFA83A;
     --feu-rouge: #E07568;
+
+  /* Pas une inversion : ces pas sont choisis et validés contre le fond sombre. */
+    --serie-1: #4A93C4;
+    --serie-2: #C97C34;
+    --serie-3: #A165B4;
+    --serie-4: #57A84F;
+    --serie-5: #7A76D4;
+    --serie-6: #D1566A;
+    --serie-7: #249BAA;
+    --serie-8: #9E8A2C;
   }
 }
 
-:root[data-theme="dark"] {
+:root[data-theme="dark"],
+.dark {
   --papier: #16181C;
   --papier-2: #1D2025;
   --carte: #1F2228;
@@ -220,6 +244,16 @@
   --feu-vert: #6FBF87;
   --feu-orange: #DFA83A;
   --feu-rouge: #E07568;
+
+  /* Pas une inversion : ces pas sont choisis et validés contre le fond sombre. */
+  --serie-1: #4A93C4;
+  --serie-2: #C97C34;
+  --serie-3: #A165B4;
+  --serie-4: #57A84F;
+  --serie-5: #7A76D4;
+  --serie-6: #D1566A;
+  --serie-7: #249BAA;
+  --serie-8: #9E8A2C;
 }
 
 @theme inline {
@@ -240,6 +274,14 @@
   --color-feu-vert: var(--feu-vert);
   --color-feu-orange: var(--feu-orange);
   --color-feu-rouge: var(--feu-rouge);
+  --color-serie-1: var(--serie-1);
+  --color-serie-2: var(--serie-2);
+  --color-serie-3: var(--serie-3);
+  --color-serie-4: var(--serie-4);
+  --color-serie-5: var(--serie-5);
+  --color-serie-6: var(--serie-6);
+  --color-serie-7: var(--serie-7);
+  --color-serie-8: var(--serie-8);
 }
 
 /* Tout chiffre susceptible de changer doit être tabulaire : sans ça, la charge

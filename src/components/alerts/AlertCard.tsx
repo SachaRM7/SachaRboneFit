@@ -9,9 +9,9 @@ interface AlertCardProps {
 }
 
 const priorityStyles = {
-  info: "bg-blue-900/20 border-blue-700 text-blue-200",
-  warning: "bg-yellow-900/20 border-yellow-700 text-yellow-200",
-  danger: "bg-red-900/20 border-red-700 text-red-200",
+  info: "bg-papier-2 border-filet text-encre-2",
+  warning: "bg-feu-orange/10 border-feu-orange/30 text-feu-orange",
+  danger: "bg-perte-fond border-perte text-perte",
 };
 
 const priorityIcons = {
@@ -28,7 +28,7 @@ export function AlertCard({ alert }: AlertCardProps) {
       <Icon className="h-4 w-4" />
       <div className="flex-1">
         {alert.exerciseName && (
-          <AlertTitle className="text-white">{alert.exerciseName}</AlertTitle>
+          <AlertTitle className="text-encre">{alert.exerciseName}</AlertTitle>
         )}
         <AlertDescription>{alert.message}</AlertDescription>
       </div>

@@ -10,14 +10,14 @@ interface GymCardProps {
 export function GymCard({ gym, onClick }: GymCardProps) {
   return (
     <Card
-      className="bg-zinc-900 border-zinc-800 cursor-pointer hover:border-zinc-700 transition-colors"
+      className="bg-carte border-filet cursor-pointer hover:border-filet transition-colors"
       onClick={onClick}
     >
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
-          <CardTitle className="text-white text-base">{gym.nom}</CardTitle>
+          <CardTitle className="text-encre text-base">{gym.nom}</CardTitle>
           {gym.est24h && (
-            <Badge variant="outline" className="border-green-600 text-green-500 text-xs">
+            <Badge variant="outline" className="border-gain text-gain text-xs">
               24h
             </Badge>
           )}
@@ -25,10 +25,10 @@ export function GymCard({ gym, onClick }: GymCardProps) {
       </CardHeader>
       <CardContent className="space-y-2">
         {gym.horairesOuverture && (
-          <p className="text-zinc-400 text-sm">{gym.horairesOuverture}</p>
+          <p className="text-encre-2 text-sm">{gym.horairesOuverture}</p>
         )}
         {gym.notes && (
-          <p className="text-zinc-500 text-xs line-clamp-2">{gym.notes}</p>
+          <p className="text-encre-3 text-xs line-clamp-2">{gym.notes}</p>
         )}
       </CardContent>
     </Card>

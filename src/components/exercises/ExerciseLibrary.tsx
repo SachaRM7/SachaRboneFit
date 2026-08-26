@@ -50,7 +50,7 @@ export function ExerciseLibrary({ exercises, salles }: ExerciseLibraryProps) {
               onClick={() => setSalleId(TOUTES)}
               aria-pressed={salleId === TOUTES}
               className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                salleId === TOUTES ? "bg-white text-black border-white" : "bg-zinc-900 text-zinc-300 border-zinc-700"
+                salleId === TOUTES ? "bg-encre text-papier border-encre" : "bg-carte text-encre-2 border-filet"
               }`}
             >
               Tous les exercices
@@ -62,14 +62,14 @@ export function ExerciseLibrary({ exercises, salles }: ExerciseLibraryProps) {
                 onClick={() => setSalleId(s.id)}
                 aria-pressed={salleId === s.id}
                 className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                  salleId === s.id ? "bg-white text-black border-white" : "bg-zinc-900 text-zinc-300 border-zinc-700"
+                  salleId === s.id ? "bg-encre text-papier border-encre" : "bg-carte text-encre-2 border-filet"
                 }`}
               >
                 {s.nom}
               </button>
             ))}
           </div>
-          <p className="text-zinc-500 text-xs">
+          <p className="text-encre-3 text-xs">
             {salleId === TOUTES
               ? `${exercises.length} exercices au catalogue`
               : `${nbDisponibles} exercices réellement faisables dans cette salle`}

@@ -90,7 +90,7 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
   if (loading) {
     return (
       <div className="space-y-3">
-        <p className="text-zinc-500 text-sm">Analyse des progressions...</p>
+        <p className="text-encre-3 text-sm">Analyse des progressions...</p>
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="bg-papier-2 rounded-lg h-14 animate-pulse" />
         ))}

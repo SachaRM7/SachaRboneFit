@@ -68,11 +68,11 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
     <div className="p-4 space-y-5">
       <div className="flex items-center gap-3">
         <Link href={`/gyms/${id}`} aria-label="Retour à la salle">
-          <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5 text-white" /></Button>
+          <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5 text-encre" /></Button>
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-white">Matériel · {salle.nom}</h1>
-          <p className="text-zinc-500 text-sm">
+          <h1 className="text-xl font-bold text-encre">Matériel · {salle.nom}</h1>
+          <p className="text-encre-3 text-sm">
             {machines.length} machine{machines.length > 1 ? "s" : ""} sur {tousExercices.length} exercices au catalogue
           </p>
         </div>

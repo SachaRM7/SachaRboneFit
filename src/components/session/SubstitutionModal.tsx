@@ -72,22 +72,22 @@ export function SubstitutionModal({
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger>
-        <span className="inline-flex items-center justify-center px-3 py-1.5 text-sm border border-zinc-700 rounded-md bg-zinc-800 text-zinc-300 cursor-pointer hover:bg-zinc-700 hover:text-white">
+        <span className="inline-flex items-center justify-center px-3 py-1.5 text-sm border border-filet rounded-md bg-papier-2 text-encre-2 cursor-pointer hover:bg-papier-2 hover:text-encre">
           <ArrowLeftRight className="w-4 h-4 mr-1" />
           Remplacer
         </span>
       </DrawerTrigger>
-      <DrawerContent className="bg-zinc-950 border-zinc-800 text-white max-h-[80vh]">
+      <DrawerContent className="bg-papier border-filet text-encre max-h-[80vh]">
         <DrawerHeader>
-          <DrawerTitle className="text-white">
+          <DrawerTitle className="text-encre">
             Substituer {exerciseName}
           </DrawerTitle>
         </DrawerHeader>
         <div className="px-4 pb-4 space-y-2 overflow-y-auto max-h-[60vh]">
           {loading ? (
-            <div className="text-zinc-400 py-8 text-center">Chargement...</div>
+            <div className="text-encre-2 py-8 text-center">Chargement...</div>
           ) : substitutes.length === 0 ? (
-            <div className="text-zinc-500 py-8 text-center">
+            <div className="text-encre-3 py-8 text-center">
               Aucun substitut trouve
             </div>
           ) : (
@@ -98,22 +98,22 @@ export function SubstitutionModal({
                   onSelect?.(sub);
                   setOpen(false);
                 }}
-                className="w-full flex items-center justify-between p-3 bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-600 transition-colors"
+                className="w-full flex items-center justify-between p-3 bg-carte border border-filet rounded-lg hover:border-filet transition-colors"
               >
                 <div className="text-left">
-                  <p className="text-white font-medium">{sub.exerciseName}</p>
+                  <p className="text-encre font-medium">{sub.exerciseName}</p>
                   {sub.machineName && (
-                    <p className="text-zinc-500 text-sm">{sub.machineName}</p>
+                    <p className="text-encre-3 text-sm">{sub.machineName}</p>
                   )}
                 </div>
                 <Badge
                   variant="outline"
                   className={
                     sub.categorieRole === "pilier"
-                      ? "border-green-600 text-green-400"
+                      ? "border-gain text-gain"
                       : sub.categorieRole === "substitut"
-                      ? "border-blue-600 text-blue-400"
-                      : "border-zinc-600 text-zinc-400"
+                      ? "border-encre text-encre"
+                      : "border-filet text-encre-2"
                   }
                 >
                   {sub.categorieRole}
@@ -123,7 +123,7 @@ export function SubstitutionModal({
           )}
         </div>
         <DrawerClose>
-          <span className="inline-flex items-center justify-center w-full mx-4 mb-4 px-3 py-2 text-sm border border-zinc-700 rounded-md bg-zinc-800 text-zinc-300 cursor-pointer hover:bg-zinc-700 hover:text-white">
+          <span className="inline-flex items-center justify-center w-full mx-4 mb-4 px-3 py-2 text-sm border border-filet rounded-md bg-papier-2 text-encre-2 cursor-pointer hover:bg-papier-2 hover:text-encre">
             Fermer
           </span>
         </DrawerClose>

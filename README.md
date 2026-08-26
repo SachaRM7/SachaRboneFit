@@ -110,6 +110,19 @@ Tout chiffre susceptible de changer porte la classe `.chiffres`
 (`tabular-nums`) : sans elle, la charge saute latéralement à chaque appui
 sur +/− et on rate le bouton.
 
+**Une exception à la règle : les séries de graphique.** Un histogramme empilé à
+huit piliers a besoin de huit marques distinguables — c'est le seul endroit où la
+couleur catégorise. Les tokens `--serie-1` à `--serie-8` sont dans un ordre fixe,
+jamais recyclé, et les deux palettes (claire et sombre) ont été validées : bande
+de clarté, plancher de chroma, séparation daltonisme sur chaque paire voisine
+(ΔE ≥ 10) et contraste ≥ 3:1 sur le fond. La palette sombre est *choisie*, pas
+une inversion de la claire.
+
+**Thème clair / sombre.** L'application forçait `class="dark"` sur `<html>` : le
+thème clair était inatteignable. `next-themes`, installé mais inutilisé, pilote
+désormais le réglage, et les tokens répondent à `.dark` comme à
+`prefers-color-scheme`.
+
 ## Limites connues
 
 L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
@@ -122,9 +135,6 @@ L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
   compose pas encore une séance de zéro.
 - **Coach IA** — voir ci-dessus.
 - **PWA** — le service worker est vide et les icônes du manifest sont absentes.
-- **Design** — la direction Carnet est appliquée au parcours de séance
-  (séance active, fin de séance). Les autres écrans utilisent encore les
-  couleurs en dur héritées.
 - **Tests** — il n'y en a aucun.
 
 ## Documentation
