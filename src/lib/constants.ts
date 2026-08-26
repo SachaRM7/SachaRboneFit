@@ -1,3 +1,3 @@
-// Phase 1: single hardcoded user. Will be replaced by Supabase auth in Phase 3.
-export const MOCK_USER_ID = "00000000-0000-0000-0000-000000000001";
-export const MOCK_USER_EMAIL = "sacha@local";
+// Email de l'utilisateur cree par `npm run seed` en developpement.
+// Surchargeable via SEED_USER_EMAIL pour seeder un compte Supabase reel.
+export const SEED_USER_EMAIL = process.env.SEED_USER_EMAIL || "sacha@local";

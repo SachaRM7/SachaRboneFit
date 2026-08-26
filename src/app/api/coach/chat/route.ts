@@ -135,8 +135,9 @@ export async function POST(request: Request) {
       },
     });
 
-  } catch (llmError: any) {
-    if (llmError.message?.includes("API key") || llmError.message?.includes("not set")) {
+  } catch (llmError: unknown) {
+    const llmMessage = llmError instanceof Error ? llmError.message : String(llmError);
+    if (llmMessage.includes("API key") || llmMessage.includes("not set")) {
       return NextResponse.json(
         { error: "Le coach n'est pas disponible: clé API non configurée." },
         { status: 503 }

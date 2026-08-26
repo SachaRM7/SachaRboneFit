@@ -44,7 +44,7 @@ export default async function SessionDetailPage({ params, searchParams }: { para
     return acc;
   }, {} as Record<string, typeof sets>);
 
-  const typedSession = session as any;
+  const typedSession = session;
 
   return (
     <div className="p-4 space-y-4">

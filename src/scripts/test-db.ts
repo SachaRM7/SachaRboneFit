@@ -15,7 +15,7 @@ console.log("Testing connection to:", url.substring(0, 30) + "...");
 
 import("postgres").then(({ default: postgres }) => {
   const client = postgres(url, { prepare: false });
-  client.unsafe("SELECT 1").then((result: any) => {
+  client.unsafe("SELECT 1").then((result: unknown) => {
     console.log("✅ Connection successful!", result);
     client.end();
   }).catch((e: Error) => {

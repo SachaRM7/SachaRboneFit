@@ -16,19 +16,27 @@ interface ExerciseProgressionChartProps {
 }
 
 export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgressionChartProps) {
-  const [data, setData] = useState<DataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Le resultat porte la cle de la requete qui l'a produit. `loading` en derive,
+  // ce qui evite un setState synchrone en tete d'effet a chaque changement de cle.
+  const [result, setResult] = useState<{ cle: string; points: DataPoint[] } | null>(null);
   const [mode, setMode] = useState<"1rm" | "volume">("1rm");
+
+  const cle = `${instanceId}:${months}`;
+  const loading = result?.cle !== cle;
+  const data = result?.cle === cle ? result.points : [];
 
   useEffect(() => {
     if (!instanceId) return;
-    setLoading(true);
+    let annule = false;
     fetch(`/api/progression/exercise?instanceId=${instanceId}&months=${months}`)
       .then((r) => r.json())
-      .then((d) => {
-        setData(d);
-        setLoading(false);
+      .then((d: DataPoint[]) => {
+        if (!annule) setResult({ cle: `${instanceId}:${months}`, points: d ?? [] });
+      })
+      .catch(() => {
+        if (!annule) setResult({ cle: `${instanceId}:${months}`, points: [] });
       });
+    return () => { annule = true; };
   }, [instanceId, months]);
 
   if (loading) {
@@ -91,8 +99,8 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
                 borderRadius: "8px",
                 color: "#fff",
               }}
-              formatter={(value, name, props: any) => {
-                const point = data[props.dataPointIndex];
+              formatter={(value, name, props: { dataPointIndex?: number }) => {
+                const point = props.dataPointIndex === undefined ? undefined : data[props.dataPointIndex];
                 if (!point) return [value, mode === "1rm" ? "1RM" : "Volume"];
                 return [
                   `${value}${mode === "1rm" ? "kg" : "kg×rep"}`,

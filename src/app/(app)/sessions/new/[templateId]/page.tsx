@@ -14,8 +14,17 @@ import { SOSEnergie } from "@/components/session/SOSEnergie";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
 import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
+import type { ExerciceRestant } from "@/lib/sos/types";
+
+type Courbature = { muscle: string; intensite: number };
+interface TemplateResponse { nom: string; lettre?: string; exercises?: ExerciseFromTemplate[] }
 
 type SOSModal = "machine" | "douleur" | "energie" | "temps" | null;
+
+/** Le role vient de la base en texte libre : on le ramene aux trois valeurs du moteur. */
+function normaliserRole(role: string | null | undefined): ExerciceRestant["categorie_role"] {
+  return role === "pilier" || role === "substitut" ? role : "accessoire";
+}
 
 interface ExerciseFromTemplate {
   id: string;
@@ -239,13 +248,15 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
   const gymId = searchParams.get("gymId") || "";
   const router = useRouter();
   const { active, start, clear, setCurrentExerciseIndex, startRest, clearRest, extendRest, skipExercises, allegerExercises, upsertSet } = useSessionStore();
-  const [templateData, setTemplateData] = useState<any>(null);
+  const [templateData, setTemplateData] = useState<TemplateResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showTimer, setShowTimer] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
 
   // SOS modal state
   const [sosModal, setSOSModal] = useState<SOSModal>(null);
+  // Duree figee a l'ouverture de la modale : Date.now() pendant le rendu rend celui-ci non deterministe.
+  const [dureeSOSMin, setDureeSOSMin] = useState(0);
   const [exerciseInstances, setExerciseInstances] = useState<ExerciseInstanceWithExercise[]>([]);
   const [allInstances, setAllInstances] = useState<ExerciseInstanceWithExercise[]>([]);
   const [templateExerciseIds, setTemplateExerciseIds] = useState<string[]>([]);
@@ -258,7 +269,7 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
       .then((d) => {
         setTemplateData(d);
         if (d.exercises) {
-          setTemplateExerciseIds(d.exercises.map((e: any) => e.id));
+          setTemplateExerciseIds(d.exercises.map((e: ExerciseFromTemplate) => e.id));
           if (d.exercises.length > 0) {
             setCurrentExerciseId(d.exercises[0].id);
           }
@@ -285,8 +296,8 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
       .then((data) => {
         if (data?.courbatures) {
           const muscles = data.courbatures
-            .filter((c: any) => c.intensite >= 7)
-            .map((c: any) => c.muscle);
+            .filter((c: Courbature) => c.intensite >= 7)
+            .map((c: Courbature) => c.muscle);
           setMusclesCourbatures(muscles);
         }
       })
@@ -329,7 +340,7 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
     extendRest(extra);
   };
 
-  const handleIncident = async (data: { type: string; contexte: Record<string, any>; decision: string }) => {
+  const handleIncident = async (data: { type: string; contexte: Record<string, unknown>; decision: string }) => {
     if (!active) return;
     try {
       await fetch("/api/incidents", {
@@ -370,13 +381,13 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
   const skippedIds = active?.skippedExerciseIds || [];
   const rpeReductions = active?.rpeReductions || {};
 
-  const exercisesRestants = exercises
+  const exercisesRestants: ExerciceRestant[] = exercises
     .filter(e => !skippedIds.includes(e.id))
     .map(e => ({
       exercise_instance_id: e.id,
       nom: e.nom,
       muscles_principaux: e.musclesPrincipaux || [],
-      categorie_role: e.categorieRole || "accessoire",
+      categorie_role: normaliserRole(e.categorieRole),
       statut: "à_venir" as const,
       ordre: e.ordre,
     }));
@@ -395,7 +406,10 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
         onMachineOccupee={() => setSOSModal("machine")}
         onDouleur={() => setSOSModal("douleur")}
         onEnergie={() => setSOSModal("energie")}
-        onTempsDepasse={() => setSOSModal("temps")}
+        onTempsDepasse={() => {
+          setDureeSOSMin(active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0);
+          setSOSModal("temps");
+        }}
       />
 
       {/* Proactive Alert */}
@@ -491,7 +505,7 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
 
       {sosModal === "temps" && (
         <SOSTempsDepasse
-          dureeActuelleMin={active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0}
+          dureeActuelleMin={dureeSOSMin}
           dureeCibleMin={60}
           exercicesRestants={exercisesRestants}
           onClose={() => setSOSModal(null)}

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { dailyStates } from "@/db/schema";
@@ -29,7 +28,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const userId = await getAuthenticatedUserId();
-  console.log("[daily-state POST] userId:", userId);
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {

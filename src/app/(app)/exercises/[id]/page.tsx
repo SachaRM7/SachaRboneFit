@@ -60,7 +60,7 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
                   <CardTitle className="text-white text-sm">{inst.machineNom}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
-                  <p className="text-zinc-400 text-xs">{(inst as any).gym?.nom}</p>
+                  <p className="text-zinc-400 text-xs">{inst.gym?.nom}</p>
                   <p className="text-zinc-500 text-xs">
                     Convention: {inst.conventionCharge} | Incréments: {inst.incrementsPossibles?.join(", ")}
                   </p>

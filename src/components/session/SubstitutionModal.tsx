@@ -35,27 +35,39 @@ export function SubstitutionModal({
   onSelect,
 }: SubstitutionModalProps) {
   const [open, setOpen] = useState(false);
-  const [substitutes, setSubstitutes] = useState<SubstituteResult[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Le resultat porte la cle qui l'a produit : `loading` en derive, ce qui evite
+  // un setState synchrone en tete d'effet.
+  const [result, setResult] = useState<{ cle: string; items: SubstituteResult[] } | null>(null);
+
+  const cle = `${exerciseInstanceId}:${pilier}:${profilTension}:${gymId}`;
+  const loading = open && result?.cle !== cle;
+  const substitutes = result?.cle === cle ? result.items : [];
 
   useEffect(() => {
     if (!open) return;
-    setLoading(true);
+    let annule = false;
+    const cleCourante = `${exerciseInstanceId}:${pilier}:${profilTension}:${gymId}`;
     fetch("/api/exercise-instances")
       .then((r) => r.json())
       .then((data) => {
+        if (annule) return;
         const allInstances = Array.isArray(data) ? data : data.instances || [];
-        const results = findSubstitutes(allInstances, {
-          pilier,
-          profilTension,
-          gymId,
-          excludeExerciseIds: [exerciseInstanceId],
-          musclesAvecCourbatures,
+        setResult({
+          cle: cleCourante,
+          items: findSubstitutes(allInstances, {
+            pilier,
+            profilTension,
+            gymId,
+            excludeExerciseIds: [exerciseInstanceId],
+            musclesAvecCourbatures,
+          }),
         });
-        setSubstitutes(results);
-        setLoading(false);
+      })
+      .catch(() => {
+        if (!annule) setResult({ cle: cleCourante, items: [] });
       });
-  }, [open, exerciseInstanceId, pilier, profilTension, gymId]);
+    return () => { annule = true; };
+  }, [open, exerciseInstanceId, pilier, profilTension, gymId, musclesAvecCourbatures]);
 
   return (
     <Drawer open={open} onOpenChange={setOpen}>

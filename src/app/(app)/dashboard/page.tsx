@@ -7,6 +7,7 @@ import { FeuBiologique } from "@/components/ui/FeuBiologique";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { Calendar, Dumbbell, Activity, TrendingDown, Play } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
+import type { Alert } from "@/lib/engine/alerts";
 
 interface DashboardData {
   user: { nom: string; poidsActuel: number | null };
@@ -14,7 +15,7 @@ interface DashboardData {
   prochaineSeance: { lettre: string; templateId: string; templateNom: string };
   feuJour: "vert" | "orange" | "rouge" | null;
   feuTendance: "vert" | "orange" | "rouge" | null;
-  alertesPreSeance: any[];
+  alertesPreSeance: Alert[];
   poids30jours: Array<{ date: string; poids: number }>;
   precalcSession: { contenu: string } | null;
   weeklyDebrief: { contenu: string; weekStart: string } | null;
@@ -44,10 +45,19 @@ export default function DashboardPage() {
       });
   }, []);
 
-  // Detect stale session (>6h)
-  const isSessionStale = active && active.startedAt
-    ? Date.now() - active.startedAt > 6 * 60 * 60 * 1000
-    : false;
+  // Detect stale session (>6h). Date.now() ne doit pas etre appele pendant le rendu :
+  // le resultat depend de l'horloge, donc le rendu ne serait pas deterministe.
+  const [isSessionStale, setIsSessionStale] = useState(false);
+  useEffect(() => {
+    if (!active?.startedAt) return;
+    const startedAt = active.startedAt;
+    const check = () => setIsSessionStale(Date.now() - startedAt > 6 * 60 * 60 * 1000);
+    // Premiere evaluation differee : un setState synchrone dans l'effet declenche
+    // un rendu en cascade.
+    const premier = setTimeout(check, 0);
+    const id = setInterval(check, 60_000);
+    return () => { clearTimeout(premier); clearInterval(id); };
+  }, [active?.startedAt]);
   const canResume = active && !active.completedAt && !isSessionStale;
 
   const handleStart = () => {
@@ -231,7 +241,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              {data.alertesPreSeance.slice(0, 3).map((alert: any, i: number) => (
+              {data.alertesPreSeance.slice(0, 3).map((alert: Alert, i: number) => (
                 <div key={i} className="text-sm text-yellow-300 border-l-2 border-yellow-600 pl-3">
                   {alert.message}
                 </div>

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
   const userId = await getAuthenticatedUserId();
@@ -18,27 +18,43 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const { id, email, nom } = await request.json();
+  // Cree la ligne applicative users apres inscription Supabase.
+  // L'identite vient de la session authentifiee, jamais du corps de la requete :
+  // avant, cette route etait ouverte et acceptait un id et un email arbitraires.
+  const supabase = await createClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
 
-  if (!id || !email) {
-    return NextResponse.json({ error: "id and email are required" }, { status: 400 });
+  if (!authUser) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Check if user already exists
+  let nom: string | undefined;
+  try {
+    const body = await request.json();
+    nom = typeof body?.nom === "string" ? body.nom.trim() : undefined;
+  } catch {
+    // corps absent ou invalide : on se rabat sur les metadonnees Supabase
+  }
+
   const existing = await db.query.users.findFirst({
-    where: (u, { eq }) => eq(u.id, id),
+    where: (u, { eq }) => eq(u.id, authUser.id),
   });
 
   if (existing) {
     return NextResponse.json({ user: existing });
   }
 
+  const email = authUser.email;
+  if (!email) {
+    return NextResponse.json({ error: "Compte sans adresse email" }, { status: 400 });
+  }
+
   const [user] = await db
     .insert(users)
     .values({
-      id,
+      id: authUser.id,
       email,
-      nom: nom || email.split("@")[0],
+      nom: nom || (authUser.user_metadata?.nom as string | undefined) || email.split("@")[0],
     })
     .returning();
 

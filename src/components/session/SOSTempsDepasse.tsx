@@ -5,14 +5,15 @@ import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { tempsDepasse } from "@/lib/sos/temps-depasse";
 import { SOSResultat } from "./SOSResultat";
+import type { ExerciceRestant } from "@/lib/sos/types";
 
 interface SOSTempsDepasseProps {
   dureeActuelleMin: number;
   dureeCibleMin: number;
-  exercicesRestants: { exercise_instance_id: string; nom: string; seriesCibles?: number; reposSecondes?: number; ordre?: number; categorie_role: string; statut: string }[];
+  exercicesRestants: ExerciceRestant[];
   onClose: () => void;
   onApply: (exercicesCoupes: string[]) => void;
-  onIncident: (data: { type: string; contexte: Record<string, any>; decision: string }) => void;
+  onIncident: (data: { type: string; contexte: Record<string, unknown>; decision: string }) => void;
 }
 
 export function SOSTempsDepasse({
@@ -27,7 +28,7 @@ export function SOSTempsDepasse({
   const [resultData, setResultData] = useState<{ coupes: string[]; message: string } | null>(null);
 
   const handleApply = () => {
-    const result = tempsDepasse(dureeActuelleMin, dureeCibleMin, exercicesRestants as any, {});
+    const result = tempsDepasse(dureeActuelleMin, dureeCibleMin, exercicesRestants, {});
     setResultData({
       coupes: result.exercices_coupes,
       message: result.message,

@@ -64,7 +64,7 @@ export function GymForm({ defaultValues, gymId, onSuccess }: GymFormProps) {
       </div>
 
       <div>
-        <Label htmlFor="horairesOuverture">Horaires d'ouverture</Label>
+        <Label htmlFor="horairesOuverture">Horaires d&apos;ouverture</Label>
         <Input id="horairesOuverture" {...form.register("horairesOuverture")} placeholder="6h-23h" />
       </div>
 

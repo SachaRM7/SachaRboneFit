@@ -53,10 +53,20 @@ export async function GET(request: NextRequest) {
 
         const nextLetter = getNextSeanceLetter(lastSession);
 
-        // Find the next template (in a real implementation, look it up properly)
-        const nextTemplate = await db.query.seanceTemplates.findFirst({
-          where: eq(seanceTemplates.lettre, nextLetter),
-        });
+        // Le template doit appartenir a un bloc actif de CET utilisateur.
+        // Sans la jointure, ce lookup pouvait renvoyer le template d'un autre compte.
+        const [nextTemplate] = await db
+          .select({ id: seanceTemplates.id })
+          .from(seanceTemplates)
+          .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
+          .where(
+            and(
+              eq(programmeBlocs.userId, userId),
+              eq(programmeBlocs.actif, true),
+              eq(seanceTemplates.lettre, nextLetter),
+            ),
+          )
+          .limit(1);
 
         const tomorrow = getTomorrowDate();
         const targetDate = tomorrow;
@@ -81,7 +91,7 @@ export async function GET(request: NextRequest) {
 
         if (existing) {
           await db.update(precalcSessions)
-            .set({ contenu, contexteUtilise: context })
+            .set({ contenu, contexteUtilise: context as unknown as Record<string, unknown> })
             .where(eq(precalcSessions.id, existing.id));
         } else {
           await db.insert(precalcSessions).values({
@@ -89,7 +99,7 @@ export async function GET(request: NextRequest) {
             targetDate,
             seanceTemplateId: nextTemplate?.id || null,
             contenu,
-            contexteUtilise: context,
+            contexteUtilise: context as unknown as Record<string, unknown>,
           });
         }
 

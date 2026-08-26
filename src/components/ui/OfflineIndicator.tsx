@@ -1,53 +1,39 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getPendingMutations } from "@/lib/offline/mutation-queue";
 import { WifiOff } from "lucide-react";
 
+/**
+ * Indique la perte de connexion reseau.
+ *
+ * Ce composant affichait aussi un compteur de mutations en attente, alimente par
+ * une file IndexedDB (`lib/offline/mutation-queue`). Cette file n'etait jamais
+ * remplie : aucun appel a `queueMutation` n'existait dans l'application, donc le
+ * compteur valait toujours zero. La file a ete retiree en attendant un vrai
+ * service worker (phase 8) ; elle reste disponible dans l'historique git.
+ */
 export function OfflineIndicator() {
-  const [pendingCount, setPendingCount] = useState(0);
   const [isOffline, setIsOffline] = useState(false);
 
   useEffect(() => {
-    const updateStatus = async () => {
-      setIsOffline(!navigator.onLine);
-      const pending = await getPendingMutations();
-      setPendingCount(pending.length);
-    };
+    const updateStatus = () => setIsOffline(!navigator.onLine);
 
     updateStatus();
     window.addEventListener("online", updateStatus);
     window.addEventListener("offline", updateStatus);
 
-    // Poll periodically to update pending count
-    const interval = setInterval(updateStatus, 5000);
-
     return () => {
       window.removeEventListener("online", updateStatus);
       window.removeEventListener("offline", updateStatus);
-      clearInterval(interval);
     };
   }, []);
 
-  if (!isOffline && pendingCount === 0) return null;
+  if (!isOffline) return null;
 
   return (
     <div className="fixed top-2 right-2 z-50">
-      <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium ${
-        isOffline
-          ? "bg-orange-600 text-white"
-          : "bg-yellow-600 text-white"
-      }`}>
-        {isOffline ? (
-          <>
-            <WifiOff className="w-3 h-3" />
-            Hors ligne
-          </>
-        ) : (
-          <>
-            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-            {pendingCount} en attente
-          </>
-        )}
+      <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-orange-600 text-white">
+        <WifiOff className="w-3 h-3" />
+        Hors ligne
       </div>
     </div>
   );

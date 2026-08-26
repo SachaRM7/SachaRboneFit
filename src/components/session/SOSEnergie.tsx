@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { energieChute } from "@/lib/sos/energie-chute";
 import { SOSResultat } from "./SOSResultat";
+import type { ExerciceRestant } from "@/lib/sos/types";
 
 interface SOSEnergieProps {
-  exercicesRestants: { exercise_instance_id: string; nom: string; categorie_role: string; statut: string }[];
+  exercicesRestants: ExerciceRestant[];
   onClose: () => void;
   onApply: (exercicesCoupes: string[], rpeReduitSur: string[]) => void;
   onStopSeance: () => void;
-  onIncident: (data: { type: string; contexte: Record<string, any>; decision: string }) => void;
+  onIncident: (data: { type: string; contexte: Record<string, unknown>; decision: string }) => void;
 }
 
 export function SOSEnergie({ exercicesRestants, onClose, onApply, onStopSeance, onIncident }: SOSEnergieProps) {
@@ -21,7 +22,7 @@ export function SOSEnergie({ exercicesRestants, onClose, onApply, onStopSeance, 
   const [resultData, setResultData] = useState<{ coupes: string[]; rpeReduit: string[]; message: string } | null>(null);
 
   const handleApply = () => {
-    const result = energieChute(energie, exercicesRestants as any);
+    const result = energieChute(energie, exercicesRestants);
     setResultData({
       coupes: result.exercices_coupes,
       rpeReduit: result.rpe_reduit_sur,

@@ -64,7 +64,7 @@ export function SOSMachineOccupee({
         ) : result.substituts.length === 0 ? (
           <div className="text-center py-6">
             <p className="text-zinc-400">{result.message}</p>
-            <p className="text-zinc-500 text-sm mt-2">Tu peux passer à l'exercice suivant.</p>
+            <p className="text-zinc-500 text-sm mt-2">Tu peux passer à l&apos;exercice suivant.</p>
           </div>
         ) : (
           <div className="space-y-2">

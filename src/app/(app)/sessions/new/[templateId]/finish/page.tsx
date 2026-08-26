@@ -96,7 +96,6 @@ export default function FinishSessionPage() {
       (s) => s.repsEffectuees !== null && s.charge !== null
     );
 
-    console.log("[finish] validSets count:", validSets.length, "active sets:", active.sets.length);
 
     if (validSets.length === 0) {
       toast.error("Au moins une série est requise");

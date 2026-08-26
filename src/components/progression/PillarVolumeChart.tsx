@@ -10,7 +10,7 @@ interface PillarVolumeChartProps {
 const PILLIER_ORDER = ["poussee", "tirage", "squat", "hanche", "epaules", "bras", "jambes_iso", "core"];
 
 export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<Record<string, string | number>[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

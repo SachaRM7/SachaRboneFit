@@ -7,7 +7,7 @@ import type { IncidentType } from "./types";
 export async function createIncident(data: {
   sessionLogId: string;
   type: IncidentType;
-  contexte: Record<string, any>;
+  contexte: Record<string, unknown>;
   decision: string;
   impactProgramme?: string;
 }) {

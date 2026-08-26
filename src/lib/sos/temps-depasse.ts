@@ -56,7 +56,7 @@ export function tempsDepasse(
   }
 
   // Coupe : d'abord accessoires (en commençant par la fin), puis core
-  let coupes: string[] = [];
+  const coupes: string[] = [];
   let temps_estime_sec = temps_restant_sec;
 
   const accessoires = withTime.filter(ex => ex.categorie_role === "accessoire").reverse();

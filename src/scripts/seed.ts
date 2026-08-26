@@ -1,13 +1,16 @@
 import { config } from "dotenv";
 import path from "path";
 import postgres from "postgres";
-import { MOCK_USER_EMAIL } from "@/lib/constants";
+import { SEED_USER_EMAIL } from "@/lib/constants";
 
 // Load .env.local explicitly
 const projectRoot = path.resolve(__dirname, "../..");
 config({ path: path.join(projectRoot, ".env.local") });
 
 const db = postgres(process.env.DATABASE_URL!, { prepare: false });
+
+/** Ligne renvoyee par postgres.js : colonnes dynamiques, valeurs inconnues. */
+type SeedRow = { id: string; nom?: string };
 
 // Use SEED_USER_ID from env if provided, otherwise fall back to default for dev
 const SEED_USER_ID = process.env.SEED_USER_ID || "00000000-0000-0000-0000-000000000001";
@@ -27,18 +30,18 @@ async function main() {
 
   // 2. User
   await db`INSERT INTO users (id, email, nom, date_naissance, taille, phase_nutritionnelle, objectif_chiffre, date_cible)
-    VALUES (${SEED_USER_ID}, ${MOCK_USER_EMAIL}, 'Sacha', '2001-02-22', 193, 'seche', '93 kg masse propre été 2026', '2026-08-01')
+    VALUES (${SEED_USER_ID}, ${SEED_USER_EMAIL}, 'Sacha', '2001-02-22', 193, 'seche', '93 kg masse propre été 2026', '2026-08-01')
     ON CONFLICT (id) DO NOTHING`;
   console.log("✅ User inserted");
 
   // 3. Gyms
   const lalande = (await db`INSERT INTO gyms (user_id, nom, horaires_ouverture, est_24h, notes)
     VALUES (${SEED_USER_ID}, 'BasicFit Lalande', 'ferme 22h', false, 'Proche domicile, défaut')
-    RETURNING id`.then(r => r[0]))!;
+    RETURNING id`.then(r => r[0] as unknown as SeedRow))!;
 
   const sesquiere = (await db`INSERT INTO gyms (user_id, nom, horaires_ouverture, est_24h, notes)
     VALUES (${SEED_USER_ID}, 'BasicFit Sesquière', '24/24', true, 'Tardives, jours fériés')
-    RETURNING id`.then(r => r[0]))!;
+    RETURNING id`.then(r => r[0] as unknown as SeedRow))!;
   console.log("✅ Gyms inserted");
 
   // 4. Exercises
@@ -68,25 +71,25 @@ async function main() {
     { nom: "Back Extension", pilier: "P4_hanche", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "substitut", muscles_principaux: ["ischios", "fessiers"] },
   ];
 
-  const insertedExercises: any[] = [];
+  const insertedExercises: SeedRow[] = [];
   for (const e of exerciseData) {
     const row = (await db`INSERT INTO exercises (user_id, nom, pilier, profil_tension, type, categorie_role, muscles_principaux)
       VALUES (${SEED_USER_ID}, ${e.nom}, ${e.pilier}, ${e.profil_tension}, ${e.type}, ${e.categorie_role}, ${JSON.stringify(e.muscles_principaux)}::jsonb)
-      RETURNING *`.then(r => r[0]))!;
+      RETURNING *`.then(r => r[0] as unknown as SeedRow))!;
     insertedExercises.push(row);
   }
   console.log(`✅ ${insertedExercises.length} exercises inserted`);
 
   // 5. Exercise Instances (Lalande)
-  const chestPressEx = insertedExercises.find((e: any) => e.nom === "Lying Machine Chest Press")!;
-  const hackSquatEx = insertedExercises.find((e: any) => e.nom === "Wide Stance Hack Squat (Matrix Perfect Squat)")!;
-  const pecFlyEx = insertedExercises.find((e: any) => e.nom === "Seated Pec Fly")!;
-  const lateralRaiseEx = insertedExercises.find((e: any) => e.nom === "Machine Lateral Raise")!;
-  const tricepsExtEx = insertedExercises.find((e: any) => e.nom === "Overhead Cable Triceps Extension")!;
-  const pallofEx = insertedExercises.find((e: any) => e.nom === "Pallof Press")!;
-  const pressEx = insertedExercises.find((e: any) => e.nom === "Standing Military Press Machine")!;
-  const rowEx = insertedExercises.find((e: any) => e.nom === "Wide-Grip Seated Cable Row")!;
-  const curlEx = insertedExercises.find((e: any) => e.nom === "EZ-Bar Preacher Curl")!;
+  const chestPressEx = insertedExercises.find((e: SeedRow) => e.nom === "Lying Machine Chest Press")!;
+  const hackSquatEx = insertedExercises.find((e: SeedRow) => e.nom === "Wide Stance Hack Squat (Matrix Perfect Squat)")!;
+  const pecFlyEx = insertedExercises.find((e: SeedRow) => e.nom === "Seated Pec Fly")!;
+  const lateralRaiseEx = insertedExercises.find((e: SeedRow) => e.nom === "Machine Lateral Raise")!;
+  const tricepsExtEx = insertedExercises.find((e: SeedRow) => e.nom === "Overhead Cable Triceps Extension")!;
+  const pallofEx = insertedExercises.find((e: SeedRow) => e.nom === "Pallof Press")!;
+  const pressEx = insertedExercises.find((e: SeedRow) => e.nom === "Standing Military Press Machine")!;
+  const rowEx = insertedExercises.find((e: SeedRow) => e.nom === "Wide-Grip Seated Cable Row")!;
+  const curlEx = insertedExercises.find((e: SeedRow) => e.nom === "EZ-Bar Preacher Curl")!;
 
   const instanceData = [
     { exerciseId: chestPressEx.id, machineNom: "Lying Machine Chest Press", typePoulie: "na", conventionCharge: "pile_affichee", incrementsPossibles: [5], poidsNonCompte: null },
@@ -100,21 +103,22 @@ async function main() {
     { exerciseId: curlEx.id, machineNom: "Preacher Curl", typePoulie: "na", conventionCharge: "poids_total", incrementsPossibles: [1.25, 2.5, 5], poidsNonCompte: null },
   ];
 
-  const instances: any[] = [];
+  const instances: SeedRow[] = [];
   for (const inst of instanceData) {
     const row = (await db`INSERT INTO exercise_instances (user_id, exercise_id, gym_id, machine_nom, type_poulie, convention_charge, increments_possibles, poids_non_compte)
       VALUES (${SEED_USER_ID}, ${inst.exerciseId}, ${lalande.id}, ${inst.machineNom}, ${inst.typePoulie}, ${inst.conventionCharge}, ${JSON.stringify(inst.incrementsPossibles)}::jsonb, ${inst.poidsNonCompte})
-      RETURNING *`.then(r => r[0]))!;
+      RETURNING *`.then(r => r[0] as unknown as SeedRow))!;
     instances.push(row);
   }
   console.log(`✅ ${instances.length} exercise instances inserted`);
 
-  const [chestPressInst, hackSquatInst] = instances;
+  const chestPressInst = instances[0]!;
+  const hackSquatInst = instances[1]!;
 
   // 6. Bloc + Templates
   const bloc = (await db`INSERT INTO programme_blocs (user_id, nom, date_debut, type_cycle, semaine_actuelle, actif)
     VALUES (${SEED_USER_ID}, 'Bloc 1 Cycle 1 Mécanique', '2026-04-01', 'mecanique', 1, true)
-    RETURNING *`.then(r => r[0]))!;
+    RETURNING *`.then(r => r[0] as unknown as SeedRow))!;
   console.log("✅ Programme bloc inserted");
 
   const seanceData = [
@@ -123,16 +127,17 @@ async function main() {
     { lettre: "C", nom: "Séance C - Epaule + Bras", ordre: 3 },
   ];
 
-  const seances: any[] = [];
+  const seances: SeedRow[] = [];
   for (const s of seanceData) {
     const row = (await db`INSERT INTO seance_templates (bloc_id, lettre, nom, ordre_dans_semaine)
       VALUES (${bloc.id}, ${s.lettre}, ${s.nom}, ${s.ordre})
-      RETURNING *`.then(r => r[0]))!;
+      RETURNING *`.then(r => r[0] as unknown as SeedRow))!;
     seances.push(row);
   }
   console.log("✅ Seance templates inserted");
 
-  const [seanceA, seanceB, seanceC] = seances;
+  const seanceA = seances[0]!;
+  const seanceB = seances[1]!;
 
   // 7. ExerciseInTemplate
   await db`INSERT INTO exercise_in_template (seance_template_id, exercise_instance_id, ordre, series_cibles, fourchette_reps_min, fourchette_reps_max, rpe_cible, tempo, repos_secondes)
@@ -144,7 +149,7 @@ async function main() {
   // 8. SessionLog 06/04/2026
   const sessionLog1 = (await db`INSERT INTO session_logs (user_id, seance_template_id, date, gym_id, duree_minutes, energie_fin, feu_biologique_jour, volume_ajuste_pct, volume_ajuste_raison)
     VALUES (${SEED_USER_ID}, ${seanceA.id}, '2026-04-06', ${lalande.id}, 65, 70, 'orange', -25, 'sommeil 4h seulement')
-    RETURNING *`.then(r => r[0]))!;
+    RETURNING *`.then(r => r[0] as unknown as SeedRow))!;
 
   await db`INSERT INTO set_logs (session_log_id, exercise_instance_id, numero_serie, reps_effectuees, charge, rpe_effectif)
     VALUES (${sessionLog1.id}, ${chestPressInst.id}, 1, 6, 80, 8)`;

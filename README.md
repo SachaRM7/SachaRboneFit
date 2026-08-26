@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SachaRboneFit
 
-## Getting Started
+Application personnelle d'entraînement adaptatif. Elle n'est pas un carnet de
+musculation générique : elle est conçue pour **un** utilisateur, et son objectif est
+d'adapter chaque séance à son état du jour, à la salle où il se trouve, au matériel
+réellement disponible sur place et à son historique de performances.
 
-First, run the development server:
+## Le vocabulaire du produit
+
+| Notion | Ce que ça veut dire |
+| --- | --- |
+| **Pilier** | Patron de mouvement : `P1_poussee`, `P2_tirage`, `P3_squat`, `P4_hanche`, puis `epaules`, `bras_biceps`, `bras_triceps`, `jambes_iso`, `core`. Axe structurant du programme. |
+| **Profil de tension** | `stretch` / `mi_range` / `contract` — région de la courbe force-longueur où l'exercice charge le muscle. Critère de substitution. |
+| **Catégorie de rôle** | `pilier` / `substitut` / `accessoire`. Détermine ce qu'on protège et ce qu'on coupe quand le volume doit baisser. |
+| **Feu biologique** | État de la journée : `vert` / `orange` / `rouge`. Un feu *du jour* (sommeil, énergie, courbatures) et un feu *de tendance* (évolution du 1RM des piliers sur 3 séances). |
+| **Exercise instance** | Un exercice **sur une machine précise d'une salle précise**, avec sa convention de charge et ses incréments réels. C'est la pièce maîtresse du modèle. |
+| **SOS** | Quatre secours en séance : machine occupée, douleur, chute d'énergie, temps dépassé. |
+
+## Stack
+
+- **Next.js 16** (App Router, React 19). Le middleware suit la nouvelle convention `src/proxy.ts`.
+- **Postgres** via Supabase, **Drizzle ORM** (`src/db/schema.ts`).
+- **Supabase Auth** (`@supabase/ssr`).
+- **Zustand** (persistance locale de la séance en cours), **Tailwind 4**, **Recharts**.
+
+## Démarrer
 
 ```bash
+npm install
+cp .env.example .env.local         # puis renseigner les variables ci-dessous
+npm run seed                       # données de développement
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Variables d'environnement
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Rôle |
+| --- | --- |
+| `DATABASE_URL` | Connexion Postgres directe (Drizzle). |
+| `NEXT_PUBLIC_SUPABASE_URL` | Projet Supabase. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clé publique Supabase. |
+| `SEED_USER_ID` | UUID du compte à seeder. Doit correspondre à un utilisateur Supabase réel. |
+| `SEED_USER_EMAIL` | Email du compte seedé (défaut `sacha@local`). |
+| `CRON_SECRET` | Protège les routes `/api/cron/*`. |
+| `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Coach IA (optionnel — voir Limites). |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Scripts
 
-## Learn More
+| Commande | Effet |
+| --- | --- |
+| `npm run dev` | Serveur de développement. |
+| `npm run build` | Build de production. |
+| `npm run lint` | ESLint. Doit rester à **zéro erreur**. |
+| `npm run seed` | **Destructif** : `TRUNCATE` puis réinsertion des données de développement. |
+| `npx tsc --noEmit` | Vérification de types. Doit rester à **zéro erreur**. |
 
-To learn more about Next.js, take a look at the following resources:
+## Base de données
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Les migrations vivent dans `src/db/migrations/` et sont générées par
+`npx drizzle-kit generate`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`0000_baseline.sql` **décrit le schéma tel qu'il existait déjà** — il a été produit
+après coup, à partir d'un schéma appliqué en `drizzle-kit push`. Sur une base déjà
+en service, ne le rejoue pas : marque-le comme appliqué. Sur une base vierge, il crée
+tout le schéma.
 
-## Deploy on Vercel
+Les politiques RLS sont dans `supabase/migrations/` et s'appliquent à la main dans
+l'éditeur SQL de Supabase.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+> **Attention** : l'application se connecte à Postgres avec `DATABASE_URL`, un rôle qui
+> **contourne la RLS**. La sécurité repose donc sur le filtrage `userId` explicite dans
+> chaque route API, pas sur les politiques. Toute nouvelle route doit scoper ses requêtes.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Limites connues
+
+L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
+
+- **Coach IA** — le flux SSE n'est pas décodé et les outils (`src/lib/coach/tools.ts`)
+  ne sont jamais transmis au modèle. Les réponses affichées sont du protocole brut.
+- **Cron `precalc-session`** — écrit un contenu fixe en base, ce n'est pas une
+  génération réelle.
+- **Ajustement de volume** — calculé et stocké, mais jamais appliqué aux séries affichées.
+- **Courbatures et douleurs** — saisies et stockées, sans effet sur la séance
+  (trois vocabulaires musculaires incompatibles coexistent).
+- **Programmes et séances** — aucun chemin de création dans l'application ; seul
+  `npm run seed` en produit.
+- **PWA** — le service worker est vide et les icônes du manifest sont absentes.
+- **Tests** — il n'y en a aucun.
+
+## Documentation
+
+`docs/phase-1.md` à `docs/phase-5.md` sont une **archive d'intention** : elles décrivent
+ce qui était prévu à chaque phase, pas ce qui fonctionne. Le code est la source de vérité.
+
+## Crédits
+
+Les illustrations d'exercices proviennent de
+[workout-guide](https://github.com/bryllim/workout-guide) par Bryl Lim, d'après
+[Everkinetic](https://github.com/everkinetic/data), sous licence
+[CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/).

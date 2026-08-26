@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { douleur } from "@/lib/sos/douleur";
 import { SOSResultat } from "./SOSResultat";
-import type { DouleurResult } from "@/lib/sos/types";
+import type { DouleurResult, ExerciceRestant } from "@/lib/sos/types";
 
 const ZONES = ["épaule", "bas du dos", "genou", "poignet", "coude", "cou", "hanche", "cheville", "quadriceps", "ischios", "pectoraux", "dorsaux"];
 const TYPES = [
@@ -17,12 +17,12 @@ const TYPES = [
 ] as const;
 
 interface SOSDouleurProps {
-  exercicesRestants: { exercise_instance_id: string; nom: string; muscles_principaux: string[]; categorie_role: string; statut: string }[];
+  exercicesRestants: ExerciceRestant[];
   onClose: () => void;
   onStopSeance: () => void;
   onSkipExercices: (ids: string[]) => void;
   onAllegerExercices: (ids: string[]) => void;
-  onIncident: (data: { type: string; contexte: Record<string, any>; decision: string }) => void;
+  onIncident: (data: { type: string; contexte: Record<string, unknown>; decision: string }) => void;
   sessionLogId: string;
 }
 
@@ -42,7 +42,7 @@ export function SOSDouleur({
   const [showResult, setShowResult] = useState(false);
 
   const handleEvaluate = () => {
-    const res = douleur(zone, niveau, typeDouleur, exercicesRestants as any);
+    const res = douleur(zone, niveau, typeDouleur, exercicesRestants);
     setResult(res);
     setShowResult(true);
 

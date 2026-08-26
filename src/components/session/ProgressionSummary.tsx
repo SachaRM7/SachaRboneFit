@@ -43,10 +43,8 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
 
   useEffect(() => {
     const uniqueInstances = [...new Set(sets.map((s) => s.exerciseInstanceId))];
-    if (uniqueInstances.length === 0) {
-      setLoading(false);
-      return;
-    }
+    // Pas de setState synchrone ici : le cas vide est derive au rendu (voir plus bas).
+    if (uniqueInstances.length === 0) return;
 
     Promise.all(
       uniqueInstances.map(async (instanceId) => {
@@ -78,13 +76,13 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
           lastBest1RM,
           lastVolume,
           lastSets,
-          delta: lastBest1RM === null ? "new" : currentBest1RM > lastBest1RM ? "up" : currentBest1RM < lastBest1RM ? "down" : "same",
+          delta: (lastBest1RM === null ? "new" : currentBest1RM > lastBest1RM ? "up" : currentBest1RM < lastBest1RM ? "down" : "same") as "up" | "down" | "same" | "new",
           completedRange: false,
           suggestedCharge: null,
         };
       })
     ).then((results) => {
-      setExercises(results as any);
+      setExercises(results);
       setLoading(false);
     });
   }, [sets]);

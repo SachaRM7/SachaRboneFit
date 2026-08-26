@@ -1,4 +1,5 @@
 import { pgTable, uuid, text, boolean, timestamp, real, integer, jsonb, date, unique } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -178,7 +179,7 @@ export const sessionIncidents = pgTable("session_incidents", {
   id: uuid("id").defaultRandom().primaryKey(),
   sessionLogId: uuid("session_log_id").references(() => sessionLogs.id).notNull(),
   type: text("type").notNull(), // 'machine_occupee' | 'douleur' | 'energie_chute' | 'temps_depasse'
-  contexte: jsonb("contexte").$type<Record<string, any>>().notNull(),
+  contexte: jsonb("contexte").$type<Record<string, unknown>>().notNull(),
   decision: text("decision").notNull(),
   impactProgramme: text("impact_programme"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -190,7 +191,7 @@ export const precalcSessions = pgTable("precalc_sessions", {
   targetDate: date("target_date").notNull(),
   seanceTemplateId: uuid("seance_template_id").references(() => seanceTemplates.id),
   contenu: text("contenu").notNull(),
-  contexteUtilise: jsonb("contexte_utilise").$type<Record<string, any>>(),
+  contexteUtilise: jsonb("contexte_utilise").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userDateUnique: unique("precalc_user_date_unique").on(table.userId, table.targetDate),
@@ -213,6 +214,96 @@ export const weeklyDebriefs = pgTable("weekly_debriefs", {
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userWeekUnique: unique("weekly_debrief_user_week_unique").on(table.userId, table.weekStart),
+}));
+
+
+// ---------------------------------------------------------------------------
+// Relations
+//
+// Sans ces declarations, toute requete `db.query.X.findMany({ with: { ... } })`
+// echoue a l'execution : Drizzle ne connait pas le lien. Cinq appels du code
+// (fiche exercice, routes exercices/instances, outils du coach) en dependaient.
+// ---------------------------------------------------------------------------
+
+export const usersRelations = relations(users, ({ many }) => ({
+  gyms: many(gyms),
+  exercises: many(exercises),
+  exerciseInstances: many(exerciseInstances),
+  sessionLogs: many(sessionLogs),
+  dailyStates: many(dailyStates),
+  bodyWeights: many(bodyWeights),
+  programmeBlocs: many(programmeBlocs),
+}));
+
+export const gymsRelations = relations(gyms, ({ one, many }) => ({
+  user: one(users, { fields: [gyms.userId], references: [users.id] }),
+  exerciseInstances: many(exerciseInstances),
+}));
+
+export const exercisesRelations = relations(exercises, ({ one, many }) => ({
+  user: one(users, { fields: [exercises.userId], references: [users.id] }),
+  instances: many(exerciseInstances),
+}));
+
+export const exerciseInstancesRelations = relations(exerciseInstances, ({ one, many }) => ({
+  user: one(users, { fields: [exerciseInstances.userId], references: [users.id] }),
+  exercise: one(exercises, { fields: [exerciseInstances.exerciseId], references: [exercises.id] }),
+  gym: one(gyms, { fields: [exerciseInstances.gymId], references: [gyms.id] }),
+  setLogs: many(setLogs),
+  templateEntries: many(exerciseInTemplate),
+}));
+
+export const programmeBlocsRelations = relations(programmeBlocs, ({ one, many }) => ({
+  user: one(users, { fields: [programmeBlocs.userId], references: [users.id] }),
+  seanceTemplates: many(seanceTemplates),
+}));
+
+export const seanceTemplatesRelations = relations(seanceTemplates, ({ one, many }) => ({
+  bloc: one(programmeBlocs, { fields: [seanceTemplates.blocId], references: [programmeBlocs.id] }),
+  exercises: many(exerciseInTemplate),
+  sessionLogs: many(sessionLogs),
+}));
+
+export const exerciseInTemplateRelations = relations(exerciseInTemplate, ({ one }) => ({
+  seanceTemplate: one(seanceTemplates, { fields: [exerciseInTemplate.seanceTemplateId], references: [seanceTemplates.id] }),
+  exerciseInstance: one(exerciseInstances, { fields: [exerciseInTemplate.exerciseInstanceId], references: [exerciseInstances.id] }),
+}));
+
+export const dailyStatesRelations = relations(dailyStates, ({ one, many }) => ({
+  user: one(users, { fields: [dailyStates.userId], references: [users.id] }),
+  sessionLogs: many(sessionLogs),
+}));
+
+export const sessionLogsRelations = relations(sessionLogs, ({ one, many }) => ({
+  user: one(users, { fields: [sessionLogs.userId], references: [users.id] }),
+  seanceTemplate: one(seanceTemplates, { fields: [sessionLogs.seanceTemplateId], references: [seanceTemplates.id] }),
+  dailyState: one(dailyStates, { fields: [sessionLogs.dailyStateId], references: [dailyStates.id] }),
+  gym: one(gyms, { fields: [sessionLogs.gymId], references: [gyms.id] }),
+  setLogs: many(setLogs),
+  incidents: many(sessionIncidents),
+}));
+
+export const setLogsRelations = relations(setLogs, ({ one }) => ({
+  sessionLog: one(sessionLogs, { fields: [setLogs.sessionLogId], references: [sessionLogs.id] }),
+  exerciseInstance: one(exerciseInstances, { fields: [setLogs.exerciseInstanceId], references: [exerciseInstances.id] }),
+}));
+
+export const bodyWeightsRelations = relations(bodyWeights, ({ one }) => ({
+  user: one(users, { fields: [bodyWeights.userId], references: [users.id] }),
+}));
+
+export const coachConversationsRelations = relations(coachConversations, ({ one, many }) => ({
+  user: one(users, { fields: [coachConversations.userId], references: [users.id] }),
+  sessionLog: one(sessionLogs, { fields: [coachConversations.sessionLogId], references: [sessionLogs.id] }),
+  messages: many(coachMessages),
+}));
+
+export const coachMessagesRelations = relations(coachMessages, ({ one }) => ({
+  conversation: one(coachConversations, { fields: [coachMessages.conversationId], references: [coachConversations.id] }),
+}));
+
+export const sessionIncidentsRelations = relations(sessionIncidents, ({ one }) => ({
+  sessionLog: one(sessionLogs, { fields: [sessionIncidents.sessionLogId], references: [sessionLogs.id] }),
 }));
 
 // Inferred types

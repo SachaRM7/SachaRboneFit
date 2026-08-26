@@ -28,11 +28,8 @@ function SessionStartPageContent() {
     const date = searchParams.get("date");
     const gymId = searchParams.get("gymId");
 
-    if (!dailyStateId || !date || !gymId) {
-      setError("Parametres manquants");
-      setLoading(false);
-      return;
-    }
+    // Cas derive au rendu (voir parametresManquants) : pas de setState synchrone ici.
+    if (!dailyStateId || !date || !gymId) return;
 
     fetch(`/api/daily-state?date=${date}`)
       .then((r) => r.json())
@@ -74,7 +71,7 @@ function SessionStartPageContent() {
         const templatesRes = await fetch("/api/sessions");
         const templatesData = await templatesRes.json();
         const templates = Array.isArray(templatesData) ? templatesData : templatesData.templates || [];
-        const nextTemplate = templates.find((t: any) => t.nom?.endsWith(nextTemplateLetter)) || templates[0];
+        const nextTemplate = templates.find((t: { id: string; nom?: string }) => t.nom?.endsWith(nextTemplateLetter)) || templates[0];
 
         if (!nextTemplate) {
           setError("Aucun template trouve");
@@ -89,7 +86,7 @@ function SessionStartPageContent() {
         const template = await templateRes.json();
         const templateExercises = template.exercises || [];
 
-        const musclesCibles = templateExercises.flatMap((e: any) => e.musclesPrincipaux || []);
+        const musclesCibles = templateExercises.flatMap((e: { musclesPrincipaux?: string[] }) => e.musclesPrincipaux || []);
         const volAdj = computeVolumeAdjustment(stateForFeu, musclesCibles);
         setAdjustment(volAdj);
 
@@ -128,6 +125,17 @@ function SessionStartPageContent() {
         setLoading(false);
       });
   }, [searchParams, router]);
+
+  const parametresManquants =
+    !searchParams.get("dailyStateId") || !searchParams.get("date") || !searchParams.get("gymId");
+
+  if (parametresManquants) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="text-red-500">Parametres manquants</div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

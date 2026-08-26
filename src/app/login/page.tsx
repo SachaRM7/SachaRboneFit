@@ -35,6 +35,18 @@ export default function LoginPage() {
       return;
     }
 
+    // Garantit l'existence de la ligne applicative users : l'inscription ne peut pas
+    // toujours la creer (confirmation d'email activee). La route est idempotente.
+    try {
+      await fetch("/api/user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    } catch {
+      // non bloquant : la connexion Supabase a reussi
+    }
+
     toast.success("Connexion réussie");
     router.push("/dashboard");
     router.refresh();

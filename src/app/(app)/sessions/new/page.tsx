@@ -22,7 +22,7 @@ export default async function NewSessionPage() {
     return (
       <div className="p-4">
         <h1 className="text-xl font-bold text-white mb-4">Nouvelle séance</h1>
-        <p className="text-zinc-500">Aucun bloc actif. Créez un programme d'abord.</p>
+        <p className="text-zinc-500">Aucun bloc actif. Créez un programme d&apos;abord.</p>
       </div>
     );
   }

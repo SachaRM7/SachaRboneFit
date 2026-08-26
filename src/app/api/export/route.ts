@@ -6,6 +6,7 @@ import {
 } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import type { SetLog, SeanceTemplate, ExerciseInstance, Exercise, Gym } from "@/db/schema";
 
 export async function GET(request: Request) {
   const userId = await getAuthenticatedUserId();
@@ -23,7 +24,7 @@ export async function GET(request: Request) {
 
   // Get all set logs for user sessions
   const sessionIds = sessions.map(s => s.id);
-  const allSets: any[] = [];
+  const allSets: SetLog[] = [];
   for (const sid of sessionIds) {
     const sets = await db.query.setLogs.findMany({ where: eq(setLogs.sessionLogId, sid) });
     allSets.push(...sets);
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
 
   // Get templates and instances used in sessions
   const templateIds = [...new Set(sessions.map(s => s.seanceTemplateId).filter(Boolean))];
-  const templatesData: any[] = [];
+  const templatesData: SeanceTemplate[] = [];
   for (const tid of templateIds) {
     if (!tid) continue;
     const t = await db.query.seanceTemplates.findFirst({ where: eq(seanceTemplates.id, tid) });
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
   }
 
   const instanceIds = [...new Set(allSets.map(s => s.exerciseInstanceId).filter(Boolean))];
-  const instancesData: any[] = [];
+  const instancesData: ExerciseInstance[] = [];
   for (const iid of instanceIds) {
     if (!iid) continue;
     const inst = await db.query.exerciseInstances.findFirst({ where: eq(exerciseInstances.id, iid) });
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
   }
 
   const exerciseIds: string[] = [...new Set(instancesData.map(i => i.exerciseId).filter((id): id is string => Boolean(id)))];
-  const exercisesData: any[] = [];
+  const exercisesData: Exercise[] = [];
   for (const eid of exerciseIds) {
     if (!eid) continue;
     const ex = await db.query.exercises.findFirst({ where: eq(exercises.id, eid) });
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
   }
 
   const gymIds: string[] = [...new Set<string>([...sessions.map(s => s.gymId).filter(Boolean) as string[], ...instancesData.map(i => i.gymId).filter(Boolean) as string[]])];
-  const gymsData: any[] = [];
+  const gymsData: Gym[] = [];
   for (const gid of gymIds) {
     const g = await db.query.gyms.findFirst({ where: eq(gyms.id, gid) });
     if (g) gymsData.push(g);

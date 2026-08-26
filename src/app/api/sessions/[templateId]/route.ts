@@ -54,7 +54,7 @@ export async function GET(
       gym: i.gymId ? gymMap.get(i.gymId) : null,
     }]));
 
-    const exercises = exercisesInTemplate.map((eit: any) => {
+    const exercises = exercisesInTemplate.map((eit) => {
       const inst = instanceMap.get(eit.exerciseInstanceId);
       return {
         id: inst?.id,

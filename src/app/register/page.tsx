@@ -41,23 +41,27 @@ export default function RegisterPage() {
       return;
     }
 
-    if (signUpData.user) {
-      // Create user in app's users table
-      const res = await fetch("/api/user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: signUpData.user.id,
-          email: signUpData.user.email,
-          nom: nom || signUpData.user.email?.split("@")[0] || "Utilisateur",
-        }),
-      });
+    // Sans session (confirmation d'email activee sur le projet Supabase), la ligne
+    // applicative sera creee a la premiere connexion : l'API n'accepte que l'identite
+    // de la session authentifiee.
+    if (!signUpData.session) {
+      toast.success("Compte créé. Confirme ton email puis connecte-toi.");
+      router.push("/login");
+      setLoading(false);
+      return;
+    }
 
-      if (!res.ok) {
-        setError("Compte créé mais erreur lors de la création du profil app. Connecte-toi pour réessayer.");
-        setLoading(false);
-        return;
-      }
+    // L'API derive l'id et l'email de la session ; on ne transmet que le nom.
+    const res = await fetch("/api/user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nom }),
+    });
+
+    if (!res.ok) {
+      setError("Compte créé mais erreur lors de la création du profil. Connecte-toi pour réessayer.");
+      setLoading(false);
+      return;
     }
 
     toast.success("Compte créé !");
