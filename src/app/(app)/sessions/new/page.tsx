@@ -21,8 +21,8 @@ export default async function NewSessionPage() {
   if (!bloc) {
     return (
       <div className="p-4">
-        <h1 className="text-xl font-bold text-white mb-4">Nouvelle séance</h1>
-        <p className="text-zinc-500">Aucun bloc actif. Créez un programme d'abord.</p>
+        <h1 className="text-xl font-bold text-encre mb-4">Nouvelle séance</h1>
+        <p className="text-encre-3">Aucun bloc actif. Créez un programme d&apos;abord.</p>
       </div>
     );
   }
@@ -34,20 +34,20 @@ export default async function NewSessionPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold text-white">Nouvelle séance</h1>
-      <p className="text-zinc-500 text-sm">{bloc.nom}</p>
+      <h1 className="text-xl font-bold text-encre">Nouvelle séance</h1>
+      <p className="text-encre-3 text-sm">{bloc.nom}</p>
 
       <div className="space-y-3">
         {templates.map((template) => (
           <Link key={template.id} href={`/sessions/new/${template.id}?gymId=`}>
-            <Card className="bg-zinc-900 border-zinc-800 hover:border-zinc-700 cursor-pointer">
+            <Card className="bg-carte border-filet hover:border-filet cursor-pointer">
               <CardContent className="flex items-center gap-4 p-4">
-                <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center">
-                  <span className="text-xl font-bold text-white">{template.lettre}</span>
+                <div className="w-12 h-12 rounded-full bg-papier-2 flex items-center justify-center">
+                  <span className="text-xl font-bold text-encre">{template.lettre}</span>
                 </div>
                 <div>
-                  <CardTitle className="text-white text-base">{template.nom}</CardTitle>
-                  <p className="text-zinc-500 text-xs">{template.lettre}</p>
+                  <CardTitle className="text-encre text-base">{template.nom}</CardTitle>
+                  <p className="text-encre-3 text-xs">{template.lettre}</p>
                 </div>
               </CardContent>
             </Card>

@@ -11,26 +11,28 @@ interface RestTimerProps {
 
 export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: RestTimerProps) {
   const [elapsed, setElapsed] = useState(0);
-  const [completed, setCompleted] = useState(false);
-  const startTimeRef = useRef<number>(Date.now());
+  // Ref plutot qu'un state : sert uniquement a ne declencher onComplete qu'une fois.
+  const completedRef = useRef(false);
+  // Initialise dans l'effet : appeler Date.now() pendant le rendu le rend non deterministe.
+  const startTimeRef = useRef<number | null>(null);
   const durationRef = useRef(durationSeconds);
   const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Le prochain tick recalcule `elapsed` : pas besoin de le remettre a zero ici.
     startTimeRef.current = Date.now();
     durationRef.current = durationSeconds;
-    setElapsed(0);
-    setCompleted(false);
+    completedRef.current = false;
   }, [durationSeconds]);
 
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
-      const newElapsed = Math.floor((now - startTimeRef.current) / 1000);
+      const newElapsed = Math.floor((now - (startTimeRef.current ?? now)) / 1000);
       setElapsed(newElapsed);
       const remaining = durationRef.current - newElapsed;
-      if (remaining <= 0 && !completed) {
-        setCompleted(true);
+      if (remaining <= 0 && !completedRef.current) {
+        completedRef.current = true;
         onComplete();
       }
       animationRef.current = requestAnimationFrame(tick);
@@ -40,7 +42,7 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
     return () => {
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
-  }, [durationSeconds, onComplete, completed]);
+  }, [durationSeconds, onComplete]);
 
   // Handle visibility change (app backgrounded/foregrounded on iOS)
   useEffect(() => {
@@ -48,11 +50,11 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
       if (document.visibilityState === "visible") {
         // Recalculate elapsed on return to foreground
         const now = Date.now();
-        const newElapsed = Math.floor((now - startTimeRef.current) / 1000);
+        const newElapsed = Math.floor((now - (startTimeRef.current ?? now)) / 1000);
         setElapsed(newElapsed);
         const remaining = durationRef.current - newElapsed;
-        if (remaining <= 0 && !completed) {
-          setCompleted(true);
+        if (remaining <= 0 && !completedRef.current) {
+          completedRef.current = true;
           onComplete();
         }
       }
@@ -60,10 +62,10 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
 
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [completed, onComplete]);
+  }, [onComplete]);
 
-  const remaining = Math.max(0, durationRef.current - elapsed);
-  const progress = Math.min(1, elapsed / durationRef.current);
+  const remaining = Math.max(0, durationSeconds - elapsed);
+  const progress = Math.min(1, elapsed / durationSeconds);
   const circumference = 2 * Math.PI * 80;
   const strokeDashoffset = circumference * (1 - progress);
 
@@ -71,8 +73,8 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
   const secs = remaining % 60;
   const timeDisplay = mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}`;
 
-  const isOvertime = elapsed >= durationRef.current;
-  const overtimeSeconds = isOvertime ? elapsed - durationRef.current : 0;
+  const isOvertime = elapsed >= durationSeconds;
+  const overtimeSeconds = isOvertime ? elapsed - durationSeconds : 0;
 
   return (
     <div className="flex flex-col items-center gap-4 p-4">
@@ -94,7 +96,7 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
             cy="90"
             r="80"
             fill="none"
-            stroke={completed ? "#22c55e" : "rgba(255,255,255,0.7)"}
+            stroke={isOvertime ? "#22c55e" : "rgba(255,255,255,0.7)"}
             strokeWidth="8"
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -107,15 +109,15 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           {isOvertime ? (
             <div className="text-center">
-              <p className="text-3xl font-bold text-green-400">Repos terminé</p>
-              <p className="text-lg text-green-400/70">+ {overtimeSeconds}s</p>
+              <p className="text-3xl font-bold text-gain">Repos terminé</p>
+              <p className="text-lg text-gain/70">+ {overtimeSeconds}s</p>
             </div>
           ) : (
             <>
-              <p className={`text-4xl font-bold ${remaining <= 10 ? "text-orange-400" : "text-white"}`}>
+              <p className={`text-4xl font-bold ${remaining <= 10 ? "text-feu-orange" : "text-encre"}`}>
                 {timeDisplay}
               </p>
-              <p className="text-zinc-500 text-sm">de repos</p>
+              <p className="text-encre-3 text-sm">de repos</p>
             </>
           )}
         </div>
@@ -125,14 +127,14 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
       <div className="flex gap-4">
         <Button
           variant="outline"
-          className="w-20 h-14 text-base bg-zinc-800 border-zinc-700"
+          className="w-20 h-14 text-base bg-papier-2 border-filet"
           onClick={onSkip}
         >
           Skip
         </Button>
         <Button
           variant="outline"
-          className="w-20 h-14 text-base bg-zinc-800 border-zinc-700"
+          className="w-20 h-14 text-base bg-papier-2 border-filet"
           onClick={() => onExtend(30)}
         >
           +30s

@@ -41,23 +41,27 @@ export default function RegisterPage() {
       return;
     }
 
-    if (signUpData.user) {
-      // Create user in app's users table
-      const res = await fetch("/api/user", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: signUpData.user.id,
-          email: signUpData.user.email,
-          nom: nom || signUpData.user.email?.split("@")[0] || "Utilisateur",
-        }),
-      });
+    // Sans session (confirmation d'email activee sur le projet Supabase), la ligne
+    // applicative sera creee a la premiere connexion : l'API n'accepte que l'identite
+    // de la session authentifiee.
+    if (!signUpData.session) {
+      toast.success("Compte créé. Confirme ton email puis connecte-toi.");
+      router.push("/login");
+      setLoading(false);
+      return;
+    }
 
-      if (!res.ok) {
-        setError("Compte créé mais erreur lors de la création du profil app. Connecte-toi pour réessayer.");
-        setLoading(false);
-        return;
-      }
+    // L'API derive l'id et l'email de la session ; on ne transmet que le nom.
+    const res = await fetch("/api/user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nom }),
+    });
+
+    if (!res.ok) {
+      setError("Compte créé mais erreur lors de la création du profil. Connecte-toi pour réessayer.");
+      setLoading(false);
+      return;
     }
 
     toast.success("Compte créé !");
@@ -66,14 +70,14 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-papier text-encre flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">Sport Perso</h1>
-          <p className="text-zinc-500 mt-2">Crée ton compte</p>
+          <p className="text-encre-3 mt-2">Crée ton compte</p>
         </div>
 
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card className="bg-carte border-filet">
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -85,7 +89,7 @@ export default function RegisterPage() {
                   value={nom}
                   onChange={(e) => setNom(e.target.value)}
                   required
-                  className="bg-zinc-800 border-zinc-700"
+                  className="bg-papier-2 border-filet"
                 />
               </div>
 
@@ -98,7 +102,7 @@ export default function RegisterPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="bg-zinc-800 border-zinc-700"
+                  className="bg-papier-2 border-filet"
                 />
               </div>
 
@@ -112,26 +116,26 @@ export default function RegisterPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   minLength={6}
-                  className="bg-zinc-800 border-zinc-700"
+                  className="bg-papier-2 border-filet"
                 />
               </div>
 
               {error && (
-                <p className="text-red-500 text-sm">{error}</p>
+                <p className="text-perte text-sm">{error}</p>
               )}
 
               <Button
                 type="submit"
-                className="w-full bg-white text-black hover:bg-zinc-200"
+                className="w-full bg-encre text-papier hover:bg-filet"
                 disabled={loading}
               >
                 {loading ? "Création..." : "Créer mon compte"}
               </Button>
             </form>
 
-            <p className="text-center text-zinc-500 text-sm mt-4">
+            <p className="text-center text-encre-3 text-sm mt-4">
               Déjà un compte ?{" "}
-              <Link href="/login" className="text-white hover:underline">
+              <Link href="/login" className="text-encre hover:underline">
                 Se connecter
               </Link>
             </p>

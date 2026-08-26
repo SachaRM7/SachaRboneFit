@@ -1,4 +1,5 @@
 import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engine/substitutions";
+import { memeMuscle } from "@/lib/referentiels/muscles";
 
 export interface MachineOccupeInput {
   exercise_instance_id: string;
@@ -24,16 +25,19 @@ export async function machineOccupee(
     return { substituts: [], message: "Exercice introuvable." };
   }
 
-  const basePilier = baseInstance.categorieRole === "pilier"
-    ? (baseInstance.nom.split(" ")[0] ?? baseInstance.pilier)
-    : baseInstance.pilier;
+  // Le pilier se lit dans le champ prevu pour ca. Pour un exercice de role
+  // "pilier", l'ancienne version prenait le PREMIER MOT DU NOM de l'exercice
+  // ("Lying"...) et le comparait a `inst.pilier` ("P1_poussee") : aucun candidat
+  // ne pouvait correspondre, y compris dans les deux niveaux de repli.
+  const basePilier = baseInstance.pilier;
   const baseProfilTension = baseInstance.profilTension;
 
   // Helper to check if a muscle matches a zone (courbature matching)
   const muscleMatches = (muscle: string, zones: string[]) => {
     if (zones.length === 0) return false;
-    const lowerMuscle = muscle.toLowerCase();
-    return zones.some(zone => lowerMuscle.includes(zone.toLowerCase()) || zone.toLowerCase().includes(lowerMuscle));
+    // Comparaison via le referentiel : les courbatures et les muscles des
+    // instances viennent de vocabulaires differents.
+    return zones.some((zone) => memeMuscle(zone, muscle));
   };
 
   // Step 1: Full criteria (pilier + profil tension + gym + not in template + muscles OK)
@@ -42,7 +46,7 @@ export async function machineOccupee(
     if (templateExerciseIds.includes(inst.id)) return false;
     if (inst.pilier !== basePilier) return false;
     if (inst.profilTension !== baseProfilTension && inst.profilTension !== "mi_range") return false;
-    if (musclesAvecCourbatures.length > 0 && muscleMatches(inst.musclesPrincipaux[0] ?? "", musclesAvecCourbatures)) return false;
+    if (musclesAvecCourbatures.length > 0 && inst.musclesPrincipaux.some((m) => muscleMatches(m, musclesAvecCourbatures))) return false;
     return true;
   });
 
@@ -52,7 +56,7 @@ export async function machineOccupee(
       if (inst.gymId !== input.gym_id) return false;
       if (templateExerciseIds.includes(inst.id)) return false;
       if (inst.pilier !== basePilier) return false;
-      if (musclesAvecCourbatures.length > 0 && muscleMatches(inst.musclesPrincipaux[0] ?? "", musclesAvecCourbatures)) return false;
+      if (musclesAvecCourbatures.length > 0 && inst.musclesPrincipaux.some((m) => muscleMatches(m, musclesAvecCourbatures))) return false;
       return true;
     });
   }

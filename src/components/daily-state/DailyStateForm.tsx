@@ -66,6 +66,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
     try {
       const payload = {
         date: initialDate,
+        gymId: defaultGymId,
         sommeilHeures: sommeil,
         jeuneBool: jeune,
         shiftRecentBool: shiftRecent,
@@ -103,12 +104,12 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
     <div className="space-y-6 p-4 max-w-md mx-auto">
       {/* Salle */}
       <div>
-        <Label className="text-zinc-400 text-xs mb-2 block">Salle du jour</Label>
+        <Label className="text-encre-2 text-xs mb-2 block">Salle du jour</Label>
         <Select value={defaultGymId} onValueChange={(v) => { if (v) setDefaultGymId(v); }}>
-          <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white">
+          <SelectTrigger className="bg-carte border-filet text-encre">
             <SelectValue placeholder="Choisir une salle" />
           </SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+          <SelectContent className="bg-carte border-filet text-encre">
             {gyms.map(gym => (
               <SelectItem key={gym.id} value={gym.id}>{gym.nom}</SelectItem>
             ))}
@@ -119,8 +120,8 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       {/* Sommeil */}
       <div>
         <div className="flex justify-between items-center mb-2">
-          <Label className="text-zinc-400 text-xs">Sommeil</Label>
-          <span className="text-white font-medium">{sommeil}h</span>
+          <Label className="text-encre-2 text-xs">Sommeil</Label>
+          <span className="text-encre font-medium">{sommeil}h</span>
         </div>
         <Slider
           value={[sommeil]}
@@ -131,21 +132,21 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
           className="w-full"
         />
         <div className="flex justify-between mt-1">
-          <span className="text-zinc-600 text-xs">0h</span>
-          <span className="text-zinc-600 text-xs">12h</span>
+          <span className="text-encre-3 text-xs">0h</span>
+          <span className="text-encre-3 text-xs">12h</span>
         </div>
       </div>
 
       {/* Jeûne */}
       <div className="flex items-center justify-between">
-        <Label className="text-zinc-300">Jeûne</Label>
+        <Label className="text-encre-2">Jeûne</Label>
         <Switch checked={jeune} onCheckedChange={(v) => setJeune(v)} />
       </div>
 
       {/* Shift récent */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <Label className="text-zinc-300">Shift récent (48h)</Label>
+          <Label className="text-encre-2">Shift récent (48h)</Label>
           <Switch checked={shiftRecent} onCheckedChange={(v) => setShiftRecent(v)} />
         </div>
         {shiftRecent && (
@@ -157,9 +158,9 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
                   value={type}
                   checked={shiftType === type}
                   onChange={() => setShiftType(type)}
-                  className="text-white"
+                  className="text-encre"
                 />
-                <span className="text-zinc-300 text-sm capitalize">{type}</span>
+                <span className="text-encre-2 text-sm capitalize">{type}</span>
               </label>
             ))}
           </div>
@@ -169,8 +170,8 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       {/* Énergie départ */}
       <div>
         <div className="flex justify-between items-center mb-2">
-          <Label className="text-zinc-400 text-xs">Énergie au réveil</Label>
-          <span className="text-white font-medium">{energie}/10</span>
+          <Label className="text-encre-2 text-xs">Énergie au réveil</Label>
+          <span className="text-encre font-medium">{energie}/10</span>
         </div>
         <Slider
           value={[energie]}
@@ -181,25 +182,25 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
           className="w-full"
         />
         <div className="flex justify-between mt-1">
-          <span className="text-zinc-600 text-xs">1</span>
-          <span className="text-zinc-600 text-xs">10</span>
+          <span className="text-encre-3 text-xs">1</span>
+          <span className="text-encre-3 text-xs">10</span>
         </div>
       </div>
 
       {/* Courbatures */}
       <div>
-        <Label className="text-zinc-400 text-xs mb-2 block">Courbatures</Label>
+        <Label className="text-encre-2 text-xs mb-2 block">Courbatures</Label>
         <CourbaturesModal value={courbatures} onChange={setCourbatures} />
       </div>
 
       {/* Dernier repas */}
       <div>
-        <Label className="text-zinc-400 text-xs mb-2 block">Dernier repas</Label>
+        <Label className="text-encre-2 text-xs mb-2 block">Dernier repas</Label>
         <Select value={dernierRepas || "none"} onValueChange={(v) => setDernierRepas(v === "none" ? null : v)}>
-          <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white">
+          <SelectTrigger className="bg-carte border-filet text-encre">
             <SelectValue placeholder="Sélectionner" />
           </SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+          <SelectContent className="bg-carte border-filet text-encre">
             <SelectItem value="none">Non renseigné</SelectItem>
             {HOURS.filter(h => h >= 6 && h <= 23).map(h => (
               <SelectItem key={h} value={`${h.toString().padStart(2, "0")}:00`}>{h}h</SelectItem>
@@ -210,12 +211,12 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
 
       {/* Horaire prévu */}
       <div>
-        <Label className="text-zinc-400 text-xs mb-2 block">Horaire séance prévu</Label>
+        <Label className="text-encre-2 text-xs mb-2 block">Horaire séance prévu</Label>
         <Select value={horairePrevu || "none"} onValueChange={(v) => setHorairePrevu(v === "none" ? null : v)}>
-          <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white">
+          <SelectTrigger className="bg-carte border-filet text-encre">
             <SelectValue placeholder="Sélectionner" />
           </SelectTrigger>
-          <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+          <SelectContent className="bg-carte border-filet text-encre">
             <SelectItem value="none">Non renseigné</SelectItem>
             {HOURS.filter(h => h >= 5 && h <= 23).map(h => (
               <SelectItem key={h} value={`${h.toString().padStart(2, "0")}:00`}>{h}h</SelectItem>
@@ -227,7 +228,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       <Button
         onClick={onSubmit}
         disabled={loading}
-        className="w-full h-14 text-base bg-white text-black hover:bg-zinc-200"
+        className="w-full h-14 text-base bg-encre text-papier hover:bg-filet"
       >
         {loading ? "Enregistrement..." : "Valider → Voir la séance ajustée"}
       </Button>

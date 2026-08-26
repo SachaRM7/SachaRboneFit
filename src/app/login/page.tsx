@@ -35,20 +35,32 @@ export default function LoginPage() {
       return;
     }
 
+    // Garantit l'existence de la ligne applicative users : l'inscription ne peut pas
+    // toujours la creer (confirmation d'email activee). La route est idempotente.
+    try {
+      await fetch("/api/user", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    } catch {
+      // non bloquant : la connexion Supabase a reussi
+    }
+
     toast.success("Connexion réussie");
     router.push("/dashboard");
     router.refresh();
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-papier text-encre flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">Sport Perso</h1>
-          <p className="text-zinc-500 mt-2">Connexion à ton compte</p>
+          <p className="text-encre-3 mt-2">Connexion à ton compte</p>
         </div>
 
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card className="bg-carte border-filet">
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
@@ -60,7 +72,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="bg-zinc-800 border-zinc-700"
+                  className="bg-papier-2 border-filet"
                 />
               </div>
 
@@ -73,26 +85,26 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
-                  className="bg-zinc-800 border-zinc-700"
+                  className="bg-papier-2 border-filet"
                 />
               </div>
 
               {error && (
-                <p className="text-red-500 text-sm">{error}</p>
+                <p className="text-perte text-sm">{error}</p>
               )}
 
               <Button
                 type="submit"
-                className="w-full bg-white text-black hover:bg-zinc-200"
+                className="w-full bg-encre text-papier hover:bg-filet"
                 disabled={loading}
               >
                 {loading ? "Connexion..." : "Se connecter"}
               </Button>
             </form>
 
-            <p className="text-center text-zinc-500 text-sm mt-4">
+            <p className="text-center text-encre-3 text-sm mt-4">
               Pas de compte ?{" "}
-              <Link href="/register" className="text-white hover:underline">
+              <Link href="/register" className="text-encre hover:underline">
                 Créer un compte
               </Link>
             </p>

@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms } from "@/db/schema";
-import { eq, desc, and, asc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { computeFeuJour } from "@/lib/engine/feu-biologique";
+import { alertes } from "@/services/progression";
+import { prochaineSeance } from "@/services/programmes";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET() {
@@ -28,40 +30,13 @@ export async function GET() {
       orderBy: [desc(sessionLogs.createdAt)],
     });
 
-    let prochaineSeance = { lettre: "A", templateId: "", templateNom: "Seance A" };
-
-    if (lastSession && lastSession.seanceTemplateId) {
-      const lastTemplate = await db.query.seanceTemplates.findFirst({
-        where: eq(seanceTemplates.id, lastSession.seanceTemplateId),
-      });
-      if (lastTemplate && blocActif && blocActif.userId === userId) {
-        const letter = lastTemplate.lettre;
-        const nextLetter = letter === "A" ? "B" : letter === "B" ? "C" : "A";
-        const nextTemplates = await db.query.seanceTemplates.findMany({
-          where: eq(seanceTemplates.blocId, blocActif.id),
-        });
-        const nextTemplate = nextTemplates.find((t) => t.lettre === nextLetter);
-        if (nextTemplate) {
-          prochaineSeance = {
-            lettre: nextTemplate.lettre,
-            templateId: nextTemplate.id,
-            templateNom: nextTemplate.nom,
-          };
-        }
-      }
-    } else if (blocActif && blocActif.userId === userId) {
-      const templates = await db.query.seanceTemplates.findMany({
-        where: eq(seanceTemplates.blocId, blocActif.id),
-        orderBy: [asc(seanceTemplates.ordreDansSemaine)],
-      });
-      if (templates.length > 0) {
-        prochaineSeance = {
-          lettre: templates[0]!.lettre,
-          templateId: templates[0]!.id,
-          templateNom: templates[0]!.nom,
-        };
-      }
-    }
+    // La rotation était dupliquée ici, avec le même défaut qu'ailleurs : lettres
+    // A/B/C en dur, cycle figé à trois séances. Elle passe par le service, qui
+    // s'appuie sur `ordreDansSemaine` et le nombre réel de séances du bloc.
+    const suite = await prochaineSeance(userId);
+    const seanceSuivante = suite
+      ? { lettre: suite.template.lettre, templateId: suite.template.id, templateNom: suite.template.nom }
+      : { lettre: "", templateId: "", templateNom: "Aucune séance programmée" };
 
     const todayStr = new Date().toISOString().slice(0, 10);
     const dailyStateToday = await db.query.dailyStates.findFirst({
@@ -150,10 +125,12 @@ export async function GET() {
             semaineActuelle: blocActif.semaineActuelle,
           }
         : null,
-      prochaineSeance,
+      prochaineSeance: seanceSuivante,
       feuJour,
       feuTendance,
-      alertesPreSeance: [],
+      // Renvoyait un tableau vide en dur : le moteur d'alertes tournait dans le
+      // vide, ses agrégats n'étant calculés nulle part.
+      alertesPreSeance: await alertes(userId),
       poids30jours: poids30jours.slice(0, 30).map((bw) => ({
         date: bw.date,
         poids: bw.poids,

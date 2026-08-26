@@ -41,18 +41,18 @@ export function SOSMachineOccupee({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-end justify-center">
-      <div className="bg-zinc-900 rounded-t-2xl w-full max-w-md p-4 space-y-4 max-h-[80vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
+      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 space-y-4 max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Machine occupée</h2>
+          <h2 className="text-lg font-semibold text-encre">Machine occupée</h2>
           <button onClick={onClose} className="p-2">
-            <X className="w-5 h-5 text-zinc-400" />
+            <X className="w-5 h-5 text-encre-2" />
           </button>
         </div>
 
         {!result ? (
           <>
-            <p className="text-zinc-400 text-sm">Trouver un substitut pour cet exercice.</p>
+            <p className="text-encre-2 text-sm">Trouver un substitut pour cet exercice.</p>
             <Button
               className="w-full"
               onClick={handleEvaluate}
@@ -63,26 +63,26 @@ export function SOSMachineOccupee({
           </>
         ) : result.substituts.length === 0 ? (
           <div className="text-center py-6">
-            <p className="text-zinc-400">{result.message}</p>
-            <p className="text-zinc-500 text-sm mt-2">Tu peux passer à l'exercice suivant.</p>
+            <p className="text-encre-2">{result.message}</p>
+            <p className="text-encre-3 text-sm mt-2">Tu peux passer à l&apos;exercice suivant.</p>
           </div>
         ) : (
           <div className="space-y-2">
-            <p className="text-zinc-400 text-sm">{result.message}</p>
+            <p className="text-encre-2 text-sm">{result.message}</p>
             {result.substituts.map((sub) => (
               <button
                 key={sub.exerciseInstanceId}
                 onClick={() => onSubstitute(sub.exerciseInstanceId, sub.exerciseName)}
-                className="w-full p-3 bg-zinc-800 rounded-lg hover:bg-zinc-700 transition-colors text-left"
+                className="w-full p-3 bg-papier-2 rounded-lg hover:bg-papier-2 transition-colors text-left"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-white font-medium">{sub.exerciseName}</p>
-                    <p className="text-zinc-500 text-sm">{sub.machineName}</p>
+                    <p className="text-encre font-medium">{sub.exerciseName}</p>
+                    <p className="text-encre-3 text-sm">{sub.machineName}</p>
                   </div>
-                  <Check className="w-5 h-5 text-green-400" />
+                  <Check className="w-5 h-5 text-gain" />
                 </div>
-                <p className="text-zinc-500 text-xs mt-1">{sub.raisonCompatibilite}</p>
+                <p className="text-encre-3 text-xs mt-1">{sub.raisonCompatibilite}</p>
               </button>
             ))}
           </div>

@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const dailyStateSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  // La salle du jour conditionne le materiel disponible : elle doit etre persistee,
+  // pas seulement transmise en parametre d'URL.
+  gymId: z.string().uuid().nullable().optional(),
   sommeilHeures: z.number().min(0).max(12),
   jeuneBool: z.boolean(),
   shiftRecentBool: z.boolean(),

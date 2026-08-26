@@ -33,7 +33,7 @@ export function FeuHeatmap({ months }: FeuHeatmapProps) {
   }, [months]);
 
   if (loading) {
-    return <div className="h-48 bg-zinc-800/50 rounded-lg animate-pulse" />;
+    return <div className="h-48 bg-papier-2 rounded-lg animate-pulse" />;
   }
 
   // Build calendar grid (7 columns, Mon-Sun)
@@ -46,7 +46,7 @@ export function FeuHeatmap({ months }: FeuHeatmapProps) {
   const allDates = data.map((d) => d.date).sort();
   if (allDates.length === 0) {
     return (
-      <div className="text-zinc-500 text-center py-12">
+      <div className="text-encre-3 text-center py-12">
         Pas encore de séances enregistrées
       </div>
     );
@@ -91,7 +91,7 @@ export function FeuHeatmap({ months }: FeuHeatmapProps) {
   return (
     <div className="space-y-2">
       {/* Day labels */}
-      <div className="grid grid-cols-8 gap-1 text-center text-xs text-zinc-600 mb-2">
+      <div className="grid grid-cols-8 gap-1 text-center text-xs text-encre-3 mb-2">
         <div />
         {dayLabels.map((d, i) => (
           <div key={i}>{d}</div>
@@ -101,7 +101,7 @@ export function FeuHeatmap({ months }: FeuHeatmapProps) {
       {/* Weeks */}
       {weeks.map((week, wi) => (
         <div key={wi} className="grid grid-cols-8 gap-1">
-          <div className="text-xs text-zinc-600 flex items-center">
+          <div className="text-xs text-encre-3 flex items-center">
             {week[0]!.date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
           </div>
           {week.map((day, di) => {
@@ -123,7 +123,7 @@ export function FeuHeatmap({ months }: FeuHeatmapProps) {
                 title={hasData && day.data ? `${day.data.date} — Feu: ${day.data.feuJour}` : day.date.toLocaleDateString("fr-FR")}
               >
                 {!hasData && day.isCurrentMonth && (
-                  <span className="text-zinc-700">{day.date.getDate()}</span>
+                  <span className="text-encre-3">{day.date.getDate()}</span>
                 )}
               </div>
             );
@@ -134,16 +134,16 @@ export function FeuHeatmap({ months }: FeuHeatmapProps) {
       {/* Legend */}
       <div className="flex gap-4 justify-center pt-4">
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-green-500" />
-          <span className="text-xs text-zinc-500">Vert</span>
+          <div className="w-3 h-3 rounded bg-feu-vert" />
+          <span className="text-xs text-encre-3">Vert</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-orange-500" />
-          <span className="text-xs text-zinc-500">Orange</span>
+          <div className="w-3 h-3 rounded bg-feu-orange" />
+          <span className="text-xs text-encre-3">Orange</span>
         </div>
         <div className="flex items-center gap-1">
-          <div className="w-3 h-3 rounded bg-red-500" />
-          <span className="text-xs text-zinc-500">Rouge</span>
+          <div className="w-3 h-3 rounded bg-feu-rouge" />
+          <span className="text-xs text-encre-3">Rouge</span>
         </div>
       </div>
     </div>

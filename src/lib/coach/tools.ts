@@ -3,7 +3,6 @@ import { setLogs, sessionLogs, exercises, exerciseInstances, seanceTemplates, pr
 import { eq, desc } from "drizzle-orm";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria, type SubstituteResult } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
-import type { LLMMessage } from "./llm-client";
 
 export interface CoachTool {
   name: string;
@@ -288,7 +287,7 @@ export async function logSetTool(
 export async function logIncidentTool(
   sessionLogId: string,
   type: "machine_occupee" | "douleur" | "energie_chute" | "temps_depasse",
-  contexte: Record<string, any>,
+  contexte: Record<string, unknown>,
   decision: string,
   impactProgramme: string | null,
   userId: string
@@ -458,7 +457,7 @@ export function createCoachTools(): CoachToolSet {
       return logIncidentTool(
         params.sessionLogId as string,
         params.type as "machine_occupee" | "douleur" | "energie_chute" | "temps_depasse",
-        params.contexte as Record<string, any>,
+        params.contexte as Record<string, unknown>,
         params.decision as string,
         (params.impactProgramme as string) || null,
         userId

@@ -1,16 +1,46 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { sessionLogs, setLogs, seanceTemplates } from "@/db/schema";
+import { seanceTemplates, programmeBlocs } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { z } from "zod";
+import { creerSeance } from "@/services/seances";
+
+const creationSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  seanceTemplateId: z.string().uuid().nullable().optional(),
+  gymId: z.string().uuid().nullable().optional(),
+  dailyStateId: z.string().uuid().nullable().optional(),
+  feuBiologiqueJour: z.enum(["vert", "orange", "rouge"]).nullable().optional(),
+  volumeAjustePct: z.number().int().nullable().optional(),
+  volumeAjusteRaison: z.string().nullable().optional(),
+});
 
 export async function GET() {
   try {
-    const templates = await db.query.seanceTemplates.findMany({
-      orderBy: [asc(seanceTemplates.ordreDansSemaine)],
-    });
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Les templates appartiennent a l'utilisateur via programme_blocs.
+    // Sans cette jointure la route renvoyait les templates de tous les utilisateurs.
+    const templates = await db
+      .select({
+        id: seanceTemplates.id,
+        blocId: seanceTemplates.blocId,
+        lettre: seanceTemplates.lettre,
+        nom: seanceTemplates.nom,
+        ordreDansSemaine: seanceTemplates.ordreDansSemaine,
+        createdAt: seanceTemplates.createdAt,
+        updatedAt: seanceTemplates.updatedAt,
+      })
+      .from(seanceTemplates)
+      .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
+      .where(eq(programmeBlocs.userId, userId))
+      .orderBy(asc(seanceTemplates.ordreDansSemaine));
+
     return NextResponse.json(templates);
   } catch (error) {
+    console.error("[sessions GET] error:", error);
     return NextResponse.json({ error: "Failed" }, { status: 500 });
   }
 }
@@ -20,70 +50,21 @@ export async function POST(request: Request) {
     const userId = await getAuthenticatedUserId();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await request.json();
-    const {
-      seanceTemplateId,
-      gymId,
-      date,
-      dureeMinutes,
-      energieFin,
-      notesSeance,
-      sets,
-      dailyStateId,
-      feuBiologiqueJour,
-      feuBiologiqueTendance,
-      volumeAjustePct,
-      volumeAjusteRaison,
-    } = body;
-
-    const filteredSets = Array.isArray(sets)
-      ? sets.filter(
-          (s: { repsEffectuees: number | null; charge: number | null }) =>
-            s.repsEffectuees !== null && s.charge !== null
-        )
-      : [];
-
-    const [newSession] = await db
-      .insert(sessionLogs)
-      .values({
-        userId,
-        seanceTemplateId: seanceTemplateId || null,
-        dailyStateId: dailyStateId || null,
-        gymId: gymId || null,
-        date,
-        dureeMinutes: dureeMinutes || null,
-        energieFin: energieFin || null,
-        notesSeance: notesSeance || null,
-        feuBiologiqueJour: feuBiologiqueJour || null,
-        feuBiologiqueTendance: feuBiologiqueTendance || null,
-        volumeAjustePct: volumeAjustePct || null,
-        volumeAjusteRaison: volumeAjusteRaison || null,
-      })
-      .returning();
-
-    if (!newSession) {
-      return NextResponse.json({ error: "Failed to create session" }, { status: 500 });
-    }
-
-    if (filteredSets.length > 0) {
-      await db.insert(setLogs).values(
-        filteredSets.map(
-          (s: { exerciseInstanceId: string; numeroSerie: number; repsEffectuees: number; charge: number; rpeEffectif?: number | null; notes?: string }) => ({
-            sessionLogId: newSession.id,
-            exerciseInstanceId: s.exerciseInstanceId,
-            numeroSerie: s.numeroSerie,
-            repsEffectuees: s.repsEffectuees,
-            charge: s.charge,
-            rpeEffectif: s.rpeEffectif || null,
-            notes: s.notes || null,
-          })
-        )
+    const parsed = creationSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Donnees invalides", details: parsed.error.flatten() },
+        { status: 400 },
       );
     }
 
-    return NextResponse.json(newSession, { status: 201 });
+    // Creation seule. La cloture (duree, energie, series) passe par
+    // PATCH /api/session-logs/[id], qui complete CETTE ligne au lieu d'en creer
+    // une seconde comme le faisait l'ancien flux.
+    const seance = await creerSeance({ userId, ...parsed.data });
+    return NextResponse.json(seance, { status: 201 });
   } catch (error) {
     console.error("[sessions POST] error:", error);
-    return NextResponse.json({ error: "Failed to save session", details: String(error) }, { status: 500 });
+    return NextResponse.json({ error: "Echec de la creation de seance" }, { status: 500 });
   }
 }

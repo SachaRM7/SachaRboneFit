@@ -59,12 +59,12 @@ export function GymForm({ defaultValues, gymId, onSuccess }: GymFormProps) {
         <Label htmlFor="nom">Nom de la salle *</Label>
         <Input id="nom" {...form.register("nom")} placeholder="BasicFit Lalande" />
         {form.formState.errors.nom && (
-          <p className="text-red-500 text-sm">{form.formState.errors.nom.message}</p>
+          <p className="text-perte text-sm">{form.formState.errors.nom.message}</p>
         )}
       </div>
 
       <div>
-        <Label htmlFor="horairesOuverture">Horaires d'ouverture</Label>
+        <Label htmlFor="horairesOuverture">Horaires d&apos;ouverture</Label>
         <Input id="horairesOuverture" {...form.register("horairesOuverture")} placeholder="6h-23h" />
       </div>
 

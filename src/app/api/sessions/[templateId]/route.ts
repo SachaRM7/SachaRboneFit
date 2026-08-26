@@ -25,8 +25,11 @@ export async function GET(
     });
     if (!bloc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    // Sans tri explicite, l'ordre d'affichage dependait de l'ordre de retour de
+    // Postgres : la seance pouvait sortir dans le desordre d'une fois sur l'autre.
     const exercisesInTemplate = await db.query.exerciseInTemplate.findMany({
       where: eq(exerciseInTemplate.seanceTemplateId, templateId),
+      orderBy: (eit, { asc }) => [asc(eit.ordre)],
     });
 
     // Fetch all exercise instances for the user
@@ -54,7 +57,7 @@ export async function GET(
       gym: i.gymId ? gymMap.get(i.gymId) : null,
     }]));
 
-    const exercises = exercisesInTemplate.map((eit: any) => {
+    const exercises = exercisesInTemplate.map((eit) => {
       const inst = instanceMap.get(eit.exerciseInstanceId);
       return {
         id: inst?.id,

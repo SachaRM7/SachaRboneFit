@@ -82,19 +82,19 @@ export function SessionDebrief({ sessionLogId, templateLettre, date }: SessionDe
   if (error) return null;
 
   return (
-    <div className="bg-zinc-900 rounded-lg p-4 space-y-2">
-      <h3 className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+    <div className="bg-carte rounded-lg p-4 space-y-2">
+      <h3 className="text-sm font-medium text-encre-2 flex items-center gap-2">
         <span>🤖</span> Debrief Coach
       </h3>
 
       {loading ? (
         <div className="flex gap-1 py-2">
-          <span className="w-2 h-2 bg-zinc-600 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-          <span className="w-2 h-2 bg-zinc-600 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-          <span className="w-2 h-2 bg-zinc-600 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+          <span className="w-2 h-2 bg-filet rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+          <span className="w-2 h-2 bg-filet rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+          <span className="w-2 h-2 bg-filet rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
         </div>
       ) : debrief ? (
-        <p ref={contentRef} className="text-sm text-zinc-300 whitespace-pre-wrap">
+        <p ref={contentRef} className="text-sm text-encre-2 whitespace-pre-wrap">
           {debrief}
         </p>
       ) : null}

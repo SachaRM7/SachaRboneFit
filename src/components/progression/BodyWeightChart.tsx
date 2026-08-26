@@ -21,12 +21,12 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
   }, [months]);
 
   if (loading) {
-    return <div className="h-64 bg-zinc-800/50 rounded-lg animate-pulse" />;
+    return <div className="h-64 bg-papier-2 rounded-lg animate-pulse" />;
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className="text-zinc-500 text-center py-12">
+      <div className="text-encre-3 text-center py-12">
         Pas encore de données de poids corporel
       </div>
     );
@@ -88,7 +88,7 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
           </LineChart>
         </ResponsiveContainer>
       </div>
-      <div className="text-zinc-500 text-sm text-center">
+      <div className="text-encre-3 text-sm text-center">
         {data.length} pesée{data.length > 1 ? "s" : ""} —{" "}
         dernière: {data[data.length - 1]?.poids}kg — moyenne: {data[data.length - 1]?.movingAvg}kg
       </div>

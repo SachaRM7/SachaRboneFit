@@ -25,14 +25,14 @@ export default async function BodyweightPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold text-white">Poids corporel</h1>
+      <h1 className="text-xl font-bold text-encre">Poids corporel</h1>
 
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-carte border-filet">
         <CardContent className="pt-4">
           {latest && (
             <div className="mb-4">
-              <p className="text-3xl font-bold text-white">{latest.poids.toFixed(1)} kg</p>
-              <p className="text-zinc-500 text-sm">
+              <p className="text-3xl font-bold text-encre">{latest.poids.toFixed(1)} kg</p>
+              <p className="text-encre-3 text-sm">
                 {new Date(latest.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
               </p>
             </div>
@@ -41,9 +41,9 @@ export default async function BodyweightPage() {
         </CardContent>
       </Card>
 
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-carte border-filet">
         <CardHeader>
-          <CardTitle className="text-white text-sm">Ajouter une mesure</CardTitle>
+          <CardTitle className="text-encre text-sm">Ajouter une mesure</CardTitle>
         </CardHeader>
         <CardContent>
           <BodyWeightForm />
@@ -52,11 +52,11 @@ export default async function BodyweightPage() {
 
       <div className="space-y-2">
         {weights.map((w) => (
-          <div key={w.id} className="flex justify-between items-center py-2 border-b border-zinc-800">
-            <span className="text-zinc-500 text-sm">
+          <div key={w.id} className="flex justify-between items-center py-2 border-b border-filet">
+            <span className="text-encre-3 text-sm">
               {new Date(w.date).toLocaleDateString("fr-FR")}
             </span>
-            <span className="text-white font-medium">{w.poids} kg</span>
+            <span className="text-encre font-medium">{w.poids} kg</span>
           </div>
         ))}
       </div>

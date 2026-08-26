@@ -7,6 +7,8 @@ import { FeuBiologique } from "@/components/ui/FeuBiologique";
 import { Sparkline } from "@/components/ui/Sparkline";
 import { Calendar, Dumbbell, Activity, TrendingDown, Play } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
+import type { Alert } from "@/lib/engine/alerts";
+import { AlertList } from "@/components/alerts/AlertList";
 
 interface DashboardData {
   user: { nom: string; poidsActuel: number | null };
@@ -14,7 +16,7 @@ interface DashboardData {
   prochaineSeance: { lettre: string; templateId: string; templateNom: string };
   feuJour: "vert" | "orange" | "rouge" | null;
   feuTendance: "vert" | "orange" | "rouge" | null;
-  alertesPreSeance: any[];
+  alertesPreSeance: Alert[];
   poids30jours: Array<{ date: string; poids: number }>;
   precalcSession: { contenu: string } | null;
   weeklyDebrief: { contenu: string; weekStart: string } | null;
@@ -44,10 +46,19 @@ export default function DashboardPage() {
       });
   }, []);
 
-  // Detect stale session (>6h)
-  const isSessionStale = active && active.startedAt
-    ? Date.now() - active.startedAt > 6 * 60 * 60 * 1000
-    : false;
+  // Detect stale session (>6h). Date.now() ne doit pas etre appele pendant le rendu :
+  // le resultat depend de l'horloge, donc le rendu ne serait pas deterministe.
+  const [isSessionStale, setIsSessionStale] = useState(false);
+  useEffect(() => {
+    if (!active?.startedAt) return;
+    const startedAt = active.startedAt;
+    const check = () => setIsSessionStale(Date.now() - startedAt > 6 * 60 * 60 * 1000);
+    // Premiere evaluation differee : un setState synchrone dans l'effet declenche
+    // un rendu en cascade.
+    const premier = setTimeout(check, 0);
+    const id = setInterval(check, 60_000);
+    return () => { clearTimeout(premier); clearInterval(id); };
+  }, [active?.startedAt]);
   const canResume = active && !active.completedAt && !isSessionStale;
 
   const handleStart = () => {
@@ -72,20 +83,20 @@ export default function DashboardPage() {
   const weightData = data?.poids30jours?.slice().reverse().map(bw => bw.poids) || [];
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-papier text-encre">
       {/* Header */}
       <div className="px-4 pt-8 pb-4">
         <h1 className="text-2xl font-bold">Salut {data?.user.nom ?? "Sacha"}</h1>
         <div className="flex items-center gap-3 mt-1">
           {data?.user.poidsActuel && (
-            <p className="text-zinc-400 text-sm">{data.user.poidsActuel} kg</p>
+            <p className="text-encre-2 text-sm">{data.user.poidsActuel} kg</p>
           )}
           {weightData.length >= 2 && (
             <Sparkline data={weightData} width={60} height={20} />
           )}
         </div>
         {data?.blocActif && (
-          <p className="text-zinc-500 text-xs mt-1">
+          <p className="text-encre-3 text-xs mt-1">
             {data.blocActif.nom} — {data.blocActif.typeCycle} — Semaine{" "}
             {data.blocActif.semaineActuelle}
           </p>
@@ -95,22 +106,22 @@ export default function DashboardPage() {
       <div className="px-4 space-y-4 pb-20">
         {/* In-progress session banner */}
         {canResume && (
-          <Card className="bg-green-900/30 border-green-800">
+          <Card className="bg-gain-fond border-gain/30">
             <CardContent className="py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-green-400 font-semibold flex items-center gap-2">
+                  <p className="text-gain font-semibold flex items-center gap-2">
                     <Play className="w-4 h-4" />
                     Séance en cours
                   </p>
-                  <p className="text-zinc-400 text-sm">
+                  <p className="text-encre-2 text-sm">
                     {active.sets.filter(s => s.validatedAt).length} séries enregistrées
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-gain hover:bg-gain"
                     onClick={handleResume}
                   >
                     Reprendre
@@ -118,7 +129,7 @@ export default function DashboardPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-zinc-400 hover:text-white"
+                    className="text-encre-2 hover:text-encre"
                     onClick={handleAbandon}
                   >
                     Abandonner
@@ -131,19 +142,19 @@ export default function DashboardPage() {
 
         {/* Stale session - offer to close or abandon */}
         {active && isSessionStale && (
-          <Card className="bg-orange-900/30 border-orange-800">
+          <Card className="bg-feu-orange/10 border-feu-orange/30">
             <CardContent className="py-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-orange-400 font-semibold">Séance interrompue</p>
-                  <p className="text-zinc-400 text-sm">
+                  <p className="text-feu-orange font-semibold">Séance interrompue</p>
+                  <p className="text-encre-2 text-sm">
                     Il y a plus de 6h — terminer ou abandonner ?
                   </p>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    className="bg-orange-600 hover:bg-orange-700"
+                    className="bg-feu-orange hover:bg-feu-orange/90"
                     onClick={() => {
                       if (active.seanceTemplateId) {
                         router.push(`/sessions/new/${active.seanceTemplateId}/finish`);
@@ -155,7 +166,7 @@ export default function DashboardPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="text-zinc-400 hover:text-white"
+                    className="text-encre-2 hover:text-encre"
                     onClick={handleAbandon}
                   >
                     Abandonner
@@ -167,9 +178,9 @@ export default function DashboardPage() {
         )}
 
         {/* Prochaine seance */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card className="bg-carte border-filet">
           <CardHeader>
-            <CardTitle className="text-zinc-300 flex items-center gap-2">
+            <CardTitle className="text-encre-2 flex items-center gap-2">
               <Calendar className="w-4 h-4" />
               Prochaine seance
             </CardTitle>
@@ -177,14 +188,14 @@ export default function DashboardPage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xl font-bold text-white">
+                <p className="text-xl font-bold text-encre">
                   Seance {data?.prochaineSeance.lettre}
                 </p>
-                <p className="text-zinc-500 text-sm">
+                <p className="text-encre-3 text-sm">
                   {data?.prochaineSeance.templateNom}
                 </p>
               </div>
-              <Button onClick={handleStart} className="bg-white text-black hover:bg-zinc-200">
+              <Button onClick={handleStart} className="bg-encre text-papier hover:bg-filet">
                 Demarrer
               </Button>
             </div>
@@ -192,9 +203,9 @@ export default function DashboardPage() {
         </Card>
 
         {/* Feu biologique */}
-        <Card className="bg-zinc-900 border-zinc-800">
+        <Card className="bg-carte border-filet">
           <CardHeader>
-            <CardTitle className="text-zinc-300 flex items-center gap-2">
+            <CardTitle className="text-encre-2 flex items-center gap-2">
               <Activity className="w-4 h-4" />
               Feu biologique
             </CardTitle>
@@ -202,74 +213,70 @@ export default function DashboardPage() {
           <CardContent>
             <div className="flex gap-6">
               <div className="flex items-center gap-3">
-                <span className="text-zinc-500 text-sm">Aujourd&apos;hui</span>
+                <span className="text-encre-3 text-sm">Aujourd&apos;hui</span>
                 {data?.feuJour ? (
                   <FeuBiologique feu={data.feuJour} size="lg" />
                 ) : (
-                  <span className="text-zinc-600 text-sm">Non renseigne</span>
+                  <span className="text-encre-3 text-sm">Non renseigne</span>
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-zinc-500 text-sm">Tendance</span>
+                <span className="text-encre-3 text-sm">Tendance</span>
                 {data?.feuTendance ? (
                   <FeuBiologique feu={data.feuTendance} size="lg" />
                 ) : (
-                  <span className="text-zinc-600 text-sm">Pas de donnees</span>
+                  <span className="text-encre-3 text-sm">Pas de donnees</span>
                 )}
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Alertes */}
+        {/* Alertes — le composant existait mais n'était monté nulle part. */}
         {data?.alertesPreSeance && data.alertesPreSeance.length > 0 && (
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-carte border-filet">
             <CardHeader>
-              <CardTitle className="text-zinc-300 flex items-center gap-2">
+              <CardTitle className="text-encre-2 flex items-center gap-2">
                 <TrendingDown className="w-4 h-4" />
                 Alertes
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {data.alertesPreSeance.slice(0, 3).map((alert: any, i: number) => (
-                <div key={i} className="text-sm text-yellow-300 border-l-2 border-yellow-600 pl-3">
-                  {alert.message}
-                </div>
-              ))}
+            <CardContent>
+              <AlertList alerts={data.alertesPreSeance} />
             </CardContent>
           </Card>
         )}
 
         {/* Precalc session preview */}
         {data?.precalcSession && (
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-carte border-filet">
             <CardHeader>
-              <CardTitle className="text-zinc-300 flex items-center gap-2">
+              <CardTitle className="text-encre-2 flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
                 Seance de demain
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-zinc-400 text-sm whitespace-pre-wrap">{data.precalcSession.contenu}</p>
+              <p className="text-encre-2 text-sm whitespace-pre-wrap">{data.precalcSession.contenu}</p>
             </CardContent>
           </Card>
         )}
 
         {/* Weekly debrief */}
         {data?.weeklyDebrief && (
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-carte border-filet">
             <CardHeader>
-              <CardTitle className="text-zinc-300 flex items-center gap-2">
+              <CardTitle className="text-encre-2 flex items-center gap-2">
                 <Activity className="w-4 h-4" />
                 Debrief hebdomadaire
               </CardTitle>
             </CardHeader>
             <CardContent>
               <details className="cursor-pointer">
-                <summary className="text-zinc-400 text-sm font-medium">
+                <summary className="text-encre-2 text-sm font-medium">
                   Semaine du {data.weeklyDebrief.weekStart}
                 </summary>
-                <p className="text-zinc-300 text-sm mt-2 whitespace-pre-wrap">
+                <p className="text-encre-2 text-sm mt-2 whitespace-pre-wrap">
                   {data.weeklyDebrief.contenu}
                 </p>
               </details>
@@ -279,9 +286,9 @@ export default function DashboardPage() {
 
         {/* Dernieres seances */}
         {data?.recentSessions && data.recentSessions.length > 0 && (
-          <Card className="bg-zinc-900 border-zinc-800">
+          <Card className="bg-carte border-filet">
             <CardHeader>
-              <CardTitle className="text-zinc-300 flex items-center gap-2">
+              <CardTitle className="text-encre-2 flex items-center gap-2">
                 <Dumbbell className="w-4 h-4" />
                 Seances recentes
               </CardTitle>
@@ -291,21 +298,21 @@ export default function DashboardPage() {
                 <button
                   key={s.id}
                   onClick={() => router.push(`/sessions/${s.id}?templateLettre=${encodeURIComponent(s.templateLettre || "")}&sessionDate=${encodeURIComponent(s.date)}`)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors text-left"
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-papier-2 hover:bg-papier-2 transition-colors text-left"
                 >
                   <div>
-                    <p className="text-white font-medium text-sm">
+                    <p className="text-encre font-medium text-sm">
                       {s.templateNom || "Seance libre"}
-                      {s.templateLettre && <span className="text-zinc-500 ml-1">({s.templateLettre})</span>}
+                      {s.templateLettre && <span className="text-encre-3 ml-1">({s.templateLettre})</span>}
                     </p>
-                    <p className="text-zinc-500 text-xs">
+                    <p className="text-encre-3 text-xs">
                       {s.date}
                       {s.gymNom && ` — ${s.gymNom}`}
                     </p>
                   </div>
                   <div className="text-right">
-                    {s.dureeMinutes && <p className="text-zinc-300 text-sm">{s.dureeMinutes} min</p>}
-                    {s.energieFin && <p className="text-zinc-500 text-xs">Énergie {s.energieFin}%</p>}
+                    {s.dureeMinutes && <p className="text-encre-2 text-sm">{s.dureeMinutes} min</p>}
+                    {s.energieFin && <p className="text-encre-3 text-xs">Énergie {s.energieFin}/10</p>}
                   </div>
                 </button>
               ))}

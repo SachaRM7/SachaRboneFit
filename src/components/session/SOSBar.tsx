@@ -25,15 +25,15 @@ export function SOSBar({ onMachineOccupee, onDouleur, onEnergie, onTempsDepasse 
   };
 
   return (
-    <div className="flex items-center gap-2 p-2 bg-zinc-900/90 backdrop-blur rounded-lg border border-zinc-800">
+    <div className="flex items-center gap-2 p-2 bg-carte/90 backdrop-blur rounded-lg border border-filet">
       {sosButtons.map((btn) => (
         <button
           key={btn.key}
           onClick={handlers[btn.key]}
-          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] rounded-lg bg-zinc-800 hover:bg-zinc-700 active:bg-zinc-600 transition-colors"
+          className="flex flex-col items-center gap-1 px-3 py-2 min-w-[64px] rounded-lg bg-papier-2 hover:bg-papier-2 active:bg-filet transition-colors"
         >
-          <btn.icon className="w-5 h-5 text-amber-400" />
-          <span className="text-xs text-zinc-300 font-medium">{btn.label}</span>
+          <btn.icon className="w-5 h-5 text-feu-orange" />
+          <span className="text-xs text-encre-2 font-medium">{btn.label}</span>
         </button>
       ))}
     </div>

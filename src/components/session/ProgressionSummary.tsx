@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { Delta } from "@/components/carnet/Delta";
 import { Button } from "@/components/ui/button";
 
 interface ExercisePerf {
@@ -43,10 +43,8 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
 
   useEffect(() => {
     const uniqueInstances = [...new Set(sets.map((s) => s.exerciseInstanceId))];
-    if (uniqueInstances.length === 0) {
-      setLoading(false);
-      return;
-    }
+    // Pas de setState synchrone ici : le cas vide est derive au rendu (voir plus bas).
+    if (uniqueInstances.length === 0) return;
 
     Promise.all(
       uniqueInstances.map(async (instanceId) => {
@@ -78,13 +76,13 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
           lastBest1RM,
           lastVolume,
           lastSets,
-          delta: lastBest1RM === null ? "new" : currentBest1RM > lastBest1RM ? "up" : currentBest1RM < lastBest1RM ? "down" : "same",
+          delta: (lastBest1RM === null ? "new" : currentBest1RM > lastBest1RM ? "up" : currentBest1RM < lastBest1RM ? "down" : "same") as "up" | "down" | "same" | "new",
           completedRange: false,
           suggestedCharge: null,
         };
       })
     ).then((results) => {
-      setExercises(results as any);
+      setExercises(results);
       setLoading(false);
     });
   }, [sets]);
@@ -92,9 +90,9 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
   if (loading) {
     return (
       <div className="space-y-3">
-        <p className="text-zinc-500 text-sm">Analyse des progressions...</p>
+        <p className="text-encre-3 text-sm">Analyse des progressions...</p>
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="bg-zinc-800 rounded-lg h-16 animate-pulse" />
+          <div key={i} className="bg-papier-2 rounded-lg h-14 animate-pulse" />
         ))}
       </div>
     );
@@ -103,33 +101,29 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
   if (exercises.length === 0) return null;
 
   return (
-    <div className="space-y-3">
-      <p className="text-zinc-400 text-sm font-medium">Comparaison à la dernière séance</p>
+    <div className="space-y-2">
+      <p className="text-encre-3 text-sm italic">Comparaison à la dernière séance</p>
       {exercises.map((ex) => {
-        const deltaLabel = ex.delta === "new" ? "Première séance" :
-          ex.delta === "up" ? `+${Math.round(ex.currentBest1RM - (ex.lastBest1RM || 0))}kg 1RM ↑` :
-          ex.delta === "down" ? `${Math.round(ex.currentBest1RM - (ex.lastBest1RM || 0))}kg 1RM ↓` :
-          "= stable";
-        const deltaColor = ex.delta === "up" ? "text-green-400" : ex.delta === "down" ? "text-red-400" : "text-zinc-400";
+        const ecart = ex.lastBest1RM === null ? null : ex.currentBest1RM - ex.lastBest1RM;
 
         return (
-          <div key={ex.exerciseInstanceId} className="bg-zinc-800/50 rounded-lg p-3 space-y-1">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-white font-medium text-sm">{ex.exerciseName}</p>
-                <p className="text-zinc-500 text-xs">{ex.machineNom}</p>
-              </div>
-              <Badge variant="outline" className="text-xs border-zinc-700 text-zinc-400">
-                {ex.pilier}
-              </Badge>
+          <div key={ex.exerciseInstanceId} className="border-t border-filet-doux pt-2.5 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-encre font-semibold text-sm leading-tight">{ex.exerciseName}</p>
+              <p className="text-encre-3 text-xs mt-0.5">{ex.machineNom}</p>
+              {ex.completedRange && (
+                <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide bg-gain-fond text-gain px-1.5 py-0.5 rounded">
+                  Fourchette complétée
+                </span>
+              )}
             </div>
-            <div className="flex items-center gap-2 text-xs">
-              <span className={`font-medium ${deltaColor}`}>{deltaLabel}</span>
-              <span className="text-zinc-500">
-                {ex.lastBest1RM !== null
-                  ? `${ex.lastBest1RM}kg → ${ex.currentBest1RM}kg`
-                  : `${ex.currentBest1RM}kg 1RM`}
-              </span>
+            <div className="text-right shrink-0">
+              {ecart === null ? (
+                <p className="chiffres text-sm font-semibold text-neutre">Première fois</p>
+              ) : (
+                <Delta valeur={ecart} unite="kg" decimales={0} className="text-base" />
+              )}
+              <p className="chiffres text-[11px] text-encre-3 mt-0.5">1RM {ex.currentBest1RM} kg</p>
             </div>
           </div>
         );

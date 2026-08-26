@@ -15,18 +15,18 @@ interface SOSResultatProps {
 export function SOSResultat({ message, exercicesImpactes, actions }: SOSResultatProps) {
   return (
     <div className="space-y-4">
-      <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4">
-        <p className="text-amber-300 font-medium">{message}</p>
+      <div className="bg-feu-orange/10 border border-feu-orange/25 rounded-lg p-4">
+        <p className="text-feu-orange font-medium">{message}</p>
       </div>
 
       {exercicesImpactes && exercicesImpactes.length > 0 && (
         <div className="space-y-2">
-          <p className="text-zinc-400 text-sm">Exercices impactés :</p>
+          <p className="text-encre-2 text-sm">Exercices impactés :</p>
           {exercicesImpactes.map((ex, i) => (
-            <div key={i} className="flex items-center justify-between bg-zinc-800 rounded px-3 py-2">
-              <span className="text-white text-sm">{ex.nom || ex.exercise_instance_id}</span>
+            <div key={i} className="flex items-center justify-between bg-papier-2 rounded px-3 py-2">
+              <span className="text-encre text-sm">{ex.nom || ex.exercise_instance_id}</span>
               <span className={`text-xs px-2 py-0.5 rounded ${
-                ex.impact === "skip" ? "bg-red-900/50 text-red-300" : "bg-yellow-900/50 text-yellow-300"
+                ex.impact === "skip" ? "bg-perte-fond text-perte" : "bg-feu-orange/15 text-feu-orange"
               }`}>
                 {ex.impact === "skip" ? "Skippé" : "Allégé"}
               </span>
@@ -42,10 +42,10 @@ export function SOSResultat({ message, exercicesImpactes, actions }: SOSResultat
             onClick={action.onClick}
             className={`w-full h-12 rounded-lg font-medium transition-colors ${
               action.variant === "destructive"
-                ? "bg-red-600 hover:bg-red-700 text-white"
+                ? "bg-perte hover:bg-perte/90 text-papier"
                 : action.variant === "outline"
-                ? "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
-                : "bg-green-600 hover:bg-green-700 text-white"
+                ? "bg-papier-2 hover:bg-papier-2 text-encre border border-filet"
+                : "bg-gain hover:bg-gain text-encre"
             }`}
           >
             {action.label}

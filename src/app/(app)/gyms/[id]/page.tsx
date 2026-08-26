@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { GymForm } from "@/components/gyms/GymForm";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default async function GymDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
@@ -24,7 +25,13 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold text-white">{gym.nom}</h1>
+      <h1 className="text-xl font-bold text-encre">{gym.nom}</h1>
+
+      <Link href={`/gyms/${id}/materiel`} className="block">
+        <Button variant="outline" className="w-full bg-carte border-filet">
+          Voir le matériel de cette salle
+        </Button>
+      </Link>
       <GymForm
         gymId={id}
         defaultValues={{
@@ -38,7 +45,7 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
 
       <Dialog>
         <DialogTrigger>
-          <span className="inline-flex items-center justify-center w-full px-4 py-2 mt-8 text-sm font-medium text-white bg-red-600 rounded-md cursor-pointer hover:bg-red-700">
+          <span className="inline-flex items-center justify-center w-full px-4 py-2 mt-8 text-sm font-medium text-papier bg-perte text-papier rounded-md cursor-pointer hover:bg-perte/90">
             Supprimer
           </span>
         </DialogTrigger>

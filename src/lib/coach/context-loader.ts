@@ -40,8 +40,10 @@ export async function loadCoachContext(userId: string): Promise<CoachContext> {
     orderBy: [desc(bodyWeights.date)],
   });
 
+  // La requete n'etait pas scopee : le contexte du coach pouvait charger le bloc
+  // actif d'un autre compte.
   const blocActif = await db.query.programmeBlocs.findFirst({
-    where: eq(programmeBlocs.actif, true),
+    where: (pb, { and, eq }) => and(eq(pb.userId, userId), eq(pb.actif, true)),
   });
 
   const today = new Date().toISOString().slice(0, 10);

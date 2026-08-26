@@ -1,61 +1,24 @@
 import { NextResponse } from "next/server";
-import { db } from "@/db/client";
-import { programmeBlocs, sessionLogs, seanceTemplates } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { computeAlerts, type Alert } from "@/lib/engine/alerts";
+import { alertes } from "@/services/progression";
 
-export async function GET(request: Request) {
+/**
+ * Alertes de progression : fourchette complétée, deload conseillé, stagnation,
+ * tendance rouge.
+ *
+ * Cette route existait, son moteur était correct, et personne ne l'appelait :
+ * le composant qui les affiche n'était monté nulle part. Elle renvoyait par
+ * ailleurs des valeurs partielles — « For now, return basic alerts » — parce que
+ * les agrégats attendus n'étaient calculés par aucune requête.
+ */
+export async function GET() {
   const userId = await getAuthenticatedUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = new URL(request.url);
-  const timing = searchParams.get("timing") as "pre_seance" | "post_seance";
-  const seanceTemplateId = searchParams.get("seanceTemplateId");
-  const sessionLogId = searchParams.get("sessionLogId");
-
-  if (timing === "pre_seance" && seanceTemplateId) {
-    // Find bloc for this template
-    const template = await db.query.seanceTemplates.findFirst({
-      where: eq(seanceTemplates.id, seanceTemplateId),
-    });
-
-    if (!template) {
-      return NextResponse.json([]);
-    }
-
-    // Check weeks since last deload
-    const blocs = await db.query.programmeBlocs.findMany({
-      where: eq(programmeBlocs.userId, userId),
-      orderBy: [desc(programmeBlocs.dateDebut)],
-    });
-
-    let semainesSansDeload = 0;
-    const firstBloc = blocs.length > 0 ? blocs[0] : undefined;
-    if (firstBloc) {
-      const start = new Date(firstBloc.dateDebut);
-      const now = new Date();
-      semainesSansDeload = Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
-    }
-
-    // For now, return basic alerts
-    const alerts = computeAlerts({
-      completedRanges: [],
-      semainesSansDeload,
-      stagnations: [],
-      feuTendance: null,
-    });
-
-    return NextResponse.json(alerts.filter((a) => a.timing === "pre_seance"));
+  try {
+    return NextResponse.json({ alertes: await alertes(userId) });
+  } catch (error) {
+    console.error("[alerts GET]", error);
+    return NextResponse.json({ error: "Calcul des alertes impossible" }, { status: 500 });
   }
-
-  if (timing === "post_seance" && sessionLogId) {
-    const session = await db.query.sessionLogs.findFirst({
-      where: eq(sessionLogs.id, sessionLogId),
-    });
-
-    return NextResponse.json([]);
-  }
-
-  return NextResponse.json([]);
 }

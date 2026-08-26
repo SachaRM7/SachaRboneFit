@@ -1,3 +1,5 @@
+import { memeMuscle } from "@/lib/referentiels/muscles";
+
 export interface ExerciseInstanceWithExercise {
   id: string;
   gymId: string;
@@ -37,10 +39,15 @@ export function findSubstitutes(
     .filter((inst) => {
       if (inst.gymId !== criteria.gymId) return false;
       if (criteria.excludeExerciseIds.includes(inst.id)) return false;
+      // Le pilier etait accepte en critere mais jamais applique : le moteur pouvait
+      // proposer un developpe couche pour remplacer un rowing.
+      if (inst.pilier !== criteria.pilier) return false;
       if (inst.profilTension !== criteria.profilTension && inst.profilTension !== "mi_range") return false;
       if (criteria.musclesAvecCourbatures && criteria.musclesAvecCourbatures.length > 0) {
+        // Comparaison via le referentiel : les deux listes viennent de vocabulaires
+        // differents (saisie utilisateur vs base), une inclusion stricte echouait toujours.
         const hasAvoidedMuscle = inst.musclesPrincipaux.some((m) =>
-          criteria.musclesAvecCourbatures!.includes(m),
+          criteria.musclesAvecCourbatures!.some((c) => memeMuscle(c, m)),
         );
         if (hasAvoidedMuscle) return false;
       }

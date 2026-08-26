@@ -7,8 +7,9 @@ import { ExerciseProgressionChart } from "@/components/progression/ExerciseProgr
 import { PillarVolumeChart } from "@/components/progression/PillarVolumeChart";
 import { BodyWeightChart } from "@/components/progression/BodyWeightChart";
 import { FeuHeatmap } from "@/components/progression/FeuHeatmap";
+import { Records } from "@/components/progression/Records";
 
-type Tab = "exercice" | "pilier" | "poids" | "calendrier";
+type Tab = "exercice" | "pilier" | "records" | "poids" | "calendrier";
 
 export default function ProgressionPage() {
   const [activeTab, setActiveTab] = useState<Tab>("exercice");
@@ -18,12 +19,13 @@ export default function ProgressionPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "exercice", label: "Par exercice" },
     { key: "pilier", label: "Par pilier" },
+    { key: "records", label: "Records" },
     { key: "poids", label: "Poids" },
     { key: "calendrier", label: "Calendrier" },
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-papier text-encre">
       <div className="px-4 pt-8 pb-4">
         <h1 className="text-2xl font-bold">Progression</h1>
       </div>
@@ -36,8 +38,8 @@ export default function ProgressionPage() {
             onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
               activeTab === tab.key
-                ? "bg-white text-black"
-                : "bg-zinc-800 text-zinc-400 hover:text-white"
+                ? "bg-encre text-papier"
+                : "bg-papier-2 text-encre-2 hover:text-encre"
             }`}
           >
             {tab.label}
@@ -50,14 +52,14 @@ export default function ProgressionPage() {
           <div className="space-y-4">
             <div className="flex gap-2">
               <select
-                className="bg-zinc-800 border-zinc-700 text-white rounded px-3 py-2 text-sm flex-1"
+                className="bg-papier-2 border-filet text-encre rounded px-3 py-2 text-sm flex-1"
                 value={exerciseInstanceId}
                 onChange={(e) => setExerciseInstanceId(e.target.value)}
               >
                 <option value="">Sélectionner un exercice</option>
               </select>
               <select
-                className="bg-zinc-800 border-zinc-700 text-white rounded px-3 py-2 text-sm"
+                className="bg-papier-2 border-filet text-encre rounded px-3 py-2 text-sm"
                 value={periodMonths}
                 onChange={(e) => setPeriodMonths(Number(e.target.value))}
               >
@@ -69,7 +71,7 @@ export default function ProgressionPage() {
             {exerciseInstanceId ? (
               <ExerciseProgressionChart instanceId={exerciseInstanceId} months={periodMonths} />
             ) : (
-              <div className="text-zinc-500 text-center py-12">
+              <div className="text-encre-3 text-center py-12">
                 Sélectionnez un exercice pour voir la progression
               </div>
             )}
@@ -80,7 +82,7 @@ export default function ProgressionPage() {
           <div className="space-y-4">
             <div className="flex gap-2">
               <select
-                className="bg-zinc-800 border-zinc-700 text-white rounded px-3 py-2 text-sm"
+                className="bg-papier-2 border-filet text-encre rounded px-3 py-2 text-sm"
                 value={periodMonths}
                 onChange={(e) => setPeriodMonths(Number(e.target.value))}
               >
@@ -91,6 +93,8 @@ export default function ProgressionPage() {
             <PillarVolumeChart months={periodMonths} />
           </div>
         )}
+
+        {activeTab === "records" && <Records />}
 
         {activeTab === "poids" && <BodyWeightChart months={6} />}
 

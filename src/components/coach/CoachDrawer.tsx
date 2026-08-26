@@ -87,63 +87,37 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
+      // La route ne diffuse plus : elle renvoie la réponse complète, outils
+      // exécutés côté serveur. Le client décodait auparavant un flux SSE qui
+      // n'était jamais décodé côté serveur non plus.
       const res = await fetch("/api/coach/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: activeConvId,
-          message: userMessage,
-        }),
+        body: JSON.stringify({ conversationId: activeConvId, message: userMessage }),
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to send message");
+        const erreur = await res.json().catch(() => null);
+        throw new Error(erreur?.error || "Le coach n'a pas répondu");
       }
 
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
+      const data = await res.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            if (line.slice(7).trim() === "done") {
-              loadConversations();
-            }
-          } else if (line.startsWith("data: ")) {
-            const dataStr = line.slice(6).trim();
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.conversationId && !activeConvId) {
-                setActiveConvId(data.conversationId);
-                loadConversations();
-              }
-              if (data.content !== undefined) {
-                fullText += data.content;
-              }
-            } catch {
-              // Ignore parse errors
-            }
-          }
-        }
+      if (!activeConvId && data.conversationId) {
+        setActiveConvId(data.conversationId);
       }
 
-      if (fullText) {
-        const assistantMsg: Message = {
-          id: `assistant-${Date.now()}`,
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: data.message?.id ?? `assistant-${Date.now()}`,
           role: "assistant",
-          content: fullText,
+          content: data.message?.content ?? "",
           createdAt: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-      }
+        },
+      ]);
+
+      loadConversations();
     } catch (e) {
       console.error("Failed to send message:", e);
       setMessages((prev) => prev.slice(0, -1));
@@ -154,12 +128,12 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
   return (
     <Drawer open={open} onClose={onClose} direction="bottom">
-      <DrawerContent className="bg-zinc-950 text-white max-h-[90vh] !rounded-t-2xl">
+      <DrawerContent className="bg-papier text-encre max-h-[90vh] !rounded-t-2xl">
         <div className="flex flex-col h-[90vh]">
-          <DrawerHeader className="border-b border-zinc-800 pb-2">
+          <DrawerHeader className="border-b border-filet pb-2">
             <div className="flex items-center justify-between">
-              <DrawerTitle className="text-white">Coach</DrawerTitle>
-              <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-zinc-800">
+              <DrawerTitle className="text-encre">Coach</DrawerTitle>
+              <Button variant="ghost" size="icon" onClick={onClose} className="text-encre hover:bg-papier-2">
                 <X className="w-5 h-5" />
               </Button>
             </div>
@@ -169,7 +143,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               <Button
                 variant="outline"
-                className="w-full bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800 justify-start"
+                className="w-full bg-carte border-filet text-encre hover:bg-papier-2 justify-start"
                 onClick={startNewConversation}
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -177,9 +151,9 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
               </Button>
 
               {loadingConversations ? (
-                <div className="text-zinc-500 text-sm text-center py-4">Chargement...</div>
+                <div className="text-encre-3 text-sm text-center py-4">Chargement...</div>
               ) : conversations.length === 0 ? (
-                <div className="text-zinc-500 text-sm text-center py-4">
+                <div className="text-encre-3 text-sm text-center py-4">
                   Aucune conversation. Démarre en envoyant un message !
                 </div>
               ) : (
@@ -187,13 +161,13 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                   <button
                     key={conv.id}
                     onClick={() => selectConversation(conv.id)}
-                    className="w-full text-left p-3 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800 transition-colors"
+                    className="w-full text-left p-3 rounded-lg bg-carte border border-filet hover:bg-papier-2 transition-colors"
                   >
-                    <div className="font-medium text-white text-sm truncate">
+                    <div className="font-medium text-encre text-sm truncate">
                       {conv.title || "Nouvelle conversation"}
                     </div>
                     {conv.lastMessage && (
-                      <div className="text-zinc-500 text-xs truncate mt-1">
+                      <div className="text-encre-3 text-xs truncate mt-1">
                         {conv.lastMessage.role === "user" ? "Vous: " : "Coach: "}
                         {conv.lastMessage.preview}
                       </div>
@@ -206,12 +180,12 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
           {(activeConvId || messages.length > 0) && (
             <>
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800">
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-filet">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={startNewConversation}
-                  className="text-zinc-400 hover:text-white hover:bg-zinc-800 text-xs"
+                  className="text-encre-2 hover:text-encre hover:bg-papier-2 text-xs"
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   Nouveau
@@ -227,8 +201,8 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                     <div
                       className={`max-w-[85%] rounded-2xl px-4 py-2 ${
                         msg.role === "user"
-                          ? "bg-white text-black rounded-br-md"
-                          : "bg-zinc-800 text-white rounded-bl-md"
+                          ? "bg-encre text-papier rounded-br-md"
+                          : "bg-papier-2 text-encre rounded-bl-md"
                       }`}
                     >
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -237,11 +211,11 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                 ))}
                 {loading && (
                   <div className="flex justify-start">
-                    <div className="bg-zinc-800 text-white rounded-2xl rounded-bl-md px-4 py-2">
+                    <div className="bg-papier-2 text-encre rounded-2xl rounded-bl-md px-4 py-2">
                       <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                        <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                        <span className="w-2 h-2 bg-zinc-500 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        <span className="w-2 h-2 bg-encre-3 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                        <span className="w-2 h-2 bg-encre-3 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                        <span className="w-2 h-2 bg-encre-3 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                       </div>
                     </div>
                   </div>
@@ -251,7 +225,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
             </>
           )}
 
-          <div className="p-4 border-t border-zinc-800">
+          <div className="p-4 border-t border-filet">
             <div className="flex gap-2">
               <input
                 type="text"
@@ -259,13 +233,13 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSend()}
                 placeholder="Message au coach..."
-                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-full px-4 py-2 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-600"
+                className="flex-1 bg-carte border border-filet rounded-full px-4 py-2 text-sm text-encre placeholder:text-encre-3 focus:outline-none focus:border-filet"
                 disabled={loading}
               />
               <Button
                 onClick={handleSend}
                 disabled={loading || !input.trim()}
-                className="w-12 h-12 rounded-full bg-white text-black hover:bg-zinc-200 p-0"
+                className="w-12 h-12 rounded-full bg-encre text-papier hover:bg-filet p-0"
               >
                 <Send className="w-5 h-5" />
               </Button>

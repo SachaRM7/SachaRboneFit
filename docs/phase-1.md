@@ -1,3 +1,10 @@
+> **ARCHIVE — document d'intention, pas état du code.**
+> Ce document décrit ce qui était *prévu* lors de cette phase. Plusieurs éléments
+> annoncés comme livrés sont en réalité du code mort ou des placeholders.
+> La source de vérité est le code, et les limites connues sont listées dans le README.
+
+---
+
 # Phase 1 — Fondations + saisie de séance
 
 ## Objectif de la phase

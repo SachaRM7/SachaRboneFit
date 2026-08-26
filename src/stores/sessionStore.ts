@@ -38,7 +38,12 @@ export type ActiveSession = {
 
 type SessionStore = {
   active: ActiveSession | null;
-  start: (s: Omit<ActiveSession, "id" | "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "shownProactiveAlerts">) => void;
+  /**
+   * `id` doit etre l'identifiant reel de la ligne session_logs creee en base.
+   * Le store generait auparavant un UUID local, decorrele de la base : tout
+   * appel utilisant cet id (enregistrement d'incident, cloture) echouait en 403.
+   */
+  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
   setCurrentExerciseIndex: (i: number) => void;
   setNotes: (notes: string) => void;
@@ -63,7 +68,6 @@ export const useSessionStore = create<SessionStore>()(
       start: (data) => set({
         active: {
           ...data,
-          id: crypto.randomUUID(),
           startedAt: Date.now(),
           sets: [],
           currentExerciseIndex: 0,

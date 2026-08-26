@@ -6,16 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { MUSCLES as REFERENTIEL_MUSCLES, LIBELLES, type Muscle } from "@/lib/referentiels/muscles";
 import { Plus, X } from "lucide-react";
 
-export const MUSCLES = [
-  "Pectoraux", "Dorsaux", "Trapèzes", "Épaules",
-  "Biceps", "Triceps", "Avant-bras",
-  "Quadriceps", "Ischio-jambiers", "Fessiers", "Adducteurs",
-  "Mollets", "Abdominaux", "Lombaires",
-] as const;
+// La liste vient du referentiel : elle etait auparavant redigee ici dans un
+// vocabulaire propre a l'interface, qui ne correspondait a aucun autre.
+// On stocke la valeur canonique et on affiche le libelle.
+export const MUSCLES = REFERENTIEL_MUSCLES;
 
-export type Courbature = { muscle: string; intensite: number };
+export type Courbature = { muscle: Muscle | string; intensite: number };
 
 interface CourbaturesModalProps {
   value: Courbature[];
@@ -42,14 +41,14 @@ export function CourbaturesModal({ value, onChange }: CourbaturesModalProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger>
-        <span className="inline-flex items-center justify-start w-full px-3 py-2 text-sm border border-zinc-700 rounded-md bg-zinc-900 text-zinc-300 cursor-pointer hover:bg-zinc-800 hover:text-white">
+        <span className="inline-flex items-center justify-start w-full px-3 py-2 text-sm border border-filet rounded-md bg-carte text-encre-2 cursor-pointer hover:bg-papier-2 hover:text-encre">
           <Plus className="w-4 h-4 mr-2" />
           {value.length === 0 ? "Ajouter des courbatures" : `${value.length} courbature(s)`}
         </span>
       </DialogTrigger>
-      <DialogContent className="bg-zinc-950 border-zinc-800 text-white">
+      <DialogContent className="bg-papier border-filet text-encre">
         <DialogHeader>
-          <DialogTitle className="text-white">Courbatures</DialogTitle>
+          <DialogTitle className="text-encre">Courbatures</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -57,11 +56,11 @@ export function CourbaturesModal({ value, onChange }: CourbaturesModalProps) {
           {value.length > 0 && (
             <div className="flex flex-wrap gap-2">
               {value.map(c => (
-                <Badge key={c.muscle} variant="outline" className="border-zinc-700 text-white pr-1.5">
-                  {c.muscle} ({c.intensite}/10)
+                <Badge key={c.muscle} variant="outline" className="border-filet text-encre pr-1.5">
+                  {LIBELLES[c.muscle as Muscle] ?? c.muscle} ({c.intensite}/10)
                   <button
                     onClick={() => removeCourbature(c.muscle)}
-                    className="ml-1 text-zinc-400 hover:text-white"
+                    className="ml-1 text-encre-2 hover:text-encre"
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -73,21 +72,21 @@ export function CourbaturesModal({ value, onChange }: CourbaturesModalProps) {
           {/* Add new */}
           <div className="space-y-3">
             <div>
-              <Label className="text-zinc-400 text-xs mb-1 block">Muscle</Label>
+              <Label className="text-encre-2 text-xs mb-1 block">Muscle</Label>
               <Select value={selectedMuscle} onValueChange={(v) => setSelectedMuscle(v ?? "")}>
-                <SelectTrigger className="bg-zinc-900 border-zinc-800 text-white">
+                <SelectTrigger className="bg-carte border-filet text-encre">
                   <SelectValue placeholder="Choisir un muscle" />
                 </SelectTrigger>
-                <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
+                <SelectContent className="bg-carte border-filet text-encre">
                   {MUSCLES.filter(m => !value.some(c => c.muscle === m)).map(muscle => (
-                    <SelectItem key={muscle} value={muscle}>{muscle}</SelectItem>
+                    <SelectItem key={muscle} value={muscle}>{LIBELLES[muscle]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label className="text-zinc-400 text-xs mb-2 block">Intensité: {intensite[0]}/10</Label>
+              <Label className="text-encre-2 text-xs mb-2 block">Intensité: {intensite[0]}/10</Label>
               <Slider
                 value={intensite}
                 onValueChange={(v) => setIntensite(Array.isArray(v) ? [...v] : [v])}
@@ -101,7 +100,7 @@ export function CourbaturesModal({ value, onChange }: CourbaturesModalProps) {
             <Button
               onClick={addCourbature}
               disabled={!selectedMuscle}
-              className="w-full bg-white text-black hover:bg-zinc-200"
+              className="w-full bg-encre text-papier hover:bg-filet"
             >
               <Plus className="w-4 h-4 mr-2" />
               Ajouter

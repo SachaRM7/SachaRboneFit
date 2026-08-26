@@ -30,34 +30,34 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-2xl font-bold text-white mb-6">Dashboard</h1>
+      <h1 className="text-2xl font-bold text-encre mb-6">Dashboard</h1>
 
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-carte border-filet">
         <CardHeader>
-          <CardTitle className="text-white text-lg">Bienvenue, {user.email?.split("@")[0]}</CardTitle>
+          <CardTitle className="text-encre text-lg">Bienvenue, {user.email?.split("@")[0]}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-zinc-400 text-sm">Membre depuis {new Date(user.created_at).toLocaleDateString("fr-FR")}</p>
+          <p className="text-encre-2 text-sm">Membre depuis {new Date(user.created_at).toLocaleDateString("fr-FR")}</p>
         </CardContent>
       </Card>
 
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-carte border-filet">
         <CardHeader>
-          <CardTitle className="text-white text-sm">Bloc actif</CardTitle>
+          <CardTitle className="text-encre text-sm">Bloc actif</CardTitle>
         </CardHeader>
         <CardContent>
-          <Badge variant="outline" className="border-zinc-700 text-zinc-300">
+          <Badge variant="outline" className="border-filet text-encre-2">
             {blocActif?.nom || "Aucun bloc actif"}
           </Badge>
         </CardContent>
       </Card>
 
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-carte border-filet">
         <CardHeader>
-          <CardTitle className="text-white text-sm">Dernière séance</CardTitle>
+          <CardTitle className="text-encre text-sm">Dernière séance</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-white text-lg font-medium">
+          <p className="text-encre text-lg font-medium">
             {lastSession?.date
               ? new Date(lastSession.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
               : "Aucune séance"}
@@ -65,12 +65,12 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      <Card className="bg-zinc-900 border-zinc-800">
+      <Card className="bg-carte border-filet">
         <CardHeader>
-          <CardTitle className="text-white text-sm">Poids actuel</CardTitle>
+          <CardTitle className="text-encre text-sm">Poids actuel</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-white text-lg font-medium">
+          <p className="text-encre text-lg font-medium">
             {lastWeight ? `${lastWeight.poids.toFixed(1)} kg` : "Non renseigné"}
           </p>
         </CardContent>

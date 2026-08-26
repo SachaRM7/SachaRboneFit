@@ -62,21 +62,21 @@ export function ProactiveAlert({ onShowSOS }: ProactiveAlertProps) {
     : "";
 
   return (
-    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-start gap-3 animate-in slide-in-from-top">
-      <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+    <div className="bg-feu-orange/10 border border-feu-orange/25 rounded-lg p-3 flex items-start gap-3 animate-in slide-in-from-top">
+      <AlertTriangle className="w-5 h-5 text-feu-orange mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-amber-200 text-sm">{message}</p>
+        <p className="text-feu-orange text-sm">{message}</p>
         {onShowSOS && (
           <button
             onClick={onShowSOS}
-            className="text-amber-400 text-sm font-medium mt-1 hover:underline"
+            className="text-feu-orange text-sm font-medium mt-1 hover:underline"
           >
             Voir SOS
           </button>
         )}
       </div>
       <button onClick={handleDismiss} className="p-1 shrink-0">
-        <X className="w-4 h-4 text-amber-400" />
+        <X className="w-4 h-4 text-feu-orange" />
       </button>
     </div>
   );

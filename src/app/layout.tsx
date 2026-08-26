@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { ThemeProvider } from "@/components/layout/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "Sport Perso",
@@ -7,7 +8,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Sport",
   },
   icons: {
@@ -20,14 +21,17 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   userScalable: false,
-  themeColor: "#000000",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FBFAF7" },
+    { media: "(prefers-color-scheme: dark)", color: "#16181C" },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className="dark">
-      <body className="bg-black text-white min-h-screen antialiased">
-        {children}
+    <html lang="fr" suppressHydrationWarning>
+      <body className="bg-papier text-encre min-h-screen antialiased">
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
