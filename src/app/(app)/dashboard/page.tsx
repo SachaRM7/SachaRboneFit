@@ -121,15 +121,17 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 space-y-4 pb-20">
-        {/* Sans cet etat, un chargement en cours et un compte reellement vide
-            rendaient exactement la meme chose : des cartes sans valeurs. */}
-        {loading && !erreur && (
+        {/* Le squelette s'ajoutait aux cartes au lieu de les remplacer : on
+            lisait deux blocs vides puis les memes cartes sans valeurs. Pendant
+            le chargement, il est seul a l'ecran. */}
+        {loading && !erreur ? (
           <div className="space-y-4" aria-busy="true">
             <div className="bg-carte border border-filet rounded-xl h-28 animate-pulse" />
             <div className="bg-carte border border-filet rounded-xl h-24 animate-pulse" />
+            <p className="text-encre-3 text-sm text-center">Chargement de ton tableau de bord…</p>
           </div>
-        )}
-
+        ) : (
+        <>
         {erreur && (
           <Card className="bg-perte-fond border-perte/30">
             <CardContent className="py-4 space-y-2">
@@ -360,6 +362,8 @@ export default function DashboardPage() {
               ))}
             </CardContent>
           </Card>
+        )}
+        </>
         )}
       </div>
     </div>
