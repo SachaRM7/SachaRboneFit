@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Download, LogOut, User } from "lucide-react";
+import { Download, LogOut, User, History, CalendarRange } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -64,6 +64,46 @@ export default function SettingsPage() {
             <Link href="/profil" className="block">
               <Button variant="outline" className="w-full bg-zinc-800 border-zinc-700">
                 Modifier mon profil
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Historique */}
+        <Card className="bg-zinc-900 border-zinc-800 mb-4">
+          <CardHeader>
+            <CardTitle className="text-zinc-300 flex items-center gap-2">
+              <History className="w-4 h-4" />
+              Historique
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-zinc-500 text-sm">
+              Toutes tes séances passées, par mois, avec volume et durée.
+            </p>
+            <Link href="/historique" className="block">
+              <Button variant="outline" className="w-full bg-zinc-800 border-zinc-700">
+                Parcourir l&apos;historique
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* Programme */}
+        <Card className="bg-zinc-900 border-zinc-800 mb-4">
+          <CardHeader>
+            <CardTitle className="text-zinc-300 flex items-center gap-2">
+              <CalendarRange className="w-4 h-4" />
+              Programme
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-zinc-500 text-sm">
+              Bloc actif, séances et exercices programmés.
+            </p>
+            <Link href="/programme" className="block">
+              <Button variant="outline" className="w-full bg-zinc-800 border-zinc-700">
+                Gérer mon programme
               </Button>
             </Link>
           </CardContent>

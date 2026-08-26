@@ -98,10 +98,10 @@ L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
 - **Ajustement de volume** — calculé et stocké, mais jamais appliqué aux séries affichées.
 - **Courbatures et douleurs** — saisies et stockées, sans effet sur la séance
   (trois vocabulaires musculaires incompatibles coexistent).
-- **Programmes et séances** — aucun chemin de création dans l'application ; seul
-  `npm run seed` en produit.
-- **Génération de séance** — inexistante. Les séances sont des templates fixes et
-  la rotation A/B/C repose sur le nom de la séance.
+- **Génération de séance** — inexistante. Les séances restent des templates fixes :
+  l'application choisit laquelle vient ensuite, pas ce qu'elle contient.
+- **Adaptation à la salle** — un exercice programmé pointe vers une machine d'une
+  salle précise. Changer de salle ne change pas encore la séance proposée.
 - **PWA** — le service worker est vide et les icônes du manifest sont absentes.
 - **Tests** — il n'y en a aucun.
 

@@ -52,35 +52,19 @@ function SessionStartPageContent() {
         const feu = computeFeuJour(stateForFeu);
         setFeuJour(feu.feu);
 
-        const lastSessionRes = await fetch(`/api/sessions/last?gymId=${gymId}`);
-        const lastSession = lastSessionRes.ok ? await lastSessionRes.json() : null;
-
-        let nextTemplateLetter = "A";
-
-        if (lastSession && lastSession.seanceTemplateId) {
-          const tRes = await fetch(`/api/sessions/${lastSession.seanceTemplateId}`);
-          if (tRes.ok) {
-            const lastTemplate = await tRes.json();
-            const letter = lastTemplate.nom?.slice(-1) || "A";
-            if (letter === "A") nextTemplateLetter = "B";
-            else if (letter === "B") nextTemplateLetter = "C";
-            else nextTemplateLetter = "A";
-          }
-        }
-
-        const templatesRes = await fetch("/api/sessions");
-        const templatesData = await templatesRes.json();
-        const templates = Array.isArray(templatesData) ? templatesData : templatesData.templates || [];
-        const nextTemplate = templates.find((t: { id: string; nom?: string }) => t.nom?.endsWith(nextTemplateLetter)) || templates[0];
-
-        if (!nextTemplate) {
-          setError("Aucun template trouve");
+        // La rotation est calculee cote serveur a partir de `ordreDansSemaine`.
+        // Elle reposait auparavant sur le dernier caractere du nom de la seance :
+        // renommer une seance cassait le cycle.
+        const prochaineRes = await fetch("/api/programme/prochaine-seance");
+        if (!prochaineRes.ok) {
+          setError("Aucun programme actif. Crée un bloc et ses séances.");
           setLoading(false);
           return;
         }
+        const prochaine = await prochaineRes.json();
+        const nextTemplate = prochaine.template;
 
         const templateId = nextTemplate.id;
-        const templateNom = nextTemplate.nom;
 
         const templateRes = await fetch(`/api/sessions/${templateId}`);
         const template = await templateRes.json();

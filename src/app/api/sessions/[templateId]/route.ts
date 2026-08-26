@@ -25,8 +25,11 @@ export async function GET(
     });
     if (!bloc) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    // Sans tri explicite, l'ordre d'affichage dependait de l'ordre de retour de
+    // Postgres : la seance pouvait sortir dans le desordre d'une fois sur l'autre.
     const exercisesInTemplate = await db.query.exerciseInTemplate.findMany({
       where: eq(exerciseInTemplate.seanceTemplateId, templateId),
+      orderBy: (eit, { asc }) => [asc(eit.ordre)],
     });
 
     // Fetch all exercise instances for the user
