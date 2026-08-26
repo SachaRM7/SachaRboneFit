@@ -187,8 +187,12 @@
   --serie-8: #8C7A18;
 }
 
+/* next-themes est configure en `attribute="class"` : il pose `.light` ou `.dark`
+   sur <html>, jamais `data-theme`. La garde s'ecrivait `:not([data-theme="light"])`,
+   un attribut que personne ne posait : sur un telephone en mode sombre la media
+   query gagnait toujours et le choix « Clair » restait sans effet. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
+  :root:not(.light):not([data-theme="light"]) {
     --papier: #16181C;
     --papier-2: #1D2025;
     --carte: #1F2228;
