@@ -1,19 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Download, LogOut, User, History, CalendarRange } from "lucide-react";
+import { Download, LogOut, User, History, CalendarRange, Palette } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useSessionStore } from "@/stores/sessionStore";
+import { ChoixTheme } from "@/components/layout/ChoixTheme";
 
 export default function SettingsPage() {
   const router = useRouter();
   const clearSession = useSessionStore((state) => state.clear);
   const [exporting, setExporting] = useState(false);
+
+  // Trois comptes portent le même prénom : sans l'adresse affichée, un compte
+  // vide est indiscernable d'une application qui aurait perdu les données.
+  const [emailConnecte, setEmailConnecte] = useState<string | null>(null);
+  useEffect(() => {
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => setEmailConnecte(data.user?.email ?? null))
+      .catch(() => setEmailConnecte(null));
+  }, []);
 
   const handleExportJSON = async () => {
     setExporting(true);
@@ -132,6 +143,19 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Apparence */}
+        <Card className="bg-carte border-filet mb-4">
+          <CardHeader>
+            <CardTitle className="text-encre-2 flex items-center gap-2">
+              <Palette className="w-4 h-4" />
+              Apparence
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ChoixTheme />
+          </CardContent>
+        </Card>
+
         {/* Account */}
         <Card className="bg-carte border-filet">
           <CardHeader>
@@ -141,6 +165,12 @@ export default function SettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            <div>
+              <p className="text-encre-3 text-xs uppercase tracking-wide">Connecté en tant que</p>
+              <p className="text-encre font-medium text-sm mt-0.5 break-all">
+                {emailConnecte ?? "…"}
+              </p>
+            </div>
             <p className="text-encre-3 text-sm">
               Déconnecte-toi pour changer de compte.
             </p>
