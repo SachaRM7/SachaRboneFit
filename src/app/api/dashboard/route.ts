@@ -142,6 +142,11 @@ export async function GET() {
       recentSessions: recentSessionsWithData,
     });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to load dashboard" }, { status: 500 });
+    // Le message etait constant : toute panne — colonne absente, service en
+    // echec, requete invalide — se presentait de la meme facon, et le client
+    // n'avait aucun moyen de dire ce qui avait casse.
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error("[api/dashboard]", detail, error);
+    return NextResponse.json({ error: `Chargement du tableau de bord : ${detail}` }, { status: 500 });
   }
 }

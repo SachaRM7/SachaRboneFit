@@ -14,12 +14,22 @@
  *   doit échouer visiblement plutôt que d'être silencieusement perdue.
  */
 
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE_COQUILLE = `coquille-${VERSION}`;
 const CACHE_ASSETS = `assets-${VERSION}`;
 const CACHE_API = `api-${VERSION}`;
 
-const A_PRECHARGER = ["/", "/manifest.json"];
+// `/` repond par une redirection 307 vers /login ou /dashboard selon la
+// session. Mise en cache, cette reponse porte `redirected: true`, et une
+// navigation ne peut pas etre servie par une reponse redirigee : le navigateur
+// la refuse et affiche sa page « cette page n'a pas pu se charger ». On
+// precharge donc la destination reelle, jamais la redirection.
+const A_PRECHARGER = ["/login", "/manifest.json"];
+
+/** Une reponse redirigee ne peut pas resservir une navigation : jamais en cache. */
+function cachable(reponse) {
+  return reponse && reponse.ok && !reponse.redirected && reponse.type !== "opaqueredirect";
+}
 
 self.addEventListener("install", (evenement) => {
   evenement.waitUntil(
@@ -48,7 +58,7 @@ async function cacheDAbord(requete, nomCache) {
   if (enCache) return enCache;
 
   const reponse = await fetch(requete);
-  if (reponse.ok) cache.put(requete, reponse.clone());
+  if (cachable(reponse)) cache.put(requete, reponse.clone());
   return reponse;
 }
 
@@ -57,7 +67,7 @@ async function reseauDAbord(requete, nomCache) {
   const cache = await caches.open(nomCache);
   try {
     const reponse = await fetch(requete);
-    if (reponse.ok) cache.put(requete, reponse.clone());
+    if (cachable(reponse)) cache.put(requete, reponse.clone());
     return reponse;
   } catch (erreur) {
     const enCache = await cache.match(requete);
@@ -93,7 +103,7 @@ self.addEventListener("fetch", (evenement) => {
   if (requete.mode === "navigate") {
     evenement.respondWith(
       reseauDAbord(requete, CACHE_COQUILLE).catch(() =>
-        caches.match("/").then((r) => r ?? Response.error()),
+        caches.match("/login").then((r) => r ?? Response.error()),
       ),
     );
   }

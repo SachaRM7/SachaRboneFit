@@ -37,13 +37,30 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const { active, clear } = useSessionStore();
 
+  // Le chargement n'avait aucun `catch` : une API en erreur laissait `data` a
+  // null, et la page rendait ses cartes vides sans rien dire — impossible de
+  // distinguer « pas de donnees » de « la requete a echoue ». Pire, une reponse
+  // d'erreur ({ error }) faisait planter le rendu sur `data.user.nom`.
+  const [erreur, setErreur] = useState<string | null>(null);
   useEffect(() => {
-    fetch("/api/dashboard")
-      .then((r) => r.json())
-      .then((d) => {
-        setData(d);
-        setLoading(false);
-      });
+    let annule = false;
+    (async () => {
+      try {
+        const reponse = await fetch("/api/dashboard");
+        const corps = await reponse.json().catch(() => null);
+        if (annule) return;
+        if (!reponse.ok || !corps || typeof corps.prochaineSeance === "undefined") {
+          setErreur(corps?.error ? `${corps.error} (HTTP ${reponse.status})` : `HTTP ${reponse.status}`);
+        } else {
+          setData(corps);
+        }
+      } catch (cause) {
+        if (!annule) setErreur(cause instanceof Error ? cause.message : "Requête impossible");
+      } finally {
+        if (!annule) setLoading(false);
+      }
+    })();
+    return () => { annule = true; };
   }, []);
 
   // Detect stale session (>6h). Date.now() ne doit pas etre appele pendant le rendu :
@@ -104,6 +121,31 @@ export default function DashboardPage() {
       </div>
 
       <div className="px-4 space-y-4 pb-20">
+        {/* Sans cet etat, un chargement en cours et un compte reellement vide
+            rendaient exactement la meme chose : des cartes sans valeurs. */}
+        {loading && !erreur && (
+          <div className="space-y-4" aria-busy="true">
+            <div className="bg-carte border border-filet rounded-xl h-28 animate-pulse" />
+            <div className="bg-carte border border-filet rounded-xl h-24 animate-pulse" />
+          </div>
+        )}
+
+        {erreur && (
+          <Card className="bg-perte-fond border-perte/30">
+            <CardContent className="py-4 space-y-2">
+              <p className="text-perte font-semibold">Le tableau de bord n&apos;a pas pu être chargé</p>
+              <p className="chiffres text-encre-2 text-xs break-all">{erreur}</p>
+              <Button
+                size="sm"
+                className="bg-encre text-papier hover:bg-filet"
+                onClick={() => window.location.reload()}
+              >
+                Réessayer
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         {/* In-progress session banner */}
         {canResume && (
           <Card className="bg-gain-fond border-gain/30">
