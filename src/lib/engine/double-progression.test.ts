@@ -77,3 +77,91 @@ describe("double progression", () => {
     expect(r.fourchetteCompletee).toBe(false);
   });
 });
+
+describe("le RPE entre dans la décision", () => {
+  // Il était saisi à chaque série, stocké, et lu par aucun module : compléter la
+  // fourchette à RPE 10 et à RPE 7 déclenchait la même augmentation.
+
+  it("fourchette complétée à effort modéré : progression normale", () => {
+    const r = computeNextSets(
+      { sets: [
+        { numero: 1, reps: 8, charge: 80, rpe: 7 },
+        { numero: 2, reps: 8, charge: 80, rpe: 7.5 },
+        { numero: 3, reps: 8, charge: 80, rpe: 8 },
+      ] },
+      cible,
+    );
+    expect(r.charge).toBe(82.5);
+    expect(r.consolidation).toBe(false);
+    expect(r.messageProgression).toContain("+2.5 kg");
+  });
+
+  it("fourchette complétée à effort maximal : on charge quand même, mais on prévient", () => {
+    const r = computeNextSets(
+      { sets: [
+        { numero: 1, reps: 8, charge: 80, rpe: 9.5 },
+        { numero: 2, reps: 8, charge: 80, rpe: 10 },
+        { numero: 3, reps: 8, charge: 80, rpe: 10 },
+      ] },
+      cible,
+    );
+    expect(r.charge).toBe(82.5);
+    expect(r.fourchetteCompletee).toBe(true);
+    expect(r.messageProgression).toContain("piquer");
+  });
+
+  it("fourchette non complétée à effort maximal : on répète, on n'ajoute rien", () => {
+    // Ajouter du travail sur un effort déjà maximal ne produit pas de progression.
+    const r = computeNextSets(
+      { sets: [
+        { numero: 1, reps: 7, charge: 80, rpe: 10 },
+        { numero: 2, reps: 6, charge: 80, rpe: 10 },
+        { numero: 3, reps: 6, charge: 80, rpe: 10 },
+      ] },
+      cible,
+    );
+    expect(r.consolidation).toBe(true);
+    expect(r.charge).toBe(80);
+    expect(r.reps).toEqual([7, 6, 6]);
+    expect(r.messageProgression).toContain("sans ajouter");
+  });
+
+  it("fourchette non complétée à effort modéré : une répétition de plus", () => {
+    const r = computeNextSets(
+      { sets: [
+        { numero: 1, reps: 7, charge: 80, rpe: 7 },
+        { numero: 2, reps: 7, charge: 80, rpe: 7.5 },
+        { numero: 3, reps: 7, charge: 80, rpe: 8 },
+      ] },
+      cible,
+    );
+    expect(r.consolidation).toBe(false);
+    expect(r.reps).toEqual([8, 7, 7]);
+  });
+
+  it("sans RPE enregistré, le comportement historique est conservé", () => {
+    const r = computeNextSets(
+      { sets: [
+        { numero: 1, reps: 7, charge: 80 },
+        { numero: 2, reps: 7, charge: 80 },
+        { numero: 3, reps: 7, charge: 80 },
+      ] },
+      cible,
+    );
+    expect(r.consolidation).toBe(false);
+    expect(r.reps).toEqual([8, 7, 7]);
+  });
+
+  it("le seuil est à 9,5 : à 9 on progresse encore", () => {
+    const auSeuil = (rpe: number) => computeNextSets(
+      { sets: [
+        { numero: 1, reps: 7, charge: 80, rpe },
+        { numero: 2, reps: 7, charge: 80, rpe },
+        { numero: 3, reps: 7, charge: 80, rpe },
+      ] },
+      cible,
+    );
+    expect(auSeuil(9).consolidation).toBe(false);
+    expect(auSeuil(9.5).consolidation).toBe(true);
+  });
+});

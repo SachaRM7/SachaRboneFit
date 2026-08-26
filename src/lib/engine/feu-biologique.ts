@@ -60,6 +60,12 @@ export interface FeuTendanceResult {
   contexteNormal: boolean;
 }
 
+/**
+ * En deçà de cette variation relative, l'écart est du bruit de mesure, pas une
+ * tendance. 2 % correspond à environ 2 kg sur un 1RM estimé à 100 kg.
+ */
+const SEUIL_VARIATION = 0.02;
+
 function estimated1RM(charge: number, reps: number): number {
   if (reps <= 0 || charge <= 0) return 0;
   if (reps === 1) return charge;
@@ -98,9 +104,13 @@ export function computeFeuTendance(input: FeuTendanceInput): FeuTendanceResult {
   let regressions = 0;
 
   for (const [, data] of Object.entries(pilierMap)) {
-    const [older, middle, newer] = data.sessions;
-    if (newer > older) progres++;
-    else if (newer < older) regressions++;
+    const [ancien, , recent] = data.sessions;
+    // Marge de bruit : un 1RM estimé bouge de quelques centaines de grammes d'une
+    // séance à l'autre sans que rien n'ait changé. Sans cette marge, une baisse
+    // de 1 kg sur 100 déclenchait un feu rouge, donc un deload.
+    const variation = ancien > 0 ? (recent - ancien) / ancien : 0;
+    if (variation > SEUIL_VARIATION) progres++;
+    else if (variation < -SEUIL_VARIATION) regressions++;
     else stagnations++;
   }
 

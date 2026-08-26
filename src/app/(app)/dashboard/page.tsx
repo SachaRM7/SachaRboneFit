@@ -8,6 +8,7 @@ import { Sparkline } from "@/components/ui/Sparkline";
 import { Calendar, Dumbbell, Activity, TrendingDown, Play } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { Alert } from "@/lib/engine/alerts";
+import { AlertList } from "@/components/alerts/AlertList";
 
 interface DashboardData {
   user: { nom: string; poidsActuel: number | null };
@@ -231,7 +232,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Alertes */}
+        {/* Alertes — le composant existait mais n'était monté nulle part. */}
         {data?.alertesPreSeance && data.alertesPreSeance.length > 0 && (
           <Card className="bg-carte border-filet">
             <CardHeader>
@@ -240,12 +241,8 @@ export default function DashboardPage() {
                 Alertes
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {data.alertesPreSeance.slice(0, 3).map((alert: Alert, i: number) => (
-                <div key={i} className="text-sm text-feu-orange border-l-2 border-feu-orange pl-3">
-                  {alert.message}
-                </div>
-              ))}
+            <CardContent>
+              <AlertList alerts={data.alertesPreSeance} />
             </CardContent>
           </Card>
         )}

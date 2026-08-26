@@ -6,6 +6,7 @@ import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SessionDebrief } from "@/components/coach/SessionDebrief";
+import { Feu } from "@/components/carnet/Feu";
 
 export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -64,6 +65,13 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
       </Card>
 
       {/* Coach Debrief */}
+      {session.feuBiologiqueTendance && (
+        <div className="border border-filet rounded-lg p-3 bg-carte">
+          <p className="text-sm text-encre-3 italic">Feu de tendance</p>
+          <Feu niveau={session.feuBiologiqueTendance} avecLibelle className="mt-1.5" />
+        </div>
+      )}
+
       {template?.lettre && (
         <SessionDebrief
           sessionLogId={id}

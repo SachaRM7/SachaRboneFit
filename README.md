@@ -133,6 +133,8 @@ L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
   génération réelle.
 - **Génération de séance** — l'application adapte une séance existante ; elle ne
   compose pas encore une séance de zéro.
+- **Récupération musculaire** — le délai depuis le dernier travail d'un muscle
+  n'est pas calculé, donc pas pris en compte dans l'adaptation.
 - **Coach IA** — voir ci-dessus.
 - **PWA** — le service worker est vide et les icônes du manifest sont absentes.
 - **Tests** — il n'y en a aucun.

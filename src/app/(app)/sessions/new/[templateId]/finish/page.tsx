@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ProgressionSummary } from "@/components/session/ProgressionSummary";
-import { Feu } from "@/components/carnet/Feu";
 
 export default function FinishSessionPage() {
   const { templateId } = useParams();
@@ -16,52 +15,15 @@ export default function FinishSessionPage() {
   const [energie, setEnergie] = useState(7);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
-  const [feuTendance, setFeuTendance] = useState<string | null>(null);
-  const [feuTendanceRaison, setFeuTendanceRaison] = useState<string | null>(null);
 
   useEffect(() => {
     if (!active) {
       router.replace(`/sessions/new/${templateId}`);
       return;
     }
-    // Compute feu tendency before finishing
-    computeTendance();
+    // Le feu de tendance est calculé côté serveur à la clôture : il a besoin des
+    // séries en base, et le client n'avait accès qu'à des données appauvries.
   }, [active]);
-
-  const computeTendance = async () => {
-    if (!active) return;
-    try {
-      const res = await fetch(`/api/sessions/tendency?seanceTemplateId=${active.seanceTemplateId}&limit=3`);
-      if (res.ok) {
-        const data = await res.json();
-        // Import dynamically to avoid issues
-        const { computeFeuTendance } = await import("@/lib/engine/feu-biologique");
-        // Build sessions array including current (with current sets)
-        const sessionsForTendance = data.sessions || [];
-        // Add current session as the latest
-        const currentPerf = active.sets
-          .filter(s => s.repsEffectuees !== null && s.charge !== null)
-          .map(s => ({
-            exerciseInstanceId: s.exerciseInstanceId,
-            exerciseName: "Exercice",
-            volumeTotal: (s.charge || 0) * (s.repsEffectuees || 0),
-            estimated1RM: (s.charge || 0) * (1 + (s.repsEffectuees || 0) / 30),
-          }));
-        if (currentPerf.length > 0) {
-          sessionsForTendance.unshift({
-            date: new Date().toISOString().slice(0, 10),
-            feuJour: null,
-            pilierPerfs: currentPerf,
-          });
-        }
-        const result = computeFeuTendance({ sessions: sessionsForTendance });
-        setFeuTendance(result.feu);
-        setFeuTendanceRaison(result.raison);
-      }
-    } catch {
-      // Silently fail
-    }
-  };
 
   const handleSubmit = async () => {
     if (!active) return;
@@ -87,7 +49,6 @@ export default function FinishSessionPage() {
           dureeMinutes: Math.round((Date.now() - active.startedAt) / 60000),
           energieFin: energie,
           notesSeance: notes || null,
-          feuBiologiqueTendance: feuTendance,
           series: validSets.map((s) => ({
             exerciseInstanceId: s.exerciseInstanceId,
             numeroSerie: s.numeroSerie,
@@ -123,8 +84,7 @@ export default function FinishSessionPage() {
     <div className="min-h-screen bg-papier p-4 space-y-6 pb-24">
       <div className="flex items-baseline justify-between gap-3">
         <h1 className="text-xl font-semibold text-encre">Séance terminée</h1>
-        <span className="flex items-center gap-2 text-xs text-encre-3">
-          <Feu niveau={feuTendance} />
+        <span className="text-xs text-encre-3">
           {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
         </span>
       </div>
@@ -151,12 +111,6 @@ export default function FinishSessionPage() {
         templateId={active.seanceTemplateId}
       />
 
-      <div className="border border-filet rounded-lg p-3 bg-carte">
-        <p className="text-sm text-encre-3 italic">Feu de tendance</p>
-        <p className="text-sm text-encre-2 mt-1 leading-relaxed">
-          {feuTendanceRaison ?? (feuTendance ? `Tendance ${feuTendance}` : "Analyse en cours…")}
-        </p>
-      </div>
 
       <div className="space-y-2">
         <Label className="text-encre-2">Ton énergie en fin de séance</Label>

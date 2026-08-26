@@ -2,6 +2,7 @@ import { db } from "@/db/client";
 import { sessionLogs, setLogs } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { SessionLog } from "@/db/schema";
+import { feuDeTendance } from "./progression";
 
 /**
  * Couche service des seances.
@@ -88,7 +89,7 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
 
   // Transaction : sans elle, un echec sur l'insertion des series laissait une
   // seance close mais vide en base.
-  return db.transaction(async (tx) => {
+  const cloturee = await db.transaction(async (tx) => {
     const [maj] = await tx
       .update(sessionLogs)
       .set({
@@ -126,4 +127,19 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
 
     return maj;
   });
+
+  // Le feu de tendance est calcule APRES la cloture, quand les series de cette
+  // seance sont en base : il portait auparavant sur des donnees appauvries
+  // (nom d'exercice litteral "Exercice", feu du jour force a null, ce qui
+  // degradait systematiquement le contexte).
+  const tendance = await feuDeTendance(donnees.userId);
+  if (!tendance) return cloturee;
+
+  const [avecTendance] = await db
+    .update(sessionLogs)
+    .set({ feuBiologiqueTendance: tendance, updatedAt: new Date() })
+    .where(eq(sessionLogs.id, donnees.sessionLogId))
+    .returning();
+
+  return avecTendance ?? cloturee;
 }

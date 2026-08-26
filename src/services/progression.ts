@@ -1,0 +1,268 @@
+import { db } from "@/db/client";
+import {
+  exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, setLogs,
+} from "@/db/schema";
+import { and, asc, desc, eq } from "drizzle-orm";
+import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts";
+import { computeNextSets } from "@/lib/engine/double-progression";
+import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
+
+/**
+ * Agrégats de progression.
+ *
+ * `computeAlerts` attendait `semainesSansDeload` et `semainesSansProgression` :
+ * deux grandeurs qu'aucune requête ne calculait. La route qui l'appelait les
+ * renseignait partiellement, avec un commentaire « For now, return basic alerts ».
+ * Le moteur d'alertes était donc opérationnel et nourri de valeurs vides.
+ */
+
+const MS_PAR_SEMAINE = 7 * 24 * 60 * 60 * 1000;
+
+function semainesDepuis(dateISO: string): number {
+  const ecart = Date.now() - new Date(`${dateISO}T12:00:00`).getTime();
+  return Math.max(0, Math.floor(ecart / MS_PAR_SEMAINE));
+}
+
+function estimation1RM(charge: number, reps: number): number {
+  if (reps <= 0 || charge <= 0) return 0;
+  return reps === 1 ? charge : charge * (1 + reps / 30);
+}
+
+/**
+ * Semaines écoulées depuis la dernière décharge.
+ *
+ * Une décharge est soit un bloc de type `deload`, soit une semaine où le volume
+ * a été fortement réduit (au moins -30 %). À défaut, on compte depuis le début
+ * du bloc actif.
+ */
+export async function semainesSansDeload(userId: string): Promise<number> {
+  const blocDeload = await db.query.programmeBlocs.findFirst({
+    where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.typeCycle, "deload")),
+    orderBy: [desc(programmeBlocs.dateDebut)],
+  });
+
+  const seanceAllegee = await db.query.sessionLogs.findFirst({
+    where: eq(sessionLogs.userId, userId),
+    orderBy: [desc(sessionLogs.date)],
+    columns: { date: true, volumeAjustePct: true },
+  });
+
+  const candidats: string[] = [];
+  if (blocDeload) candidats.push(blocDeload.dateDebut);
+  if (seanceAllegee?.volumeAjustePct != null && seanceAllegee.volumeAjustePct <= -30) {
+    candidats.push(seanceAllegee.date);
+  }
+
+  if (candidats.length === 0) {
+    const blocActif = await db.query.programmeBlocs.findFirst({
+      where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.actif, true)),
+    });
+    return blocActif ? semainesDepuis(blocActif.dateDebut) : 0;
+  }
+
+  return Math.min(...candidats.map(semainesDepuis));
+}
+
+export interface Stagnation {
+  exerciseInstanceId: string;
+  exerciseName: string;
+  semainesSansProgression: number;
+  contexteNormal: boolean;
+}
+
+/**
+ * Pour chaque machine travaillée récemment, depuis combien de semaines son 1RM
+ * estimé n'a pas dépassé son meilleur niveau.
+ */
+export async function stagnations(userId: string, seuilSemaines = 2): Promise<Stagnation[]> {
+  const lignes = await db
+    .select({
+      exerciseInstanceId: setLogs.exerciseInstanceId,
+      exerciseName: exercises.nom,
+      charge: setLogs.charge,
+      reps: setLogs.repsEffectuees,
+      date: sessionLogs.date,
+      feuJour: sessionLogs.feuBiologiqueJour,
+    })
+    .from(setLogs)
+    .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+    .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
+    .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+    .where(eq(sessionLogs.userId, userId))
+    .orderBy(asc(sessionLogs.date));
+
+  const parInstance = new Map<string, typeof lignes>();
+  for (const l of lignes) {
+    parInstance.set(l.exerciseInstanceId, [...(parInstance.get(l.exerciseInstanceId) ?? []), l]);
+  }
+
+  const resultat: Stagnation[] = [];
+
+  for (const [instanceId, series] of parInstance) {
+    // Meilleur 1RM par date, puis date du dernier record.
+    const meilleurParDate = new Map<string, number>();
+    for (const s of series) {
+      const rm = estimation1RM(s.charge, s.reps);
+      meilleurParDate.set(s.date, Math.max(meilleurParDate.get(s.date) ?? 0, rm));
+    }
+
+    const dates = [...meilleurParDate.keys()].sort();
+    if (dates.length < 2) continue;
+
+    let record = 0;
+    let dateRecord = dates[0]!;
+    for (const d of dates) {
+      const rm = meilleurParDate.get(d)!;
+      if (rm > record) {
+        record = rm;
+        dateRecord = d;
+      }
+    }
+
+    const semaines = semainesDepuis(dateRecord);
+    if (semaines < seuilSemaines) continue;
+
+    // Le contexte est normal si la majorité des séances récentes étaient vertes :
+    // stagner après trois nuits blanches n'est pas une stagnation d'entraînement.
+    const recentes = series.slice(-9);
+    const verts = recentes.filter((s) => s.feuJour === "vert").length;
+    const renseignes = recentes.filter((s) => s.feuJour !== null).length;
+
+    resultat.push({
+      exerciseInstanceId: instanceId,
+      exerciseName: series[0]!.exerciseName,
+      semainesSansProgression: semaines,
+      contexteNormal: renseignes === 0 || verts / renseignes >= 0.5,
+    });
+  }
+
+  return resultat.sort((a, b) => b.semainesSansProgression - a.semainesSansProgression);
+}
+
+/** Exercices dont la fourchette a été complétée à la dernière séance. */
+export async function fourchettesCompletees(userId: string) {
+  const derniere = await db.query.sessionLogs.findFirst({
+    where: eq(sessionLogs.userId, userId),
+    orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
+  });
+  if (!derniere) return [];
+
+  const lignes = await db
+    .select({
+      exerciseInstanceId: setLogs.exerciseInstanceId,
+      exerciseName: exercises.nom,
+      numero: setLogs.numeroSerie,
+      reps: setLogs.repsEffectuees,
+      charge: setLogs.charge,
+      rpe: setLogs.rpeEffectif,
+      increments: exerciseInstances.incrementsPossibles,
+    })
+    .from(setLogs)
+    .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
+    .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+    .where(eq(setLogs.sessionLogId, derniere.id))
+    .orderBy(asc(setLogs.numeroSerie));
+
+  const parInstance = new Map<string, typeof lignes>();
+  for (const l of lignes) {
+    parInstance.set(l.exerciseInstanceId, [...(parInstance.get(l.exerciseInstanceId) ?? []), l]);
+  }
+
+  const resultat: AlertsInput["completedRanges"] = [];
+
+  for (const [, series] of parInstance) {
+    const premiere = series[0]!;
+    // La fourchette du template n'est pas connue ici : on retient le maximum
+    // réellement effectué comme borne haute, ce qui suffit à détecter le palier.
+    const maxReps = Math.max(...series.map((s) => s.reps));
+    const suggestion = computeNextSets(
+      { sets: series.map((s) => ({ numero: s.numero, reps: s.reps, charge: s.charge, rpe: s.rpe })) },
+      {
+        fourchetteRepsMin: Math.min(...series.map((s) => s.reps)),
+        fourchetteRepsMax: maxReps,
+        seriesCibles: series.length,
+        incrementsPossibles: premiere.increments ?? [],
+      },
+    );
+
+    if (suggestion.fourchetteCompletee) {
+      resultat.push({
+        exerciseName: premiere.exerciseName,
+        currentCharge: premiere.charge,
+        nextCharge: suggestion.charge,
+      });
+    }
+  }
+
+  return resultat;
+}
+
+/** Feu de tendance sur les trois dernières séances d'un même template. */
+export async function feuDeTendance(userId: string): Promise<FeuBiologique | null> {
+  const dernieres = await db.query.sessionLogs.findMany({
+    where: eq(sessionLogs.userId, userId),
+    orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
+    limit: 3,
+  });
+  if (dernieres.length < 3) return null;
+
+  const sessions = await Promise.all(
+    dernieres.map(async (s) => {
+      const lignes = await db
+        .select({
+          exerciseInstanceId: setLogs.exerciseInstanceId,
+          exerciseName: exercises.nom,
+          charge: setLogs.charge,
+          reps: setLogs.repsEffectuees,
+          categorieRole: exercises.categorieRole,
+        })
+        .from(setLogs)
+        .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
+        .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+        .where(eq(setLogs.sessionLogId, s.id));
+
+      // Le feu de tendance ne regarde que les piliers : un accessoire varie trop.
+      const meilleurs = new Map<string, SessionPilierPerf>();
+      for (const l of lignes.filter((x) => x.categorieRole === "pilier")) {
+        const rm = estimation1RM(l.charge, l.reps);
+        const actuel = meilleurs.get(l.exerciseInstanceId);
+        if (!actuel || rm > actuel.estimated1RM) {
+          meilleurs.set(l.exerciseInstanceId, {
+            exerciseInstanceId: l.exerciseInstanceId,
+            // Le nom réel, et non le littéral "Exercice" qu'utilisait l'écran de fin.
+            exerciseName: l.exerciseName,
+            volumeTotal: l.charge * l.reps,
+            estimated1RM: rm,
+          });
+        }
+      }
+
+      return {
+        date: s.date,
+        // Le feu du jour réel, et non `null` — un null comptait comme non-vert
+        // et dégradait systématiquement le contexte.
+        feuJour: (s.feuBiologiqueJour as FeuBiologique) ?? "vert",
+        pilierPerfs: [...meilleurs.values()],
+      };
+    }),
+  );
+
+  return computeFeuTendance({ sessions }).feu;
+}
+
+/** Toutes les alertes de l'utilisateur, nourries de vraies valeurs. */
+export async function alertes(userId: string): Promise<Alert[]> {
+  const [completedRanges, listeStagnations, sansDeload, tendance] = await Promise.all([
+    fourchettesCompletees(userId),
+    stagnations(userId),
+    semainesSansDeload(userId),
+    feuDeTendance(userId),
+  ]);
+
+  return computeAlerts({
+    completedRanges,
+    semainesSansDeload: sansDeload,
+    stagnations: listeStagnations,
+    feuTendance: tendance,
+  });
+}

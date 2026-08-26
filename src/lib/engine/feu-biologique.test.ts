@@ -71,8 +71,8 @@ describe("feu de tendance", () => {
     const r = computeFeuTendance({
       sessions: [
         { date: "2026-08-01", feuJour: "vert", pilierPerfs: [perf("a", 100), perf("b", 100)] },
-        { date: "2026-08-08", feuJour: "vert", pilierPerfs: [perf("a", 102), perf("b", 101)] },
-        { date: "2026-08-15", feuJour: "vert", pilierPerfs: [perf("a", 105), perf("b", 103)] },
+        { date: "2026-08-08", feuJour: "vert", pilierPerfs: [perf("a", 104), perf("b", 103)] },
+        { date: "2026-08-15", feuJour: "vert", pilierPerfs: [perf("a", 108), perf("b", 106)] },
       ],
     });
     expect(r.feu).toBe("vert");
@@ -83,8 +83,8 @@ describe("feu de tendance", () => {
     const r = computeFeuTendance({
       sessions: [
         { date: "2026-08-01", feuJour: "vert", pilierPerfs: [perf("a", 100)] },
-        { date: "2026-08-08", feuJour: "vert", pilierPerfs: [perf("a", 98)] },
-        { date: "2026-08-15", feuJour: "vert", pilierPerfs: [perf("a", 95)] },
+        { date: "2026-08-08", feuJour: "vert", pilierPerfs: [perf("a", 96)] },
+        { date: "2026-08-15", feuJour: "vert", pilierPerfs: [perf("a", 92)] },
       ],
     });
     expect(r.feu).toBe("rouge");
@@ -94,12 +94,37 @@ describe("feu de tendance", () => {
     const r = computeFeuTendance({
       sessions: [
         { date: "2026-08-01", feuJour: "rouge", pilierPerfs: [perf("a", 100)] },
-        { date: "2026-08-08", feuJour: "orange", pilierPerfs: [perf("a", 98)] },
-        { date: "2026-08-15", feuJour: "rouge", pilierPerfs: [perf("a", 95)] },
+        { date: "2026-08-08", feuJour: "orange", pilierPerfs: [perf("a", 96)] },
+        { date: "2026-08-15", feuJour: "rouge", pilierPerfs: [perf("a", 92)] },
       ],
     });
     expect(r.contexteNormal).toBe(false);
     expect(r.feu).toBe("orange");
+  });
+
+  it("une variation sous la marge de bruit compte comme une stagnation", () => {
+    // 100 -> 99 : 1 %, sous le seuil. Déclenchait auparavant un feu rouge,
+    // donc un deload, sur ce qui n'est qu'un écart de mesure.
+    const r = computeFeuTendance({
+      sessions: [
+        { date: "2026-08-01", feuJour: "vert", pilierPerfs: [perf("a", 100)] },
+        { date: "2026-08-08", feuJour: "vert", pilierPerfs: [perf("a", 99.5)] },
+        { date: "2026-08-15", feuJour: "vert", pilierPerfs: [perf("a", 99)] },
+      ],
+    });
+    expect(r.feu).toBe("orange");
+    expect(r.raison).toContain("Stagnation");
+  });
+
+  it("une régression franche reste détectée", () => {
+    const r = computeFeuTendance({
+      sessions: [
+        { date: "2026-08-01", feuJour: "vert", pilierPerfs: [perf("a", 100)] },
+        { date: "2026-08-08", feuJour: "vert", pilierPerfs: [perf("a", 97)] },
+        { date: "2026-08-15", feuJour: "vert", pilierPerfs: [perf("a", 94)] },
+      ],
+    });
+    expect(r.feu).toBe("rouge");
   });
 
   it("stagnation stricte : orange", () => {
