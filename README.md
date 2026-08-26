@@ -88,6 +88,28 @@ depuis la bibliothèque source. Elles sont monochromes : le composant
 `IllustrationExercice` les applique en masque CSS, ce qui les fait suivre la couleur
 du thème sans qu'aucun fichier ne soit modifié.
 
+## Design — Carnet
+
+Le système de design vit dans `src/app/globals.css`, section « Carnet ».
+
+**La règle qui tient tout : la couleur ne décore jamais.** Tout ce qui n'est pas
+un signal est encre sur papier. Cinq couleurs seulement sont autorisées —
+`--gain`, `--perte`, et les trois feux du jour.
+
+Deux conséquences pour le code :
+
+- La couleur ne code jamais seule. Un gain porte toujours un signe (`+2,5`), une
+  régression aussi (`−5,0`), une stagnation un `=`. Le composant `<Delta>` s'en charge.
+- Le sens suit **l'objectif**, pas le signe du nombre : en sèche, `−0,4 kg` est un
+  gain. D'où `sensInverse` sur `<Delta>`.
+
+Deux composants concentrent les décisions de couleur, là où quatre mappings
+coexistaient auparavant (dont deux dans le même fichier) : `<Delta>` et `<Feu>`.
+
+Tout chiffre susceptible de changer porte la classe `.chiffres`
+(`tabular-nums`) : sans elle, la charge saute latéralement à chaque appui
+sur +/− et on rate le bouton.
+
 ## Limites connues
 
 L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
@@ -100,6 +122,9 @@ L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
   compose pas encore une séance de zéro.
 - **Coach IA** — voir ci-dessus.
 - **PWA** — le service worker est vide et les icônes du manifest sont absentes.
+- **Design** — la direction Carnet est appliquée au parcours de séance
+  (séance active, fin de séance). Les autres écrans utilisent encore les
+  couleurs en dur héritées.
 - **Tests** — il n'y en a aucun.
 
 ## Documentation

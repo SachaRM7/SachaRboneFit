@@ -133,3 +133,117 @@
     @apply font-sans;
   }
 }
+/* ===========================================================================
+   Carnet — système de design de l'application
+   ---------------------------------------------------------------------------
+   Direction retenue : le carnet d'entraînement plutôt que la console.
+   La règle qui tient tout : LA COULEUR NE DÉCORE JAMAIS. Tout ce qui n'est pas
+   un signal est encre sur papier. Une couleur qui apparaît veut donc toujours
+   dire quelque chose, ce qui la rend lisible d'un coup d'œil même en petit.
+
+   Cinq couleurs autorisées : gain, perte, et les trois feux du jour.
+
+   Ces tokens remplacent les couleurs écrites en dur (bg-zinc-900, text-white…)
+   qui court-circuitaient le design system dans chaque écran.
+   =========================================================================== */
+
+:root {
+  /* Surfaces */
+  --papier: #FBFAF7;
+  --papier-2: #F4F2ED;
+  --carte: #FFFFFF;
+  --filet: #E4E0D8;
+  --filet-doux: #EFECE5;
+
+  /* Encre */
+  --encre: #1A1D22;
+  --encre-2: #4A505A;
+  --encre-3: #868C95;
+
+  /* Sémantique — signaux uniquement */
+  --gain: #2C6B47;
+  --gain-fond: #E6F0E8;
+  --perte: #A8402E;
+  --perte-fond: #F8E8E4;
+  --neutre: #868C95;
+  --neutre-fond: #EFECE5;
+
+  /* Feu biologique */
+  --feu-vert: #3F7A4A;
+  --feu-orange: #C08418;
+  --feu-rouge: #B23C2C;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papier: #16181C;
+    --papier-2: #1D2025;
+    --carte: #1F2228;
+    --filet: #31353D;
+    --filet-doux: #272B31;
+
+    --encre: #EDEBE7;
+    --encre-2: #B4BAC2;
+    --encre-3: #838A94;
+
+    --gain: #6FBF87;
+    --gain-fond: #1A2A20;
+    --perte: #E58472;
+    --perte-fond: #2E1D1A;
+    --neutre: #949BA5;
+    --neutre-fond: #262A30;
+
+    --feu-vert: #6FBF87;
+    --feu-orange: #DFA83A;
+    --feu-rouge: #E07568;
+  }
+}
+
+:root[data-theme="dark"] {
+  --papier: #16181C;
+  --papier-2: #1D2025;
+  --carte: #1F2228;
+  --filet: #31353D;
+  --filet-doux: #272B31;
+
+  --encre: #EDEBE7;
+  --encre-2: #B4BAC2;
+  --encre-3: #838A94;
+
+  --gain: #6FBF87;
+  --gain-fond: #1A2A20;
+  --perte: #E58472;
+  --perte-fond: #2E1D1A;
+  --neutre: #949BA5;
+  --neutre-fond: #262A30;
+
+  --feu-vert: #6FBF87;
+  --feu-orange: #DFA83A;
+  --feu-rouge: #E07568;
+}
+
+@theme inline {
+  --color-papier: var(--papier);
+  --color-papier-2: var(--papier-2);
+  --color-carte: var(--carte);
+  --color-filet: var(--filet);
+  --color-filet-doux: var(--filet-doux);
+  --color-encre: var(--encre);
+  --color-encre-2: var(--encre-2);
+  --color-encre-3: var(--encre-3);
+  --color-gain: var(--gain);
+  --color-gain-fond: var(--gain-fond);
+  --color-perte: var(--perte);
+  --color-perte-fond: var(--perte-fond);
+  --color-neutre: var(--neutre);
+  --color-neutre-fond: var(--neutre-fond);
+  --color-feu-vert: var(--feu-vert);
+  --color-feu-orange: var(--feu-orange);
+  --color-feu-rouge: var(--feu-rouge);
+}
+
+/* Tout chiffre susceptible de changer doit être tabulaire : sans ça, la charge
+   saute latéralement à chaque appui sur +/−, et on rate le bouton. */
+.chiffres {
+  font-variant-numeric: tabular-nums;
+}

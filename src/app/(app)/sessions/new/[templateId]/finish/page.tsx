@@ -7,32 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ProgressionSummary } from "@/components/session/ProgressionSummary";
-
-const PILIER_COLORS: Record<string, string> = {
-  "poussee": "bg-blue-600",
-  "tirage": "bg-green-600",
-  "squat": "bg-orange-600",
-  "hanche": "bg-red-600",
-  "epaules": "bg-purple-600",
-  "bras": "bg-cyan-600",
-  "jambes_iso": "bg-yellow-600",
-  "core": "bg-zinc-600",
-};
-
-function FeuIndicator({ feu, label }: { feu: string | null; label: string }) {
-  if (!feu) return null;
-  const colorMap: Record<string, string> = {
-    vert: "bg-green-500",
-    orange: "bg-orange-500",
-    rouge: "bg-red-500",
-  };
-  return (
-    <div className="flex items-center gap-2">
-      <div className={`w-3 h-3 rounded-full ${colorMap[feu] || "bg-zinc-500"}`} />
-      <span className="text-sm text-zinc-400">{label}: {feu}</span>
-    </div>
-  );
-}
+import { Feu } from "@/components/carnet/Feu";
 
 export default function FinishSessionPage() {
   const { templateId } = useParams();
@@ -43,7 +18,6 @@ export default function FinishSessionPage() {
   const [loading, setLoading] = useState(false);
   const [feuTendance, setFeuTendance] = useState<string | null>(null);
   const [feuTendanceRaison, setFeuTendanceRaison] = useState<string | null>(null);
-  const [feuJour, setFeuJour] = useState<string | null>(null);
 
   useEffect(() => {
     if (!active) {
@@ -144,53 +118,48 @@ export default function FinishSessionPage() {
   const now = new Date();
   const duration = Math.round((now.getTime() - startedAt.getTime()) / 60000);
 
-  const feuTendanceDisplay = feuTendance ? (
-    <div className="flex items-center gap-2">
-      <div className={`w-3 h-3 rounded-full ${
-        feuTendance === "vert" ? "bg-green-500" :
-        feuTendance === "orange" ? "bg-orange-500" : "bg-red-500"
-      }`} />
-      <span className="text-sm text-zinc-300">{feuTendanceRaison || `Tendance ${feuTendance}`}</span>
-    </div>
-  ) : (
-    <span className="text-sm text-zinc-500">Analyse en cours...</span>
-  );
 
   return (
-    <div className="p-4 space-y-6">
-      <h1 className="text-xl font-bold text-white">Terminer la séance</h1>
+    <div className="min-h-screen bg-papier p-4 space-y-6 pb-24">
+      <div className="flex items-baseline justify-between gap-3">
+        <h1 className="text-xl font-semibold text-encre">Séance terminée</h1>
+        <span className="flex items-center gap-2 text-xs text-encre-3">
+          <Feu niveau={feuTendance} />
+          {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
+        </span>
+      </div>
 
-      <div className="bg-zinc-900 rounded-lg p-4 space-y-2">
-        <div className="flex justify-between">
-          <span className="text-zinc-500">Durée</span>
-          <span className="text-white font-medium">{duration} min</span>
+      <div className="grid grid-cols-3 gap-px bg-filet border border-filet rounded-lg overflow-hidden">
+        <div className="bg-papier p-3">
+          <p className="text-[11px] text-encre-3">Durée</p>
+          <p className="chiffres text-xl font-semibold text-encre mt-0.5">{duration}<span className="text-xs text-encre-3 ml-1">min</span></p>
         </div>
-        <div className="flex justify-between">
-          <span className="text-zinc-500">Exercices</span>
-          <span className="text-white font-medium">
+        <div className="bg-papier p-3">
+          <p className="text-[11px] text-encre-3">Exercices</p>
+          <p className="chiffres text-xl font-semibold text-encre mt-0.5">
             {new Set(active.sets.map((s) => s.exerciseInstanceId)).size}
-          </span>
+          </p>
         </div>
-        <div className="flex justify-between">
-          <span className="text-zinc-500">Séries</span>
-          <span className="text-white font-medium">{active.sets.length}</span>
+        <div className="bg-papier p-3">
+          <p className="text-[11px] text-encre-3">Séries</p>
+          <p className="chiffres text-xl font-semibold text-encre mt-0.5">{active.sets.length}</p>
         </div>
       </div>
 
-      {/* Feu de tendance */}
-      <div className="bg-zinc-900 rounded-lg p-4 space-y-2">
-        <p className="text-zinc-500 text-sm">Feu biologique de tendance</p>
-        {feuTendanceDisplay}
-      </div>
-
-      {/* Résumé des progressions */}
       <ProgressionSummary
-        sets={active.sets.filter(s => s.repsEffectuees !== null && s.charge !== null) as Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number }>}
+        sets={active.sets.filter((s) => s.repsEffectuees !== null && s.charge !== null) as Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number }>}
         templateId={active.seanceTemplateId}
       />
 
+      <div className="border border-filet rounded-lg p-3 bg-carte">
+        <p className="text-sm text-encre-3 italic">Feu de tendance</p>
+        <p className="text-sm text-encre-2 mt-1 leading-relaxed">
+          {feuTendanceRaison ?? (feuTendance ? `Tendance ${feuTendance}` : "Analyse en cours…")}
+        </p>
+      </div>
+
       <div className="space-y-2">
-        <Label>Énergie de fin (1-10)</Label>
+        <Label className="text-encre-2">Ton énergie en fin de séance</Label>
         <div className="flex items-center gap-4">
           <input
             type="range"
@@ -198,24 +167,29 @@ export default function FinishSessionPage() {
             max="10"
             value={energie}
             onChange={(e) => setEnergie(parseInt(e.target.value))}
-            className="flex-1"
+            className="flex-1 accent-[var(--encre)]"
+            aria-label="Énergie de fin, de 1 à 10"
           />
-          <span className="text-2xl font-bold text-white w-12 text-center">{energie}</span>
+          <span className="chiffres text-2xl font-semibold text-encre w-10 text-center">{energie}</span>
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label>Notes</Label>
+        <Label className="text-encre-2">Notes</Label>
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="observations, remarques..."
-          className="bg-zinc-900 border-zinc-800 text-white"
+          placeholder="Sensations, douleurs, remarques…"
+          className="bg-carte border-filet text-encre"
         />
       </div>
 
-      <Button className="w-full h-14 text-lg" onClick={handleSubmit} disabled={loading}>
-        {loading ? "Enregistrement..." : "Enregistrer la séance"}
+      <Button
+        className="w-full h-13 rounded-full bg-encre text-papier hover:bg-encre/90"
+        onClick={handleSubmit}
+        disabled={loading}
+      >
+        {loading ? "Enregistrement…" : "Enregistrer la séance"}
       </Button>
     </div>
   );
