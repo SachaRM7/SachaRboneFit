@@ -1,4 +1,5 @@
 import type { DailyStateInput } from "@/lib/validators/daily-state";
+import { memeMuscle } from "@/lib/referentiels/muscles";
 
 export interface VolumeAdjustment {
   totalPct: number; // ex: -25. 0 = pas d'ajustement. Plafond à -40.
@@ -37,11 +38,14 @@ export function computeVolumeAdjustment(
 
   const proposeDeloadImprovise = state.energieDepart <= 4;
 
-  // Courbatures > 7 sur muscles ciblés
-  const musclesAReporter = musclesCiblesSéance.filter((muscle) => {
-    const courbature = state.courbatures.find((c) => c.muscle === muscle);
-    return courbature && courbature.intensite > 7;
-  });
+  // Courbatures > 7 sur muscles cibles.
+  // La comparaison passe par le referentiel : les courbatures sont saisies dans le
+  // vocabulaire de l'interface et les muscles cibles viennent de la base, qui
+  // utilisait historiquement un vocabulaire different. Une egalite stricte ne
+  // matchait jamais, ce qui rendait ce report inoperant.
+  const musclesAReporter = musclesCiblesSéance.filter((muscle) =>
+    state.courbatures.some((c) => c.intensite > 7 && memeMuscle(c.muscle, muscle)),
+  );
 
   const proposeReport = musclesAReporter.length > 0;
 

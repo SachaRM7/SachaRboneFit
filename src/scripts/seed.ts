@@ -46,23 +46,23 @@ async function main() {
 
   // 4. Exercises
   const exerciseData = [
-    { nom: "Lying Machine Chest Press", pilier: "P1_poussee", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["pecs", "epaule_ant"] },
-    { nom: "Bench Press Barre", pilier: "P1_poussee", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["pecs", "triceps", "epaule_ant"] },
-    { nom: "Seated Pec Fly", pilier: "P1_poussee", profil_tension: "stretch", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["pecs"] },
-    { nom: "Seated Row Machine", pilier: "P2_tirage", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["dos", "biceps"] },
-    { nom: "Wide-Grip Seated Cable Row", pilier: "P2_tirage", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "substitut", muscles_principaux: ["dos", "biceps"] },
-    { nom: "Close-Grip Front Lat Pulldown", pilier: "P2_tirage", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "accessoire", muscles_principaux: ["dos", "biceps"] },
-    { nom: "Wide Stance Hack Squat (Matrix Perfect Squat)", pilier: "P3_squat", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["quads", "fessiers"] },
-    { nom: "Hack Squat Machine", pilier: "P3_squat", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["quads", "fessiers"] },
-    { nom: "Leg Press", pilier: "P3_squat", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["quads", "fessiers"] },
-    { nom: "Seated Leg Extension", pilier: "jambes_iso", profil_tension: "contract", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["quads"] },
+    { nom: "Lying Machine Chest Press", pilier: "P1_poussee", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["pectoraux", "epaules"] },
+    { nom: "Bench Press Barre", pilier: "P1_poussee", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["pectoraux", "triceps", "epaules"] },
+    { nom: "Seated Pec Fly", pilier: "P1_poussee", profil_tension: "stretch", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["pectoraux"] },
+    { nom: "Seated Row Machine", pilier: "P2_tirage", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["dorsaux", "biceps"] },
+    { nom: "Wide-Grip Seated Cable Row", pilier: "P2_tirage", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "substitut", muscles_principaux: ["dorsaux", "biceps"] },
+    { nom: "Close-Grip Front Lat Pulldown", pilier: "P2_tirage", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "accessoire", muscles_principaux: ["dorsaux", "biceps"] },
+    { nom: "Wide Stance Hack Squat (Matrix Perfect Squat)", pilier: "P3_squat", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["quadriceps", "fessiers"] },
+    { nom: "Hack Squat Machine", pilier: "P3_squat", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["quadriceps", "fessiers"] },
+    { nom: "Leg Press", pilier: "P3_squat", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["quadriceps", "fessiers"] },
+    { nom: "Seated Leg Extension", pilier: "jambes_iso", profil_tension: "contract", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["quadriceps"] },
     { nom: "Romanian Deadlift", pilier: "P4_hanche", profil_tension: "stretch", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["ischios", "fessiers"] },
     { nom: "Hip Thrust Barre", pilier: "P4_hanche", profil_tension: "contract", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["fessiers", "ischios"] },
     { nom: "Seated Leg Curl", pilier: "jambes_iso", profil_tension: "contract", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["ischios"] },
-    { nom: "Standing Military Press Machine", pilier: "epaules", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["epaule", "triceps"] },
-    { nom: "Machine Lateral Raise", pilier: "epaules", profil_tension: "contract", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["epaule_lat"] },
-    { nom: "Cable Lateral Raise", pilier: "epaules", profil_tension: "stretch", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["epaule_lat"] },
-    { nom: "Face Pull Cable", pilier: "epaules", profil_tension: "contract", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["epaule_post", "rotateurs"] },
+    { nom: "Standing Military Press Machine", pilier: "epaules", profil_tension: "mi_range", type: "polyarticulaire", categorie_role: "pilier", muscles_principaux: ["epaules", "triceps"] },
+    { nom: "Machine Lateral Raise", pilier: "epaules", profil_tension: "contract", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["epaules"] },
+    { nom: "Cable Lateral Raise", pilier: "epaules", profil_tension: "stretch", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["epaules"] },
+    { nom: "Face Pull Cable", pilier: "epaules", profil_tension: "contract", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["deltoide_posterieur"] },
     { nom: "EZ-Bar Preacher Curl", pilier: "bras_biceps", profil_tension: "contract", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["biceps"] },
     { nom: "Incline DB Twist Curl", pilier: "bras_biceps", profil_tension: "stretch", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["biceps"] },
     { nom: "Overhead Cable Triceps Extension", pilier: "bras_triceps", profil_tension: "stretch", type: "isolation", categorie_role: "accessoire", muscles_principaux: ["triceps"] },
@@ -148,7 +148,7 @@ async function main() {
 
   // 8. SessionLog 06/04/2026
   const sessionLog1 = (await db`INSERT INTO session_logs (user_id, seance_template_id, date, gym_id, duree_minutes, energie_fin, feu_biologique_jour, volume_ajuste_pct, volume_ajuste_raison)
-    VALUES (${SEED_USER_ID}, ${seanceA.id}, '2026-04-06', ${lalande.id}, 65, 70, 'orange', -25, 'sommeil 4h seulement')
+    VALUES (${SEED_USER_ID}, ${seanceA.id}, '2026-04-06', ${lalande.id}, 65, 7, 'orange', -25, 'sommeil 4h seulement')
     RETURNING *`.then(r => r[0] as unknown as SeedRow))!;
 
   await db`INSERT INTO set_logs (session_log_id, exercise_instance_id, numero_serie, reps_effectuees, charge, rpe_effectif)
@@ -167,7 +167,7 @@ async function main() {
 
   // 9. SessionLog 04/04/2026 (sans dailyState)
   await db`INSERT INTO session_logs (user_id, seance_template_id, date, gym_id, duree_minutes, energie_fin)
-    VALUES (${SEED_USER_ID}, ${seanceB.id}, '2026-04-04', ${lalande.id}, 55, 75)`;
+    VALUES (${SEED_USER_ID}, ${seanceB.id}, '2026-04-04', ${lalande.id}, 55, 8)`;
   console.log("✅ Session log 04/04 inserted");
 
   // 10. BodyWeight

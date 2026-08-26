@@ -103,7 +103,6 @@ function SessionStartPageContent() {
             feuBiologiqueJour: feu.feu,
             volumeAjustePct: volAdj.totalPct,
             volumeAjusteRaison: volAdj.raisons.join("; "),
-            sets: [],
           }),
         });
 
@@ -115,8 +114,10 @@ function SessionStartPageContent() {
 
         const session = await sessionRes.json();
 
-        sessionStorage.setItem("adjustedExercises", JSON.stringify(adjusted));
-        sessionStorage.setItem("pendingSessionId", session.id);
+        // L'ancien passage de relais par sessionStorage n'etait jamais relu :
+        // l'ajustement calcule ici etait donc perdu. Il est desormais persiste sur
+        // la seance (volumeAjustePct) ; son application aux series reste a faire.
+        void adjusted;
 
         router.push(`/sessions/new/${templateId}?gymId=${gymId}&sessionId=${session.id}`);
       })

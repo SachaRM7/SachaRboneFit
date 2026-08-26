@@ -6,16 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { MUSCLES as REFERENTIEL_MUSCLES, LIBELLES, type Muscle } from "@/lib/referentiels/muscles";
 import { Plus, X } from "lucide-react";
 
-export const MUSCLES = [
-  "Pectoraux", "Dorsaux", "Trapèzes", "Épaules",
-  "Biceps", "Triceps", "Avant-bras",
-  "Quadriceps", "Ischio-jambiers", "Fessiers", "Adducteurs",
-  "Mollets", "Abdominaux", "Lombaires",
-] as const;
+// La liste vient du referentiel : elle etait auparavant redigee ici dans un
+// vocabulaire propre a l'interface, qui ne correspondait a aucun autre.
+// On stocke la valeur canonique et on affiche le libelle.
+export const MUSCLES = REFERENTIEL_MUSCLES;
 
-export type Courbature = { muscle: string; intensite: number };
+export type Courbature = { muscle: Muscle | string; intensite: number };
 
 interface CourbaturesModalProps {
   value: Courbature[];
@@ -58,7 +57,7 @@ export function CourbaturesModal({ value, onChange }: CourbaturesModalProps) {
             <div className="flex flex-wrap gap-2">
               {value.map(c => (
                 <Badge key={c.muscle} variant="outline" className="border-zinc-700 text-white pr-1.5">
-                  {c.muscle} ({c.intensite}/10)
+                  {LIBELLES[c.muscle as Muscle] ?? c.muscle} ({c.intensite}/10)
                   <button
                     onClick={() => removeCourbature(c.muscle)}
                     className="ml-1 text-zinc-400 hover:text-white"
@@ -80,7 +79,7 @@ export function CourbaturesModal({ value, onChange }: CourbaturesModalProps) {
                 </SelectTrigger>
                 <SelectContent className="bg-zinc-900 border-zinc-800 text-white">
                   {MUSCLES.filter(m => !value.some(c => c.muscle === m)).map(muscle => (
-                    <SelectItem key={muscle} value={muscle}>{muscle}</SelectItem>
+                    <SelectItem key={muscle} value={muscle}>{LIBELLES[muscle]}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

@@ -1,19 +1,22 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, gyms, seanceTemplates } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SessionDebrief } from "@/components/coach/SessionDebrief";
 
-export default async function SessionDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<URLSearchParams> }) {
+export default async function SessionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const search = new URLSearchParams(await searchParams);
-  const templateLettre = search.get("templateLettre");
-  const sessionDate = search.get("sessionDate");
 
+  const userId = await getAuthenticatedUserId();
+  if (!userId) redirect("/login");
+
+  // La requete n'etait pas scopee : n'importe quel compte authentifie pouvait
+  // consulter la seance d'un autre en connaissant son identifiant.
   const session = await db.query.sessionLogs.findFirst({
-    where: eq(sessionLogs.id, id),
+    where: and(eq(sessionLogs.id, id), eq(sessionLogs.userId, userId)),
   });
 
   if (!session) notFound();
@@ -55,17 +58,17 @@ export default async function SessionDetailPage({ params, searchParams }: { para
           {gym && <p className="text-zinc-400 text-sm">Salle: {gym.nom}</p>}
           {template && <p className="text-zinc-400 text-sm">Template: {template.nom}</p>}
           {session.dureeMinutes && <p className="text-zinc-400 text-sm">Durée: {session.dureeMinutes} min</p>}
-          {session.energieFin && <p className="text-zinc-400 text-sm">Énergie fin: {session.energieFin}/100</p>}
+          {session.energieFin && <p className="text-zinc-400 text-sm">Énergie fin: {session.energieFin}/10</p>}
           {session.notesSeance && <p className="text-zinc-500 text-sm mt-2">{session.notesSeance}</p>}
         </CardContent>
       </Card>
 
       {/* Coach Debrief */}
-      {templateLettre && sessionDate && (
+      {template?.lettre && (
         <SessionDebrief
           sessionLogId={id}
-          templateLettre={templateLettre}
-          date={sessionDate}
+          templateLettre={template.lettre}
+          date={session.date}
         />
       )}
 

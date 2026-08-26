@@ -1,20 +1,14 @@
 import type { DouleurResult, ExerciceRestant } from "./types";
 
-// Zone matching map for approximate muscle matching
-const ZONE_MAPPING: Record<string, string[]> = {
-  "épaule": ["deltoïde antérieur", "deltoïde moyen", "deltoïde postérieur", "trapèze"],
-  "bas du dos": ["lombaires", "érearque spinae", "grand dorsal"],
-  "genou": ["quadriceps", "ischios", "vaste médiaux", "vaste latéral"],
-  "poignet": ["avant-bras", "fléchisseurs", "extenseurs"],
-  "coude": ["biceps", "triceps", " brachial"],
-  "cou": ["trapèze", "sterno-cléido-mastoïdien"],
-  "hanche": ["psoas", "glutéal", "fascia lata"],
-  "cheville": ["mollet", "gastrocnémien", "soléaire"],
-  "quadriceps": ["quadriceps", "vaste médiaux", "vaste latéral", "droit fémoral"],
-  "ischios": ["ischios", "biceps fémoral", "semi-tendineux", "semi-membraneux"],
-  "pectoraux": ["grand pectoral", "petit pectoral", "pectoralis"],
-  "dorsaux": ["grand dorsal", "rhomboïde", "trapèze moyen"],
-};
+import { musclesDeLaZone, versMuscle } from "@/lib/referentiels/muscles";
+
+/**
+ * L'ancienne table ZONE_MAPPING utilisait un troisieme vocabulaire musculaire
+ * ("deltoide anterieur", "vaste medial"...) qui ne correspondait ni a la base
+ * ni a la saisie. Aucun exercice n'etait donc jamais retenu : les actions
+ * skip_zone et alleger s'appliquaient a une liste vide, en affichant malgre
+ * tout un message de succes. La resolution passe desormais par le referentiel.
+ */
 
 export function douleur(
   zone: string,
@@ -31,14 +25,14 @@ export function douleur(
     };
   }
 
-  // Trouver les exercices qui touchent cette zone
-  const matchedMuscles = ZONE_MAPPING[zone.toLowerCase()] || [zone.toLowerCase()];
-  const exercicesZone = exercices_restants.filter(ex => {
-    return ex.muscles_principaux.some(m => {
-      const lowerM = m.toLowerCase();
-      return matchedMuscles.some(mz => lowerM.includes(mz) || mz.includes(lowerM));
-    });
-  });
+  // Exercices qui sollicitent la zone douloureuse.
+  const musclesZone = musclesDeLaZone(zone);
+  const exercicesZone = exercices_restants.filter((ex) =>
+    ex.muscles_principaux.some((m) => {
+      const muscle = versMuscle(m);
+      return muscle !== null && musclesZone.includes(muscle);
+    }),
+  );
 
   if (niveau >= 4 && niveau <= 6) {
     return {

@@ -38,7 +38,7 @@ export default function FinishSessionPage() {
   const { templateId } = useParams();
   const router = useRouter();
   const { active, clear } = useSessionStore();
-  const [energie, setEnergie] = useState(75);
+  const [energie, setEnergie] = useState(7);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [feuTendance, setFeuTendance] = useState<string | null>(null);
@@ -93,9 +93,8 @@ export default function FinishSessionPage() {
     if (!active) return;
 
     const validSets = active.sets.filter(
-      (s) => s.repsEffectuees !== null && s.charge !== null
+      (s) => s.repsEffectuees !== null && s.charge !== null,
     );
-
 
     if (validSets.length === 0) {
       toast.error("Au moins une série est requise");
@@ -104,44 +103,37 @@ export default function FinishSessionPage() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/sessions", {
-        method: "POST",
+      // Complete LA seance existante. L'ancien flux envoyait un POST, ce qui creait
+      // une deuxieme ligne session_logs : l'une portait le contexte sans series,
+      // l'autre les series sans contexte.
+      const res = await fetch(`/api/session-logs/${active.id}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          seanceTemplateId: active.seanceTemplateId || null,
-          gymId: active.gymId,
-          date: new Date().toISOString().slice(0, 10),
           dureeMinutes: Math.round((Date.now() - active.startedAt) / 60000),
           energieFin: energie,
-          notesSeance: notes,
-          sets: validSets,
+          notesSeance: notes || null,
           feuBiologiqueTendance: feuTendance,
+          series: validSets.map((s) => ({
+            exerciseInstanceId: s.exerciseInstanceId,
+            numeroSerie: s.numeroSerie,
+            repsEffectuees: s.repsEffectuees,
+            charge: s.charge,
+            rpeEffectif: s.rpeEffectif,
+            reposReelSecondes: s.reposReelSecondes ?? null,
+            notes: s.notes ?? null,
+          })),
         }),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("cloture impossible");
 
+      const sessionLogId = active.id;
       clear();
-      const data = await res.json();
       toast.success("Séance enregistrée");
-
-      // Get template letter for the debrief
-      let templateLettre = templateId as string;
-      try {
-        const templateRes = await fetch(`/api/sessions/${active.seanceTemplateId}`);
-        if (templateRes.ok) {
-          const templateData = await templateRes.json();
-          templateLettre = templateData.lettre || templateId as string;
-        }
-      } catch {
-        // Use URL templateId as fallback
-      }
-
-      const today = new Date().toISOString().slice(0, 10);
-      router.push(`/sessions/${data.id}?templateLettre=${encodeURIComponent(templateLettre)}&sessionDate=${encodeURIComponent(today)}`);
+      router.push(`/sessions/${sessionLogId}`);
     } catch {
       toast.error("Erreur lors de l'enregistrement");
-    } finally {
       setLoading(false);
     }
   };
@@ -198,12 +190,12 @@ export default function FinishSessionPage() {
       />
 
       <div className="space-y-2">
-        <Label>Énergie de fin (0-100)</Label>
+        <Label>Énergie de fin (1-10)</Label>
         <div className="flex items-center gap-4">
           <input
             type="range"
-            min="0"
-            max="100"
+            min="1"
+            max="10"
             value={energie}
             onChange={(e) => setEnergie(parseInt(e.target.value))}
             className="flex-1"

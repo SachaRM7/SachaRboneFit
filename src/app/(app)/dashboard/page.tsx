@@ -315,7 +315,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right">
                     {s.dureeMinutes && <p className="text-zinc-300 text-sm">{s.dureeMinutes} min</p>}
-                    {s.energieFin && <p className="text-zinc-500 text-xs">Énergie {s.energieFin}%</p>}
+                    {s.energieFin && <p className="text-zinc-500 text-xs">Énergie {s.energieFin}/10</p>}
                   </div>
                 </button>
               ))}

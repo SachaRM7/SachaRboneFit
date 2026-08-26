@@ -246,6 +246,7 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
   const { templateId } = useParams();
   const searchParams = useSearchParams();
   const gymId = searchParams.get("gymId") || "";
+  const sessionId = searchParams.get("sessionId") || "";
   const router = useRouter();
   const { active, start, clear, setCurrentExerciseIndex, startRest, clearRest, extendRest, skipExercises, allegerExercises, upsertSet } = useSessionStore();
   const [templateData, setTemplateData] = useState<TemplateResponse | null>(null);
@@ -304,14 +305,36 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
       .catch(() => {});
   }, [templateId, gymId]);
 
+  // Le store doit porter l'identifiant reel de la ligne session_logs. Quand la
+  // page est ouverte sans sessionId (acces direct depuis la liste des seances),
+  // on cree la seance ici plutot que d'inventer un identifiant local.
   useEffect(() => {
-    if (!active && templateData) {
-      start({
-        seanceTemplateId: templateId as string,
-        gymId,
-      });
+    if (active || !templateData) return;
+
+    if (sessionId) {
+      start({ id: sessionId, seanceTemplateId: templateId as string, gymId });
+      return;
     }
-  }, [templateData, active]);
+
+    let annule = false;
+    fetch("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: new Date().toISOString().slice(0, 10),
+        seanceTemplateId: templateId,
+        gymId: gymId || null,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("creation impossible"))))
+      .then((seance: { id: string }) => {
+        if (!annule) start({ id: seance.id, seanceTemplateId: templateId as string, gymId });
+      })
+      .catch(() => {
+        if (!annule) toast.error("Impossible de démarrer la séance");
+      });
+    return () => { annule = true; };
+  }, [templateData, active, sessionId, templateId, gymId, start]);
 
   const handleUserInteraction = async () => {
     if (!audioInitialized) {

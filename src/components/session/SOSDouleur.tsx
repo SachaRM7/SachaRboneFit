@@ -7,8 +7,11 @@ import { Slider } from "@/components/ui/slider";
 import { douleur } from "@/lib/sos/douleur";
 import { SOSResultat } from "./SOSResultat";
 import type { DouleurResult, ExerciceRestant } from "@/lib/sos/types";
+import { ZONES_DOULEUR } from "@/lib/referentiels/muscles";
 
-const ZONES = ["épaule", "bas du dos", "genou", "poignet", "coude", "cou", "hanche", "cheville", "quadriceps", "ischios", "pectoraux", "dorsaux"];
+// Les zones viennent du referentiel : chacune est reliee aux muscles qu'elle implique.
+// L'ancienne liste etait ecrite ici et ne correspondait a aucune donnee de la base.
+const ZONES = ZONES_DOULEUR.map((z) => z.zone);
 const TYPES = [
   { value: "sourde", label: "Sourde" },
   { value: "aiguë", label: "Aiguë" },
