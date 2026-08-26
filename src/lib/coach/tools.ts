@@ -3,7 +3,6 @@ import { setLogs, sessionLogs, exercises, exerciseInstances, seanceTemplates, pr
 import { eq, desc } from "drizzle-orm";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria, type SubstituteResult } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
-import type { LLMMessage } from "./llm-client";
 
 export interface CoachTool {
   name: string;

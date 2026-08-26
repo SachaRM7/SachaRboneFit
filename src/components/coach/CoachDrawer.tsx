@@ -87,63 +87,37 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
     setMessages((prev) => [...prev, tempUserMsg]);
 
     try {
+      // La route ne diffuse plus : elle renvoie la réponse complète, outils
+      // exécutés côté serveur. Le client décodait auparavant un flux SSE qui
+      // n'était jamais décodé côté serveur non plus.
       const res = await fetch("/api/coach/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          conversationId: activeConvId,
-          message: userMessage,
-        }),
+        body: JSON.stringify({ conversationId: activeConvId, message: userMessage }),
       });
 
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to send message");
+        const erreur = await res.json().catch(() => null);
+        throw new Error(erreur?.error || "Le coach n'a pas répondu");
       }
 
-      const reader = res.body!.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
+      const data = await res.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split("\n");
-
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            if (line.slice(7).trim() === "done") {
-              loadConversations();
-            }
-          } else if (line.startsWith("data: ")) {
-            const dataStr = line.slice(6).trim();
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.conversationId && !activeConvId) {
-                setActiveConvId(data.conversationId);
-                loadConversations();
-              }
-              if (data.content !== undefined) {
-                fullText += data.content;
-              }
-            } catch {
-              // Ignore parse errors
-            }
-          }
-        }
+      if (!activeConvId && data.conversationId) {
+        setActiveConvId(data.conversationId);
       }
 
-      if (fullText) {
-        const assistantMsg: Message = {
-          id: `assistant-${Date.now()}`,
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: data.message?.id ?? `assistant-${Date.now()}`,
           role: "assistant",
-          content: fullText,
+          content: data.message?.content ?? "",
           createdAt: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, assistantMsg]);
-      }
+        },
+      ]);
+
+      loadConversations();
     } catch (e) {
       console.error("Failed to send message:", e);
       setMessages((prev) => prev.slice(0, -1));

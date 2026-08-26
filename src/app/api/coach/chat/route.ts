@@ -1,152 +1,145 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/db/client";
 import { coachConversations, coachMessages } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { loadCoachContext } from "@/lib/coach/context-loader";
 import { buildSystemPrompt } from "@/lib/coach/system-prompt";
-import { callLLM } from "@/lib/coach/llm-client";
-import type { LLMMessage } from "@/lib/coach/llm-client";
+import { appelerLLM, CoachIndisponible, type AppelOutil, type MessageLLM } from "@/lib/coach/llm-client";
+import { createCoachTools } from "@/lib/coach/tools";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const schema = z.object({
+  conversationId: z.string().uuid().nullable().optional(),
+  message: z.string().trim().min(1).max(4000),
+  sessionLogId: z.string().uuid().nullable().optional(),
+});
+
+/** Au-delà, on arrête la boucle : le modèle tourne en rond. */
+const TOURS_MAX = 4;
+
+/**
+ * Conversation avec le coach.
+ *
+ * La route ré-emballait le flux SSE du fournisseur sans jamais le décoder, et
+ * n'a jamais transmis les outils au modèle — `createCoachTools()` n'était appelé
+ * nulle part. Le coach affichait donc du protocole brut et n'avait aucun accès
+ * aux données.
+ *
+ * Elle exécute désormais la boucle d'outils côté serveur et renvoie une réponse
+ * complète. Les appels et leurs résultats sont archivés sur le message, dans les
+ * colonnes prévues pour ça et jusqu'ici toujours vides.
+ */
 export async function POST(request: Request) {
   const userId = await getAuthenticatedUserId();
-  if (!userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const parsed = schema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Message invalide" }, { status: 400 });
   }
+  const { conversationId, message, sessionLogId } = parsed.data;
 
-  const body = await request.json();
-  const { conversationId, message, sessionLogId } = body;
-
-  if (!message || typeof message !== "string") {
-    return NextResponse.json({ error: "message is required" }, { status: 400 });
-  }
-
-  // Load or create conversation
-  let convId = conversationId;
+  // --- Conversation ---
+  let convId = conversationId ?? null;
 
   if (convId) {
     const conv = await db.query.coachConversations.findFirst({
-      where: eq(coachConversations.id, convId),
+      where: and(eq(coachConversations.id, convId), eq(coachConversations.userId, userId)),
     });
-    if (!conv || conv.userId !== userId) {
-      return NextResponse.json({ error: "Conversation not found" }, { status: 404 });
-    }
+    if (!conv) return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });
   } else {
-    // Create new conversation
-    const [newConv] = await db.insert(coachConversations).values({
-      userId,
-      sessionLogId: sessionLogId || null,
-      title: null,
-    }).returning();
-    if (!newConv) return NextResponse.json({ error: "Failed to create conversation" }, { status: 500 });
-    convId = newConv.id;
+    const [nouvelle] = await db
+      .insert(coachConversations)
+      .values({ userId, sessionLogId: sessionLogId ?? null, title: message.slice(0, 60) })
+      .returning();
+    if (!nouvelle) return NextResponse.json({ error: "Création impossible" }, { status: 500 });
+    convId = nouvelle.id;
   }
 
-  // Save user message
-  await db.insert(coachMessages).values({
-    conversationId: convId,
-    role: "user",
-    content: message,
-  }).returning();
+  await db.insert(coachMessages).values({ conversationId: convId, role: "user", content: message });
 
-  // Load context and system prompt
-  const context = await loadCoachContext(userId);
-  const systemPrompt = buildSystemPrompt(context);
+  // --- Contexte et historique ---
+  const [contexte, historique] = await Promise.all([
+    loadCoachContext(userId),
+    db.query.coachMessages.findMany({
+      where: eq(coachMessages.conversationId, convId),
+      orderBy: [asc(coachMessages.createdAt)],
+    }),
+  ]);
 
-  // Load existing messages for context
-  const existingMessages = await db.query.coachMessages.findMany({
-    where: eq(coachMessages.conversationId, convId),
-    orderBy: [coachMessages.createdAt],
-  });
-
-  const allMessages: LLMMessage[] = existingMessages
+  const messages: MessageLLM[] = historique
     .filter((m) => m.role === "user" || m.role === "assistant")
-    .map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    .filter((m) => m.content.trim().length > 0)
+    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
-  allMessages.push({ role: "user", content: message });
-
-  // Call LLM
-  let fullResponse = "";
+  const outils = createCoachTools();
 
   try {
-    const stream = await callLLM({
-      messages: allMessages,
-      system: systemPrompt,
+    const resultatsOutils: Array<{ appel: AppelOutil; resultat: string }> = [];
+    let reponse = await appelerLLM({
+      messages,
+      system: buildSystemPrompt(contexte),
+      outils: outils.definitions,
     });
 
-    const reader = stream.getReader();
-    const decoder = new TextDecoder();
+    // Boucle d'outils : le modèle demande des données, on les lui fournit, il conclut.
+    let tour = 0;
+    while (reponse.appelsOutils.length > 0 && tour < TOURS_MAX) {
+      for (const appel of reponse.appelsOutils) {
+        const executeur = outils.executors[appel.nom];
+        const resultat = executeur
+          ? await executeur(appel.arguments, userId).then(
+              (r) => r.output,
+              (e: unknown) => `Erreur : ${e instanceof Error ? e.message : String(e)}`,
+            )
+          : `Outil inconnu : ${appel.nom}`;
+        resultatsOutils.push({ appel, resultat });
+      }
 
-    const streamContent = new ReadableStream({
-      async start(controller) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+      reponse = await appelerLLM({
+        messages,
+        system: buildSystemPrompt(contexte),
+        outils: outils.definitions,
+        resultatsOutils,
+      });
+      tour += 1;
+    }
 
-            const chunk = decoder.decode(value, { stream: true });
-            fullResponse += chunk;
-            controller.enqueue(`event: text\ndata: ${JSON.stringify({ content: chunk })}\n\n`);
-          }
-        } catch (e) {
-          controller.error(e);
-        } finally {
-          // Save assistant message
-          if (fullResponse && convId) {
-            try {
-              await db.insert(coachMessages).values({
-                conversationId: convId,
-                role: "assistant",
-                content: fullResponse,
-              });
+    const texte = reponse.texte.trim() || "Je n'ai pas réussi à formuler de réponse.";
 
-              // Update conversation title if not set (from first user message)
-              const conv = await db.query.coachConversations.findFirst({
-                where: eq(coachConversations.id, convId),
-              });
-              if (conv && !conv.title) {
-                const title = message.slice(0, 50) + (message.length > 50 ? "..." : "");
-                await db.update(coachConversations)
-                  .set({ title, updatedAt: new Date() })
-                  .where(eq(coachConversations.id, convId));
-              }
-            } catch (saveErr) {
-              console.error("Failed to save assistant message:", saveErr);
-            }
-          }
+    const [enregistre] = await db
+      .insert(coachMessages)
+      .values({
+        conversationId: convId,
+        role: "assistant",
+        content: texte,
+        toolCalls: resultatsOutils.length ? resultatsOutils.map((r) => r.appel) : null,
+        toolResults: resultatsOutils.length ? resultatsOutils.map((r) => r.resultat) : null,
+      })
+      .returning();
 
-          controller.enqueue(`event: done\ndata: ${JSON.stringify({ conversationId: convId })}\n\n`);
-          controller.close();
-        }
-      },
+    await db
+      .update(coachConversations)
+      .set({ updatedAt: new Date() })
+      .where(eq(coachConversations.id, convId));
+
+    return NextResponse.json({
+      conversationId: convId,
+      message: { id: enregistre?.id, role: "assistant", content: texte },
+      outilsUtilises: resultatsOutils.map((r) => r.appel.nom),
     });
-
-    return new Response(streamContent, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
-
-  } catch (llmError: unknown) {
-    const llmMessage = llmError instanceof Error ? llmError.message : String(llmError);
-    if (llmMessage.includes("API key") || llmMessage.includes("not set")) {
+  } catch (error) {
+    if (error instanceof CoachIndisponible) {
       return NextResponse.json(
-        { error: "Le coach n'est pas disponible: clé API non configurée." },
-        { status: 503 }
+        { error: "Le coach n'est pas disponible : clé API non configurée ou fournisseur en erreur." },
+        { status: 503 },
       );
     }
-    console.error("Coach LLM error:", llmError);
-    return NextResponse.json(
-      { error: "Le coach n'est pas disponible pour le moment." },
-      { status: 503 }
-    );
+    console.error("[coach/chat]", error);
+    return NextResponse.json({ error: "Le coach n'est pas disponible pour le moment." }, { status: 503 });
   }
 }

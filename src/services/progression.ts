@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import {
   exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, setLogs,
 } from "@/db/schema";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
@@ -265,4 +265,113 @@ export async function alertes(userId: string): Promise<Alert[]> {
     stagnations: listeStagnations,
     feuTendance: tendance,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Records et volume par muscle
+// ---------------------------------------------------------------------------
+
+export interface RecordPersonnel {
+  exerciseInstanceId: string;
+  exerciseName: string;
+  machineNom: string;
+  charge: number;
+  reps: number;
+  estimation1RM: number;
+  date: string;
+  /** Vrai si le record a été établi lors de la dernière séance. */
+  recent: boolean;
+}
+
+/** Meilleur 1RM estimé par machine, avec la série qui l'a produit. */
+export async function recordsPersonnels(userId: string, limite = 20): Promise<RecordPersonnel[]> {
+  const lignes = await db
+    .select({
+      exerciseInstanceId: setLogs.exerciseInstanceId,
+      exerciseName: exercises.nom,
+      machineNom: exerciseInstances.machineNom,
+      charge: setLogs.charge,
+      reps: setLogs.repsEffectuees,
+      date: sessionLogs.date,
+    })
+    .from(setLogs)
+    .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+    .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
+    .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+    .where(eq(sessionLogs.userId, userId));
+
+  const derniereDate = lignes.reduce((max, l) => (l.date > max ? l.date : max), "");
+
+  const meilleurs = new Map<string, RecordPersonnel>();
+  for (const l of lignes) {
+    const rm = estimation1RM(l.charge, l.reps);
+    const actuel = meilleurs.get(l.exerciseInstanceId);
+    if (!actuel || rm > actuel.estimation1RM) {
+      meilleurs.set(l.exerciseInstanceId, {
+        exerciseInstanceId: l.exerciseInstanceId,
+        exerciseName: l.exerciseName,
+        machineNom: l.machineNom,
+        charge: l.charge,
+        reps: l.reps,
+        estimation1RM: Math.round(rm),
+        date: l.date,
+        recent: l.date === derniereDate,
+      });
+    }
+  }
+
+  return [...meilleurs.values()]
+    .sort((a, b) => b.estimation1RM - a.estimation1RM)
+    .slice(0, limite);
+}
+
+export interface VolumeMuscle {
+  muscle: string;
+  /** Tonnage : charge × répétitions. */
+  volume: number;
+  series: number;
+}
+
+/**
+ * Volume hebdomadaire par muscle.
+ *
+ * Les statistiques ne raisonnaient que par pilier. Les muscles secondaires,
+ * absents du modèle jusqu'en phase 3, rendaient impossible tout calcul du volume
+ * réel : un développé couché ne travaille pas que les pectoraux.
+ *
+ * Un muscle secondaire compte pour moitié — convention simple et assumée, pas une
+ * mesure physiologique.
+ */
+export async function volumeParMuscle(userId: string, depuisISO: string): Promise<VolumeMuscle[]> {
+  const lignes = await db
+    .select({
+      charge: setLogs.charge,
+      reps: setLogs.repsEffectuees,
+      musclesPrincipaux: exercises.musclesPrincipaux,
+      musclesSecondaires: exercises.musclesSecondaires,
+    })
+    .from(setLogs)
+    .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+    .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
+    .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+    .where(and(eq(sessionLogs.userId, userId), gte(sessionLogs.date, depuisISO)));
+
+  const cumul = new Map<string, VolumeMuscle>();
+
+  const ajouter = (muscle: string, volume: number, series: number) => {
+    const actuel = cumul.get(muscle) ?? { muscle, volume: 0, series: 0 };
+    actuel.volume += volume;
+    actuel.series += series;
+    cumul.set(muscle, actuel);
+  };
+
+  for (const l of lignes) {
+    const tonnage = l.charge * l.reps;
+    for (const m of l.musclesPrincipaux ?? []) ajouter(m, tonnage, 1);
+    for (const m of l.musclesSecondaires ?? []) ajouter(m, tonnage / 2, 0.5);
+  }
+
+  return [...cumul.values()]
+    .map((v) => ({ ...v, volume: Math.round(v.volume), series: Math.round(v.series * 2) / 2 }))
+    .sort((a, b) => b.volume - a.volume);
 }

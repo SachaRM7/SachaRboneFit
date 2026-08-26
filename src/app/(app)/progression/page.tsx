@@ -7,8 +7,9 @@ import { ExerciseProgressionChart } from "@/components/progression/ExerciseProgr
 import { PillarVolumeChart } from "@/components/progression/PillarVolumeChart";
 import { BodyWeightChart } from "@/components/progression/BodyWeightChart";
 import { FeuHeatmap } from "@/components/progression/FeuHeatmap";
+import { Records } from "@/components/progression/Records";
 
-type Tab = "exercice" | "pilier" | "poids" | "calendrier";
+type Tab = "exercice" | "pilier" | "records" | "poids" | "calendrier";
 
 export default function ProgressionPage() {
   const [activeTab, setActiveTab] = useState<Tab>("exercice");
@@ -18,6 +19,7 @@ export default function ProgressionPage() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "exercice", label: "Par exercice" },
     { key: "pilier", label: "Par pilier" },
+    { key: "records", label: "Records" },
     { key: "poids", label: "Poids" },
     { key: "calendrier", label: "Calendrier" },
   ];
@@ -91,6 +93,8 @@ export default function ProgressionPage() {
             <PillarVolumeChart months={periodMonths} />
           </div>
         )}
+
+        {activeTab === "records" && <Records />}
 
         {activeTab === "poids" && <BodyWeightChart months={6} />}
 

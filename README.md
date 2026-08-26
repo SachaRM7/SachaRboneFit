@@ -44,7 +44,9 @@ npm run dev
 | `SEED_USER_ID` | UUID du compte à seeder. Doit correspondre à un utilisateur Supabase réel. |
 | `SEED_USER_EMAIL` | Email du compte seedé (défaut `sacha@local`). |
 | `CRON_SECRET` | Protège les routes `/api/cron/*`. |
-| `LLM_PROVIDER`, `LLM_MODEL`, `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Coach IA (optionnel — voir Limites). |
+| `LLM_PROVIDER` | `gemini` (défaut), `groq`, `openai` ou `anthropic`. |
+| `LLM_MODEL` | Surcharge le modèle par défaut du fournisseur. |
+| `GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Selon le fournisseur choisi. Le coach est optionnel : sans clé, l'application fonctionne, seul le coach répond 503. |
 
 ## Scripts
 
@@ -123,20 +125,31 @@ thème clair était inatteignable. `next-themes`, installé mais inutilisé, pil
 désormais le réglage, et les tokens répondent à `.dark` comme à
 `prefers-color-scheme`.
 
+## Coach IA
+
+Fournisseurs pris en charge : **Gemini** (défaut, offre gratuite généreuse et
+*function calling* pris en charge), **Groq** (gratuit, rapide), OpenAI, Anthropic.
+Le choix se fait par `LLM_PROVIDER`.
+
+Le coach n'est pas un simple prompt : il dispose de sept outils
+(`src/lib/coach/tools.ts`) qui lui donnent accès à l'historique d'un exercice, au
+résumé hebdomadaire, aux substituts disponibles et à la suggestion de charge. La
+boucle d'exécution tourne côté serveur, sur quatre tours au maximum.
+
+> **Sur les offres gratuites** : elles réutilisent généralement les échanges pour
+> entraîner les modèles. Les données envoyées ici sont des noms d'exercices, des
+> charges et un état de forme — à savoir avant de brancher une clé.
+
 ## Limites connues
 
 L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
 
-- **Coach IA** — le flux SSE n'est pas décodé et les outils (`src/lib/coach/tools.ts`)
-  ne sont jamais transmis au modèle. Les réponses affichées sont du protocole brut.
 - **Cron `precalc-session`** — écrit un contenu fixe en base, ce n'est pas une
   génération réelle.
 - **Génération de séance** — l'application adapte une séance existante ; elle ne
   compose pas encore une séance de zéro.
 - **Récupération musculaire** — le délai depuis le dernier travail d'un muscle
   n'est pas calculé, donc pas pris en compte dans l'adaptation.
-- **Coach IA** — voir ci-dessus.
-- **PWA** — le service worker est vide et les icônes du manifest sont absentes.
 - **Tests** — il n'y en a aucun.
 
 ## Documentation
