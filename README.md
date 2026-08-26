@@ -15,6 +15,7 @@ réellement disponible sur place et à son historique de performances.
 | **Feu biologique** | État de la journée : `vert` / `orange` / `rouge`. Un feu *du jour* (sommeil, énergie, courbatures) et un feu *de tendance* (évolution du 1RM des piliers sur 3 séances). |
 | **Exercise instance** | Un exercice **sur une machine précise d'une salle précise**, avec sa convention de charge et ses incréments réels. C'est la pièce maîtresse du modèle. |
 | **Catalogue** | 120 exercices curatés depuis la bibliothèque workout-guide, avec muscles principaux et secondaires, type de matériel et illustrations. Voir `src/lib/referentiels/catalogue.ts`. |
+| **Séance du jour** | La prescription du jour, entre le *template* (prévu il y a des semaines) et le *log* (ce qui a été fait) : exercices résolus vers la salle du jour, séries ajustées et charge suggérée. Table `session_plan_items`. |
 | **SOS** | Quatre secours en séance : machine occupée, douleur, chute d'énergie, temps dépassé. |
 
 ## Stack
@@ -95,13 +96,9 @@ L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
   ne sont jamais transmis au modèle. Les réponses affichées sont du protocole brut.
 - **Cron `precalc-session`** — écrit un contenu fixe en base, ce n'est pas une
   génération réelle.
-- **Ajustement de volume** — calculé et stocké, mais jamais appliqué aux séries affichées.
-- **Courbatures et douleurs** — saisies et stockées, sans effet sur la séance
-  (trois vocabulaires musculaires incompatibles coexistent).
-- **Génération de séance** — inexistante. Les séances restent des templates fixes :
-  l'application choisit laquelle vient ensuite, pas ce qu'elle contient.
-- **Adaptation à la salle** — un exercice programmé pointe vers une machine d'une
-  salle précise. Changer de salle ne change pas encore la séance proposée.
+- **Génération de séance** — l'application adapte une séance existante ; elle ne
+  compose pas encore une séance de zéro.
+- **Coach IA** — voir ci-dessus.
 - **PWA** — le service worker est vide et les icônes du manifest sont absentes.
 - **Tests** — il n'y en a aucun.
 

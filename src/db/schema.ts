@@ -237,6 +237,77 @@ export const weeklyDebriefs = pgTable("weekly_debriefs", {
 }));
 
 
+/**
+ * La seance du jour : ce que l'application a decide pour aujourd'hui.
+ *
+ * Il manquait un objet entre le TEMPLATE (ce qui etait prevu il y a des semaines)
+ * et le LOG (ce qui a ete fait). Sans lui, les calculs d'adaptation n'avaient nulle
+ * part ou se poser : l'ajustement de volume finissait dans un sessionStorage que
+ * personne ne relisait, et la charge suggeree etait recalculee puis oubliee.
+ *
+ * Une ligne = un exercice prescrit pour cette seance, apres resolution de la salle,
+ * ajustement du volume et calcul de la charge.
+ */
+export const sessionPlanItems = pgTable("session_plan_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionLogId: uuid("session_log_id").references(() => sessionLogs.id).notNull(),
+  ordre: integer("ordre").notNull(),
+
+  /** Instance retenue APRES resolution de la salle du jour. */
+  exerciseInstanceId: uuid("exercise_instance_id").references(() => exerciseInstances.id).notNull(),
+  /** Ligne de template d'origine, absente pour un exercice ajoute a la volee. */
+  exerciseInTemplateId: uuid("exercise_in_template_id").references(() => exerciseInTemplate.id),
+  /** Instance initialement prevue, quand la salle a impose une substitution. */
+  substitutionDeInstanceId: uuid("substitution_de_instance_id").references(() => exerciseInstances.id),
+  raisonSubstitution: text("raison_substitution"),
+
+  /** Prescription effective, ajustement de volume compris. */
+  seriesCibles: integer("series_cibles").notNull(),
+  seriesPrevuesAvantAjustement: integer("series_prevues_avant_ajustement"),
+  fourchetteRepsMin: integer("fourchette_reps_min").notNull(),
+  fourchetteRepsMax: integer("fourchette_reps_max").notNull(),
+  rpeCible: real("rpe_cible"),
+  tempo: text("tempo"),
+  reposSecondes: integer("repos_secondes"),
+
+  /** Issue de la double progression sur l'historique de CETTE instance. */
+  chargeSuggeree: real("charge_suggeree"),
+  repsSuggerees: jsonb("reps_suggerees").$type<number[]>(),
+  messageProgression: text("message_progression"),
+
+  /** 'prevu' | 'fait' | 'passe' | 'reporte' */
+  statut: text("statut").notNull().default("prevu"),
+  raisonStatut: text("raison_statut"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+/**
+ * Contraintes physiques persistantes : blessure, zone sensible, douleur recurrente.
+ *
+ * Une douleur n'existait que le temps d'une modale : elle n'etait pas historisee et
+ * ne survivait pas a la seance. Le lendemain, l'application reproposait le meme
+ * exercice sur la meme epaule, sans memoire.
+ */
+export const contraintes = pgTable("contraintes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  /** Muscle du referentiel, ou zone de douleur. */
+  muscle: text("muscle").notNull(),
+  /** 'blessure' | 'douleur' | 'zone_sensible' */
+  type: text("type").notNull(),
+  /** 1-10 : au-dela de 7, l'exercice est ecarte plutot qu'allege. */
+  severite: integer("severite").notNull(),
+  notes: text("notes"),
+  dateDebut: date("date_debut").notNull(),
+  /** Nulle tant que la contrainte est active. */
+  dateFin: date("date_fin"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+
 // ---------------------------------------------------------------------------
 // Relations
 //
@@ -302,6 +373,16 @@ export const sessionLogsRelations = relations(sessionLogs, ({ one, many }) => ({
   gym: one(gyms, { fields: [sessionLogs.gymId], references: [gyms.id] }),
   setLogs: many(setLogs),
   incidents: many(sessionIncidents),
+  planItems: many(sessionPlanItems),
+}));
+
+export const sessionPlanItemsRelations = relations(sessionPlanItems, ({ one }) => ({
+  sessionLog: one(sessionLogs, { fields: [sessionPlanItems.sessionLogId], references: [sessionLogs.id] }),
+  exerciseInstance: one(exerciseInstances, { fields: [sessionPlanItems.exerciseInstanceId], references: [exerciseInstances.id] }),
+}));
+
+export const contraintesRelations = relations(contraintes, ({ one }) => ({
+  user: one(users, { fields: [contraintes.userId], references: [users.id] }),
 }));
 
 export const setLogsRelations = relations(setLogs, ({ one }) => ({
@@ -326,6 +407,7 @@ export const coachMessagesRelations = relations(coachMessages, ({ one }) => ({
 export const sessionIncidentsRelations = relations(sessionIncidents, ({ one }) => ({
   sessionLog: one(sessionLogs, { fields: [sessionIncidents.sessionLogId], references: [sessionLogs.id] }),
 }));
+
 
 // Inferred types
 export type User = typeof users.$inferSelect;
@@ -360,3 +442,7 @@ export type PrecalcSession = typeof precalcSessions.$inferSelect;
 export type NewPrecalcSession = typeof precalcSessions.$inferInsert;
 export type WeeklyDebrief = typeof weeklyDebriefs.$inferSelect;
 export type NewWeeklyDebrief = typeof weeklyDebriefs.$inferInsert;
+export type SessionPlanItem = typeof sessionPlanItems.$inferSelect;
+export type NewSessionPlanItem = typeof sessionPlanItems.$inferInsert;
+export type Contrainte = typeof contraintes.$inferSelect;
+export type NewContrainte = typeof contraintes.$inferInsert;

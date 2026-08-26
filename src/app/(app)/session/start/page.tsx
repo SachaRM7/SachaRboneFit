@@ -1,146 +1,110 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { computeFeuJour } from "@/lib/engine/feu-biologique";
-import { computeVolumeAdjustment } from "@/lib/engine/volume-adjustment";
-import { applyVolumeAdjustment } from "@/lib/engine/apply-adjustment";
-import { FeuBiologique } from "@/components/ui/FeuBiologique";
-import type { DailyStateInput } from "@/lib/validators/daily-state";
 
+/**
+ * Écran de démarrage de séance.
+ *
+ * Il contenait auparavant toute l'orchestration : cinq appels en cascade, trois
+ * modules du moteur exécutés dans le navigateur, la création de la session, puis
+ * un passage de relais par sessionStorage jamais relu. Il ne fait plus qu'appeler
+ * le service serveur et afficher ce qui a été décidé.
+ */
 export default function SessionStartPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center"><div className="text-white">Chargement...</div></div>}>
-      <SessionStartPageContent />
+    <Suspense fallback={<EcranAttente message="Chargement…" />}>
+      <ContenuDemarrage />
     </Suspense>
   );
 }
 
-function SessionStartPageContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [adjustment, setAdjustment] = useState<{ totalPct: number; raisons: string[] } | null>(null);
-  const [feuJour, setFeuJour] = useState<"vert" | "orange" | "rouge">("vert");
-
-  useEffect(() => {
-    const dailyStateId = searchParams.get("dailyStateId");
-    const date = searchParams.get("date");
-    const gymId = searchParams.get("gymId");
-
-    // Cas derive au rendu (voir parametresManquants) : pas de setState synchrone ici.
-    if (!dailyStateId || !date || !gymId) return;
-
-    fetch(`/api/daily-state?date=${date}`)
-      .then((r) => r.json())
-      .then(async (dailyState) => {
-        if (!dailyState || !dailyState.id) {
-          setError("DailyState non trouve");
-          setLoading(false);
-          return;
-        }
-
-        const stateForFeu: DailyStateInput = {
-          date,
-          sommeilHeures: dailyState.sommeilHeures ?? 7,
-          jeuneBool: dailyState.jeuneBool ?? false,
-          shiftRecentBool: dailyState.shiftRecentBool ?? false,
-          shiftType: dailyState.shiftType ?? "aucun",
-          energieDepart: dailyState.energieDepart ?? 5,
-          courbatures: dailyState.courbatures ?? [],
-        };
-        const feu = computeFeuJour(stateForFeu);
-        setFeuJour(feu.feu);
-
-        // La rotation est calculee cote serveur a partir de `ordreDansSemaine`.
-        // Elle reposait auparavant sur le dernier caractere du nom de la seance :
-        // renommer une seance cassait le cycle.
-        const prochaineRes = await fetch("/api/programme/prochaine-seance");
-        if (!prochaineRes.ok) {
-          setError("Aucun programme actif. Crée un bloc et ses séances.");
-          setLoading(false);
-          return;
-        }
-        const prochaine = await prochaineRes.json();
-        const nextTemplate = prochaine.template;
-
-        const templateId = nextTemplate.id;
-
-        const templateRes = await fetch(`/api/sessions/${templateId}`);
-        const template = await templateRes.json();
-        const templateExercises = template.exercises || [];
-
-        const musclesCibles = templateExercises.flatMap((e: { musclesPrincipaux?: string[] }) => e.musclesPrincipaux || []);
-        const volAdj = computeVolumeAdjustment(stateForFeu, musclesCibles);
-        setAdjustment(volAdj);
-
-        const adjusted = applyVolumeAdjustment(templateExercises, volAdj);
-
-        const sessionRes = await fetch("/api/sessions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            seanceTemplateId: templateId,
-            gymId,
-            date,
-            dailyStateId,
-            feuBiologiqueJour: feu.feu,
-            volumeAjustePct: volAdj.totalPct,
-            volumeAjusteRaison: volAdj.raisons.join("; "),
-          }),
-        });
-
-        if (!sessionRes.ok) {
-          setError("Erreur creation session");
-          setLoading(false);
-          return;
-        }
-
-        const session = await sessionRes.json();
-
-        // L'ancien passage de relais par sessionStorage n'etait jamais relu :
-        // l'ajustement calcule ici etait donc perdu. Il est desormais persiste sur
-        // la seance (volumeAjustePct) ; son application aux series reste a faire.
-        void adjusted;
-
-        router.push(`/sessions/new/${templateId}?gymId=${gymId}&sessionId=${session.id}`);
-      })
-      .catch((e) => {
-        setError(e.message || "Erreur");
-        setLoading(false);
-      });
-  }, [searchParams, router]);
-
-  const parametresManquants =
-    !searchParams.get("dailyStateId") || !searchParams.get("date") || !searchParams.get("gymId");
-
-  if (parametresManquants) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-red-500">Parametres manquants</div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-white">Chargement...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-red-500">{error}</div>
-      </div>
-    );
-  }
-
+function EcranAttente({ message, erreur = false }: { message: string; erreur?: boolean }) {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="text-white">Redirection vers la seance...</div>
+    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <p className={erreur ? "text-red-500 text-center" : "text-white text-center"}>{message}</p>
     </div>
   );
+}
+
+interface Ecarte {
+  exerciceNom: string;
+  raison: string;
+}
+
+function ContenuDemarrage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const [erreur, setErreur] = useState<string | null>(null);
+  const [ecartes, setEcartes] = useState<Ecarte[] | null>(null);
+
+  const date = searchParams.get("date");
+  const gymId = searchParams.get("gymId");
+
+  useEffect(() => {
+    if (!date || !gymId) return;
+
+    let annule = false;
+
+    (async () => {
+      const prochaineRes = await fetch("/api/programme/prochaine-seance");
+      if (!prochaineRes.ok) {
+        if (!annule) setErreur("Aucun programme actif. Crée un bloc et ses séances.");
+        return;
+      }
+      const prochaine = await prochaineRes.json();
+
+      const res = await fetch("/api/seance-du-jour", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, gymId, seanceTemplateId: prochaine.template.id }),
+      });
+
+      if (!res.ok) {
+        if (!annule) setErreur("Impossible de construire la séance.");
+        return;
+      }
+
+      const resultat = await res.json();
+      if (annule) return;
+
+      const destination = `/sessions/new/${prochaine.template.id}?gymId=${gymId}&sessionId=${resultat.seance.id}`;
+
+      // Les exercices écartés faute d'équivalent dans la salle méritent d'être vus
+      // avant d'entrer en séance : c'est une décision de l'application.
+      if (resultat.ecartes?.length > 0) {
+        setEcartes(resultat.ecartes);
+        setTimeout(() => router.push(destination), 3500);
+        return;
+      }
+
+      router.push(destination);
+    })().catch(() => {
+      if (!annule) setErreur("Une erreur est survenue.");
+    });
+
+    return () => { annule = true; };
+  }, [date, gymId, router]);
+
+  if (!date || !gymId) return <EcranAttente message="Paramètres manquants" erreur />;
+  if (erreur) return <EcranAttente message={erreur} erreur />;
+
+  if (ecartes) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+        <div className="max-w-sm space-y-3">
+          <p className="text-white font-medium">Séance adaptée à cette salle</p>
+          <ul className="space-y-2">
+            {ecartes.map((e) => (
+              <li key={e.exerciceNom} className="text-sm text-zinc-400">
+                <span className="text-zinc-300">{e.exerciceNom}</span> — {e.raison}
+              </li>
+            ))}
+          </ul>
+          <p className="text-zinc-600 text-xs">Ouverture de la séance…</p>
+        </div>
+      </div>
+    );
+  }
+
+  return <EcranAttente message="Préparation de la séance…" />;
 }

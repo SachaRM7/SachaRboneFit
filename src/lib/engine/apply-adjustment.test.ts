@@ -53,19 +53,38 @@ describe("application de l'ajustement de volume", () => {
     expect(applyVolumeAdjustment(seance, ajustement(-40))).toHaveLength(3);
   });
 
-  it("arrondit au superieur, ce qui rend la reduction reelle bien plus faible qu'annoncee", () => {
-    // Comportement fige tel qu'il est aujourd'hui, et signale dans l'audit :
-    // a -40 %, un accessoire de 3 series ne perd qu'une serie (ceil(3 * 0.6) = 2),
-    // et les piliers ne bougent pas. Sur cette seance, le volume total passe de
-    // 10 a 8 series, soit -20 % pour un ajustement annonce a -40 %.
+  it("atteint reellement la reduction annoncee", () => {
+    // L'ancienne implementation faisait ceil(series * facteur) sur les seuls
+    // accessoires : a -40 % annonces, le volume ne baissait que de 20 %.
     const r = applyVolumeAdjustment(seance, ajustement(-40));
-    expect(r.map((e) => e.seriesAjustees)).toEqual([4, 2, 2]);
-
     const avant = seance.reduce((n, e) => n + e.seriesCibles, 0);
     const apres = r.reduce((n, e) => n + e.seriesAjustees, 0);
     expect(avant).toBe(10);
-    expect(apres).toBe(8);
-    // L'ecart entre l'intention (-40 %) et l'effet (-20 %) reste a traiter en phase 5.
-    expect(Math.round((1 - apres / avant) * 100)).toBe(20);
+    expect(apres).toBe(6);
+    expect(Math.round((1 - apres / avant) * 100)).toBe(40);
+  });
+
+  it("repartit la coupe entre accessoires plutot que d'en vider un seul", () => {
+    const r = applyVolumeAdjustment(seance, ajustement(-20));
+    const accessoires = r.filter((e) => e.categorieRole === "accessoire");
+    // 10 series -> 8 : une serie retiree a chacun des deux accessoires.
+    expect(accessoires.map((e) => e.seriesAjustees).sort()).toEqual([2, 2]);
+    expect(r.find((e) => e.categorieRole === "pilier")!.seriesAjustees).toBe(4);
+  });
+
+  it("n'entame un pilier que si les accessoires sont deja au minimum", () => {
+    // -70 % sur 10 series vise 3 : les accessoires tombent a 1 chacun (2 series),
+    // il faut donc puiser dans le pilier pour approcher la cible.
+    const r = applyVolumeAdjustment(seance, ajustement(-70));
+    const accessoires = r.filter((e) => e.categorieRole === "accessoire");
+    expect(accessoires.every((e) => e.seriesAjustees === 1)).toBe(true);
+    expect(r.find((e) => e.categorieRole === "pilier")!.seriesAjustees).toBeLessThan(4);
+    expect(r.reduce((n, e) => n + e.seriesAjustees, 0)).toBe(3);
+  });
+
+  it("s'arrete quand tout est au minimum, sans boucler", () => {
+    const minimale = [exo("A", "accessoire", 1), exo("B", "pilier", 1)];
+    const r = applyVolumeAdjustment(minimale, ajustement(-40));
+    expect(r.map((e) => e.seriesAjustees)).toEqual([1, 1]);
   });
 });

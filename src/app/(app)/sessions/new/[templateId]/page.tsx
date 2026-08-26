@@ -28,6 +28,18 @@ function normaliserRole(role: string | null | undefined): ExerciceRestant["categ
 
 interface ExerciseFromTemplate {
   id: string;
+  /** Identifiant de la ligne de plan, pour le suivi de statut. */
+  planItemId?: string;
+  /** Charge issue de la double progression sur l'historique de CETTE machine. */
+  chargeSuggeree?: number | null;
+  repsSuggerees?: number[] | null;
+  messageProgression?: string | null;
+  /** Explication quand la salle du jour a impose un autre exercice. */
+  raisonSubstitution?: string | null;
+  /** Séries avant réduction, quand le volume a été ajusté. */
+  seriesPrevuesAvantAjustement?: number | null;
+  /** Dernière séance réalisée sur cette machine. */
+  historique?: { charge: number; reps: number; rpe?: number | null }[];
   nom: string;
   machineNom: string;
   seriesCibles: number;
@@ -45,7 +57,6 @@ interface ExerciseFromTemplate {
 
 function ExerciseBlock({
   exercise,
-  history,
   onNext,
   showTimer,
   timerDuration,
@@ -57,7 +68,6 @@ function ExerciseBlock({
   rpeReduction,
 }: {
   exercise: ExerciseFromTemplate;
-  history: { charge: number; reps: number; rpe?: number }[];
   onNext: () => void;
   showTimer: boolean;
   timerDuration: number | null;
@@ -70,8 +80,13 @@ function ExerciseBlock({
 }) {
   const { upsertSet, active } = useSessionStore();
   const [currentSerie, setCurrentSerie] = useState(1);
-  const [charge, setCharge] = useState(exercise.incrementsPossibles[0] || 0);
-  const [reps, setReps] = useState(exercise.fourchetteRepsMin);
+  // La charge part de la suggestion (double progression), a defaut de la derniere
+  // seance. Elle partait auparavant du PLUS PETIT INCREMENT — 2,5 kg sur un
+  // souleve de terre — ce qui obligeait a remonter a la main a chaque exercice.
+  const [charge, setCharge] = useState(
+    exercise.chargeSuggeree ?? exercise.historique?.[0]?.charge ?? 0,
+  );
+  const [reps, setReps] = useState(exercise.repsSuggerees?.[0] ?? exercise.fourchetteRepsMin);
   const [rpe, setRpe] = useState(Math.max(6, 8 - rpeReduction));
   const [validated, setValidated] = useState<number[]>([]);
 
@@ -131,10 +146,22 @@ function ExerciseBlock({
         <p className="text-zinc-500 text-sm">{exercise.machineNom}</p>
       </div>
 
-      {history.length > 0 && history[0] && (
-        <div className="text-zinc-500 text-xs">
-          Dernier: {history[0].charge}kg × {history.map(h => h.reps).join("/")}
+      {exercise.raisonSubstitution && (
+        <p className="text-amber-500/90 text-xs bg-amber-500/10 border border-amber-500/20 rounded px-2 py-1.5">
+          {exercise.raisonSubstitution}
+        </p>
+      )}
+
+      {exercise.historique && exercise.historique.length > 0 ? (
+        <div className="text-zinc-500 text-xs leading-relaxed">
+          Dernière fois : {exercise.historique[0]!.charge} kg ×{" "}
+          {exercise.historique.map((h) => h.reps).join(" / ")}
+          {exercise.messageProgression && (
+            <span className="block text-green-500 mt-0.5">{exercise.messageProgression}</span>
+          )}
         </div>
+      ) : (
+        <p className="text-zinc-600 text-xs">Première fois sur cette machine.</p>
       )}
 
       <div className="text-center py-2">
@@ -206,6 +233,14 @@ function ExerciseBlock({
         />
       </div>
 
+      {exercise.seriesPrevuesAvantAjustement != null &&
+        exercise.seriesPrevuesAvantAjustement !== exercise.seriesCibles && (
+          <p className="text-zinc-500 text-xs">
+            {exercise.seriesCibles} séries au lieu de {exercise.seriesPrevuesAvantAjustement} —
+            volume réduit pour aujourd&apos;hui
+          </p>
+        )}
+
       <div className="grid grid-cols-4 gap-2">
         {Array.from({ length: exercise.seriesCibles }, (_, i) => i + 1).map((n) => (
           <div
@@ -265,18 +300,32 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
   const [musclesCourbatures, setMusclesCourbatures] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch(`/api/sessions/${templateId}`)
-      .then((r) => r.json())
-      .then((d) => {
+    // On lit le PLAN de la séance, pas le template : c'est lui qui porte la
+    // résolution vers la salle du jour, les séries ajustées et la charge suggérée.
+    // Le template est le repli quand aucun plan n'existe (séance ouverte
+    // directement depuis la liste, sans passer par l'état du jour).
+    const source = sessionId
+      ? fetch(`/api/seance-du-jour?sessionLogId=${sessionId}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((plan) =>
+            plan && plan.items?.length
+              ? { nom: plan.seance.date, exercises: plan.items as ExerciseFromTemplate[] }
+              : null,
+          )
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    source
+      .then((planData) => planData ?? fetch(`/api/sessions/${templateId}`).then((r) => r.json()))
+      .then((d: TemplateResponse) => {
         setTemplateData(d);
-        if (d.exercises) {
-          setTemplateExerciseIds(d.exercises.map((e: ExerciseFromTemplate) => e.id));
-          if (d.exercises.length > 0) {
-            setCurrentExerciseId(d.exercises[0].id);
-          }
+        if (d.exercises?.length) {
+          setTemplateExerciseIds(d.exercises.map((e) => e.id));
+          setCurrentExerciseId(d.exercises[0]!.id);
         }
         setLoading(false);
-      });
+      })
+      .catch(() => setLoading(false));
 
     // Fetch all exercise instances for this gym for substitution
     if (gymId) {
@@ -303,7 +352,7 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
         }
       })
       .catch(() => {});
-  }, [templateId, gymId]);
+  }, [templateId, gymId, sessionId]);
 
   // Le store doit porter l'identifiant reel de la ligne session_logs. Quand la
   // page est ouverte sans sessionId (acces direct depuis la liste des seances),
@@ -457,7 +506,6 @@ function LiveSessionPageContent({ params }: { params: Promise<{ templateId: stri
           <div key={ex.id} className="space-y-2">
             <ExerciseBlock
               exercise={ex}
-              history={[]}
               onNext={() => {
                 setCurrentExerciseIndex(i + 1);
                 setShowTimer(false);

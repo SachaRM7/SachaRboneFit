@@ -22,6 +22,13 @@
       "when": 1787732406405,
       "tag": "0002_profil_salles_equipements",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787735656731,
+      "tag": "0003_seance_du_jour",
+      "breakpoints": true
     }
   ]
 }
