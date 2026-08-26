@@ -4,6 +4,8 @@ import { db } from "@/db/client";
 import { exercises, exerciseInstances } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { PilierBadge } from "@/components/exercises/PilierBadge";
+import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
+import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -28,8 +30,25 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
     with: { gym: true },
   });
 
+  // L'illustration n'etait affichee que dans la liste et les records : la fiche
+  // d'un exercice, seul endroit ou l'on vient justement verifier un mouvement,
+  // n'en montrait aucune.
+  const fiche = exercise.slug ? CATALOGUE_PAR_SLUG.get(exercise.slug) : undefined;
+
   return (
     <div className="p-4 space-y-4">
+      {fiche && exercise.slug && (
+        <div className="flex justify-center rounded-xl border border-filet bg-carte py-6">
+          <IllustrationExercice
+            slug={exercise.slug}
+            nom={exercise.nom}
+            nbFrames={fiche.nbFrames}
+            anime
+            className="h-44 w-44 text-encre"
+          />
+        </div>
+      )}
+
       <div>
         <div className="flex items-center gap-2 mb-2">
           <PilierBadge pilier={exercise.pilier} />

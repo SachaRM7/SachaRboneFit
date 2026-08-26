@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { dailyStateSchema, type DailyStateInput } from "@/lib/validators/daily-state";
@@ -31,11 +32,28 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
   const [dernierRepas, setDernierRepas] = useState<string | null>(null);
   const [horairePrevu, setHorairePrevu] = useState<string | null>(null);
 
-  // Fetch gyms
+  // Le chargement des salles ignorait tout ce qui n'etait pas un tableau : une
+  // API en erreur laissait la liste vide, sans le moindre message. L'ecran
+  // devenait un cul-de-sac — pas de salle selectionnable, donc pas de seance —
+  // et rien ne distinguait « la requete a echoue » de « tu n'as aucune salle ».
+  const [erreurSalles, setErreurSalles] = useState<string | null>(null);
   useEffect(() => {
-    fetch("/api/gyms")
-      .then(r => r.json())
-      .then(data => { if (Array.isArray(data)) setGyms(data); });
+    let annule = false;
+    (async () => {
+      try {
+        const reponse = await fetch("/api/gyms");
+        const corps = await reponse.json().catch(() => null);
+        if (annule) return;
+        if (!reponse.ok || !Array.isArray(corps)) {
+          setErreurSalles(corps?.error ? `${corps.error} (HTTP ${reponse.status})` : `HTTP ${reponse.status}`);
+          return;
+        }
+        setGyms(corps);
+      } catch (cause) {
+        if (!annule) setErreurSalles(cause instanceof Error ? cause.message : "Requête impossible");
+      }
+    })();
+    return () => { annule = true; };
   }, []);
 
   // Load existing daily state
@@ -115,6 +133,22 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
             ))}
           </SelectContent>
         </Select>
+
+        {erreurSalles && (
+          <p className="mt-2 text-perte text-xs">
+            Salles non chargées — <span className="chiffres">{erreurSalles}</span>
+          </p>
+        )}
+
+        {!erreurSalles && gyms.length === 0 && (
+          <p className="mt-2 text-encre-3 text-xs">
+            Aucune salle enregistrée.{" "}
+            <Link href="/gyms" className="text-encre underline underline-offset-2">
+              En créer une
+            </Link>{" "}
+            pour pouvoir démarrer une séance.
+          </p>
+        )}
       </div>
 
       {/* Sommeil */}

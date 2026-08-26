@@ -14,7 +14,11 @@ export async function GET() {
     });
     return NextResponse.json(allGyms);
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch gyms" }, { status: 500 });
+    // Message constant auparavant : toute panne se presentait de la meme facon
+    // et le client n'avait aucun moyen de dire ce qui avait casse.
+    const detail = error instanceof Error ? error.message : String(error);
+    console.error("[api/gyms]", detail, error);
+    return NextResponse.json({ error: `Lecture des salles : ${detail}` }, { status: 500 });
   }
 }
 
