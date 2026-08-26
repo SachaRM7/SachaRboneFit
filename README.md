@@ -14,6 +14,7 @@ réellement disponible sur place et à son historique de performances.
 | **Catégorie de rôle** | `pilier` / `substitut` / `accessoire`. Détermine ce qu'on protège et ce qu'on coupe quand le volume doit baisser. |
 | **Feu biologique** | État de la journée : `vert` / `orange` / `rouge`. Un feu *du jour* (sommeil, énergie, courbatures) et un feu *de tendance* (évolution du 1RM des piliers sur 3 séances). |
 | **Exercise instance** | Un exercice **sur une machine précise d'une salle précise**, avec sa convention de charge et ses incréments réels. C'est la pièce maîtresse du modèle. |
+| **Catalogue** | 120 exercices curatés depuis la bibliothèque workout-guide, avec muscles principaux et secondaires, type de matériel et illustrations. Voir `src/lib/referentiels/catalogue.ts`. |
 | **SOS** | Quatre secours en séance : machine occupée, douleur, chute d'énergie, temps dépassé. |
 
 ## Stack
@@ -71,6 +72,21 @@ l'éditeur SQL de Supabase.
 > **contourne la RLS**. La sécurité repose donc sur le filtrage `userId` explicite dans
 > chaque route API, pas sur les politiques. Toute nouvelle route doit scoper ses requêtes.
 
+## Référentiels
+
+Trois vocabulaires font autorité et doivent être utilisés partout :
+
+| Référentiel | Fichier | Rôle |
+| --- | --- | --- |
+| Muscles | `src/lib/referentiels/muscles.ts` | 15 muscles canoniques. `versMuscle()` convertit toute valeur externe ; elle renvoie `null` sur l'inconnu. |
+| Équipements | `src/lib/referentiels/equipements.ts` | 7 types de matériel requis. |
+| Catalogue | `src/lib/referentiels/catalogue.ts` | 120 exercices, avec pilier et profil de tension attribués à la main. |
+
+Les illustrations sont dans `public/exercices/<slug>/frame-<n>.svg`, copiées **verbatim**
+depuis la bibliothèque source. Elles sont monochromes : le composant
+`IllustrationExercice` les applique en masque CSS, ce qui les fait suivre la couleur
+du thème sans qu'aucun fichier ne soit modifié.
+
 ## Limites connues
 
 L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
@@ -84,6 +100,8 @@ L'application est en cours de reprise. Ce qui ne fonctionne pas aujourd'hui :
   (trois vocabulaires musculaires incompatibles coexistent).
 - **Programmes et séances** — aucun chemin de création dans l'application ; seul
   `npm run seed` en produit.
+- **Génération de séance** — inexistante. Les séances sont des templates fixes et
+  la rotation A/B/C repose sur le nom de la séance.
 - **PWA** — le service worker est vide et les icônes du manifest sont absentes.
 - **Tests** — il n'y en a aucun.
 

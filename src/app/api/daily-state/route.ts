@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     if (existing) {
       const [updated] = await db.update(dailyStates)
         .set({
+          gymId: data.gymId ?? null,
           sommeilHeures: data.sommeilHeures,
           jeuneBool: data.jeuneBool,
           shiftRecentBool: data.shiftRecentBool,
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
       const [created] = await db.insert(dailyStates).values({
         userId,
         date: data.date,
+        gymId: data.gymId ?? null,
         sommeilHeures: data.sommeilHeures,
         jeuneBool: data.jeuneBool,
         shiftRecentBool: data.shiftRecentBool,

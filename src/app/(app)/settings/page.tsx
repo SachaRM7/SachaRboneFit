@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Download, LogOut } from "lucide-react";
+import Link from "next/link";
+import { Download, LogOut, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -47,6 +48,26 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-black text-white pb-20">
       <div className="p-4">
         <h1 className="text-2xl font-bold mb-6">Paramètres</h1>
+
+        {/* Profil */}
+        <Card className="bg-zinc-900 border-zinc-800 mb-4">
+          <CardHeader>
+            <CardTitle className="text-zinc-300 flex items-center gap-2">
+              <User className="w-4 h-4" />
+              Profil
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-zinc-500 text-sm">
+              Taille, objectif, muscles prioritaires, fréquence et durée de séance.
+            </p>
+            <Link href="/profil" className="block">
+              <Button variant="outline" className="w-full bg-zinc-800 border-zinc-700">
+                Modifier mon profil
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
 
         {/* Data Export */}
         <Card className="bg-zinc-900 border-zinc-800 mb-4">

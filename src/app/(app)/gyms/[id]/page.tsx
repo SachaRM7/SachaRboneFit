@@ -6,6 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { GymForm } from "@/components/gyms/GymForm";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 export default async function GymDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const supabase = await createClient();
@@ -25,6 +26,12 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
   return (
     <div className="p-4 space-y-4">
       <h1 className="text-xl font-bold text-white">{gym.nom}</h1>
+
+      <Link href={`/gyms/${id}/materiel`} className="block">
+        <Button variant="outline" className="w-full bg-zinc-900 border-zinc-700">
+          Voir le matériel de cette salle
+        </Button>
+      </Link>
       <GymForm
         gymId={id}
         defaultValues={{

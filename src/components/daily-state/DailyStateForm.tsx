@@ -66,6 +66,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
     try {
       const payload = {
         date: initialDate,
+        gymId: defaultGymId,
         sommeilHeures: sommeil,
         jeuneBool: jeune,
         shiftRecentBool: shiftRecent,

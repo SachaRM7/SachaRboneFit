@@ -10,6 +10,12 @@ export const users = pgTable("users", {
   phaseNutritionnelle: text("phase_nutritionnelle"),
   objectifChiffre: text("objectif_chiffre"),
   dateCible: date("date_cible"),
+  // Objectif structure : `objectifChiffre` restait un texte libre, inexploitable
+  // par le moteur. Ces colonnes le rendent lisible par le code.
+  objectifType: text("objectif_type"),
+  objectifMusclesPrioritaires: jsonb("objectif_muscles_prioritaires").$type<string[]>(),
+  frequenceCibleParSemaine: integer("frequence_cible_par_semaine"),
+  dureeSeanceCibleMinutes: integer("duree_seance_cible_minutes"),
   prefSalleParDefautId: uuid("pref_salle_par_defaut_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -35,6 +41,14 @@ export const exercises = pgTable("exercises", {
   type: text("type").notNull(),
   categorieRole: text("categorie_role").notNull(),
   musclesPrincipaux: jsonb("muscles_principaux").$type<string[]>(),
+  // Muscles secondaires : absents du modele, ils empechaient tout raisonnement
+  // correct sur le volume reel et le chevauchement entre seances.
+  musclesSecondaires: jsonb("muscles_secondaires").$type<string[]>(),
+  // Type de materiel requis (referentiel equipements). Permet de repondre a
+  // "cet exercice est-il faisable ici ?" autrement que par l'existence d'une instance.
+  equipement: text("equipement"),
+  // Identifiant dans la bibliotheque workout-guide : sert aussi de cle des illustrations.
+  slug: text("slug"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -49,6 +63,9 @@ export const exerciseInstances = pgTable("exercise_instances", {
   conventionCharge: text("convention_charge").notNull(),
   incrementsPossibles: jsonb("increments_possibles").$type<number[]>().notNull(),
   poidsNonCompte: real("poids_non_compte"),
+  // Plafond de la pile ou du chargement : permet de detecter qu'un exercice
+  // est arrive en butee et qu'il faut en changer.
+  chargeMax: real("charge_max"),
   notesMachine: text("notes_machine"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -97,6 +114,9 @@ export const dailyStates = pgTable("daily_states", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id).notNull(),
   date: date("date").notNull(),
+  // La salle du jour ne transitait que par un parametre d'URL : elle n'etait
+  // jamais persistee, alors qu'elle conditionne le materiel disponible.
+  gymId: uuid("gym_id").references(() => gyms.id),
   sommeilHeures: real("sommeil_heures"),
   jeuneBool: boolean("jeune_bool").default(false),
   shiftRecentBool: boolean("shift_recent_bool").default(false),
@@ -271,6 +291,7 @@ export const exerciseInTemplateRelations = relations(exerciseInTemplate, ({ one 
 
 export const dailyStatesRelations = relations(dailyStates, ({ one, many }) => ({
   user: one(users, { fields: [dailyStates.userId], references: [users.id] }),
+  gym: one(gyms, { fields: [dailyStates.gymId], references: [gyms.id] }),
   sessionLogs: many(sessionLogs),
 }));
 

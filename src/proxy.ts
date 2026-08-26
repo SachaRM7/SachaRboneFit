@@ -36,6 +36,7 @@ export async function proxy(request: NextRequest) {
       url.pathname.startsWith('/exercises') || url.pathname.startsWith('/progression') ||
       url.pathname.startsWith('/gyms') || url.pathname.startsWith('/bodyweight') ||
       url.pathname.startsWith('/settings') || url.pathname.startsWith('/daily-state') ||
+      url.pathname.startsWith('/profil') ||
       url.pathname.startsWith('/session')) {
     if (!user) {
       url.pathname = '/login';
@@ -61,6 +62,7 @@ export const config = {
     '/gyms/:path*',
     '/bodyweight/:path*',
     '/settings/:path*',
+    '/profil/:path*',
     '/daily-state/:path*',
     '/session/:path*',
     '/login',
