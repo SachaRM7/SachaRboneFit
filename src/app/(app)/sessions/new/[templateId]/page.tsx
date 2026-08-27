@@ -4,9 +4,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { RestTimer } from "@/components/session/RestTimer";
-import { BlocExercice, type ExercicePrescrit } from "@/components/session/BlocExercice";
+import { type ExercicePrescrit } from "@/components/session/types";
+import { TableauSeries } from "@/components/session/TableauSeries";
 import { initAudioContext, playBeep } from "@/lib/audio/beep";
 import { SOSBar } from "@/components/session/SOSBar";
 import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
@@ -57,7 +58,7 @@ function ContenuSeanceLive() {
   const router = useRouter();
 
   const {
-    active, start, setCurrentExerciseIndex,
+    active, start,
     startRest, clearRest, extendRest, skipExercises, allegerExercises,
   } = useSessionStore();
 
@@ -201,8 +202,15 @@ function ContenuSeanceLive() {
   const exercicesSkippes = active?.skippedExerciseIds ?? [];
   const reductionsRPE = active?.rpeReductions ?? {};
   const visibles = seance.exercices.filter((e) => !exercicesSkippes.includes(e.id));
-  const index = Math.min(active?.currentExerciseIndex ?? 0, Math.max(0, visibles.length - 1));
+  // Toute la séance étant affichée, il n'y a plus d'exercice « courant » au sens
+  // d'une navigation. Celui qui compte pour les SOS et le décompte est le
+  // premier dont les séries ne sont pas toutes validées.
+  const seriesValidees = (id: string) =>
+    (active?.sets ?? []).filter((s) => s.exerciseInstanceId === id).length;
+  const premierNonTermine = visibles.findIndex((e) => seriesValidees(e.id) < e.seriesCibles);
+  const index = premierNonTermine === -1 ? Math.max(0, visibles.length - 1) : premierNonTermine;
   const courant = visibles[index];
+  const termines = visibles.filter((e) => seriesValidees(e.id) >= e.seriesCibles).length;
 
   const restants: ExerciceRestant[] = visibles.slice(index).map((e, i) => ({
     exercise_instance_id: e.id,
@@ -212,11 +220,6 @@ function ContenuSeanceLive() {
     statut: i === 0 ? ("en_cours" as const) : ("à_venir" as const),
     ordre: index + i + 1,
   }));
-
-  const allerA = (i: number) => {
-    setCurrentExerciseIndex(Math.max(0, Math.min(i, visibles.length - 1)));
-    fermerTimer();
-  };
 
   return (
     <div className="min-h-screen bg-papier pb-24" onPointerDown={interaction}>
@@ -231,7 +234,7 @@ function ContenuSeanceLive() {
           </div>
           <span className="flex items-center gap-2 text-xs text-encre-3 shrink-0">
             <Feu niveau={seance.feuBiologiqueJour} />
-            Exo {index + 1} sur {visibles.length}
+            <span className="chiffres">{termines}/{visibles.length}</span> exercices
           </span>
         </div>
       </header>
@@ -250,38 +253,23 @@ function ContenuSeanceLive() {
         <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
       </div>
 
-      <main className="px-4 py-4">
-        {courant ? (
-          <BlocExercice
-            key={courant.id}
-            exercice={courant}
-            rpeReduction={reductionsRPE[courant.id] ?? 0}
-            onSerieValidee={lancerRepos}
-            onExerciceTermine={() => {
-              lancerRepos(courant.reposSecondes ?? null);
-              if (index < visibles.length - 1) allerA(index + 1);
-              else toast.success("Tous les exercices sont faits");
-            }}
-          />
+      {/* La séance entière tient dans une page défilante : on voit ce qui reste
+          sans naviguer, et corriger une série faite plus tôt ne demande pas de
+          revenir en arrière. */}
+      <main className="px-4 py-4 space-y-3">
+        {visibles.length > 0 ? (
+          visibles.map((exercice) => (
+            <TableauSeries
+              key={exercice.id}
+              exercice={exercice}
+              rpeReduction={reductionsRPE[exercice.id] ?? 0}
+              onSerieValidee={lancerRepos}
+            />
+          ))
         ) : (
           <p className="text-encre-3">Aucun exercice dans cette séance.</p>
         )}
       </main>
-
-      <nav className="px-4 flex items-center justify-between gap-3" aria-label="Navigation entre exercices">
-        <Button variant="outline" disabled={index === 0}
-          className="border-filet bg-carte text-encre-2"
-          onClick={() => allerA(index - 1)}>
-          <ChevronLeft className="w-4 h-4 mr-1" />
-          Précédent
-        </Button>
-        <Button variant="outline" disabled={index >= visibles.length - 1}
-          className="border-filet bg-carte text-encre-2"
-          onClick={() => allerA(index + 1)}>
-          Suivant
-          <ChevronRight className="w-4 h-4 ml-1" />
-        </Button>
-      </nav>
 
       <div className="px-4 mt-5">
         <Button variant="outline" className="w-full border-filet bg-carte text-encre-2"

@@ -1,4 +1,5 @@
 "use client";
+import { libelleProfilTension } from "@/lib/referentiels/libelles";
 import Link from "next/link";
 import { PilierBadge } from "./PilierBadge";
 import { Badge } from "@/components/ui/badge";
@@ -49,7 +50,7 @@ export function ExerciseList({ exercises, salleId = null }: ExerciseListProps) {
                 )}
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
-                    {ex.profilTension}
+                    {libelleProfilTension(ex.profilTension)}
                   </Badge>
                   <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                     {ex.type}

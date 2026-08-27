@@ -7,6 +7,8 @@ import { PilierBadge } from "@/components/exercises/PilierBadge";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
 import { Badge } from "@/components/ui/badge";
+import { libelleProfilTension, libelleTypeMouvement, libelleMuscles } from "@/lib/referentiels/libelles";
+import { LIBELLES_CONVENTION } from "@/lib/validators/exercise-instance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function ExerciseDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -53,24 +55,24 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
         <div className="flex items-center gap-2 mb-2">
           <PilierBadge pilier={exercise.pilier} />
           <Badge variant="outline" className="border-filet text-encre-3">
-            {exercise.profilTension}
+            {libelleProfilTension(exercise.profilTension)}
           </Badge>
           <Badge variant="outline" className="border-filet text-encre-3">
-            {exercise.type}
+            {libelleTypeMouvement(exercise.type)}
           </Badge>
         </div>
         <h1 className="text-xl font-bold text-encre">{exercise.nom}</h1>
         {exercise.musclesPrincipaux && exercise.musclesPrincipaux.length > 0 && (
           <p className="text-encre-3 text-sm mt-1">
-            Muscles: {exercise.musclesPrincipaux.join(", ")}
+            Muscles : {libelleMuscles(exercise.musclesPrincipaux)}
           </p>
         )}
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-encre mb-3">Instances</h2>
+        <h2 className="text-lg font-semibold text-encre mb-3">Où le faire</h2>
         {instances.length === 0 ? (
-          <p className="text-encre-3">Aucune instance. Ajoutez une machine dans une salle.</p>
+          <p className="text-encre-3">Cet exercice n&apos;est équipé dans aucune de tes salles.</p>
         ) : (
           <div className="space-y-3">
             {instances.map((inst) => (
@@ -81,11 +83,11 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
                 <CardContent className="space-y-1">
                   <p className="text-encre-2 text-xs">{inst.gym?.nom}</p>
                   <p className="text-encre-3 text-xs">
-                    Convention: {inst.conventionCharge} | Incréments: {inst.incrementsPossibles?.join(", ")}
+                    {LIBELLES_CONVENTION[inst.conventionCharge as keyof typeof LIBELLES_CONVENTION] ?? inst.conventionCharge} · incréments {inst.incrementsPossibles?.join(", ")} kg
                   </p>
                   {inst.poidsNonCompte && (
                     <p className="text-encre-3 text-xs">
-                      Plateforme: {inst.poidsNonCompte} kg
+                      Plateforme {inst.poidsNonCompte} kg non comptée
                     </p>
                   )}
                 </CardContent>

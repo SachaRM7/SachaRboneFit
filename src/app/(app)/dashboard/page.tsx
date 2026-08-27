@@ -221,26 +221,26 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        {/* Prochaine seance */}
+        {/* Prochaine séance */}
         <Card className="bg-carte border-filet">
           <CardHeader>
             <CardTitle className="text-encre-2 flex items-center gap-2">
               <Calendar className="w-4 h-4" />
-              Prochaine seance
+              Prochaine séance
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xl font-bold text-encre">
-                  Seance {data?.prochaineSeance.lettre}
+                  Séance {data?.prochaineSeance.lettre}
                 </p>
                 <p className="text-encre-3 text-sm">
                   {data?.prochaineSeance.templateNom}
                 </p>
               </div>
               <Button onClick={handleStart} className="bg-encre text-papier hover:bg-filet">
-                Demarrer
+                Démarrer
               </Button>
             </div>
           </CardContent>
@@ -261,7 +261,7 @@ export default function DashboardPage() {
                 {data?.feuJour ? (
                   <FeuBiologique feu={data.feuJour} size="lg" />
                 ) : (
-                  <span className="text-encre-3 text-sm">Non renseigne</span>
+                  <span className="text-encre-3 text-sm">Non renseigné</span>
                 )}
               </div>
               <div className="flex items-center gap-3">
@@ -269,7 +269,7 @@ export default function DashboardPage() {
                 {data?.feuTendance ? (
                   <FeuBiologique feu={data.feuTendance} size="lg" />
                 ) : (
-                  <span className="text-encre-3 text-sm">Pas de donnees</span>
+                  <span className="text-encre-3 text-sm">Pas de données</span>
                 )}
               </div>
             </div>
@@ -297,7 +297,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="text-encre-2 flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                Seance de demain
+                Séance de demain
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -312,7 +312,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="text-encre-2 flex items-center gap-2">
                 <Activity className="w-4 h-4" />
-                Debrief hebdomadaire
+                Débrief hebdomadaire
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -334,7 +334,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="text-encre-2 flex items-center gap-2">
                 <Dumbbell className="w-4 h-4" />
-                Seances recentes
+                Séances récentes
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -346,7 +346,7 @@ export default function DashboardPage() {
                 >
                   <div>
                     <p className="text-encre font-medium text-sm">
-                      {s.templateNom || "Seance libre"}
+                      {s.templateNom || "Séance libre"}
                       {s.templateLettre && <span className="text-encre-3 ml-1">({s.templateLettre})</span>}
                     </p>
                     <p className="text-encre-3 text-xs">

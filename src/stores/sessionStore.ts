@@ -45,6 +45,7 @@ type SessionStore = {
    */
   start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
+  removeSet: (exerciseInstanceId: string, numeroSerie: number) => void;
   setCurrentExerciseIndex: (i: number) => void;
   setNotes: (notes: string) => void;
   // Rest timer actions
@@ -90,6 +91,15 @@ export const useSessionStore = create<SessionStore>()(
         const sets = [...state.active.sets];
         if (existing >= 0) sets[existing] = newSet;
         else sets.push(newSet);
+        return { active: { ...state.active, sets, lastActionTimestamp: Date.now() } };
+      }),
+      // Decocher une serie validee par erreur n'etait pas possible : le store
+      // ne savait qu'ajouter ou remplacer.
+      removeSet: (exerciseInstanceId, numeroSerie) => set((state) => {
+        if (!state.active) return state;
+        const sets = state.active.sets.filter(
+          (s) => !(s.exerciseInstanceId === exerciseInstanceId && s.numeroSerie === numeroSerie),
+        );
         return { active: { ...state.active, sets, lastActionTimestamp: Date.now() } };
       }),
       setCurrentExerciseIndex: (i) => set((state) =>
