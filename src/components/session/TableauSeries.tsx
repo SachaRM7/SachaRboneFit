@@ -118,9 +118,12 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee }: Props)
         )}
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold text-encre leading-tight">{exercice.nom}</h2>
+          {/* La machine porte souvent le nom de l'exercice : le répéter sous le
+              titre n'apprend rien et allonge la ligne pour rien. */}
           <p className="text-encre-3 text-xs mt-0.5">
-            {exercice.machineNom}
-            {" · "}
+            {exercice.machineNom && exercice.machineNom !== exercice.nom
+              ? `${exercice.machineNom} · `
+              : ""}
             {exercice.seriesCibles} × {exercice.fourchetteRepsMin}-{exercice.fourchetteRepsMax}
             {exercice.reposSecondes ? ` · repos ${exercice.reposSecondes} s` : ""}
           </p>

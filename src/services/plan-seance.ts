@@ -91,7 +91,15 @@ async function chargerParc(userId: string): Promise<InstanceResolvable[]> {
 }
 
 /** Derniere seance realisee sur cette instance, pour la double progression. */
-async function derniereSeriesPour(userId: string, exerciseInstanceId: string) {
+/**
+ * Dernières séries réalisées sur une machine.
+ *
+ * Exportée parce que l'écran de séance peut être atteint sans plan calculé :
+ * il lui faut alors la même base — historique et double progression — que
+ * celle utilisée à la construction du plan, sinon la charge suggérée et la
+ * colonne « Dernière » restent vides.
+ */
+export async function derniereSeriesPour(userId: string, exerciseInstanceId: string) {
   const lignes = await db
     .select({
       sessionLogId: setLogs.sessionLogId,
