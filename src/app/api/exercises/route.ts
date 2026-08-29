@@ -10,7 +10,6 @@ export async function GET() {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const allExercises = await db.query.exercises.findMany({
-      where: eq(exercises.userId, userId),
     });
     return NextResponse.json(allExercises);
   } catch (error) {

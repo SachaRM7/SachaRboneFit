@@ -23,6 +23,13 @@ export const users = pgTable("users", {
 
 export const gyms = pgTable("gyms", {
   id: uuid("id").defaultRandom().primaryKey(),
+  /**
+   * Compte ayant enregistre la salle.
+   *
+   * Une salle et son parc decrivent un lieu, pas un pratiquant : deux comptes
+   * qui s'y entrainent decrivent le meme materiel. Cet identifiant garde la
+   * trace de qui l'a saisie ; il ne restreint plus la lecture.
+   */
   userId: uuid("user_id").references(() => users.id).notNull(),
   nom: text("nom").notNull(),
   horairesOuverture: text("horaires_ouverture"),
@@ -43,7 +50,15 @@ export const gyms = pgTable("gyms", {
 
 export const exercises = pgTable("exercises", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id").references(() => users.id).notNull(),
+  /**
+   * Auteur de l'entree, `null` pour la bibliotheque commune.
+   *
+   * Un exercice decrit un mouvement, pas une personne : le dupliquer par compte
+   * n'avait aucun sens et produisait trois cent soixante et une lignes pour
+   * cent vingt mouvements. Seules les entrees creees a la main par quelqu'un
+   * portent encore son identifiant.
+   */
+  userId: uuid("user_id").references(() => users.id),
   nom: text("nom").notNull(),
   pilier: text("pilier").notNull(),
   profilTension: text("profil_tension").notNull(),
@@ -64,6 +79,7 @@ export const exercises = pgTable("exercises", {
 
 export const exerciseInstances = pgTable("exercise_instances", {
   id: uuid("id").defaultRandom().primaryKey(),
+  /** Compte ayant renseigne la machine. Elle appartient a la salle, pas a lui. */
   userId: uuid("user_id").references(() => users.id).notNull(),
   exerciseId: uuid("exercise_id").references(() => exercises.id).notNull(),
   gymId: uuid("gym_id").references(() => gyms.id).notNull(),

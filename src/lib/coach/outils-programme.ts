@@ -319,9 +319,9 @@ async function validerProposition(p: Record<string, unknown>, userId: string): P
 
   const [profil, salles, instances] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, userId) }),
-    db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) }),
+    db.query.gyms.findMany({ where: isNull(gyms.archiveLe) }),
     db.query.exerciseInstances.findMany({
-      where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)),
+      where: isNull(exerciseInstances.archiveLe),
       with: { exercise: true },
     }),
   ]);

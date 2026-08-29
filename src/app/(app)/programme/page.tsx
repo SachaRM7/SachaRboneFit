@@ -25,10 +25,10 @@ export default async function ProgrammePage() {
 
   const [instances, salles] = await Promise.all([
     db.query.exerciseInstances.findMany({
-      where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)),
+      where: isNull(exerciseInstances.archiveLe),
       with: { exercise: true },
     }),
-    db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) }),
+    db.query.gyms.findMany({ where: isNull(gyms.archiveLe) }),
   ]);
 
   const nomSalle = new Map(salles.map((g) => [g.id, g.nom]));

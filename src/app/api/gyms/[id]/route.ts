@@ -14,7 +14,7 @@ export async function GET(
   const { id } = await params;
   try {
     const gym = await db.query.gyms.findFirst({
-      where: and(eq(gyms.id, id), eq(gyms.userId, userId)),
+      where: eq(gyms.id, id),
     });
     if (!gym) return NextResponse.json({ error: "Gym not found" }, { status: 404 });
     return NextResponse.json(gym);
@@ -35,7 +35,7 @@ export async function PATCH(
     const body = await request.json();
     const [updated] = await db.update(gyms)
       .set({ ...body, updatedAt: new Date() })
-      .where(and(eq(gyms.id, id), eq(gyms.userId, userId)))
+      .where(eq(gyms.id, id))
       .returning();
     if (!updated) return NextResponse.json({ error: "Gym not found" }, { status: 404 });
     return NextResponse.json(updated);
@@ -64,7 +64,7 @@ export async function DELETE(
         { status: 400 }
       );
     }
-    await db.delete(gyms).where(and(eq(gyms.id, id), eq(gyms.userId, userId)));
+    await db.delete(gyms).where(eq(gyms.id, id));
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Failed to delete gym" }, { status: 500 });

@@ -144,7 +144,7 @@ export async function getAvailableSubstitutes(
 ): Promise<ToolExecutionResult> {
   // Get all exercise instances for user at this gym
   const allInstances = await db.query.exerciseInstances.findMany({
-    where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)),
+    where: isNull(exerciseInstances.archiveLe),
     with: { exercise: true },
   });
 

@@ -24,7 +24,7 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
   const { id } = await params;
 
   const salle = await db.query.gyms.findFirst({
-    where: and(eq(gyms.id, id), eq(gyms.userId, userId)),
+    where: eq(gyms.id, id),
   });
   if (!salle) notFound();
 
@@ -33,7 +33,7 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
       where: and(eq(exerciseInstances.gymId, id), eq(exerciseInstances.userId, userId)),
       with: { exercise: true },
     }),
-    db.query.exercises.findMany({ where: eq(exercises.userId, userId) }),
+    db.query.exercises.findMany(),
   ]);
 
   const presentsParExercice = new Set(instances.map((i) => i.exerciseId));

@@ -107,7 +107,7 @@ export async function GET() {
     const idsGabarits = [...new Set(recentSessions.map((s) => s.seanceTemplateId).filter((v): v is string => Boolean(v)))];
 
     const [sallesUtilisateur, gabaritsUtilisateur] = await Promise.all([
-      db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) }),
+      db.query.gyms.findMany({ where: isNull(gyms.archiveLe) }),
       idsGabarits.length
         ? db.query.seanceTemplates.findMany({ where: inArray(seanceTemplates.id, idsGabarits) })
         : Promise.resolve([]),

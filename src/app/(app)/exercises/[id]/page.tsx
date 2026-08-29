@@ -23,7 +23,7 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
   const { id } = await params;
 
   const exercise = await db.query.exercises.findFirst({
-    where: and(eq(exercises.id, id), eq(exercises.userId, user.id)),
+    where: eq(exercises.id, id),
   });
 
   if (!exercise) notFound();

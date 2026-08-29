@@ -43,18 +43,21 @@ export async function POST(request: Request) {
       );
     }
 
-    // L'exercice et la salle doivent appartenir a l'utilisateur : sans ces
-    // verifications, on pouvait rattacher une machine au parc d'un autre compte.
+    // La bibliotheque et les salles sont communes : exiger qu'elles
+    // appartiennent a l'appelant aurait rendu toute creation impossible, le
+    // catalogue partage n'ayant plus de proprietaire. Ce qui doit etre verifie
+    // est qu'elles existent, et qu'une salle quittee ne recoive plus de
+    // machines.
     const [exercice, salle] = await Promise.all([
       db.query.exercises.findFirst({
-        where: (e, { and, eq }) => and(eq(e.id, parsed.data.exerciseId), eq(e.userId, userId)),
+        where: (e, { eq }) => eq(e.id, parsed.data.exerciseId),
       }),
       db.query.gyms.findFirst({
-        where: (g, { and, eq }) => and(eq(g.id, parsed.data.gymId), eq(g.userId, userId)),
+        where: (g, { and, eq, isNull }) => and(eq(g.id, parsed.data.gymId), isNull(g.archiveLe)),
       }),
     ]);
     if (!exercice) return NextResponse.json({ error: "Exercice introuvable" }, { status: 404 });
-    if (!salle) return NextResponse.json({ error: "Salle introuvable" }, { status: 404 });
+    if (!salle) return NextResponse.json({ error: "Salle introuvable ou archivée" }, { status: 404 });
 
     const [instance] = await db.insert(exerciseInstances).values({
       userId,

@@ -14,7 +14,7 @@ export async function GET(
   const { id } = await params;
   try {
     const exercise = await db.query.exercises.findFirst({
-      where: and(eq(exercises.id, id), eq(exercises.userId, userId)),
+      where: eq(exercises.id, id),
     });
     if (!exercise) return NextResponse.json({ error: "Exercise not found" }, { status: 404 });
 
@@ -41,7 +41,7 @@ export async function PATCH(
     const body = await request.json();
     const [updated] = await db.update(exercises)
       .set({ ...body, updatedAt: new Date() })
-      .where(and(eq(exercises.id, id), eq(exercises.userId, userId)))
+      .where(eq(exercises.id, id))
       .returning();
     if (!updated) return NextResponse.json({ error: "Exercise not found" }, { status: 404 });
     return NextResponse.json(updated);
@@ -59,7 +59,7 @@ export async function DELETE(
 
   const { id } = await params;
   try {
-    await db.delete(exercises).where(and(eq(exercises.id, id), eq(exercises.userId, userId)));
+    await db.delete(exercises).where(eq(exercises.id, id));
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Failed to delete exercise" }, { status: 500 });

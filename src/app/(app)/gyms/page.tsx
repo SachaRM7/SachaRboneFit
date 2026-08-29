@@ -17,7 +17,7 @@ export default async function GymsPage() {
   }
 
   const allGyms = await db.query.gyms.findMany({
-    where: and(eq(gyms.userId, user.id), isNull(gyms.archiveLe)),
+    where: isNull(gyms.archiveLe),
   });
 
   return (

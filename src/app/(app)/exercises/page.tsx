@@ -12,9 +12,9 @@ export default async function ExercisesPage() {
   // Les instances sont chargees pour permettre le filtrage par salle : sans elles,
   // la bibliotheque affichait le catalogue entier quelle que soit la salle.
   const [tousExercices, instances, salles] = await Promise.all([
-    db.query.exercises.findMany({ where: eq(exercises.userId, userId) }),
-    db.query.exerciseInstances.findMany({ where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)) }),
-    db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) }),
+    db.query.exercises.findMany(),
+    db.query.exerciseInstances.findMany({ where: isNull(exerciseInstances.archiveLe) }),
+    db.query.gyms.findMany({ where: isNull(gyms.archiveLe) }),
   ]);
 
   const instancesParExercice = new Map<string, ExerciceAvecInstances["instances"]>();

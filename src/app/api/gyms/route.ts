@@ -11,7 +11,7 @@ export async function GET() {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const allGyms = await db.query.gyms.findMany({
-      where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)),
+      where: isNull(gyms.archiveLe),
     });
     return NextResponse.json(allGyms);
   } catch (error) {

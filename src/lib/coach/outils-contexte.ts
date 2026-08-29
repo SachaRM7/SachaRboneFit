@@ -138,14 +138,14 @@ async function etatDuJour(_p: Record<string, unknown>, userId: string): Promise<
 async function equipementSalle(p: Record<string, unknown>, userId: string): Promise<ToolExecutionResult> {
   const salleId = texte(p.gymId);
 
-  const salles = await db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) });
+  const salles = await db.query.gyms.findMany({ where: isNull(gyms.archiveLe) });
   if (salles.length === 0) return ok(JSON.stringify({ salles: [], machines: [] }));
 
   const salle = salleId ? salles.find((s) => s.id === salleId) : salles[0];
   if (!salle) return echec("Salle introuvable");
 
   const instances = await db.query.exerciseInstances.findMany({
-    where: and(and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)), eq(exerciseInstances.gymId, salle.id)),
+    where: and(isNull(exerciseInstances.archiveLe), eq(exerciseInstances.gymId, salle.id)),
   });
 
   const idsExercices = [...new Set(instances.map((i) => i.exerciseId))];
@@ -189,7 +189,7 @@ async function chercherExercices(p: Record<string, unknown>, userId: string): Pr
     return echec(`Muscle « ${muscleDemande} » inconnu du référentiel`);
   }
 
-  const tous = await db.query.exercises.findMany({ where: eq(exercises.userId, userId) });
+  const tous = await db.query.exercises.findMany();
 
   const retenus = tous.filter((e) => {
     if (pilier && e.pilier !== pilier) return false;
@@ -203,7 +203,7 @@ async function chercherExercices(p: Record<string, unknown>, userId: string): Pr
   });
 
   const instances = await db.query.exerciseInstances.findMany({
-    where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)),
+    where: isNull(exerciseInstances.archiveLe),
   });
   const equipes = new Set(instances.map((i) => i.exerciseId));
 

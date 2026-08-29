@@ -18,7 +18,7 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
 
   const { id } = await params;
   const gym = await db.query.gyms.findFirst({
-    where: and(eq(gyms.id, id), eq(gyms.userId, user.id)),
+    where: eq(gyms.id, id),
   });
 
   if (!gym) notFound();

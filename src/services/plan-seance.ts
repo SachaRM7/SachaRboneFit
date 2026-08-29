@@ -80,7 +80,7 @@ async function chargerParc(userId: string): Promise<InstanceResolvable[]> {
     })
     .from(exerciseInstances)
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)));
+    .where(isNull(exerciseInstances.archiveLe));
 
   return lignes.map((l) => ({
     ...l,
