@@ -307,6 +307,38 @@ export const contraintes = pgTable("contraintes", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/**
+ * Mémoire du coach.
+ *
+ * L'historique brut dit ce qui s'est passé ; il ne dit pas ce qu'on en a
+ * appris. Sans cette séparation, le coach doit re-déduire les mêmes constats à
+ * chaque conversation, à partir d'un contexte forcément tronqué — et il oublie
+ * tout entre deux échanges.
+ *
+ * Une observation peut venir d'un calcul de l'application ou d'une déduction du
+ * modèle ; `source` les distingue, parce qu'elles ne méritent pas la même
+ * confiance. `confirmee` marque celles que l'utilisateur a validées.
+ */
+export const coachMemoires = pgTable("coach_memoires", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  /** L'observation, en une phrase, telle qu'elle serait dite à voix haute. */
+  observation: text("observation").notNull(),
+  /** 'recuperation' | 'preference' | 'technique' | 'progression' | 'contrainte' */
+  categorie: text("categorie").notNull(),
+  /** 'calcul' quand l'application l'a mesurée, 'modele' quand le coach l'a déduite. */
+  source: text("source").notNull().default("modele"),
+  /** Muscles ou exercices concernés, pour retrouver l'observation au bon moment. */
+  motsCles: jsonb("mots_cles").$type<string[]>(),
+  /** 1-5 : une déduction isolée ne pèse pas autant qu'une régularité mesurée. */
+  poids: integer("poids").notNull().default(3),
+  confirmee: boolean("confirmee").notNull().default(false),
+  /** Nulle tant que l'observation vaut ; datée quand elle cesse d'être vraie. */
+  invalideeLe: timestamp("invalidee_le"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 
 // ---------------------------------------------------------------------------
 // Relations
@@ -383,6 +415,10 @@ export const sessionPlanItemsRelations = relations(sessionPlanItems, ({ one }) =
 
 export const contraintesRelations = relations(contraintes, ({ one }) => ({
   user: one(users, { fields: [contraintes.userId], references: [users.id] }),
+}));
+
+export const coachMemoiresRelations = relations(coachMemoires, ({ one }) => ({
+  user: one(users, { fields: [coachMemoires.userId], references: [users.id] }),
 }));
 
 export const setLogsRelations = relations(setLogs, ({ one }) => ({

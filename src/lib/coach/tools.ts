@@ -3,6 +3,7 @@ import { setLogs, sessionLogs, exercises, exerciseInstances, seanceTemplates, pr
 import { eq, desc } from "drizzle-orm";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria, type SubstituteResult } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
+import { DEFINITIONS_CONTEXTE, EXECUTEURS_CONTEXTE } from "./outils-contexte";
 
 export interface CoachTool {
   name: string;
@@ -465,5 +466,11 @@ export function createCoachTools(): CoachToolSet {
     },
   };
 
-  return { definitions, executors };
+  // Les outils de séance ne suffisent pas : sans profil, sans état du jour et
+  // sans le parc réel de la salle, le modèle doit improviser ce que
+  // l'application sait déjà.
+  return {
+    definitions: [...definitions, ...DEFINITIONS_CONTEXTE],
+    executors: { ...executors, ...EXECUTEURS_CONTEXTE },
+  };
 }
