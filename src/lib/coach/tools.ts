@@ -4,6 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria, type SubstituteResult } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { DEFINITIONS_CONTEXTE, EXECUTEURS_CONTEXTE } from "./outils-contexte";
+import { DEFINITIONS_PROGRAMME, EXECUTEURS_PROGRAMME } from "./outils-programme";
 
 export interface CoachTool {
   name: string;
@@ -470,7 +471,7 @@ export function createCoachTools(): CoachToolSet {
   // sans le parc réel de la salle, le modèle doit improviser ce que
   // l'application sait déjà.
   return {
-    definitions: [...definitions, ...DEFINITIONS_CONTEXTE],
-    executors: { ...executors, ...EXECUTEURS_CONTEXTE },
+    definitions: [...definitions, ...DEFINITIONS_CONTEXTE, ...DEFINITIONS_PROGRAMME],
+    executors: { ...executors, ...EXECUTEURS_CONTEXTE, ...EXECUTEURS_PROGRAMME },
   };
 }
