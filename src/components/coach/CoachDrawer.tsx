@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { X, Send, Plus } from "lucide-react";
+import { X, Send, Plus, ChevronLeft } from "lucide-react";
 
 interface Message {
   id: string;
@@ -22,16 +22,31 @@ interface ConversationPreview {
 export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  /**
+   * Vue affichée.
+   *
+   * Elle se déduisait de `!activeConvId && messages.length === 0`, or c'est
+   * exactement l'état que produisait « Nouvelle conversation » : le bouton
+   * renvoyait à la liste où l'on se trouvait déjà, et la zone de saisie restait
+   * inatteignable tant qu'aucun message n'existait. Aucune conversation ne
+   * pouvait donc être ouverte à la main.
+   */
+  const [vue, setVue] = useState<"liste" | "conversation">("liste");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) {
-      loadConversations();
-    }
+    if (!open) return;
+    // Rouvrir le tiroir repart de la liste : rester dans une conversation
+    // fermée la veille n'a pas de sens.
+    setVue("liste");
+    setActiveConvId(null);
+    setMessages([]);
+    loadConversations();
   }, [open]);
 
   useEffect(() => {
@@ -63,12 +78,21 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
   async function selectConversation(convId: string) {
     setActiveConvId(convId);
+    setVue("conversation");
     await loadMessages(convId);
   }
 
   function startNewConversation() {
     setActiveConvId(null);
     setMessages([]);
+    setVue("conversation");
+  }
+
+  function revenirALaListe() {
+    setActiveConvId(null);
+    setMessages([]);
+    setVue("liste");
+    loadConversations();
   }
 
   async function handleSend() {
@@ -77,6 +101,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
     const userMessage = input.trim();
     setInput("");
     setLoading(true);
+    setErreur(null);
 
     const tempUserMsg: Message = {
       id: `temp-${Date.now()}`,
@@ -119,7 +144,11 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
       loadConversations();
     } catch (e) {
+      // Le message envoyé était simplement retiré de la liste : il disparaissait
+      // sous les yeux de l'utilisateur, sans que rien n'explique pourquoi.
       console.error("Failed to send message:", e);
+      setErreur(e instanceof Error ? e.message : "Le coach n'a pas répondu");
+      setInput(userMessage);
       setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);
@@ -139,7 +168,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
             </div>
           </DrawerHeader>
 
-          {!activeConvId && messages.length === 0 && (
+          {vue === "liste" && (
             <div className="flex-1 overflow-y-auto p-4 space-y-2">
               <Button
                 variant="outline"
@@ -178,9 +207,20 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
             </div>
           )}
 
-          {(activeConvId || messages.length > 0) && (
+          {vue === "conversation" && (
             <>
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-filet">
+              {/* Sans ce retour, ouvrir une conversation enfermait dans la vue :
+                  seule la fermeture du tiroir permettait d'en sortir. */}
+              <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-filet">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={revenirALaListe}
+                  className="text-encre-2 hover:text-encre hover:bg-papier-2 text-xs"
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Conversations
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -191,6 +231,19 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                   Nouveau
                 </Button>
               </div>
+
+              {erreur && (
+                <p className="mx-4 mt-3 rounded-lg bg-perte-fond border border-perte/30 px-3 py-2 text-perte text-sm">
+                  {erreur}
+                </p>
+              )}
+
+              {messages.length === 0 && !loading && !erreur && (
+                <p className="px-4 pt-6 text-encre-3 text-sm text-center">
+                  Pose ta question — le coach a accès à tes séances, ton état du jour
+                  et aux machines de ta salle.
+                </p>
+              )}
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {messages.map((msg) => (
