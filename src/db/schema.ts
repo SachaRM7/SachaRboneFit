@@ -15,7 +15,38 @@ export const users = pgTable("users", {
   objectifType: text("objectif_type"),
   objectifMusclesPrioritaires: jsonb("objectif_muscles_prioritaires").$type<string[]>(),
   frequenceCibleParSemaine: integer("frequence_cible_par_semaine"),
+  /**
+   * Fourchette de frequence, et non une valeur unique.
+   *
+   * Un programme construit sur une seule frequence s'effondre des qu'une
+   * seance est manquee. Connaitre le minimum realiste permet de le degrader
+   * proprement, et le maximum d'utiliser une semaine plus disponible.
+   */
+  frequenceMinParSemaine: integer("frequence_min_par_semaine"),
+  frequenceMaxParSemaine: integer("frequence_max_par_semaine"),
   dureeSeanceCibleMinutes: integer("duree_seance_cible_minutes"),
+  dureeSeanceMaxMinutes: integer("duree_seance_max_minutes"),
+
+  /** 'debutant' | 'intermediaire' | 'avance' — l'aisance technique, pas la performance. */
+  niveauExperience: text("niveau_experience"),
+  anneesDePratique: integer("annees_de_pratique"),
+  /**
+   * Mois d'interruption declares a l'inscription.
+   *
+   * Au-dela de deux, la programmation part en reprise : les schemas moteurs
+   * reviennent vite, la tolerance au volume beaucoup moins. On ne demande
+   * jamais les anciennes charges — cette application est un nouveau depart.
+   */
+  moisDInterruption: integer("mois_d_interruption"),
+
+  /** 'machines' | 'poids_libres' | 'melange' | 'aucune'. */
+  preferenceMateriel: text("preference_materiel"),
+  exercicesRefuses: jsonb("exercices_refuses").$type<string[]>(),
+  exercicesApprecies: jsonb("exercices_apprecies").$type<string[]>(),
+
+  /** Tant qu'elle est nulle, l'application ouvre l'onboarding plutot que l'accueil. */
+  onboardingTermineLe: timestamp("onboarding_termine_le"),
+
   prefSalleParDefautId: uuid("pref_salle_par_defaut_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

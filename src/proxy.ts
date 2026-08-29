@@ -37,7 +37,7 @@ export async function proxy(request: NextRequest) {
       url.pathname.startsWith('/gyms') || url.pathname.startsWith('/bodyweight') ||
       url.pathname.startsWith('/settings') || url.pathname.startsWith('/daily-state') ||
       url.pathname.startsWith('/profil') || url.pathname.startsWith('/historique') || url.pathname.startsWith('/programme') ||
-      url.pathname.startsWith('/session')) {
+      url.pathname.startsWith('/session') || url.pathname.startsWith('/bienvenue')) {
     if (!user) {
       url.pathname = '/login';
       return NextResponse.redirect(url);
@@ -67,6 +67,7 @@ export const config = {
     '/programme/:path*',
     '/daily-state/:path*',
     '/session/:path*',
+    '/bienvenue/:path*',
     '/login',
     '/register',
   ],

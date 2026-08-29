@@ -7,16 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MUSCLES, LIBELLES, type Muscle } from "@/lib/referentiels/muscles";
+import { OBJECTIFS as LISTE_OBJECTIFS, LIBELLES_OBJECTIF } from "@/lib/validators/onboarding";
 
-const OBJECTIFS = [
-  { valeur: "perte_de_poids", libelle: "Perte de poids" },
-  { valeur: "prise_de_muscle", libelle: "Prise de muscle" },
-  { valeur: "recomposition", libelle: "Recomposition corporelle" },
-  { valeur: "gain_de_force", libelle: "Gain de force" },
-  { valeur: "cardio", libelle: "Amélioration cardio" },
-  { valeur: "reprise", libelle: "Reprise sportive" },
-  { valeur: "maintien", libelle: "Maintien" },
-] as const;
+const OBJECTIFS = LISTE_OBJECTIFS.map((valeur) => ({
+  valeur,
+  libelle: LIBELLES_OBJECTIF[valeur],
+}));
 
 const PHASES = [
   { valeur: "seche", libelle: "Sèche" },

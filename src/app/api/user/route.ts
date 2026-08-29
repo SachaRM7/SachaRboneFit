@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { MUSCLES } from "@/lib/referentiels/muscles";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { OBJECTIFS } from "@/lib/validators/onboarding";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -69,15 +70,7 @@ const profilSchema = z.object({
   dateNaissance: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   taille: z.number().int().min(100).max(250).nullable().optional(),
   phaseNutritionnelle: z.enum(["seche", "prise_de_masse", "maintien"]).nullable().optional(),
-  objectifType: z.enum([
-    "perte_de_poids",
-    "prise_de_muscle",
-    "recomposition",
-    "gain_de_force",
-    "cardio",
-    "reprise",
-    "maintien",
-  ]).nullable().optional(),
+  objectifType: z.enum(OBJECTIFS).nullable().optional(),
   objectifMusclesPrioritaires: z.array(z.enum(MUSCLES)).max(4).nullable().optional(),
   objectifChiffre: z.string().trim().max(200).nullable().optional(),
   dateCible: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
