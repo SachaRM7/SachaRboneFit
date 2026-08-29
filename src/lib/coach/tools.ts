@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { setLogs, sessionLogs, exercises, exerciseInstances, seanceTemplates, programmeBlocs, sessionIncidents } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria, type SubstituteResult } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { DEFINITIONS_CONTEXTE, EXECUTEURS_CONTEXTE } from "./outils-contexte";
@@ -144,7 +144,7 @@ export async function getAvailableSubstitutes(
 ): Promise<ToolExecutionResult> {
   // Get all exercise instances for user at this gym
   const allInstances = await db.query.exerciseInstances.findMany({
-    where: eq(exerciseInstances.userId, userId),
+    where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)),
     with: { exercise: true },
   });
 

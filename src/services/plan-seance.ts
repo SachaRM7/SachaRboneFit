@@ -80,7 +80,7 @@ async function chargerParc(userId: string): Promise<InstanceResolvable[]> {
     })
     .from(exerciseInstances)
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(eq(exerciseInstances.userId, userId));
+    .where(and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)));
 
   return lignes.map((l) => ({
     ...l,
@@ -110,7 +110,7 @@ export async function derniereSeriesPour(userId: string, exerciseInstanceId: str
     })
     .from(setLogs)
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
-    .where(and(eq(setLogs.exerciseInstanceId, exerciseInstanceId), eq(sessionLogs.userId, userId)))
+    .where(and(eq(setLogs.exerciseInstanceId, exerciseInstanceId), and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe))))
     .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt), asc(setLogs.numeroSerie));
 
   if (lignes.length === 0) return null;
@@ -317,7 +317,7 @@ export interface ItemPlanEnrichi {
  */
 export async function lirePlan(userId: string, sessionLogId: string) {
   const seance = await db.query.sessionLogs.findFirst({
-    where: and(eq(sessionLogs.id, sessionLogId), eq(sessionLogs.userId, userId)),
+    where: and(eq(sessionLogs.id, sessionLogId), and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe))),
   });
   if (!seance) return null;
 

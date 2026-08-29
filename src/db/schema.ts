@@ -28,6 +28,15 @@ export const gyms = pgTable("gyms", {
   horairesOuverture: text("horaires_ouverture"),
   est24h: boolean("est_24h").default(false),
   notes: text("notes"),
+  /**
+   * Date d'archivage.
+   *
+   * Une reprise apres une longue interruption, ou un demenagement, rend
+   * l'existant trompeur : les anciennes charges et l'ancien parc fausseraient
+   * la programmation sans rien apporter. Les archiver plutot que les supprimer
+   * les retire de tout calcul en preservant la trace de ce qui a ete fait.
+   */
+  archiveLe: timestamp("archive_le"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -67,6 +76,15 @@ export const exerciseInstances = pgTable("exercise_instances", {
   // est arrive en butee et qu'il faut en changer.
   chargeMax: real("charge_max"),
   notesMachine: text("notes_machine"),
+  /**
+   * Date d'archivage.
+   *
+   * Une reprise apres une longue interruption, ou un demenagement, rend
+   * l'existant trompeur : les anciennes charges et l'ancien parc fausseraient
+   * la programmation sans rien apporter. Les archiver plutot que les supprimer
+   * les retire de tout calcul en preservant la trace de ce qui a ete fait.
+   */
+  archiveLe: timestamp("archive_le"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -80,6 +98,15 @@ export const programmeBlocs = pgTable("programme_blocs", {
   typeCycle: text("type_cycle").notNull(),
   semaineActuelle: integer("semaine_actuelle").default(1),
   actif: boolean("actif").default(false),
+  /**
+   * Date d'archivage.
+   *
+   * Une reprise apres une longue interruption, ou un demenagement, rend
+   * l'existant trompeur : les anciennes charges et l'ancien parc fausseraient
+   * la programmation sans rien apporter. Les archiver plutot que les supprimer
+   * les retire de tout calcul en preservant la trace de ce qui a ete fait.
+   */
+  archiveLe: timestamp("archive_le"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -145,6 +172,15 @@ export const sessionLogs = pgTable("session_logs", {
   volumeAjustePct: integer("volume_ajuste_pct"),
   volumeAjusteRaison: text("volume_ajuste_raison"),
   notesSeance: text("notes_seance"),
+  /**
+   * Date d'archivage.
+   *
+   * Une reprise apres une longue interruption, ou un demenagement, rend
+   * l'existant trompeur : les anciennes charges et l'ancien parc fausseraient
+   * la programmation sans rien apporter. Les archiver plutot que les supprimer
+   * les retire de tout calcul en preservant la trace de ce qui a ete fait.
+   */
+  archiveLe: timestamp("archive_le"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

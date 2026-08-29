@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { exerciseInTemplate, programmeBlocs, seanceTemplates, sessionLogs } from "@/db/schema";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { SeanceTemplate } from "@/db/schema";
 
 /**
@@ -26,7 +26,7 @@ export interface ProchaineSeance {
 
 export async function prochaineSeance(userId: string): Promise<ProchaineSeance | null> {
   const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.actif, true)),
+    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
   });
   if (!bloc) return null;
 
@@ -41,7 +41,7 @@ export async function prochaineSeance(userId: string): Promise<ProchaineSeance |
     .select({ seanceTemplateId: sessionLogs.seanceTemplateId })
     .from(sessionLogs)
     .innerJoin(seanceTemplates, eq(seanceTemplates.id, sessionLogs.seanceTemplateId))
-    .where(and(eq(sessionLogs.userId, userId), eq(seanceTemplates.blocId, bloc.id)))
+    .where(and(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)), eq(seanceTemplates.blocId, bloc.id)))
     .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt))
     .limit(1);
 
@@ -111,7 +111,7 @@ export async function creerBloc(donnees: CreationBloc) {
 /** Verifie qu'un bloc appartient bien a l'utilisateur. */
 async function blocDeLUtilisateur(blocId: string, userId: string) {
   const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(eq(programmeBlocs.id, blocId), eq(programmeBlocs.userId, userId)),
+    where: and(eq(programmeBlocs.id, blocId), and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe))),
   });
   if (!bloc) throw new RessourceIntrouvable("Bloc");
   return bloc;

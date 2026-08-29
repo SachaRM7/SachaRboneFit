@@ -75,7 +75,7 @@ async function activiteMusculaire(userId: string, jours: number) {
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(and(eq(sessionLogs.userId, userId), gte(sessionLogs.date, ilYaJours(jours))));
+    .where(and(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)), gte(sessionLogs.date, ilYaJours(jours))));
 
   const parMuscle = new Map<string, ActiviteMuscle>();
 
@@ -242,11 +242,11 @@ function phaseDepuisTypeCycle(type: string | null | undefined): PhaseCycle {
  */
 async function mesurerCycle(userId: string) {
   const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.actif, true)),
+    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
   });
 
   const seances = await db.query.sessionLogs.findMany({
-    where: eq(sessionLogs.userId, userId),
+    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
     orderBy: [desc(sessionLogs.date)],
     limit: 8,
   });
@@ -319,9 +319,9 @@ async function validerProposition(p: Record<string, unknown>, userId: string): P
 
   const [profil, salles, instances] = await Promise.all([
     db.query.users.findFirst({ where: eq(users.id, userId) }),
-    db.query.gyms.findMany({ where: eq(gyms.userId, userId) }),
+    db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) }),
     db.query.exerciseInstances.findMany({
-      where: eq(exerciseInstances.userId, userId),
+      where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)),
       with: { exercise: true },
     }),
   ]);

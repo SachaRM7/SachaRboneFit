@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { users, sessionLogs, setLogs, exerciseInstances, exercises, sessionIncidents, weeklyDebriefs } from "@/db/schema";
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
         // Get all sessions for this week
         const sessions = await db.query.sessionLogs.findMany({
           where: and(
-            eq(sessionLogs.userId, userId),
+            and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
             gte(sessionLogs.date, weekStart),
             lte(sessionLogs.date, weekEnd)
           ),

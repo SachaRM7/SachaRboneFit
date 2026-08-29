@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import {
   exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, setLogs,
 } from "@/db/schema";
-import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
 import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
@@ -37,12 +37,12 @@ function estimation1RM(charge: number, reps: number): number {
  */
 export async function semainesSansDeload(userId: string): Promise<number> {
   const blocDeload = await db.query.programmeBlocs.findFirst({
-    where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.typeCycle, "deload")),
+    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.typeCycle, "deload")),
     orderBy: [desc(programmeBlocs.dateDebut)],
   });
 
   const seanceAllegee = await db.query.sessionLogs.findFirst({
-    where: eq(sessionLogs.userId, userId),
+    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
     orderBy: [desc(sessionLogs.date)],
     columns: { date: true, volumeAjustePct: true },
   });
@@ -55,7 +55,7 @@ export async function semainesSansDeload(userId: string): Promise<number> {
 
   if (candidats.length === 0) {
     const blocActif = await db.query.programmeBlocs.findFirst({
-      where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.actif, true)),
+      where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
     });
     return blocActif ? semainesDepuis(blocActif.dateDebut) : 0;
   }
@@ -88,7 +88,7 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(eq(sessionLogs.userId, userId))
+    .where(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)))
     .orderBy(asc(sessionLogs.date));
 
   const parInstance = new Map<string, typeof lignes>();
@@ -142,7 +142,7 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
 /** Exercices dont la fourchette a été complétée à la dernière séance. */
 export async function fourchettesCompletees(userId: string) {
   const derniere = await db.query.sessionLogs.findFirst({
-    where: eq(sessionLogs.userId, userId),
+    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
     orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
   });
   if (!derniere) return [];
@@ -200,7 +200,7 @@ export async function fourchettesCompletees(userId: string) {
 /** Feu de tendance sur les trois dernières séances d'un même template. */
 export async function feuDeTendance(userId: string): Promise<FeuBiologique | null> {
   const dernieres = await db.query.sessionLogs.findMany({
-    where: eq(sessionLogs.userId, userId),
+    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
     orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
     limit: 3,
   });
@@ -298,7 +298,7 @@ export async function recordsPersonnels(userId: string, limite = 20): Promise<Re
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(eq(sessionLogs.userId, userId));
+    .where(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)));
 
   const derniereDate = lignes.reduce((max, l) => (l.date > max ? l.date : max), "");
 
@@ -354,7 +354,7 @@ export async function volumeParMuscle(userId: string, depuisISO: string): Promis
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(and(eq(sessionLogs.userId, userId), gte(sessionLogs.date, depuisISO)));
+    .where(and(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)), gte(sessionLogs.date, depuisISO)));
 
   const cumul = new Map<string, VolumeMuscle>();
 

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db/client";
 import { programmeBlocs, seanceTemplates } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 export default async function NewSessionPage() {
@@ -15,7 +15,7 @@ export default async function NewSessionPage() {
   }
 
   const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(eq(programmeBlocs.userId, user.id), eq(programmeBlocs.actif, true)),
+    where: and(and(eq(programmeBlocs.userId, user.id), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
   });
 
   if (!bloc) {

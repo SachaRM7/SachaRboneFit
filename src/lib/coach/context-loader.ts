@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { users, programmeBlocs, sessionLogs, dailyStates, bodyWeights, seanceTemplates } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 
 export interface CoachContext {
   userId: string;
@@ -52,7 +52,7 @@ export async function loadCoachContext(userId: string): Promise<CoachContext> {
   });
 
   const last5Sessions = await db.query.sessionLogs.findMany({
-    where: eq(sessionLogs.userId, userId),
+    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
     orderBy: [desc(sessionLogs.createdAt)],
     limit: 5,
   });

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { exercises, exerciseInstances, gyms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { ExerciseLibrary, type ExerciceAvecInstances } from "@/components/exercises/ExerciseLibrary";
 
@@ -13,8 +13,8 @@ export default async function ExercisesPage() {
   // la bibliotheque affichait le catalogue entier quelle que soit la salle.
   const [tousExercices, instances, salles] = await Promise.all([
     db.query.exercises.findMany({ where: eq(exercises.userId, userId) }),
-    db.query.exerciseInstances.findMany({ where: eq(exerciseInstances.userId, userId) }),
-    db.query.gyms.findMany({ where: eq(gyms.userId, userId) }),
+    db.query.exerciseInstances.findMany({ where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)) }),
+    db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) }),
   ]);
 
   const instancesParExercice = new Map<string, ExerciceAvecInstances["instances"]>();

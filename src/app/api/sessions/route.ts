@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { seanceTemplates, programmeBlocs } from "@/db/schema";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { z } from "zod";
 import { creerSeance } from "@/services/seances";
@@ -35,7 +35,7 @@ export async function GET() {
       })
       .from(seanceTemplates)
       .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
-      .where(eq(programmeBlocs.userId, userId))
+      .where(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)))
       .orderBy(asc(seanceTemplates.ordreDansSemaine));
 
     return NextResponse.json(templates);

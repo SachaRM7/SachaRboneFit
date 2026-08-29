@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { gyms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { detailErreur } from "@/lib/erreurs";
 
@@ -11,7 +11,7 @@ export async function GET() {
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const allGyms = await db.query.gyms.findMany({
-      where: eq(gyms.userId, userId),
+      where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)),
     });
     return NextResponse.json(allGyms);
   } catch (error) {

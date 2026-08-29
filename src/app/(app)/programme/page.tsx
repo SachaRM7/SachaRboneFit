@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import {
   programmeBlocs, seanceTemplates, exerciseInTemplate, exerciseInstances, gyms,
 } from "@/db/schema";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { GestionProgramme, type SeanceProgramme, type MachineDisponible } from "@/components/programme/GestionProgramme";
 import { CreationBlocForm } from "@/components/programme/CreationBlocForm";
@@ -20,15 +20,15 @@ export default async function ProgrammePage() {
   if (!userId) redirect("/login");
 
   const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.actif, true)),
+    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
   });
 
   const [instances, salles] = await Promise.all([
     db.query.exerciseInstances.findMany({
-      where: eq(exerciseInstances.userId, userId),
+      where: and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe)),
       with: { exercise: true },
     }),
-    db.query.gyms.findMany({ where: eq(gyms.userId, userId) }),
+    db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) }),
   ]);
 
   const nomSalle = new Map(salles.map((g) => [g.id, g.nom]));

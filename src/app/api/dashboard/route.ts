@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms } from "@/db/schema";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, isNull } from "drizzle-orm";
 import { computeFeuJour } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
 import { prochaineSeance } from "@/services/programmes";
@@ -23,11 +23,11 @@ export async function GET() {
     });
 
     const blocActif = await db.query.programmeBlocs.findFirst({
-      where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.actif, true)),
+      where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
     });
 
     const lastSession = await db.query.sessionLogs.findFirst({
-      where: eq(sessionLogs.userId, userId),
+      where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
       orderBy: [desc(sessionLogs.createdAt)],
     });
 
@@ -93,7 +93,7 @@ export async function GET() {
     }) : null;
 
     const recentSessions = await db.query.sessionLogs.findMany({
-      where: eq(sessionLogs.userId, userId),
+      where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
       orderBy: [desc(sessionLogs.createdAt)],
       limit: 5,
     });
@@ -107,7 +107,7 @@ export async function GET() {
     const idsGabarits = [...new Set(recentSessions.map((s) => s.seanceTemplateId).filter((v): v is string => Boolean(v)))];
 
     const [sallesUtilisateur, gabaritsUtilisateur] = await Promise.all([
-      db.query.gyms.findMany({ where: eq(gyms.userId, userId) }),
+      db.query.gyms.findMany({ where: and(eq(gyms.userId, userId), isNull(gyms.archiveLe)) }),
       idsGabarits.length
         ? db.query.seanceTemplates.findMany({ where: inArray(seanceTemplates.id, idsGabarits) })
         : Promise.resolve([]),

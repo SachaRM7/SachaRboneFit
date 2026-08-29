@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db/client";
 import { gyms } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { GymCard } from "@/components/gyms/GymCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -17,7 +17,7 @@ export default async function GymsPage() {
   }
 
   const allGyms = await db.query.gyms.findMany({
-    where: eq(gyms.userId, user.id),
+    where: and(eq(gyms.userId, user.id), isNull(gyms.archiveLe)),
   });
 
   return (

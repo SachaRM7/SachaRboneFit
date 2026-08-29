@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { db } from "@/db/client";
 import { bodyWeights, sessionLogs, programmeBlocs } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -20,11 +20,11 @@ export default async function DashboardPage() {
       orderBy: [desc(bodyWeights.date)],
     }),
     db.query.sessionLogs.findFirst({
-      where: eq(sessionLogs.userId, user.id),
+      where: and(eq(sessionLogs.userId, user.id), isNull(sessionLogs.archiveLe)),
       orderBy: [desc(sessionLogs.createdAt)],
     }),
     db.query.programmeBlocs.findFirst({
-      where: (pb, { eq, and }) => and(eq(pb.userId, user.id), eq(pb.actif, true)),
+      where: (pb, { eq, and }) => and(eq(pb.userId, user.id), isNull(pb.archiveLe), eq(pb.actif, true)),
     }),
   ]);
 

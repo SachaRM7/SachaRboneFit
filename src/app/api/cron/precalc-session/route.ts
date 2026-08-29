@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { users, sessionLogs, precalcSessions, seanceTemplates, dailyStates, programmeBlocs } from "@/db/schema";
-import { eq, desc, and, gte } from "drizzle-orm";
+import { eq, desc, and, gte, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { loadCoachContext } from "@/lib/coach/context-loader";
 
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
         // Find the last session to determine next seance letter
         const lastSession = await db.query.sessionLogs.findFirst({
-          where: eq(sessionLogs.userId, userId),
+          where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
           orderBy: [desc(sessionLogs.date)],
         });
 
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
           .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
           .where(
             and(
-              eq(programmeBlocs.userId, userId),
+              and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)),
               eq(programmeBlocs.actif, true),
               eq(seanceTemplates.lettre, nextLetter),
             ),
