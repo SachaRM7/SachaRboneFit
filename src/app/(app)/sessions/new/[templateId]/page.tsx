@@ -8,6 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import { RestTimer } from "@/components/session/RestTimer";
 import { type ExercicePrescrit } from "@/components/session/types";
 import { TableauSeries } from "@/components/session/TableauSeries";
+import { BandeauAdaptation } from "@/components/session/BandeauAdaptation";
 import { initAudioContext, playBeep } from "@/lib/audio/beep";
 import { SOSBar } from "@/components/session/SOSBar";
 import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
@@ -222,7 +223,7 @@ function ContenuSeanceLive() {
   }));
 
   return (
-    <div className="min-h-screen bg-papier pb-24" onPointerDown={interaction}>
+    <div className="min-h-screen bg-papier pb-40" onPointerDown={interaction}>
       <header className="sticky top-0 z-20 bg-papier border-b border-filet px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
@@ -239,15 +240,14 @@ function ContenuSeanceLive() {
         </div>
       </header>
 
-      {/* L'ajustement était calculé, stocké, puis jamais montré. */}
-      {seance.volumeAjustePct ? (
-        <p className="bg-papier-2 border-b border-filet px-4 py-2.5 text-sm text-encre-2">
-          <strong className="text-encre font-semibold">
-            Volume réduit de {Math.abs(seance.volumeAjustePct)} %.
-          </strong>{" "}
-          {seance.volumeAjusteRaison}
-        </p>
-      ) : null}
+      {/* L'ajustement était calculé, stocké, puis jamais montré — et seul le
+          volume l'était, jamais les substitutions ni les charges en hausse. */}
+      <BandeauAdaptation
+        feuJour={seance.feuBiologiqueJour}
+        volumeAjustePct={seance.volumeAjustePct}
+        volumeAjusteRaison={seance.volumeAjusteRaison}
+        exercices={visibles}
+      />
 
       <div className="px-4 pt-4">
         <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
@@ -278,7 +278,11 @@ function ContenuSeanceLive() {
         </Button>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-papier border-t border-filet px-4 py-2 z-20">
+      {/* La rangée SOS était posée en bottom-0, sous une barre de navigation
+          fixée au même endroit et de z-index supérieur : elle était donc
+          entièrement recouverte, invisible pendant toute la séance. Elle se
+          place au-dessus, à la hauteur exacte de cette barre. */}
+      <div className="fixed bottom-16 left-0 right-0 bg-papier border-t border-filet px-4 py-2 z-30">
         <SOSBar
           onMachineOccupee={() => setModaleSOS("machine")}
           onDouleur={() => setModaleSOS("douleur")}

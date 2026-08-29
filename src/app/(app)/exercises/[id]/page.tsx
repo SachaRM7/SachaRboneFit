@@ -5,6 +5,7 @@ import { exercises, exerciseInstances } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { PilierBadge } from "@/components/exercises/PilierBadge";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
+import { EquiperDansSalle } from "@/components/exercises/EquiperDansSalle";
 import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
 import { Badge } from "@/components/ui/badge";
 import { libelleProfilTension, libelleTypeMouvement, libelleMuscles } from "@/lib/referentiels/libelles";
@@ -38,7 +39,7 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
   const fiche = exercise.slug ? CATALOGUE_PAR_SLUG.get(exercise.slug) : undefined;
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 pb-24">
       {fiche && exercise.slug && (
         <div className="flex justify-center rounded-xl border border-filet bg-carte py-6">
           <IllustrationExercice
@@ -72,7 +73,7 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
       <div>
         <h2 className="text-lg font-semibold text-encre mb-3">Où le faire</h2>
         {instances.length === 0 ? (
-          <p className="text-encre-3">Cet exercice n&apos;est équipé dans aucune de tes salles.</p>
+          <p className="text-encre-3 mb-3">Cet exercice n&apos;est équipé dans aucune de tes salles.</p>
         ) : (
           <div className="space-y-3">
             {instances.map((inst) => (
@@ -95,6 +96,17 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
             ))}
           </div>
         )}
+
+        {/* La bibliothèque comptait 121 exercices consultables et 9
+            programmables, sans chemin entre les deux : il fallait deviner qu'un
+            exercice ne devient utilisable qu'une fois équipé dans une salle. */}
+        <div className="mt-3">
+          <EquiperDansSalle
+            exerciseId={exercise.id}
+            exerciceNom={exercise.nom}
+            sallesDejaEquipees={instances.map((i) => i.gymId).filter((id): id is string => Boolean(id))}
+          />
+        </div>
       </div>
     </div>
   );

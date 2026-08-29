@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Download, LogOut, User, History, CalendarRange, Palette } from "lucide-react";
+import { Download, LogOut, User, History, CalendarRange, Palette, BookOpen, MapPin } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -58,7 +58,26 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-papier text-encre pb-20">
       <div className="p-4">
-        <h1 className="text-2xl font-bold mb-6">Paramètres</h1>
+        <h1 className="text-2xl font-bold mb-6">Plus</h1>
+
+        {/* La bibliothèque et les salles ont quitté la barre de navigation :
+            elles se consultent rarement, mais doivent rester à un geste. */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <Link href="/exercises" className="block">
+            <div className="h-full rounded-xl border border-filet bg-carte p-4">
+              <BookOpen className="w-5 h-5 text-encre-2 mb-2" />
+              <p className="font-semibold text-encre text-sm">Bibliothèque</p>
+              <p className="text-encre-3 text-xs mt-0.5">Tous les exercices</p>
+            </div>
+          </Link>
+          <Link href="/gyms" className="block">
+            <div className="h-full rounded-xl border border-filet bg-carte p-4">
+              <MapPin className="w-5 h-5 text-encre-2 mb-2" />
+              <p className="font-semibold text-encre text-sm">Salles</p>
+              <p className="text-encre-3 text-xs mt-0.5">Machines et réglages</p>
+            </div>
+          </Link>
+        </div>
 
         {/* Profil */}
         <Card className="bg-carte border-filet mb-4">
