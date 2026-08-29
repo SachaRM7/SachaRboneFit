@@ -9,7 +9,9 @@ import {
   validerSeance,
   type ExercicePropose,
   type ContrainteMuscle,
+  type EtatMuscle,
 } from "@/lib/engine/validation-seance";
+import { validerImpactSemaine } from "@/lib/engine/validation-semaine";
 import type { CoachTool, ToolExecutor, ToolExecutionResult } from "./tools";
 
 /**
@@ -45,11 +47,27 @@ function joursEcoules(dateISO: string): number {
   return Math.max(0, Math.floor(ecart / 86_400_000));
 }
 
-/** Séries et dernière sollicitation par muscle, sur une fenêtre donnée. */
+interface ActiviteMuscle {
+  series: number;
+  jours: Set<string>;
+  derniere: string | null;
+  /** Séries et RIR de la dernière exposition : ce que la dette a coûté. */
+  seriesDerniereExposition: number;
+  rirsDerniereExposition: number[];
+}
+
+/**
+ * Activité par muscle sur une fenêtre donnée.
+ *
+ * Le score de récupération ne se contente pas d'une date : deux jours après six
+ * séries loin de l'échec n'est pas deux jours après vingt séries à RIR 0. On
+ * conserve donc le coût de la dernière exposition, pas seulement son moment.
+ */
 async function activiteMusculaire(userId: string, jours: number) {
   const lignes = await db
     .select({
       date: sessionLogs.date,
+      rpe: setLogs.rpeEffectif,
       musclesPrincipaux: exercises.musclesPrincipaux,
       musclesSecondaires: exercises.musclesSecondaires,
     })
@@ -59,27 +77,89 @@ async function activiteMusculaire(userId: string, jours: number) {
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
     .where(and(eq(sessionLogs.userId, userId), gte(sessionLogs.date, ilYaJours(jours))));
 
-  const parMuscle = new Map<string, { series: number; jours: Set<string>; derniere: string | null }>();
+  const parMuscle = new Map<string, ActiviteMuscle>();
 
-  const ajouter = (brut: string, poids: number, date: string) => {
+  const ajouter = (brut: string, poids: number, date: string, rpe: number | null) => {
     const muscle = versMuscle(brut);
     if (!muscle) return;
-    const actuel = parMuscle.get(muscle) ?? { series: 0, jours: new Set<string>(), derniere: null };
+    const actuel = parMuscle.get(muscle) ?? {
+      series: 0, jours: new Set<string>(), derniere: null,
+      seriesDerniereExposition: 0, rirsDerniereExposition: [],
+    };
     actuel.series += poids;
     actuel.jours.add(date);
+
     // Les dates sont en ISO : la comparaison lexicographique suffit.
-    if (!actuel.derniere || date > actuel.derniere) actuel.derniere = date;
+    if (!actuel.derniere || date > actuel.derniere) {
+      actuel.derniere = date;
+      actuel.seriesDerniereExposition = 0;
+      actuel.rirsDerniereExposition = [];
+    }
+    if (date === actuel.derniere) {
+      actuel.seriesDerniereExposition += poids;
+      // Le RPE est saisi, le RIR s'en déduit : à 10 il ne reste rien en réserve.
+      if (rpe !== null) actuel.rirsDerniereExposition.push(Math.max(0, 10 - rpe));
+    }
+
     parMuscle.set(muscle, actuel);
   };
 
   for (const l of lignes) {
-    for (const m of l.musclesPrincipaux ?? []) ajouter(m, 1, l.date);
+    for (const m of l.musclesPrincipaux ?? []) ajouter(m, 1, l.date, l.rpe);
     // Un muscle secondaire reçoit une fraction du stimulus : le compter plein
     // gonflerait artificiellement le volume hebdomadaire.
-    for (const m of l.musclesSecondaires ?? []) ajouter(m, 0.5, l.date);
+    for (const m of l.musclesSecondaires ?? []) ajouter(m, 0.5, l.date, l.rpe);
   }
 
   return parMuscle;
+}
+
+/** Ce que le validateur attend pour juger la récupération d'un muscle. */
+function etatMusclesDepuis(activite: Map<string, ActiviteMuscle>, courbatures: Map<string, number>) {
+  const etats: Record<string, EtatMuscle> = {};
+  for (const [muscle, a] of activite) {
+    const rirs = a.rirsDerniereExposition;
+    etats[muscle] = {
+      joursDepuis: a.derniere ? joursEcoules(a.derniere) : null,
+      seriesDerniereExposition: Math.round(a.seriesDerniereExposition),
+      rirMoyen: rirs.length ? rirs.reduce((t, v) => t + v, 0) / rirs.length : null,
+      courbature: courbatures.get(muscle) ?? 0,
+    };
+  }
+  return etats;
+}
+
+/** Courbatures signalées aujourd'hui, par muscle canonique. */
+async function courbaturesDuJour(userId: string): Promise<Map<string, number>> {
+  const etat = await db.query.dailyStates.findFirst({
+    where: and(eq(dailyStates.userId, userId), eq(dailyStates.date, new Date().toISOString().slice(0, 10))),
+  });
+  return new Map(
+    (etat?.courbatures ?? [])
+      .map((c) => [versMuscle(c.muscle), c.intensite] as const)
+      .filter((e): e is [Muscle, number] => e[0] !== null),
+  );
+}
+
+/**
+ * Cibles hebdomadaires de séries par muscle.
+ *
+ * Faute de cible saisie par l'utilisateur, on retient une fourchette moyenne
+ * défendable pour l'hypertrophie, relevée sur les muscles qu'il a désignés
+ * comme prioritaires. Ce n'est pas une vérité physiologique : c'est un repère,
+ * qui n'existe que pour donner au contrôle hebdomadaire quelque chose à
+ * comparer. Une cible saisie explicitement devra le remplacer.
+ */
+const CIBLE_HEBDO_PAR_DEFAUT = 12;
+const CIBLE_HEBDO_PRIORITAIRE = 18;
+
+function ciblesHebdo(prioritairesBruts: string[]): Record<string, number> {
+  const prioritaires = new Set(
+    prioritairesBruts.map(versMuscle).filter((m): m is Muscle => m !== null),
+  );
+  return Object.fromEntries(
+    MUSCLES.map((m) => [m, prioritaires.has(m) ? CIBLE_HEBDO_PRIORITAIRE : CIBLE_HEBDO_PAR_DEFAUT]),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -154,7 +234,13 @@ function phaseDepuisTypeCycle(type: string | null | undefined): PhaseCycle {
   return "hors_cycle";
 }
 
-async function etatDuCycle(_p: Record<string, unknown>, userId: string): Promise<ToolExecutionResult> {
+/**
+ * Mesure de l'etat du cycle, partagee.
+ *
+ * Le validateur en a besoin autant que l'outil de lecture : la phase decide
+ * du seuil de recuperation et des regles de decharge.
+ */
+async function mesurerCycle(userId: string) {
   const bloc = await db.query.programmeBlocs.findFirst({
     where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.actif, true)),
   });
@@ -203,10 +289,14 @@ async function etatDuCycle(_p: Record<string, unknown>, userId: string): Promise
     },
   });
 
-  return ok(JSON.stringify({
+  return {
     bloc: bloc ? { nom: bloc.nom, typeCycle: bloc.typeCycle, semaine: bloc.semaineActuelle } : null,
     ...etat,
-  }));
+  };
+}
+
+async function etatDuCycle(_p: Record<string, unknown>, userId: string): Promise<ToolExecutionResult> {
+  return ok(JSON.stringify(await mesurerCycle(userId)));
 }
 
 // ---------------------------------------------------------------------------
@@ -260,11 +350,12 @@ async function validerProposition(p: Record<string, unknown>, userId: string): P
     };
   });
 
-  const activite = await activiteMusculaire(userId, 21);
-  const joursDepuisDernierTravail: Record<string, number> = {};
-  for (const [muscle, a] of activite) {
-    if (a.derniere) joursDepuisDernierTravail[muscle] = joursEcoules(a.derniere);
-  }
+  const [activite, activiteSemaine, cycle, courbatures] = await Promise.all([
+    activiteMusculaire(userId, 21),
+    activiteMusculaire(userId, 7),
+    mesurerCycle(userId),
+    courbaturesDuJour(userId),
+  ]);
 
   const contraintesActives = await db.query.contraintes.findMany({
     where: (c, { and, eq, isNull }) => and(eq(c.userId, userId), isNull(c.dateFin)),
@@ -274,32 +365,105 @@ async function validerProposition(p: Record<string, unknown>, userId: string): P
     severite: c.severite,
   }));
 
+  const seriesSemaineParMuscle: Record<string, number> = {};
+  for (const [muscle, a] of activiteSemaine) seriesSemaineParMuscle[muscle] = Math.round(a.series);
+
   const resultat = validerSeance(exercicesProposes, {
     machinesDisponibles: duSite.map((i) => ({
       exerciseInstanceId: i.id,
       nom: (i.exercise as { nom?: string } | null)?.nom ?? i.machineNom,
     })),
-    joursDepuisDernierTravail,
+    etatMuscles: etatMusclesDepuis(activite, courbatures),
     contraintes,
     dureeDisponibleMinutes:
       Number(p.dureeDisponibleMinutes) || profil?.dureeSeanceCibleMinutes || 60,
+    phase: cycle.phase,
+    tendancePerformance: cycle.tendancePerformance,
+    seriesSemaineParMuscle,
+    cibleHebdoParMuscle: ciblesHebdo(profil?.objectifMusclesPrioritaires ?? []),
     musclesAttendus: Array.isArray(p.musclesAttendus)
       ? (p.musclesAttendus as unknown[]).filter((m): m is string => typeof m === "string")
       : undefined,
   });
 
+  // Une séance peut être irréprochable et donner une semaine bancale : le
+  // contrôle hebdomadaire suit immédiatement, sur la même proposition.
+  const seriesProposees: Record<string, number> = {};
+  for (const e of exercicesProposes) {
+    for (const brut of e.musclesPrincipaux) {
+      const muscle = versMuscle(brut);
+      if (muscle) seriesProposees[muscle] = (seriesProposees[muscle] ?? 0) + e.series;
+    }
+  }
+
+  const semaine = validerImpactSemaine({
+    seriesRealisees: seriesSemaineParMuscle,
+    seriesProposees,
+    cibles: ciblesHebdo(profil?.objectifMusclesPrioritaires ?? []),
+    prioritaires: profil?.objectifMusclesPrioritaires ?? [],
+    // La semaine d'entraînement se termine le dimanche.
+    joursRestants: Math.max(0, 7 - (new Date().getDay() || 7)),
+  });
+
+  const valide = resultat.valide && semaine.valide;
+
   return ok(JSON.stringify({
     salle: salle.nom,
-    ...resultat,
-    consigne: resultat.valide
-      ? "Séance conforme. Tu peux la présenter."
-      : "Séance refusée. Corrige les anomalies bloquantes et revalide avant de répondre.",
+    seance: resultat,
+    semaine,
+    valide,
+    consigne: valide
+      ? "Séance conforme, et cohérente avec la semaine. Tu peux la présenter."
+      : "Séance refusée. Corrige les anomalies bloquantes — de la séance comme de la semaine — et revalide avant de répondre. Les avertissements se discutent avec l'athlète, ils n'empêchent rien.",
   }));
+}
+
+async function validerSemaine(p: Record<string, unknown>, userId: string): Promise<ToolExecutionResult> {
+  const profil = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  const activiteSemaine = await activiteMusculaire(userId, 7);
+
+  const seriesRealisees: Record<string, number> = {};
+  for (const [muscle, a] of activiteSemaine) seriesRealisees[muscle] = Math.round(a.series);
+
+  const proposees = (p.seriesProposees ?? {}) as Record<string, unknown>;
+  const seriesProposees: Record<string, number> = {};
+  for (const [brut, valeur] of Object.entries(proposees)) {
+    const n = Number(valeur);
+    if (Number.isFinite(n)) seriesProposees[brut] = n;
+  }
+
+  const resultat = validerImpactSemaine({
+    seriesRealisees,
+    seriesProposees,
+    cibles: ciblesHebdo(profil?.objectifMusclesPrioritaires ?? []),
+    prioritaires: profil?.objectifMusclesPrioritaires ?? [],
+    joursRestants: Number.isFinite(Number(p.joursRestants))
+      ? Number(p.joursRestants)
+      : Math.max(0, 7 - (new Date().getDay() || 7)),
+  });
+
+  return ok(JSON.stringify(resultat));
 }
 
 // ---------------------------------------------------------------------------
 
 export const DEFINITIONS_PROGRAMME: CoachTool[] = [
+  {
+    name: "validate_week_impact",
+    description:
+      "Verifie l'equilibre de la semaine si l'on y ajoute un volume donne. Une seance peut etre irreprochable et donner une semaine bancale — vingt-deux series d'epaules contre quatre d'ischios. Signale les ecarts aux cibles et les desequilibres entre antagonistes. `validate_session` l'appelle deja ; utilise cet outil pour raisonner sur plusieurs seances a venir.",
+    input_schema: {
+      type: "object",
+      properties: {
+        seriesProposees: {
+          type: "object",
+          description: "Series envisagees par muscle, ex. { pectoraux: 8, dorsaux: 6 }",
+        },
+        joursRestants: { type: "number", description: "Jours restants dans la semaine" },
+      },
+      required: ["seriesProposees"],
+    },
+  },
   {
     name: "get_weekly_muscle_volume",
     description:
@@ -359,6 +523,7 @@ export const DEFINITIONS_PROGRAMME: CoachTool[] = [
 ];
 
 export const EXECUTEURS_PROGRAMME: Record<string, ToolExecutor> = {
+  validate_week_impact: validerSemaine,
   get_weekly_muscle_volume: volumeHebdomadaire,
   get_muscle_frequency: frequenceMusculaire,
   get_muscle_recovery_status: recuperationMusculaire,
