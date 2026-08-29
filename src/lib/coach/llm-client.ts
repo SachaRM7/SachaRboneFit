@@ -48,27 +48,96 @@ export interface OptionsLLM {
   resultatsOutils?: Array<{ appel: AppelOutil; resultat: string }>;
 }
 
-/** Fournisseur actif et modèle par défaut associé. */
-export function fournisseurActif(): FournisseurLLM {
-  return (process.env.LLM_PROVIDER as FournisseurLLM) || "gemini";
+/** Un modèle précis chez un fournisseur précis. */
+export interface CibleLLM {
+  fournisseur: FournisseurLLM;
+  modele: string;
 }
 
-const MODELES_PAR_DEFAUT: Record<FournisseurLLM, string> = {
-  gemini: "gemini-2.0-flash",
-  groq: "llama-3.3-70b-versatile",
-  openai: "gpt-4o-mini",
-  anthropic: "claude-sonnet-4-20250514",
+/**
+ * Nature de l'appel, qui décide de la chaîne de modèles employée.
+ *
+ * `courant` couvre l'écrasante majorité des échanges : question en séance,
+ * explication d'un exercice, lecture de l'historique. `lourd` est réservé aux
+ * arbitrages coûteux — refonte d'un bloc sur plusieurs semaines — où l'on
+ * accepte de consommer un quota plus rare.
+ */
+export type ProfilAppel = "courant" | "lourd";
+
+/**
+ * Chaînes de repli, par ordre de préférence.
+ *
+ * Le modèle principal est un Qwen encore marqué « Preview » chez Groq : son
+ * nom, son quota, voire son existence peuvent changer sans préavis. Rien dans
+ * l'application ne doit donc dépendre de ce nom. Il se règle par variable
+ * d'environnement, au format `fournisseur:modele`, séparé par des virgules :
+ *
+ *     LLM_CHAINE_COURANTE="groq:qwen/qwen3.8-27b,groq:openai/gpt-oss-120b"
+ *
+ * Les modèles suivants ne servent qu'en cas de quota atteint, de modèle retiré
+ * ou de panne — jamais pour masquer une requête invalide.
+ */
+const CHAINES_PAR_DEFAUT: Record<ProfilAppel, string> = {
+  // Qwen offre dix fois le quota quotidien de GPT-OSS ; GPT-OSS, en Production,
+  // prend le relais quand ce Preview défaille.
+  courant: "groq:qwen/qwen3.8-27b,groq:openai/gpt-oss-120b",
+  // L'ordre s'inverse : on paie la stabilité sur les décisions structurantes.
+  lourd: "groq:openai/gpt-oss-120b,groq:qwen/qwen3.8-27b",
 };
 
-function modele(fournisseur: FournisseurLLM): string {
-  return process.env.LLM_MODEL || MODELES_PAR_DEFAUT[fournisseur];
+const FOURNISSEURS: readonly FournisseurLLM[] = ["gemini", "groq", "openai", "anthropic"];
+
+function analyserChaine(brut: string): CibleLLM[] {
+  return brut
+    .split(",")
+    .map((entree) => entree.trim())
+    .filter(Boolean)
+    .map((entree) => {
+      const separateur = entree.indexOf(":");
+      if (separateur === -1) return null;
+      const fournisseur = entree.slice(0, separateur).trim() as FournisseurLLM;
+      const modele = entree.slice(separateur + 1).trim();
+      if (!FOURNISSEURS.includes(fournisseur) || !modele) return null;
+      return { fournisseur, modele };
+    })
+    .filter((c): c is CibleLLM => c !== null);
+}
+
+export function chaineDeModeles(profil: ProfilAppel = "courant"): CibleLLM[] {
+  const variable = profil === "lourd" ? "LLM_CHAINE_LOURDE" : "LLM_CHAINE_COURANTE";
+  const chaine = analyserChaine(process.env[variable] || CHAINES_PAR_DEFAUT[profil]);
+  if (chaine.length > 0) return chaine;
+  // Une variable mal écrite ne doit pas rendre le coach muet.
+  return analyserChaine(CHAINES_PAR_DEFAUT[profil]);
+}
+
+/** Premier fournisseur de la chaîne courante — utile pour l'affichage. */
+export function fournisseurActif(): FournisseurLLM {
+  return chaineDeModeles("courant")[0]?.fournisseur ?? "groq";
 }
 
 export class CoachIndisponible extends Error {
-  constructor(raison: string) {
+  /** Code HTTP du fournisseur, quand l'échec en vient. */
+  readonly statut?: number;
+
+  constructor(raison: string, statut?: number) {
     super(raison);
     this.name = "CoachIndisponible";
+    this.statut = statut;
   }
+}
+
+/**
+ * Un échec justifie-t-il d'essayer le modèle suivant ?
+ *
+ * Quota atteint, modèle retiré, panne du fournisseur : le repli a une chance
+ * d'aboutir. Une requête invalide ou une clé absente échoueraient à l'identique
+ * sur toute la chaîne — insister ne ferait que retarder l'erreur.
+ */
+function justifieUnRepli(erreur: unknown): boolean {
+  if (!(erreur instanceof CoachIndisponible)) return true; // panne réseau
+  if (erreur.statut === undefined) return false; // clé absente, fournisseur inconnu
+  return erreur.statut === 404 || erreur.statut === 408 || erreur.statut === 429 || erreur.statut >= 500;
 }
 
 function cleApi(nom: string): string {
@@ -81,9 +150,8 @@ function cleApi(nom: string): string {
 // Gemini — offre gratuite, function calling pris en charge
 // ---------------------------------------------------------------------------
 
-async function appelerGemini(options: OptionsLLM): Promise<ReponseLLM> {
+async function appelerGemini(options: OptionsLLM, nomModele: string): Promise<ReponseLLM> {
   const cle = cleApi("GEMINI_API_KEY");
-  const nomModele = modele("gemini");
 
   const contents: Array<Record<string, unknown>> = options.messages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
@@ -124,7 +192,7 @@ async function appelerGemini(options: OptionsLLM): Promise<ReponseLLM> {
   );
 
   if (!reponse.ok) {
-    throw new CoachIndisponible(`Gemini ${reponse.status} : ${await reponse.text()}`);
+    throw new CoachIndisponible(`Gemini ${reponse.status} : ${await reponse.text()}`, reponse.status);
   }
 
   const data = await reponse.json();
@@ -191,7 +259,7 @@ async function appelerCompatibleOpenAI(
   });
 
   if (!reponse.ok) {
-    throw new CoachIndisponible(`${base} ${reponse.status} : ${await reponse.text()}`);
+    throw new CoachIndisponible(`${nomModele} ${reponse.status} : ${await reponse.text()}`, reponse.status);
   }
 
   const data = await reponse.json();
@@ -216,7 +284,7 @@ async function appelerCompatibleOpenAI(
 // Anthropic
 // ---------------------------------------------------------------------------
 
-async function appelerAnthropic(options: OptionsLLM): Promise<ReponseLLM> {
+async function appelerAnthropic(options: OptionsLLM, nomModele: string): Promise<ReponseLLM> {
   const cle = cleApi("ANTHROPIC_API_KEY");
 
   const messages: Array<Record<string, unknown>> = options.messages.map((m) => ({ ...m }));
@@ -233,7 +301,7 @@ async function appelerAnthropic(options: OptionsLLM): Promise<ReponseLLM> {
   }
 
   const corps: Record<string, unknown> = {
-    model: modele("anthropic"),
+    model: nomModele,
     max_tokens: 2048,
     system: options.system,
     messages,
@@ -252,7 +320,7 @@ async function appelerAnthropic(options: OptionsLLM): Promise<ReponseLLM> {
   });
 
   if (!reponse.ok) {
-    throw new CoachIndisponible(`Anthropic ${reponse.status} : ${await reponse.text()}`);
+    throw new CoachIndisponible(`Anthropic ${reponse.status} : ${await reponse.text()}`, reponse.status);
   }
 
   const data = await reponse.json();
@@ -270,19 +338,50 @@ async function appelerAnthropic(options: OptionsLLM): Promise<ReponseLLM> {
   };
 }
 
-export async function appelerLLM(options: OptionsLLM): Promise<ReponseLLM> {
-  const fournisseur = fournisseurActif();
-
-  switch (fournisseur) {
+async function appelerCible(cible: CibleLLM, options: OptionsLLM): Promise<ReponseLLM> {
+  switch (cible.fournisseur) {
     case "gemini":
-      return appelerGemini(options);
+      return appelerGemini(options, cible.modele);
     case "groq":
-      return appelerCompatibleOpenAI(options, "https://api.groq.com/openai/v1", "GROQ_API_KEY", modele("groq"));
+      return appelerCompatibleOpenAI(options, "https://api.groq.com/openai/v1", "GROQ_API_KEY", cible.modele);
     case "openai":
-      return appelerCompatibleOpenAI(options, "https://api.openai.com/v1", "OPENAI_API_KEY", modele("openai"));
+      return appelerCompatibleOpenAI(options, "https://api.openai.com/v1", "OPENAI_API_KEY", cible.modele);
     case "anthropic":
-      return appelerAnthropic(options);
+      return appelerAnthropic(options, cible.modele);
     default:
-      throw new CoachIndisponible(`Fournisseur inconnu : ${fournisseur}`);
+      throw new CoachIndisponible(`Fournisseur inconnu : ${cible.fournisseur}`);
   }
+}
+
+/**
+ * Appelle le coach en parcourant la chaîne de modèles du profil demandé.
+ *
+ * Le client ne connaissait qu'un fournisseur et un modèle : si celui-ci
+ * atteignait son quota ou disparaissait, le coach devenait muet. Il essaie
+ * maintenant les cibles dans l'ordre, et ne bascule que sur les échecs qu'un
+ * autre modèle a une chance de surmonter.
+ */
+export async function appelerLLM(
+  options: OptionsLLM,
+  profil: ProfilAppel = "courant",
+): Promise<ReponseLLM> {
+  const chaine = chaineDeModeles(profil);
+  let dernierEchec: unknown = new CoachIndisponible("Aucun modèle configuré");
+
+  for (const [rang, cible] of chaine.entries()) {
+    try {
+      return await appelerCible(cible, options);
+    } catch (erreur) {
+      dernierEchec = erreur;
+      const reste = rang < chaine.length - 1;
+      if (!reste || !justifieUnRepli(erreur)) break;
+      console.warn(
+        `[coach] ${cible.fournisseur}:${cible.modele} indisponible, repli — ${
+          erreur instanceof Error ? erreur.message : String(erreur)
+        }`,
+      );
+    }
+  }
+
+  throw dernierEchec;
 }
