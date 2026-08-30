@@ -8,12 +8,14 @@ import { Sparkline } from "@/components/ui/Sparkline";
 import { Calendar, Dumbbell, Activity, TrendingDown, Play } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { Alert } from "@/lib/engine/alerts";
+import type { EtatDuJour } from "@/lib/engine/etat-du-jour";
+import { CarteAujourdhui } from "@/components/dashboard/CarteAujourdhui";
 import { AlertList } from "@/components/alerts/AlertList";
 
 interface DashboardData {
   user: { nom: string; poidsActuel: number | null };
   blocActif: { nom: string; typeCycle: string; semaineActuelle: number } | null;
-  prochaineSeance: { lettre: string; templateId: string; templateNom: string };
+  etat: EtatDuJour;
   feuJour: "vert" | "orange" | "rouge" | null;
   feuTendance: "vert" | "orange" | "rouge" | null;
   alertesPreSeance: Alert[];
@@ -49,7 +51,7 @@ export default function DashboardPage() {
         const reponse = await fetch("/api/dashboard");
         const corps = await reponse.json().catch(() => null);
         if (annule) return;
-        if (!reponse.ok || !corps || typeof corps.prochaineSeance === "undefined") {
+        if (!reponse.ok || !corps || typeof corps.etat === "undefined") {
           setErreur(corps?.error ? `${corps.error} (HTTP ${reponse.status})` : `HTTP ${reponse.status}`);
         } else {
           setData(corps);
@@ -77,12 +79,6 @@ export default function DashboardPage() {
     return () => { clearTimeout(premier); clearInterval(id); };
   }, [active?.startedAt]);
   const canResume = active && !active.completedAt && !isSessionStale;
-
-  const handleStart = () => {
-    const today = new Date().toISOString().slice(0, 10);
-    const gymId = "";
-    router.push(`/session/daily-state?date=${today}&gymId=${gymId}`);
-  };
 
   const handleResume = () => {
     if (active?.seanceTemplateId) {
@@ -221,30 +217,10 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        {/* Prochaine séance */}
-        <Card className="bg-carte border-filet">
-          <CardHeader>
-            <CardTitle className="text-encre-2 flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Prochaine séance
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xl font-bold text-encre">
-                  Séance {data?.prochaineSeance.lettre}
-                </p>
-                <p className="text-encre-3 text-sm">
-                  {data?.prochaineSeance.templateNom}
-                </p>
-              </div>
-              <Button onClick={handleStart} className="bg-encre text-papier hover:bg-filet">
-                Démarrer
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Aujourd'hui — l'état vient du moteur, cet écran ne fait que le rendre.
+            Il ne s'affiche pas pendant une séance en cours : la reprendre est
+            alors la seule action qui a du sens. */}
+        {data?.etat && !canResume && <CarteAujourdhui etat={data.etat} />}
 
         {/* Feu biologique */}
         <Card className="bg-carte border-filet">

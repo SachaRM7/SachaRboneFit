@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms } from "@/db/schema";
-import { eq, desc, and, inArray, isNull } from "drizzle-orm";
+import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms, exerciseInstances } from "@/db/schema";
+import { eq, desc, and, inArray, isNull, gte } from "drizzle-orm";
 import { computeFeuJour } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
 import { prochaineSeance } from "@/services/programmes";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { detailErreur } from "@/lib/erreurs";
+import { etatDuJour } from "@/lib/engine/etat-du-jour";
 
 export async function GET() {
   try {
@@ -77,7 +78,10 @@ export async function GET() {
 
     const now = new Date();
     const startOfWeek = new Date(now);
-    startOfWeek.setDate(now.getDate() - now.getDay() + 1);
+    // `- getDay() + 1` plaçait le dimanche (getDay() === 0) au lundi SUIVANT :
+    // le début de semaine tombait dans le futur, et le décompte des séances
+    // valait zéro tous les dimanches.
+    startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
     const weekStartStr = startOfWeek.toISOString().slice(0, 10);
 
     const weeklyDebrief = await db.query.weeklyDebriefs.findFirst({
@@ -129,7 +133,48 @@ export async function GET() {
       };
     });
 
+    // Salle du jour : la préférence posée à l'onboarding, sinon l'unique salle
+    // active. L'accueil envoyait jusqu'ici `gymId=` vide, et la séance ne
+    // pouvait pas démarrer.
+    let salleDuJour = user?.prefSalleParDefautId
+      ? salleParId.get(user.prefSalleParDefautId) ?? null
+      : null;
+    if (!salleDuJour && sallesUtilisateur.length === 1) salleDuJour = sallesUtilisateur[0]!;
+
+    const machinesDansLaSalle = salleDuJour
+      ? await db.$count(
+          exerciseInstances,
+          and(
+            eq(exerciseInstances.userId, userId),
+            eq(exerciseInstances.gymId, salleDuJour.id),
+            isNull(exerciseInstances.archiveLe),
+          ),
+        )
+      : 0;
+
+    const seancesDeLaSemaine = await db.query.sessionLogs.findMany({
+      columns: { date: true },
+      where: and(
+        eq(sessionLogs.userId, userId),
+        isNull(sessionLogs.archiveLe),
+        gte(sessionLogs.date, weekStartStr),
+      ),
+    });
+
+    const etat = etatDuJour({
+      salle: salleDuJour ? { id: salleDuJour.id, nom: salleDuJour.nom } : null,
+      machinesDansLaSalle,
+      prochaineSeance: suite
+        ? { templateId: suite.template.id, lettre: suite.template.lettre, nom: suite.template.nom }
+        : null,
+      seanceFaiteAujourdhui: seancesDeLaSemaine.some((s) => s.date === todayStr),
+      enCalibration: blocActif?.typeCycle === "calibration",
+      seancesCetteSemaine: seancesDeLaSemaine.length,
+      frequenceMaxParSemaine: user?.frequenceMaxParSemaine ?? null,
+    });
+
     return NextResponse.json({
+      etat,
       user: {
         nom: user?.nom ?? "Sacha",
         poidsActuel: lastWeight?.poids ?? null,
