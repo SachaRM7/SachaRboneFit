@@ -13,6 +13,7 @@ import {
 } from "@/lib/validators/onboarding";
 import { MUSCLES } from "@/lib/referentiels/muscles";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
+import { chiffresSeulement, nombre, fourchetteCoherente } from "@/lib/saisie";
 
 /**
  * Onboarding.
@@ -55,14 +56,20 @@ export default function PageBienvenue() {
   const [objectifType, setObjectifType] = useState<string>("prise_de_muscle");
   const [musclesPrioritaires, setMusclesPrioritaires] = useState<string[]>([]);
   const [niveauExperience, setNiveauExperience] = useState<string>("intermediaire");
-  const [anneesDePratique, setAnneesDePratique] = useState(2);
-  const [moisDInterruption, setMoisDInterruption] = useState(0);
+  // Les champs numériques gardent la saisie BRUTE.
+  //
+  // Stocker un nombre rendait le zéro ineffaçable : vider le champ donnait
+  // `Number("") || 0`, donc 0, que React réaffichait aussitôt — et taper 4
+  // par-dessus produisait « 04 ». Le texte est ce que l'utilisateur tape ; la
+  // conversion attend l'envoi.
+  const [anneesDePratique, setAnneesDePratique] = useState("2");
+  const [moisDInterruption, setMoisDInterruption] = useState("0");
   const [listeContraintes, setListeContraintes] = useState<Contrainte[]>([]);
   const [frequenceCible, setFrequenceCible] = useState(3);
   const [frequenceMin, setFrequenceMin] = useState(2);
   const [frequenceMax, setFrequenceMax] = useState(4);
-  const [dureeCible, setDureeCible] = useState(60);
-  const [dureeMax, setDureeMax] = useState(75);
+  const [dureeCible, setDureeCible] = useState("60");
+  const [dureeMax, setDureeMax] = useState("75");
   const [preferenceMateriel, setPreferenceMateriel] = useState<string>("melange");
   const [exercicesRefuses, setExercicesRefuses] = useState<string>("");
   const [salleId, setSalleId] = useState<string>("");
@@ -108,13 +115,17 @@ export default function PageBienvenue() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           objectifType, musclesPrioritaires,
-          niveauExperience, anneesDePratique, moisDInterruption,
+          niveauExperience,
+          anneesDePratique: nombre(anneesDePratique, 0),
+          moisDInterruption: nombre(moisDInterruption, 0),
           contraintes: listeContraintes,
           frequenceCibleParSemaine: frequenceCible,
           frequenceMinParSemaine: frequenceMin,
           frequenceMaxParSemaine: frequenceMax,
-          dureeSeanceCibleMinutes: dureeCible,
-          dureeSeanceMaxMinutes: dureeMax,
+          // Un champ laissé vide retombe sur une valeur par défaut plausible
+          // au lieu de partir à zéro et de se faire refuser par le serveur.
+          dureeSeanceCibleMinutes: nombre(dureeCible, 60),
+          dureeSeanceMaxMinutes: nombre(dureeMax, 75),
           preferenceMateriel,
           exercicesRefuses: exercicesRefuses
             .split(",").map((x) => x.trim()).filter(Boolean).slice(0, 20),
@@ -133,15 +144,33 @@ export default function PageBienvenue() {
   };
 
   const peutAvancer = (): boolean => {
-    if (etape === 5) return salles.length > 0 ? Boolean(salleId) : nouvelleSalleNom.trim().length >= 2;
+    // Le test portait sur l'EXISTENCE de salles, pas sur le choix fait : dès
+    // qu'une salle existait, saisir un nouveau nom ne débloquait jamais rien,
+    // et le bouton « Une autre salle » ne menait nulle part.
+    if (etape === 4) {
+      // Le serveur refuse déjà une fourchette désordonnée ; le dire ici évite
+      // d'aller jusqu'à la dernière étape pour se voir opposer une erreur.
+      return (
+        fourchetteCoherente(frequenceMin, frequenceCible, frequenceMax) &&
+        nombre(dureeCible, 60) <= nombre(dureeMax, 75)
+      );
+    }
+    if (etape === 5) return salleId ? true : nouvelleSalleNom.trim().length >= 2;
     return true;
   };
 
-  const reprise = moisDInterruption >= MOIS_AVANT_REPRISE;
+  const reprise = nombre(moisDInterruption, 0) >= MOIS_AVANT_REPRISE;
 
   return (
     <div className="min-h-dvh bg-papier text-encre flex flex-col">
-      <header className="px-4 pt-6 pb-3 flex items-center gap-2">
+      {/* `pt-6` suffisait tant qu'une barre de progression poussait le titre.
+          À la première étape elle est absente, et le titre passait sous
+          l'heure et la batterie. La zone sûre de l'appareil s'ajoute donc au
+          padding plutôt que de compter dessus. */}
+      <header
+        className="sticky top-0 z-10 bg-papier px-4 pb-3 flex items-center gap-2"
+        style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 1.5rem)" }}
+      >
         {etape > 0 && (
           <button
             type="button"
@@ -232,8 +261,8 @@ export default function PageBienvenue() {
 
             <div className="space-y-2">
               <Label className="text-encre-2 text-xs">Années de pratique, au total</Label>
-              <Input type="number" inputMode="numeric" min={0} max={60} value={anneesDePratique}
-                onChange={(e) => setAnneesDePratique(Number(e.target.value) || 0)}
+              <Input type="text" inputMode="numeric" value={anneesDePratique}
+                onChange={(e) => setAnneesDePratique(chiffresSeulement(e.target.value))}
                 className="bg-carte border-filet text-encre chiffres" />
             </div>
 
@@ -241,8 +270,8 @@ export default function PageBienvenue() {
               <Label className="text-encre-2 text-xs">
                 Mois depuis ta dernière période régulière
               </Label>
-              <Input type="number" inputMode="numeric" min={0} max={600} value={moisDInterruption}
-                onChange={(e) => setMoisDInterruption(Number(e.target.value) || 0)}
+              <Input type="text" inputMode="numeric" value={moisDInterruption}
+                onChange={(e) => setMoisDInterruption(chiffresSeulement(e.target.value))}
                 className="bg-carte border-filet text-encre chiffres" />
               <p className="text-encre-3 text-xs">0 si tu t&apos;entraînes actuellement.</p>
               {reprise && (
@@ -328,20 +357,32 @@ export default function PageBienvenue() {
                 </div>
               </div>
             ))}
+            {!fourchetteCoherente(frequenceMin, frequenceCible, frequenceMax) && (
+              <p className="text-perte text-sm">
+                Le minimum doit rester sous l&apos;objectif, et l&apos;objectif sous le maximum.
+              </p>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-encre-2 text-xs">Durée idéale</Label>
-                <Input type="number" inputMode="numeric" value={dureeCible}
-                  onChange={(e) => setDureeCible(Number(e.target.value) || 0)}
+                <Input type="text" inputMode="numeric" value={dureeCible}
+                  onChange={(e) => setDureeCible(chiffresSeulement(e.target.value))}
                   className="bg-carte border-filet text-encre chiffres mt-2" />
               </div>
               <div>
                 <Label className="text-encre-2 text-xs">Maximum</Label>
-                <Input type="number" inputMode="numeric" value={dureeMax}
-                  onChange={(e) => setDureeMax(Number(e.target.value) || 0)}
+                <Input type="text" inputMode="numeric" value={dureeMax}
+                  onChange={(e) => setDureeMax(chiffresSeulement(e.target.value))}
                   className="bg-carte border-filet text-encre chiffres mt-2" />
               </div>
             </div>
+
+            {nombre(dureeCible, 60) > nombre(dureeMax, 75) && (
+              <p className="text-perte text-sm">
+                La durée idéale ne peut pas dépasser le maximum.
+              </p>
+            )}
           </section>
         )}
 

@@ -1,3 +1,5 @@
+import { LIBELLES as LIBELLES_MUSCLES } from "./muscles";
+
 /**
  * Libellés lisibles des valeurs du modèle.
  *
@@ -38,27 +40,17 @@ const EQUIPEMENTS: Record<string, string> = {
   kettlebell: "Kettlebell",
 };
 
-const MUSCLES: Record<string, string> = {
-  pectoraux: "Pectoraux",
-  dorsaux: "Dorsaux",
-  trapezes: "Trapèzes",
-  epaules: "Épaules",
-  epaule_ant: "Épaule antérieure",
-  epaule_lat: "Épaule latérale",
-  epaule_post: "Épaule postérieure",
-  biceps: "Biceps",
-  triceps: "Triceps",
-  avant_bras: "Avant-bras",
-  quadriceps: "Quadriceps",
-  ischios: "Ischio-jambiers",
-  fessiers: "Fessiers",
-  mollets: "Mollets",
-  lombaires: "Lombaires",
-  abdominaux: "Abdominaux",
-  obliques: "Obliques",
-  adducteurs: "Adducteurs",
-  abducteurs: "Abducteurs",
-};
+/**
+ * Les muscles ont leur propre référentiel : cette table en tenait une copie,
+ * dont il manquait `haut_dos`, `deltoide_posterieur` et `core` — ces trois-là
+ * s'affichaient donc en clé brute dans l'application. Elle contenait à
+ * l'inverse des entrées (`abdominaux`, `obliques`, `abducteurs`, `trapezes`)
+ * qui n'existent pas dans le modèle.
+ *
+ * Une seule source, donc, et pas de copie à maintenir.
+ */
+const MUSCLES: Record<string, string> = LIBELLES_MUSCLES;
+
 
 function traduire(table: Record<string, string>, valeur: string | null | undefined): string {
   if (!valeur) return "—";
