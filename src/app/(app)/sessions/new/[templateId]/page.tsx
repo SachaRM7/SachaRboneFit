@@ -29,6 +29,8 @@ function normaliserRole(role: string | null | undefined): ExerciceRestant["categ
 
 interface SeanceChargee {
   nom: string;
+  /** Phase du cycle : la calibration ne demande pas la même chose en séance. */
+  phaseCycle?: string | null;
   feuBiologiqueJour?: string | null;
   volumeAjustePct?: number | null;
   volumeAjusteRaison?: string | null;
@@ -86,6 +88,7 @@ function ContenuSeanceLive() {
                   feuBiologiqueJour: plan.seance.feuBiologiqueJour,
                   volumeAjustePct: plan.seance.volumeAjustePct,
                   volumeAjusteRaison: plan.seance.volumeAjusteRaison,
+                  phaseCycle: plan.phaseCycle ?? null,
                   exercices: plan.items,
                 }
               : null,
@@ -263,6 +266,7 @@ function ContenuSeanceLive() {
               key={exercice.id}
               exercice={exercice}
               rpeReduction={reductionsRPE[exercice.id] ?? 0}
+              modeReserve={seance.phaseCycle === "calibration"}
               onSerieValidee={lancerRepos}
             />
           ))

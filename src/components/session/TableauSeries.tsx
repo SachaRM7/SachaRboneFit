@@ -4,12 +4,19 @@ import { useSessionStore } from "@/stores/sessionStore";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { Check, Plus } from "lucide-react";
 import type { ExercicePrescrit } from "./types";
+import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
 
 interface Props {
   exercice: ExercicePrescrit;
   rpeReduction: number;
   /** Déclenché à chaque série validée, pour lancer le repos. */
   onSerieValidee: (reposSecondes: number | null) => void;
+  /**
+   * En calibration, on demande la réserve de répétitions plutôt qu'un RPE.
+   * « Combien aurais-tu pu en faire de plus ? » se répond sans avoir appris
+   * d'échelle — et c'est cette réponse qui fixera les charges.
+   */
+  modeReserve?: boolean;
 }
 
 type Brouillon = { charge: string; reps: string; rpe: string };
@@ -27,7 +34,7 @@ type Brouillon = { charge: string; reps: string; rpe: string };
  * La colonne « Dernière » met l'historique en face de la décision, au lieu de
  * le reléguer dans un encadré séparé au-dessus.
  */
-export function TableauSeries({ exercice, rpeReduction, onSerieValidee }: Props) {
+export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeReserve = false }: Props) {
   const { upsertSet, removeSet, active } = useSessionStore();
 
   const seriesSaisies = useMemo(
@@ -133,6 +140,13 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee }: Props)
         </span>
       </header>
 
+      {modeReserve && (
+        <p className="px-3.5 py-2 text-xs text-encre-2 border-b border-filet-doux">
+          Après chaque série : combien de répétitions aurais-tu encore pu faire ?
+          C&apos;est cette réponse qui fixera tes charges.
+        </p>
+      )}
+
       {(exercice.raisonSubstitution || exercice.messageProgression) && (
         <p className="px-3.5 py-2 text-xs border-b border-filet-doux">
           {exercice.raisonSubstitution && (
@@ -152,7 +166,9 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee }: Props)
               <th scope="col" className="pb-1.5 text-left font-medium">Dernière</th>
               <th scope="col" className="w-[4.5rem] pb-1.5 font-medium">kg</th>
               <th scope="col" className="w-[3.5rem] pb-1.5 font-medium">Reps</th>
-              <th scope="col" className="w-[3.5rem] pb-1.5 font-medium">RPE</th>
+              <th scope="col" className={`pb-1.5 font-medium ${modeReserve ? "w-[7.5rem]" : "w-[3.5rem]"}`}>
+                {modeReserve ? "Encore ?" : "RPE"}
+              </th>
               <th scope="col" className="w-10 pb-1.5">
                 <span className="sr-only">Valider</span>
               </th>
@@ -187,12 +203,29 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee }: Props)
                     />
                   </td>
                   <td className="py-1.5 px-1">
-                    <input
-                      type="text" inputMode="decimal" value={v.rpe}
-                      onChange={(e) => ecrire(numero, "rpe", e.target.value)}
-                      aria-label={`Effort perçu série ${numero}`}
-                      className={champ}
-                    />
+                    {modeReserve ? (
+                      <select
+                        value={String(rpeVersReserve(Number.parseFloat(v.rpe.replace(",", "."))) ?? 2)}
+                        onChange={(e) =>
+                          ecrire(numero, "rpe", String(reserveVersRpe(Number(e.target.value))))
+                        }
+                        aria-label={`Répétitions encore possibles, série ${numero}`}
+                        className={champ}
+                      >
+                        {CHOIX_RESERVE.map((r) => (
+                          <option key={r} value={r}>
+                            {r === 5 ? "5+" : r}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text" inputMode="decimal" value={v.rpe}
+                        onChange={(e) => ecrire(numero, "rpe", e.target.value)}
+                        aria-label={`Effort perçu série ${numero}`}
+                        className={champ}
+                      />
+                    )}
                   </td>
                   <td className="py-1.5 pl-1">
                     <button

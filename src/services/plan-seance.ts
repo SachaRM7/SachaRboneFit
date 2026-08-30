@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import {
   contraintes, dailyStates, exerciseInTemplate, exerciseInstances, exercises,
-  seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
+  programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
 import { and, asc, desc, eq, isNull, or, gte } from "drizzle-orm";
 import { computeFeuJour } from "@/lib/engine/feu-biologique";
@@ -383,5 +383,15 @@ export async function lirePlan(userId: string, sessionLogId: string) {
     }),
   );
 
-  return { seance, items };
+  // La phase du cycle change ce qu'on demande à l'utilisateur pendant la
+  // séance : en calibration, une réserve de répétitions plutôt qu'un RPE.
+  const bloc = seance.seanceTemplateId
+    ? await db.query.seanceTemplates
+        .findFirst({ where: eq(seanceTemplates.id, seance.seanceTemplateId) })
+        .then((t) =>
+          t ? db.query.programmeBlocs.findFirst({ where: eq(programmeBlocs.id, t.blocId) }) : null,
+        )
+    : null;
+
+  return { seance, items, phaseCycle: bloc?.typeCycle ?? null };
 }
