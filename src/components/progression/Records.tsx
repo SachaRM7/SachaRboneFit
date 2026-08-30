@@ -12,6 +12,7 @@ interface Record {
   estimation1RM: number;
   date: string;
   recent: boolean;
+  nature: "baseline" | "record";
   slug?: string | null;
 }
 
@@ -67,11 +68,25 @@ export function Records() {
               <p className="text-encre-3 text-xs mt-0.5">
                 {r.machineNom} · {new Date(`${r.date}T12:00:00`).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
               </p>
-              {r.recent && (
-                <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wide bg-gain-fond text-gain px-1.5 py-0.5 rounded">
-                  Dernière séance
-                </span>
-              )}
+              <span className="flex flex-wrap gap-1 mt-1">
+                {/* Une première mesure n'est pas un exploit : elle est le point
+                    depuis lequel on mesurera. Le dire évite de féliciter
+                    quelqu'un d'être monté sur la machine. */}
+                {r.nature === "baseline" ? (
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-wide bg-papier-2 text-encre-2 px-1.5 py-0.5 rounded">
+                    Référence
+                  </span>
+                ) : (
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-wide bg-gain-fond text-gain px-1.5 py-0.5 rounded">
+                    Record
+                  </span>
+                )}
+                {r.recent && (
+                  <span className="inline-block text-[10px] font-bold uppercase tracking-wide bg-papier-2 text-encre-2 px-1.5 py-0.5 rounded">
+                    Dernière séance
+                  </span>
+                )}
+              </span>
             </div>
             <div className="text-right shrink-0">
               <p className="chiffres text-base font-semibold text-encre">{r.estimation1RM} kg</p>

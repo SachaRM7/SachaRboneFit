@@ -1,70 +1,84 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
-import { eq, desc, gte } from "drizzle-orm";
+import { sessionLogs, setLogs } from "@/db/schema";
+import { and, asc, eq, gte, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
+/**
+ * Charges séance après séance, pour un exercice.
+ *
+ * La version précédente chargeait TOUTES les séries de l'instance — sans
+ * condition d'utilisateur en SQL — puis interrogeait la base une fois par
+ * série pour retrouver sa séance et vérifier le propriétaire en mémoire. Le
+ * filtrage était correct au final, mais il lisait les lignes d'autrui pour
+ * les écarter ensuite, et coûtait une requête par série. La jointure fait les
+ * deux d'un coup, et exclut au passage les séances archivées.
+ */
 export async function GET(request: Request) {
   const userId = await getAuthenticatedUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = new URL(request.url);
-  const instanceId = searchParams.get("instanceId");
-  const months = parseInt(searchParams.get("months") || "3", 10);
+  const parametres = new URL(request.url).searchParams;
+  const instanceId = parametres.get("instanceId");
+  if (!instanceId) return NextResponse.json({ error: "instanceId required" }, { status: 400 });
 
-  if (!instanceId) {
-    return NextResponse.json({ error: "instanceId required" }, { status: 400 });
-  }
+  const mois = Math.min(24, Math.max(1, Number(parametres.get("months") ?? 3)));
+  const debut = new Date();
+  debut.setMonth(debut.getMonth() - mois);
+  const depuis = debut.toISOString().slice(0, 10);
 
-  const cutoffDate = new Date();
-  cutoffDate.setMonth(cutoffDate.getMonth() - months);
-  const cutoffStr = cutoffDate.toISOString().slice(0, 10);
-
-  // Get all sessions for this instance within the time period
-  const sets = await db
-    .select()
+  const lignes = await db
+    .select({
+      sessionLogId: setLogs.sessionLogId,
+      date: sessionLogs.date,
+      charge: setLogs.charge,
+      reps: setLogs.repsEffectuees,
+    })
     .from(setLogs)
-    .where(eq(setLogs.exerciseInstanceId, instanceId));
+    .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+    .where(
+      and(
+        eq(setLogs.exerciseInstanceId, instanceId),
+        eq(sessionLogs.userId, userId),
+        isNull(sessionLogs.archiveLe),
+        gte(sessionLogs.date, depuis),
+      ),
+    )
+    .orderBy(asc(sessionLogs.date));
 
-  // Group by session and compute best 1RM per session
-  const sessionMap = new Map<string, { date: string; best1RM: number; totalVolume: number; bestSet: { charge: number; reps: number } }>();
+  const parSeance = new Map<
+    string,
+    { date: string; best1RM: number; totalVolume: number; bestSet: { charge: number; reps: number } }
+  >();
 
-  for (const set of sets) {
-    const session = await db.query.sessionLogs.findFirst({
-      where: eq(sessionLogs.id, set.sessionLogId),
-    });
-
-    if (!session || session.date < cutoffStr) continue;
-    if (session.userId !== userId) continue;
-
-    const estimated1RM = set.charge * (1 + set.repsEffectuees / 30);
-    const volume = set.charge * set.repsEffectuees;
-
-    const existing = sessionMap.get(session.id);
-    if (!existing) {
-      sessionMap.set(session.id, {
-        date: session.date,
-        best1RM: estimated1RM,
+  for (const l of lignes) {
+    const estimation = l.charge * (1 + l.reps / 30);
+    const volume = l.charge * l.reps;
+    const actuel = parSeance.get(l.sessionLogId);
+    if (!actuel) {
+      parSeance.set(l.sessionLogId, {
+        date: l.date,
+        best1RM: estimation,
         totalVolume: volume,
-        bestSet: { charge: set.charge, reps: set.repsEffectuees },
+        bestSet: { charge: l.charge, reps: l.reps },
       });
-    } else {
-      if (estimated1RM > existing.best1RM) {
-        existing.best1RM = estimated1RM;
-        existing.bestSet = { charge: set.charge, reps: set.repsEffectuees };
-      }
-      existing.totalVolume += volume;
+      continue;
     }
+    if (estimation > actuel.best1RM) {
+      actuel.best1RM = estimation;
+      actuel.bestSet = { charge: l.charge, reps: l.reps };
+    }
+    actuel.totalVolume += volume;
   }
 
-  const result = Array.from(sessionMap.values())
+  const resultat = [...parSeance.values()]
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map(r => ({
+    .map((r) => ({
       date: r.date,
       best1RM: Math.round(r.best1RM),
       totalVolume: Math.round(r.totalVolume),
       bestSet: r.bestSet,
     }));
 
-  return NextResponse.json(result);
+  return NextResponse.json(resultat);
 }

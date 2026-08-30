@@ -1,72 +1,69 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
-import { eq, desc, gte, and } from "drizzle-orm";
+import { and, asc, eq, gte, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { lundiDe } from "@/lib/semaines";
 
+/**
+ * Volume par pilier et par semaine.
+ *
+ * Trois défauts corrigés ici :
+ *
+ * — la clé de semaine valait `Math.ceil((jourDuMois + mois × 30) / 7)`. Ce
+ *   numéro n'existe pas : il collait des semaines distinctes sous la même
+ *   étiquette et les triait dans le désordre. C'est le lundi de la semaine,
+ *   maintenant, qui sert de clé — comparable et triable tel quel.
+ * — la route interrogeait la base une fois par séance, puis deux fois par
+ *   série. Une jointure suffit.
+ * — les séances archivées étaient comptées, alors que l'archivage existe
+ *   précisément pour les retirer des calculs.
+ */
 export async function GET(request: Request) {
   const userId = await getAuthenticatedUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { searchParams } = new URL(request.url);
-  const months = parseInt(searchParams.get("months") || "3", 10);
+  const mois = Math.min(24, Math.max(1, Number(new URL(request.url).searchParams.get("months") ?? 3)));
+  const debut = new Date();
+  debut.setMonth(debut.getMonth() - mois);
+  const depuis = debut.toISOString().slice(0, 10);
 
-  const cutoffDate = new Date();
-  cutoffDate.setMonth(cutoffDate.getMonth() - months);
-  const cutoffStr = cutoffDate.toISOString().slice(0, 10);
+  const lignes = await db
+    .select({
+      date: sessionLogs.date,
+      charge: setLogs.charge,
+      reps: setLogs.repsEffectuees,
+      pilier: exercises.pilier,
+    })
+    .from(setLogs)
+    .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+    .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
+    .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+    .where(
+      and(
+        eq(sessionLogs.userId, userId),
+        isNull(sessionLogs.archiveLe),
+        gte(sessionLogs.date, depuis),
+      ),
+    )
+    .orderBy(asc(sessionLogs.date));
 
-  // Get all sessions in period
-  const sessions = await db.query.sessionLogs.findMany({
-    where: (sl, { eq, and, gte }) =>
-      and(eq(sl.userId, userId), gte(sl.date, cutoffStr)),
-    orderBy: [desc(sessionLogs.date)],
-  });
+  const parSemaine = new Map<string, Record<string, number>>();
 
-  // Aggregate by week
-  const weekMap = new Map<string, Record<string, number>>();
-
-  for (const session of sessions) {
-    const sets = await db.query.setLogs.findMany({
-      where: eq(setLogs.sessionLogId, session.id),
-    });
-
-    // Get week identifier (YYYY-Www)
-    const sessionDate = new Date(session.date);
-    const year = sessionDate.getFullYear();
-    const weekStart = new Date(sessionDate);
-    weekStart.setDate(weekStart.getDate() - sessionDate.getDay() + 1); // Monday
-    const weekKey = `${year}-W${String(Math.ceil((weekStart.getDate() + weekStart.getMonth() * 30) / 7)).padStart(2, "0")}`;
-
-    if (!weekMap.has(weekKey)) {
-      weekMap.set(weekKey, {});
-    }
-    const weekData = weekMap.get(weekKey)!;
-
-    for (const set of sets) {
-      const instance = await db.query.exerciseInstances.findFirst({
-        where: eq(exerciseInstances.id, set.exerciseInstanceId),
-      });
-      if (!instance) continue;
-
-      const exercise = await db.query.exercises.findFirst({
-        where: eq(exercises.id, instance.exerciseId),
-      });
-      if (!exercise) continue;
-
-      const volume = set.charge * set.repsEffectuees;
-      const pilier = exercise.pilier?.toLowerCase() || "core";
-      weekData[pilier] = (weekData[pilier] || 0) + volume;
-    }
+  for (const l of lignes) {
+    const semaine = lundiDe(l.date);
+    const volumes = parSemaine.get(semaine) ?? {};
+    const pilier = l.pilier?.toLowerCase() || "core";
+    volumes[pilier] = (volumes[pilier] ?? 0) + l.charge * l.reps;
+    parSemaine.set(semaine, volumes);
   }
 
-  const result = Array.from(weekMap.entries())
+  const resultat = [...parSemaine.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([week, volumes]) => ({
       week,
-      ...Object.fromEntries(
-        Object.entries(volumes).map(([k, v]) => [k, Math.round(v)])
-      ),
+      ...Object.fromEntries(Object.entries(volumes).map(([k, v]) => [k, Math.round(v)])),
     }));
 
-  return NextResponse.json(result);
+  return NextResponse.json(resultat);
 }

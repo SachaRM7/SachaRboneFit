@@ -7,6 +7,8 @@ import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
 import { empecheParLesCirconstances, semainesEmpechees } from "@/lib/engine/tracabilite";
+import { recordsDeLExercice, type NatureMesure } from "@/lib/engine/records";
+import { SEUILS } from "@/lib/engine/bilan-progression";
 import { memoireEmpechements } from "./memoire";
 
 /**
@@ -330,11 +332,20 @@ export interface RecordPersonnel {
   reps: number;
   estimation1RM: number;
   date: string;
-  /** Vrai si le record a été établi lors de la dernière séance. */
+  /** Vrai si la performance a été établie lors de la dernière séance. */
   recent: boolean;
+  /**
+   * `baseline` tant que rien n'a encore été dépassé sur cet exercice.
+   *
+   * Cette fonction prenait le maximum de l'historique et l'appelait « record ».
+   * Sur un exercice fait une seule fois, elle décernait donc un record pour le
+   * simple fait d'être monté sur la machine. Le moteur `records` tranche la
+   * question depuis longtemps, avec ses tests ; il n'était appelé nulle part.
+   */
+  nature: NatureMesure;
 }
 
-/** Meilleur 1RM estimé par machine, avec la série qui l'a produit. */
+/** Meilleure performance par machine, en distinguant référence et record. */
 export async function recordsPersonnels(userId: string, limite = 20): Promise<RecordPersonnel[]> {
   const lignes = await db
     .select({
@@ -343,6 +354,7 @@ export async function recordsPersonnels(userId: string, limite = 20): Promise<Re
       machineNom: exerciseInstances.machineNom,
       charge: setLogs.charge,
       reps: setLogs.repsEffectuees,
+      rpe: setLogs.rpeEffectif,
       date: sessionLogs.date,
     })
     .from(setLogs)
@@ -353,26 +365,52 @@ export async function recordsPersonnels(userId: string, limite = 20): Promise<Re
 
   const derniereDate = lignes.reduce((max, l) => (l.date > max ? l.date : max), "");
 
-  const meilleurs = new Map<string, RecordPersonnel>();
+  const parInstance = new Map<string, typeof lignes>();
   for (const l of lignes) {
-    const rm = estimation1RM(l.charge, l.reps);
-    const actuel = meilleurs.get(l.exerciseInstanceId);
-    if (!actuel || rm > actuel.estimation1RM) {
-      meilleurs.set(l.exerciseInstanceId, {
-        exerciseInstanceId: l.exerciseInstanceId,
-        exerciseName: l.exerciseName,
-        machineNom: l.machineNom,
-        charge: l.charge,
-        reps: l.reps,
-        estimation1RM: Math.round(rm),
-        date: l.date,
-        recent: l.date === derniereDate,
-      });
-    }
+    parInstance.set(l.exerciseInstanceId, [...(parInstance.get(l.exerciseInstanceId) ?? []), l]);
   }
 
-  return [...meilleurs.values()]
-    .sort((a, b) => b.estimation1RM - a.estimation1RM)
+  const resultat: RecordPersonnel[] = [];
+
+  for (const [instanceId, series] of parInstance) {
+    const records = recordsDeLExercice(
+      series.map((s) => ({
+        date: s.date,
+        charge: s.charge,
+        reps: s.reps,
+        // RPE 8 signifie deux répétitions en réserve.
+        rir: s.rpe == null ? null : Math.max(0, Math.round(10 - s.rpe)),
+      })),
+    );
+    const meilleur = records.meilleur1RM;
+    if (!meilleur) continue;
+
+    // La nature se lit sur la plage effectivement atteinte par cette série :
+    // c'est là qu'on sait si quelque chose a été dépassé ou seulement mesuré.
+    const plage = records.parPlage
+      .filter((p) => p.plage <= meilleur.reps)
+      .sort((a, b) => b.plage - a.plage)[0];
+
+    resultat.push({
+      exerciseInstanceId: instanceId,
+      exerciseName: series[0]!.exerciseName,
+      machineNom: series[0]!.machineNom,
+      charge: meilleur.charge,
+      reps: meilleur.reps,
+      estimation1RM: Math.round(meilleur.valeur),
+      date: meilleur.date,
+      recent: meilleur.date === derniereDate,
+      nature: plage?.nature ?? "baseline",
+    });
+  }
+
+  return resultat
+    // Les records d'abord : ce qui a été dépassé prime sur ce qui a été mesuré.
+    .sort((a, b) =>
+      a.nature === b.nature
+        ? b.estimation1RM - a.estimation1RM
+        : a.nature === "record" ? -1 : 1,
+    )
     .slice(0, limite);
 }
 
@@ -391,7 +429,9 @@ export interface VolumeMuscle {
  * réel : un développé couché ne travaille pas que les pectoraux.
  *
  * Un muscle secondaire compte pour moitié — convention simple et assumée, pas une
- * mesure physiologique.
+ * mesure physiologique. Elle est déclarée une seule fois, dans les seuils du
+ * bilan : deux moitiés qui divergent donneraient deux volumes différents pour
+ * le même entraînement selon l'écran consulté.
  */
 export async function volumeParMuscle(userId: string, depuisISO: string): Promise<VolumeMuscle[]> {
   const lignes = await db
@@ -419,7 +459,9 @@ export async function volumeParMuscle(userId: string, depuisISO: string): Promis
   for (const l of lignes) {
     const tonnage = l.charge * l.reps;
     for (const m of l.musclesPrincipaux ?? []) ajouter(m, tonnage, 1);
-    for (const m of l.musclesSecondaires ?? []) ajouter(m, tonnage / 2, 0.5);
+    for (const m of l.musclesSecondaires ?? []) {
+      ajouter(m, tonnage * SEUILS.poidsMuscleSecondaire, SEUILS.poidsMuscleSecondaire);
+    }
   }
 
   return [...cumul.values()]

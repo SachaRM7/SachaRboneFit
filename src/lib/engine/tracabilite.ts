@@ -12,6 +12,8 @@
  * empêche de mal interpréter ce qui est écrit.
  */
 
+import { semainesDistinctes } from "@/lib/semaines";
+
 export type TypeAdaptation =
   | "changement_lieu"
   | "materiel_absent"
@@ -105,17 +107,12 @@ export function joursEmpeches(
   return empeches;
 }
 
-/** Nombre de semaines distinctes pendant lesquelles l'exercice a été empêché. */
+/**
+ * Nombre de semaines distinctes pendant lesquelles l'exercice a été empêché.
+ *
+ * Deux empêchements la même semaine ne comptent qu'une fois : sinon une séance
+ * ratée deux fois vaudrait deux semaines d'indisponibilité.
+ */
 export function semainesEmpechees(dates: string[]): number {
-  const semaines = new Set(
-    dates.map((d) => {
-      const j = new Date(`${d}T00:00:00Z`);
-      // Lundi de la semaine ISO : deux empêchements la même semaine ne comptent
-      // qu'une fois, sinon une séance ratée deux fois vaudrait deux semaines.
-      const decalage = (j.getUTCDay() + 6) % 7;
-      j.setUTCDate(j.getUTCDate() - decalage);
-      return j.toISOString().slice(0, 10);
-    }),
-  );
-  return semaines.size;
+  return semainesDistinctes(dates);
 }
