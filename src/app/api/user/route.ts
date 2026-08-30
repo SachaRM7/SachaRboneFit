@@ -6,6 +6,7 @@ import { z } from "zod";
 import { MUSCLES } from "@/lib/referentiels/muscles";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { OBJECTIFS } from "@/lib/validators/onboarding";
+import { MATERIEL_PORTABLE } from "@/lib/referentiels/capacites";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -76,6 +77,7 @@ const profilSchema = z.object({
   dateCible: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   frequenceCibleParSemaine: z.number().int().min(1).max(14).nullable().optional(),
   dureeSeanceCibleMinutes: z.number().int().min(15).max(240).nullable().optional(),
+  materielPersonnelHabituel: z.array(z.enum(MATERIEL_PORTABLE)).max(MATERIEL_PORTABLE.length).nullable().optional(),
 });
 
 /**

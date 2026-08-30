@@ -76,6 +76,7 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
     categorieRole: e.categorieRole,
     musclesPrincipaux: e.musclesPrincipaux ?? [],
     equipement: e.equipement,
+    slug: e.slug,
   }));
   const equipementsDuLieu = salle.equipementsDisponibles ?? [];
   const realisables = exercicesRealisables({

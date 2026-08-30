@@ -41,6 +41,11 @@ export const users = pgTable("users", {
 
   /** 'machines' | 'poids_libres' | 'melange' | 'aucune'. */
   preferenceMateriel: text("preference_materiel"),
+  /**
+   * Materiel personnel qu'on emporte d'ordinaire. Propose coche au demarrage :
+   * quelqu'un qui a toujours ses elastiques ne doit pas le redire chaque fois.
+   */
+  materielPersonnelHabituel: jsonb("materiel_personnel_habituel").$type<string[]>(),
   exercicesRefuses: jsonb("exercices_refuses").$type<string[]>(),
   exercicesApprecies: jsonb("exercices_apprecies").$type<string[]>(),
 
@@ -223,6 +228,12 @@ export const dailyStates = pgTable("daily_states", {
   shiftType: text("shift_type"),
   energieDepart: integer("energie_depart"),
   courbatures: jsonb("courbatures").$type<{muscle: string; intensite: number}[]>(),
+  /**
+   * Materiel personnel emporte ce jour-la. Il s'ajoute a celui du lieu sans
+   * jamais le modifier : personne ne doit declarer que la salle possede ses
+   * propres elastiques.
+   */
+  materielApporte: jsonb("materiel_apporte").$type<string[]>(),
   dernierRepasHeure: text("dernier_repas_heure"),
   horaireSeancePrevu: text("horaire_seance_prevu"),
   createdAt: timestamp("created_at").defaultNow(),

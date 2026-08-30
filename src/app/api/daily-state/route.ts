@@ -58,6 +58,7 @@ export async function POST(request: Request) {
           shiftType: data.shiftType,
           energieDepart: data.energieDepart,
           courbatures: data.courbatures,
+        materielApporte: data.materielApporte ?? null,
           dernierRepasHeure: data.dernierRepasHeure ?? null,
           horaireSeancePrevu: data.horaireSeancePrevu ?? null,
           updatedAt: new Date(),
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
         shiftType: data.shiftType,
         energieDepart: data.energieDepart,
         courbatures: data.courbatures,
+        materielApporte: data.materielApporte ?? null,
         dernierRepasHeure: data.dernierRepasHeure ?? null,
         horaireSeancePrevu: data.horaireSeancePrevu ?? null,
       }).returning();

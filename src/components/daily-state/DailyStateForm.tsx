@@ -12,6 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { MATERIEL_PORTABLE, LIBELLES_PORTABLE } from "@/lib/referentiels/capacites";
 
 interface DailyStateFormProps {
   initialDate: string;
@@ -31,6 +32,19 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
   const [shiftType, setShiftType] = useState<"jour" | "nuit" | "aucun">("aucun");
   const [dernierRepas, setDernierRepas] = useState<string | null>(null);
   const [horairePrevu, setHorairePrevu] = useState<string | null>(null);
+
+  // Matériel emporté aujourd'hui. Pré-coché sur les habitudes : quelqu'un qui a
+  // toujours ses élastiques dans son sac ne doit pas le redire chaque fois.
+  const [materielApporte, setMaterielApporte] = useState<string[]>([]);
+  useEffect(() => {
+    fetch("/api/user")
+      .then((r) => r.json())
+      .then((d) => {
+        const habituel = d?.user?.materielPersonnelHabituel;
+        if (Array.isArray(habituel) && habituel.length > 0) setMaterielApporte(habituel);
+      })
+      .catch(() => {});
+  }, []);
 
   // Le chargement des salles ignorait tout ce qui n'etait pas un tableau : une
   // API en erreur laissait la liste vide, sans le moindre message. L'ecran
@@ -71,6 +85,8 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
           setHorairePrevu(data.horaireSeancePrevu ?? null);
           if (data.courbatures) setCourbatures(data.courbatures);
           if (data.gymId) setDefaultGymId(data.gymId);
+          // Un état déjà saisi aujourd'hui l'emporte sur les habitudes.
+          if (Array.isArray(data.materielApporte)) setMaterielApporte(data.materielApporte);
         }
       });
   }, [initialDate]);
@@ -91,6 +107,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
         shiftType: shiftRecent ? shiftType : "aucun",
         energieDepart: energie,
         courbatures,
+        materielApporte,
         dernierRepasHeure: dernierRepas,
         horaireSeancePrevu: horairePrevu,
       };
@@ -107,6 +124,12 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       }
 
       const state = await res.json();
+      // Ce qu'on emporte change rarement : on le retient pour la fois suivante.
+      fetch("/api/user", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ materielPersonnelHabituel: materielApporte }),
+      }).catch(() => {});
       toast.success("État du jour enregistré");
       router.push(`/session/start?date=${initialDate}&dailyStateId=${state.id}&gymId=${defaultGymId}`);
     } catch (e) {
@@ -218,6 +241,35 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
         <div className="flex justify-between mt-1">
           <span className="text-encre-3 text-xs">1</span>
           <span className="text-encre-3 text-xs">10</span>
+        </div>
+      </div>
+
+      {/* Matériel personnel emporté : il s'ajoute à celui du lieu pour aujourd'hui. */}
+      <div>
+        <Label className="text-encre-2 text-xs mb-2 block">Matériel personnel aujourd&apos;hui</Label>
+        <div className="flex flex-wrap gap-2">
+          {MATERIEL_PORTABLE.map((m) => {
+            const actif = materielApporte.includes(m);
+            return (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={actif}
+                onClick={() =>
+                  setMaterielApporte((liste) =>
+                    liste.includes(m) ? liste.filter((x) => x !== m) : [...liste, m],
+                  )
+                }
+                className={`rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  actif
+                    ? "border-encre bg-encre text-papier"
+                    : "border-filet bg-carte text-encre-2 hover:text-encre"
+                }`}
+              >
+                {LIBELLES_PORTABLE[m]}
+              </button>
+            );
+          })}
         </div>
       </div>
 

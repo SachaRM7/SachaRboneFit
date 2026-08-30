@@ -7,13 +7,19 @@ import {
   type ExerciceDuCatalogue,
 } from "./disponibilite";
 
-const ex = (id: string, equipement: string | null, pilier = "P1_poussee"): ExerciceDuCatalogue => ({
+const ex = (
+  id: string,
+  equipement: string | null,
+  pilier = "P1_poussee",
+  slug: string | null = null,
+): ExerciceDuCatalogue => ({
   id,
   nom: `Exercice ${id}`,
   pilier,
   categorieRole: "pilier",
   musclesPrincipaux: ["pectoraux"],
   equipement,
+  slug,
 });
 
 const CATALOGUE = [
@@ -132,6 +138,68 @@ describe("exercicesRealisables", () => {
     });
     expect(r.find((x) => x.exerciceId === "developpe-barre")!.incrementsPossibles).toEqual([1.25, 2.5, 5]);
     expect(r.find((x) => x.exerciceId === "developpe-halteres")!.incrementsPossibles).toEqual([2]);
+  });
+});
+
+describe("appareils précis plutôt que « machine »", () => {
+  // Une seule case « machine » rendait faisables vingt-six exercices exigeant
+  // quinze appareils : avoir vu une presse proposait un leg curl absent.
+  const presse = ex("presse", "machine", "P3_squat", "leg-press");
+  const legCurl = ex("leg-curl", "machine", "jambes_iso", "leg-curl");
+
+  it("n'ouvre pas tout le parc machines d'un coup", () => {
+    const r = exercicesRealisables({
+      catalogue: [presse, legCurl],
+      equipementsDuLieu: ["leg_press"],
+      instances: [],
+    });
+    expect(r.map((x) => x.exerciceId)).toEqual(["presse"]);
+  });
+
+  it("ouvre chaque appareil déclaré, et seulement lui", () => {
+    const r = exercicesRealisables({
+      catalogue: [presse, legCurl],
+      equipementsDuLieu: ["leg_press", "leg_curl"],
+      instances: [],
+    });
+    expect(r.map((x) => x.exerciceId).sort()).toEqual(["leg-curl", "presse"]);
+  });
+
+  it("regroupe les variantes d'un même appareil", () => {
+    // Trois leg curls — allongé, assis, debout — ne sont qu'une machine.
+    const r = exercicesRealisables({
+      catalogue: [
+        ex("lc1", "machine", "jambes_iso", "leg-curl"),
+        ex("lc2", "machine", "jambes_iso", "lying-leg-curl"),
+        ex("lc3", "machine", "jambes_iso", "seated-leg-curl"),
+      ],
+      equipementsDuLieu: ["leg_curl"],
+      instances: [],
+    });
+    expect(r).toHaveLength(3);
+  });
+
+  it("laisse les familles non ambiguës telles quelles", () => {
+    // Une barre est une barre : la découper n'apprendrait rien.
+    const r = exercicesRealisables({
+      catalogue: [ex("squat-barre", "barre", "P3_squat", "back-squat")],
+      equipementsDuLieu: ["barre"],
+      instances: [],
+    });
+    expect(r).toHaveLength(1);
+  });
+
+  it("un appareil décrit reste prioritaire sur la déclaration", () => {
+    // On l'a saisi, donc on l'a vu : inutile d'exiger la case en plus.
+    const r = exercicesRealisables({
+      catalogue: [presse],
+      equipementsDuLieu: [],
+      instances: [
+        { id: "i-1", exerciseId: "presse", machineNom: "Presse", incrementsPossibles: [10] },
+      ],
+    });
+    expect(r).toHaveLength(1);
+    expect(r[0]!.origine).toBe("instance");
   });
 });
 

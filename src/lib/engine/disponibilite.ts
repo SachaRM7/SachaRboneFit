@@ -1,4 +1,5 @@
 import type { Equipement } from "@/lib/referentiels/equipements";
+import { besoinDe } from "@/lib/referentiels/capacites";
 
 /**
  * Ce qu'un lieu permet de faire.
@@ -40,6 +41,8 @@ export interface ExerciceDuCatalogue {
   categorieRole: string;
   musclesPrincipaux: string[];
   equipement: string | null;
+  /** Sert à retrouver l'appareil précis quand la famille ne suffit pas. */
+  slug?: string | null;
 }
 
 export interface InstanceDeclaree {
@@ -94,12 +97,12 @@ export function incrementsParDefaut(equipement: string | null): number[] {
  * d'information reviendrait à punir une donnée manquante.
  */
 export function besoinCouvert(
-  equipementRequis: string | null,
+  besoinRequis: string | null,
   equipementsDuLieu: readonly string[],
 ): boolean {
-  if (!equipementRequis) return true;
-  if (equipementRequis === "poids_du_corps") return true;
-  return equipementsDuLieu.includes(equipementRequis);
+  if (!besoinRequis) return true;
+  if (besoinRequis === "poids_du_corps") return true;
+  return equipementsDuLieu.includes(besoinRequis);
 }
 
 export interface EntreeDisponibilite {
@@ -130,8 +133,12 @@ export function exercicesRealisables(e: EntreeDisponibilite): ExerciceRealisable
   const realisables: ExerciceRealisable[] = [];
   for (const ex of e.catalogue) {
     const instance = parExercice.get(ex.id);
+    // « machine » recouvre quinze appareils différents : une seule case aurait
+    // rendu faisable un leg curl absent parce qu'on a vu une presse. Quand
+    // l'appareil précis est connu, c'est lui qui est exigé.
+    const besoin = besoinDe(ex.slug, ex.equipement);
     // Un appareil décrit vaut déclaration de présence : il est là, on l'a vu.
-    if (!instance && !besoinCouvert(ex.equipement, [...dispo])) continue;
+    if (!instance && !besoinCouvert(besoin, [...dispo])) continue;
 
     realisables.push({
       exerciceId: ex.id,
@@ -154,15 +161,16 @@ export function exercicesRealisables(e: EntreeDisponibilite): ExerciceRealisable
 export function apportDeChaqueEquipement(
   catalogue: ExerciceDuCatalogue[],
   equipementsDuLieu: readonly string[],
-): Array<{ equipement: Equipement; exercicesEnPlus: number }> {
+): Array<{ equipement: string; exercicesEnPlus: number }> {
   const presents = new Set(equipementsDuLieu);
   const compte = new Map<string, number>();
   for (const ex of catalogue) {
-    if (!ex.equipement || ex.equipement === "poids_du_corps") continue;
-    if (presents.has(ex.equipement)) continue;
-    compte.set(ex.equipement, (compte.get(ex.equipement) ?? 0) + 1);
+    const besoin = besoinDe(ex.slug, ex.equipement);
+    if (!besoin || besoin === "poids_du_corps") continue;
+    if (presents.has(besoin)) continue;
+    compte.set(besoin, (compte.get(besoin) ?? 0) + 1);
   }
   return [...compte.entries()]
-    .map(([equipement, exercicesEnPlus]) => ({ equipement: equipement as Equipement, exercicesEnPlus }))
-    .sort((a, b) => b.exercicesEnPlus - a.exercicesEnPlus);
+    .map(([equipement, exercicesEnPlus]) => ({ equipement, exercicesEnPlus }))
+    .sort((a, b) => b.exercicesEnPlus - a.exercicesEnPlus || a.equipement.localeCompare(b.equipement));
 }

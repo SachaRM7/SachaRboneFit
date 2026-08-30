@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MATERIEL_PORTABLE } from "@/lib/referentiels/capacites";
 
 export const dailyStateSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -10,6 +11,7 @@ export const dailyStateSchema = z.object({
   shiftRecentBool: z.boolean(),
   shiftType: z.enum(["jour", "nuit", "aucun"]),
   energieDepart: z.number().int().min(1).max(10),
+  materielApporte: z.array(z.enum(MATERIEL_PORTABLE)).max(MATERIEL_PORTABLE.length).optional(),
   courbatures: z.array(z.object({
     muscle: z.string(),
     intensite: z.number().int().min(1).max(10),

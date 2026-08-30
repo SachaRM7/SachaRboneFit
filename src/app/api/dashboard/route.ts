@@ -149,7 +149,7 @@ export async function GET() {
       ? await (async () => {
           const [catalogue, instancesDuLieu] = await Promise.all([
             db.query.exercises.findMany({
-              columns: { id: true, nom: true, pilier: true, categorieRole: true, musclesPrincipaux: true, equipement: true },
+              columns: { id: true, nom: true, pilier: true, categorieRole: true, musclesPrincipaux: true, equipement: true, slug: true },
             }),
             db.query.exerciseInstances.findMany({
               where: and(
@@ -162,6 +162,10 @@ export async function GET() {
           return exercicesRealisables({
             catalogue: catalogue.map((e) => ({ ...e, musclesPrincipaux: e.musclesPrincipaux ?? [] })),
             equipementsDuLieu: salleDuJour.equipementsDisponibles ?? [],
+            // Le matériel emporté aujourd'hui compte comme présent, sans être
+            // inscrit au lieu : des élastiques dans un sac ne sont pas ceux de
+            // la salle.
+            equipementsApportes: dailyStateToday?.materielApporte ?? [],
             instances: instancesDuLieu.map((i) => ({ ...i, incrementsPossibles: i.incrementsPossibles ?? [] })),
           }).length;
         })()

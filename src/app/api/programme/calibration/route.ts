@@ -97,6 +97,7 @@ export async function POST(request: Request) {
         categorieRole: e.categorieRole,
         musclesPrincipaux: e.musclesPrincipaux ?? [],
         equipement: e.equipement,
+        slug: e.slug,
       })),
       equipementsDuLieu: salle.equipementsDisponibles ?? [],
       instances: instancesDuLieu.map((i) => ({

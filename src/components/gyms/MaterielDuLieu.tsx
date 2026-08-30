@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
-import { EQUIPEMENTS, LIBELLES_EQUIPEMENT, type Equipement } from "@/lib/referentiels/equipements";
+import { LIBELLES_EQUIPEMENT, type Equipement } from "@/lib/referentiels/equipements";
+import { CAPACITES, FAMILLES_A_COCHER, LIBELLES_CAPACITE } from "@/lib/referentiels/capacites";
 
 /**
  * Le matériel présent sur place.
@@ -15,9 +16,26 @@ import { EQUIPEMENTS, LIBELLES_EQUIPEMENT, type Equipement } from "@/lib/referen
  *
  * Le poids du corps n'apparaît pas : il est disponible partout, et le proposer
  * comme une case à cocher laisserait croire qu'on peut ne pas l'avoir.
+ *
+ * Deux niveaux, parce que les familles ne se valent pas. Une barre est une
+ * barre ; « machine » recouvrait quinze appareils, et une seule case aurait
+ * rendu faisable un leg curl absent parce qu'on a vu une presse. Les machines
+ * se cochent donc une par une — ce qui est exactement la façon dont on
+ * inventorie une salle en la parcourant.
  */
 
-const A_COCHER = EQUIPEMENTS.filter((e) => e !== "poids_du_corps");
+const GROUPES: Array<{ titre: string; valeurs: readonly string[]; libelle: (v: string) => string }> = [
+  {
+    titre: "Matériel libre",
+    valeurs: FAMILLES_A_COCHER,
+    libelle: (v) => LIBELLES_EQUIPEMENT[v as Equipement] ?? v,
+  },
+  {
+    titre: "Appareils",
+    valeurs: CAPACITES,
+    libelle: (v) => LIBELLES_CAPACITE[v as keyof typeof LIBELLES_CAPACITE] ?? v,
+  },
+];
 
 interface Props {
   gymId: string;
@@ -32,7 +50,7 @@ export function MaterielDuLieu({ gymId, equipements, apports, lectureSeule = fal
   const [choisis, setChoisis] = useState<string[]>(equipements);
   const [envoi, setEnvoi] = useState(false);
 
-  const basculer = async (e: Equipement) => {
+  const basculer = async (e: string) => {
     if (lectureSeule || envoi) return;
     const suivant = choisis.includes(e) ? choisis.filter((x) => x !== e) : [...choisis, e];
     // L'état local part en avant : la case doit répondre au doigt, pas au réseau.
@@ -63,36 +81,41 @@ export function MaterielDuLieu({ gymId, equipements, apports, lectureSeule = fal
         <p className="text-encre-3 text-xs mt-0.5">
           {lectureSeule
             ? "Ce que ce lieu permet d'utiliser."
-            : "Coche ce qui existe ici. Tout ce qui ne demande que ça devient proposable, sans rien saisir d'autre."}
+            : "Coche ce que tu vois en parcourant la salle. Tout ce qui ne demande que ça devient proposable, sans saisir un exercice à la fois."}
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {A_COCHER.map((e) => {
-          const actif = choisis.includes(e);
-          const enPlus = apports[e] ?? 0;
-          return (
-            <button
-              key={e}
-              type="button"
-              onClick={() => basculer(e)}
-              disabled={lectureSeule}
-              aria-pressed={actif}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                actif
-                  ? "border-encre bg-encre text-papier"
-                  : "border-filet bg-carte text-encre-2 hover:text-encre"
-              } ${lectureSeule ? "opacity-70" : ""}`}
-            >
-              {actif && <Check className="w-3.5 h-3.5" aria-hidden />}
-              <span>{LIBELLES_EQUIPEMENT[e]}</span>
-              {!actif && enPlus > 0 && (
-                <span className="chiffres text-xs text-encre-3">+{enPlus}</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+      {GROUPES.map((groupe) => (
+        <div key={groupe.titre} className="space-y-1.5">
+          <p className="text-encre-3 text-xs uppercase tracking-wide">{groupe.titre}</p>
+          <div className="flex flex-wrap gap-2">
+            {groupe.valeurs.map((e) => {
+              const actif = choisis.includes(e);
+              const enPlus = apports[e] ?? 0;
+              return (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => basculer(e)}
+                  disabled={lectureSeule}
+                  aria-pressed={actif}
+                  className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                    actif
+                      ? "border-encre bg-encre text-papier"
+                      : "border-filet bg-carte text-encre-2 hover:text-encre"
+                  } ${lectureSeule ? "opacity-70" : ""}`}
+                >
+                  {actif && <Check className="w-3.5 h-3.5" aria-hidden />}
+                  <span>{groupe.libelle(e)}</span>
+                  {!actif && enPlus > 0 && (
+                    <span className="chiffres text-xs text-encre-3">+{enPlus}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
 
       <p className="text-encre-3 text-xs">
         Le poids du corps est toujours disponible. Le chiffre indique combien d&apos;exercices
