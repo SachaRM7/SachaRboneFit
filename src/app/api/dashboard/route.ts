@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms, exerciseInstances } from "@/db/schema";
+import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms, exerciseInstances, exercises } from "@/db/schema";
 import { eq, desc, and, inArray, isNull, gte } from "drizzle-orm";
 import { computeFeuJour } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
@@ -8,6 +8,7 @@ import { prochaineSeance } from "@/services/programmes";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { detailErreur } from "@/lib/erreurs";
 import { etatDuJour } from "@/lib/engine/etat-du-jour";
+import { exercicesRealisables } from "@/lib/engine/disponibilite";
 
 export async function GET() {
   try {
@@ -141,15 +142,40 @@ export async function GET() {
       : null;
     if (!salleDuJour && sallesUtilisateur.length === 1) salleDuJour = sallesUtilisateur[0]!;
 
-    const machinesDansLaSalle = salleDuJour
-      ? await db.$count(
-          exerciseInstances,
-          and(
-            eq(exerciseInstances.gymId, salleDuJour.id),
-            isNull(exerciseInstances.archiveLe),
-          ),
-        )
+    // Compter les appareils décrits sous-estimait ce qu'un lieu permet : une
+    // salle dont le matériel est coché, ou une maison où l'on fait des pompes,
+    // s'affichait « vide » et renvoyait l'utilisateur saisir du matériel.
+    const exercicesRealisablesIci = salleDuJour
+      ? await (async () => {
+          const [catalogue, instancesDuLieu] = await Promise.all([
+            db.query.exercises.findMany({
+              columns: { id: true, nom: true, pilier: true, categorieRole: true, musclesPrincipaux: true, equipement: true },
+            }),
+            db.query.exerciseInstances.findMany({
+              where: and(
+                eq(exerciseInstances.gymId, salleDuJour.id),
+                isNull(exerciseInstances.archiveLe),
+              ),
+              columns: { id: true, exerciseId: true, machineNom: true, incrementsPossibles: true },
+            }),
+          ]);
+          return exercicesRealisables({
+            catalogue: catalogue.map((e) => ({ ...e, musclesPrincipaux: e.musclesPrincipaux ?? [] })),
+            equipementsDuLieu: salleDuJour.equipementsDisponibles ?? [],
+            instances: instancesDuLieu.map((i) => ({ ...i, incrementsPossibles: i.incrementsPossibles ?? [] })),
+          }).length;
+        })()
       : 0;
+
+    // Décrit veut dire : quelqu'un s'est prononcé sur ce lieu — en cochant du
+    // matériel, fût-ce aucun, ou en décrivant un appareil.
+    const lieuRenseigne = salleDuJour
+      ? salleDuJour.equipementsDisponibles !== null ||
+        (await db.$count(
+          exerciseInstances,
+          and(eq(exerciseInstances.gymId, salleDuJour.id), isNull(exerciseInstances.archiveLe)),
+        )) > 0
+      : false;
 
     const seancesDeLaSemaine = await db.query.sessionLogs.findMany({
       columns: { date: true },
@@ -162,7 +188,8 @@ export async function GET() {
 
     const etat = etatDuJour({
       salle: salleDuJour ? { id: salleDuJour.id, nom: salleDuJour.nom } : null,
-      machinesDansLaSalle,
+      exercicesRealisablesIci,
+      lieuRenseigne,
       prochaineSeance: suite
         ? { templateId: suite.template.id, lettre: suite.template.lettre, nom: suite.template.nom }
         : null,

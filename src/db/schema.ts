@@ -67,6 +67,24 @@ export const gyms = pgTable("gyms", {
    */
   userId: uuid("user_id").references(() => users.id).notNull(),
   nom: text("nom").notNull(),
+  /**
+   * Types de materiel presents sur place.
+   *
+   * Un exercice n'etait realisable quelque part que si une ligne
+   * `exercise_instances` le declarait, une par exercice et par salle :
+   * declarer un lieu demandait de saisir a la main chaque mouvement possible,
+   * pompes et gainage compris. C'est le lieu qui possede des ressources ;
+   * l'exercice, lui, dit ce dont il a besoin. Le moteur fait l'intersection.
+   *
+   * C'est aussi ce qui permet a « Maison » d'etre un lieu comme un autre
+   * plutot qu'une deuxieme bibliotheque d'exercices a maintenir.
+   *
+   * `null` et `[]` ne disent pas la meme chose : `null` = personne n'a encore
+   * decrit ce lieu, `[]` = decrit, et il n'y a rien de plus que le poids du
+   * corps. Sans cette distinction, une salle inconnue aurait recu une seance
+   * de pompes au lieu qu'on demande ce qu'elle contient.
+   */
+  equipementsDisponibles: jsonb("equipements_disponibles").$type<string[]>(),
   horairesOuverture: text("horaires_ouverture"),
   est24h: boolean("est_24h").default(false),
   notes: text("notes"),

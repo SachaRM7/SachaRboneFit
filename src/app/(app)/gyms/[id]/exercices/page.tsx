@@ -10,6 +10,8 @@ import type { ExerciceSelectionnable } from "@/components/gyms/MachineForm";
 import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
 import { ArrowLeft } from "lucide-react";
 import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
+import { MaterielDuLieu } from "@/components/gyms/MaterielDuLieu";
+import { apportDeChaqueEquipement, exercicesRealisables } from "@/lib/engine/disponibilite";
 
 /**
  * Les exercices qu'une salle permet de faire.
@@ -65,6 +67,31 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
   // La liste est commune ; la tenir a jour revient au createur de la salle.
   const gestionAutorisee = peutGererLaSalle(salle, userId);
 
+  // Deux façons d'être faisable ici : un appareil décrit, ou un besoin couvert
+  // par le matériel déclaré. La seconde évite d'énumérer jusqu'aux pompes.
+  const pourMoteur = tousExercices.map((e) => ({
+    id: e.id,
+    nom: e.nom,
+    pilier: e.pilier,
+    categorieRole: e.categorieRole,
+    musclesPrincipaux: e.musclesPrincipaux ?? [],
+    equipement: e.equipement,
+  }));
+  const equipementsDuLieu = salle.equipementsDisponibles ?? [];
+  const realisables = exercicesRealisables({
+    catalogue: pourMoteur,
+    equipementsDuLieu,
+    instances: instances.map((i) => ({
+      id: i.id,
+      exerciseId: i.exerciseId,
+      machineNom: i.machineNom,
+      incrementsPossibles: i.incrementsPossibles ?? [],
+    })),
+  });
+  const apports = Object.fromEntries(
+    apportDeChaqueEquipement(pourMoteur, equipementsDuLieu).map((a) => [a.equipement, a.exercicesEnPlus]),
+  );
+
   const machines: MachineAffichee[] = instances.map((i) => ({
     id: i.id,
     exerciseId: i.exerciseId,
@@ -100,8 +127,9 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
         <div>
           <h1 className="text-xl font-bold text-encre">Exercices · {salle.nom}</h1>
           <p className="text-encre-3 text-sm">
-            {machines.length} exercice{machines.length > 1 ? "s" : ""} disponible
-            {machines.length > 1 ? "s" : ""} sur {tousExercices.length} au catalogue
+            {realisables.length} exercice{realisables.length > 1 ? "s" : ""} faisable
+            {realisables.length > 1 ? "s" : ""} ici · {machines.length} appareil
+            {machines.length > 1 ? "s" : ""} décrit{machines.length > 1 ? "s" : ""}
           </p>
         </div>
       </div>
@@ -112,9 +140,16 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
         </p>
       )}
 
+      <MaterielDuLieu
+        gymId={id}
+        equipements={equipementsDuLieu}
+        apports={apports}
+        lectureSeule={!gestionAutorisee}
+      />
+
       {calibrationAPreparer && (
         <div className="rounded-xl border border-filet bg-carte p-4 space-y-2">
-          {machines.length === 0 ? (
+          {realisables.length === 0 ? (
             <>
               <p className="text-encre font-semibold">Commence par ce que tu vois sur place</p>
               <p className="text-encre-2 text-sm">
@@ -127,8 +162,8 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
             <>
               <p className="text-encre font-semibold">Prêt à construire ta calibration</p>
               <p className="text-encre-2 text-sm">
-                Je peux préparer tes premières séances à partir de ces {machines.length} exercices.
-                Tu pourras en ajouter d&apos;autres ensuite.
+                Je peux préparer tes premières séances à partir des {realisables.length} exercices
+                faisables ici. Tu préciseras les appareils au fil des séances.
               </p>
               <Link href="/session/calibration">
                 <Button className="mt-1 h-10 bg-encre text-papier">Préparer ma calibration</Button>

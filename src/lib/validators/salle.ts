@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EQUIPEMENTS } from "@/lib/referentiels/equipements";
 
 /**
  * Champs modifiables d'une salle.
@@ -10,6 +11,8 @@ import { z } from "zod";
  */
 export const champsSalleSchema = z.object({
   nom: z.string().trim().min(2).max(80),
+  /** Types de matériel présents : c'est le lieu qui possède les ressources. */
+  equipementsDisponibles: z.array(z.enum(EQUIPEMENTS)).max(EQUIPEMENTS.length).optional(),
   horairesOuverture: z.string().trim().max(200).nullable().optional(),
   est24h: z.boolean().optional(),
   notes: z.string().trim().max(500).nullable().optional(),

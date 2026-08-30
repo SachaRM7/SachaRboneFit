@@ -31,7 +31,7 @@ vi.mock("@/lib/supabase/server", () => ({
 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
-const { eq, inArray } = await import("drizzle-orm");
+const { and, eq, inArray, ne } = await import("drizzle-orm");
 const { CATALOGUE } = await import("@/lib/referentiels/catalogue");
 const { ORDRE_PILIERS } = await import("@/lib/engine/plan-calibration");
 const dashboard = await import("@/app/api/dashboard/route");
@@ -51,6 +51,7 @@ const EXOS = ORDRE_PILIERS.map(
 
 let idsExercices: string[] = [];
 let salleId = "";
+const idsSallesAnnexes: string[] = [];
 const machinesDeA: string[] = [];
 
 const enTantQue = async <T>(qui: string, action: () => Promise<T>): Promise<T> => {
@@ -135,8 +136,10 @@ afterAll(async () => {
     await db.delete(schema.seanceTemplates).where(eq(schema.seanceTemplates.blocId, b.id));
   }
   await db.delete(schema.programmeBlocs).where(inArray(schema.programmeBlocs.userId, [A, B]));
-  await db.delete(schema.exerciseInstances).where(inArray(schema.exerciseInstances.userId, [A, B]));
-  if (salleId) await db.delete(schema.gyms).where(eq(schema.gyms.id, salleId));
+  for (const g of [salleId, ...idsSallesAnnexes].filter(Boolean)) {
+    await db.delete(schema.exerciseInstances).where(eq(schema.exerciseInstances.gymId, g));
+    await db.delete(schema.gyms).where(eq(schema.gyms.id, g));
+  }
   if (idsExercices.length) {
     await db.delete(schema.exercises).where(inArray(schema.exercises.id, idsExercices));
   }
@@ -268,6 +271,55 @@ describe("deux comptes dans la même salle", () => {
     });
     expect(relue?.incrementsPossibles).toEqual([1.25]);
     expect(relue?.userId).toBe(A);
+  });
+
+  it("un lieu où rien n'est décrit reste utilisable : le matériel suffit", async () => {
+    // Le point de la refonte : cocher « haltères » rend faisable tout ce qui
+    // n'a besoin que d'haltères, sans saisir un exercice à la fois.
+    const [maison] = await db
+      .insert(schema.gyms)
+      .values({
+        userId: A,
+        nom: `Maison ${A.slice(0, 8)}`,
+        equipementsDisponibles: ["halteres"],
+      })
+      .returning();
+    idsSallesAnnexes.push(maison!.id);
+
+    await db.insert(schema.programmeBlocs).values({
+      userId: A,
+      nom: "Calibration maison",
+      dateDebut: new Date().toISOString().slice(0, 10),
+      typeCycle: "calibration",
+      semaineActuelle: 1,
+      actif: true,
+    });
+    await db
+      .update(schema.programmeBlocs)
+      .set({ actif: false })
+      .where(
+        and(
+          eq(schema.programmeBlocs.userId, A),
+          ne(schema.programmeBlocs.nom, "Calibration maison"),
+        ),
+      );
+
+    const res = await enTantQue(A, () => calibration.POST(poste({ gymId: maison!.id })));
+    expect(res.status, await res.clone().text()).toBe(201);
+    const corps = await res.json();
+    expect(corps.seances.length).toBeGreaterThan(0);
+
+    // Les entrées manquantes sont matérialisées au moment d'être programmées,
+    // pas créées d'avance pour tout le catalogue.
+    const creees = await db.query.exerciseInstances.findMany({
+      where: eq(schema.exerciseInstances.gymId, maison!.id),
+    });
+    expect(creees.length).toBeGreaterThan(0);
+    expect(creees.length).toBeLessThan(20);
+    for (const c of creees) {
+      expect(c.notesMachine).toMatch(/Déduit du matériel/);
+      expect(c.incrementsPossibles?.length).toBeGreaterThan(0);
+    }
   });
 
   it("un exercice sans appareil se déclare sans nom sur place", async () => {

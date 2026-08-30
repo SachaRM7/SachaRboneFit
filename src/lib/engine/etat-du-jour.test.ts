@@ -5,7 +5,8 @@ const salle = { id: "s-1", nom: "St-Martin-Du-Touch" };
 
 const base: EntreeEtatDuJour = {
   salle,
-  machinesDansLaSalle: 12,
+  exercicesRealisablesIci: 12,
+  lieuRenseigne: true,
   prochaineSeance: { templateId: "t-1", lettre: "A", nom: "Haut du corps" },
   seanceFaiteAujourdhui: false,
   enCalibration: false,
@@ -21,25 +22,25 @@ describe("etatDuJour", () => {
     const cas: Array<Partial<EntreeEtatDuJour>> = [
       {},
       { salle: null },
-      { machinesDansLaSalle: 0 },
+      { exercicesRealisablesIci: 0, lieuRenseigne: false },
       { prochaineSeance: null },
       { seanceFaiteAujourdhui: true },
       { seancesCetteSemaine: 9 },
-      { salle: null, machinesDansLaSalle: 0, prochaineSeance: null },
+      { salle: null, exercicesRealisablesIci: 0, lieuRenseigne: false, prochaineSeance: null },
     ];
     for (const c of cas) expect(avec(c).action).toBeTruthy();
   });
 
   it("demande la salle avant tout le reste", () => {
     // Sans salle, ni le matériel ni les charges ne sont calculables.
-    const r = avec({ salle: null, machinesDansLaSalle: 0, prochaineSeance: null });
+    const r = avec({ salle: null, exercicesRealisablesIci: 0, lieuRenseigne: false, prochaineSeance: null });
     expect(r.etat).toBe("sans_salle");
     expect(r.action.type).toBe("choisir_salle");
     expect(r.enAttenteDeDonnees).toBe(true);
   });
 
-  it("demande le matériel quand le parc est inconnu, sans inventer de séance", () => {
-    const r = avec({ machinesDansLaSalle: 0, prochaineSeance: null });
+  it("demande ce que le lieu contient tant que personne ne l'a décrit", () => {
+    const r = avec({ exercicesRealisablesIci: 0, lieuRenseigne: false, prochaineSeance: null });
     expect(r.etat).toBe("salle_vide");
     expect(r.seance).toBeNull();
     expect(r.action).toEqual({ type: "equiper_salle", href: "/gyms/s-1/exercices" });
@@ -48,8 +49,16 @@ describe("etatDuJour", () => {
   it("n'annonce ni repos ni semaine complète tant que rien n'est possible", () => {
     // Un parc vide passe avant : féliciter quelqu'un qui n'a pas pu s'entraîner
     // serait faux.
-    expect(avec({ machinesDansLaSalle: 0, seanceFaiteAujourdhui: true }).etat).toBe("salle_vide");
-    expect(avec({ machinesDansLaSalle: 0, seancesCetteSemaine: 9 }).etat).toBe("salle_vide");
+    expect(avec({ lieuRenseigne: false, seanceFaiteAujourdhui: true }).etat).toBe("salle_vide");
+    expect(avec({ lieuRenseigne: false, seancesCetteSemaine: 9 }).etat).toBe("salle_vide");
+  });
+
+  it("distingue un lieu non décrit d'un lieu sans matériel", () => {
+    // « Maison, rien que le poids du corps » est une réponse, pas une absence
+    // de réponse : elle suffit à construire une séance.
+    expect(avec({ lieuRenseigne: false, exercicesRealisablesIci: 16 }).etat).toBe("salle_vide");
+    expect(avec({ lieuRenseigne: true, exercicesRealisablesIci: 16, prochaineSeance: null }).etat)
+      .toBe("calibration");
   });
 
   it("bascule en calibration quand le matériel est connu mais aucune séance n'existe", () => {

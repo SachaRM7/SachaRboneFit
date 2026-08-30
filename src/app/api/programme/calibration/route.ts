@@ -14,6 +14,7 @@ import {
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { detailErreur } from "@/lib/erreurs";
 import { planCalibration, type MachineDisponible } from "@/lib/engine/plan-calibration";
+import { exercicesRealisables } from "@/lib/engine/disponibilite";
 
 /**
  * Fabrique les séances de la phase de calibration à partir du matériel
@@ -78,33 +79,43 @@ export async function POST(request: Request) {
       });
     }
 
-    // Le parc de la salle, avec ce que le référentiel sait de chaque mouvement.
-    const lignes = await db
-      .select({
-        instanceId: exerciseInstances.id,
-        exerciceId: exercises.id,
-        nom: exercises.nom,
-        pilier: exercises.pilier,
-        categorieRole: exercises.categorieRole,
-        musclesPrincipaux: exercises.musclesPrincipaux,
-      })
-      .from(exerciseInstances)
-      .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-      .where(
-        and(
-          eq(exerciseInstances.gymId, salleId),
-          isNull(exerciseInstances.archiveLe),
-        ),
-      );
+    // Ce que le lieu permet de faire : les appareils décrits, et tout exercice
+    // dont le besoin est couvert par le matériel déclaré sur place. Exiger une
+    // ligne par exercice obligeait à saisir à la main jusqu'aux pompes.
+    const [catalogue, instancesDuLieu] = await Promise.all([
+      db.query.exercises.findMany(),
+      db.query.exerciseInstances.findMany({
+        where: and(eq(exerciseInstances.gymId, salleId), isNull(exerciseInstances.archiveLe)),
+      }),
+    ]);
 
-    const machines: MachineDisponible[] = lignes.map((l) => ({
-      instanceId: l.instanceId,
-      exerciceId: l.exerciceId,
-      nom: l.nom,
-      pilier: l.pilier,
-      categorieRole: l.categorieRole,
-      musclesPrincipaux: l.musclesPrincipaux ?? [],
+    const realisables = exercicesRealisables({
+      catalogue: catalogue.map((e) => ({
+        id: e.id,
+        nom: e.nom,
+        pilier: e.pilier,
+        categorieRole: e.categorieRole,
+        musclesPrincipaux: e.musclesPrincipaux ?? [],
+        equipement: e.equipement,
+      })),
+      equipementsDuLieu: salle.equipementsDisponibles ?? [],
+      instances: instancesDuLieu.map((i) => ({
+        id: i.id,
+        exerciseId: i.exerciseId,
+        machineNom: i.machineNom,
+        incrementsPossibles: i.incrementsPossibles ?? [],
+      })),
+    });
+
+    const machines: MachineDisponible[] = realisables.map((r) => ({
+      instanceId: r.instanceId ?? `a-creer:${r.exerciceId}`,
+      exerciceId: r.exerciceId,
+      nom: r.nom,
+      pilier: r.pilier,
+      categorieRole: r.categorieRole,
+      musclesPrincipaux: r.musclesPrincipaux,
     }));
+    const aCreer = new Map(realisables.filter((r) => !r.instanceId).map((r) => [r.exerciceId, r]));
 
     const zonesSensibles = await db.query.contraintes.findMany({
       where: and(eq(contraintes.userId, userId), isNull(contraintes.dateFin)),
@@ -124,6 +135,19 @@ export async function POST(request: Request) {
         .filter((m): m is string => Boolean(m)),
     });
 
+    // Rien n'a encore été dit de ce lieu : construire une séance de pompes pour
+    // quelqu'un debout dans une salle équipée serait pire que poser la question.
+    const lieuRenseigne = salle.equipementsDisponibles !== null || instancesDuLieu.length > 0;
+    if (!lieuRenseigne) {
+      return NextResponse.json(
+        {
+          error: "Cette salle n'est pas encore décrite. Dis-moi ce qu'on y trouve.",
+          avertissements: [],
+        },
+        { status: 409 },
+      );
+    }
+
     if (plan.seances.length === 0) {
       return NextResponse.json(
         { error: plan.avertissements[0] ?? "Rien à programmer dans cette salle.", avertissements: plan.avertissements },
@@ -134,6 +158,42 @@ export async function POST(request: Request) {
     // Une seule transaction : un bloc avec deux séances sur trois serait un
     // programme que personne n'a voulu.
     const creees = await db.transaction(async (tx) => {
+      /**
+       * Un exercice seulement déduit n'a pas encore d'appareil décrit, et
+       * `exercise_in_template` en exige un. On le matérialise au moment où il
+       * est réellement programmé, avec des incréments plausibles pour son type
+       * de matériel — la première correction sur place les remplacera.
+       *
+       * Le faire à l'avance pour tout le catalogue créerait des centaines de
+       * lignes que personne n'a demandées.
+       */
+      const materialisees = new Map<string, string>();
+      const instancePour = async (reference: string): Promise<string> => {
+        if (!reference.startsWith("a-creer:")) return reference;
+        const exerciceId = reference.slice("a-creer:".length);
+        const deja = materialisees.get(exerciceId);
+        if (deja) return deja;
+
+        const r = aCreer.get(exerciceId)!;
+        const [creee] = await tx
+          .insert(exerciseInstances)
+          .values({
+            userId,
+            exerciseId: exerciceId,
+            gymId: salleId,
+            machineNom: r.nom,
+            conventionCharge: r.equipement === "machine" || r.equipement === "poulie"
+              ? "pile_affichee"
+              : "poids_total",
+            incrementsPossibles: r.incrementsPossibles,
+            notesMachine: "Déduit du matériel de la salle — à préciser sur place.",
+          })
+          .returning();
+        if (!creee) throw new Error("Création de l'exercice de salle impossible");
+        materialisees.set(exerciceId, creee.id);
+        return creee.id;
+      };
+
       const resultat: Array<{ id: string; lettre: string; nom: string }> = [];
       for (const s of plan.seances) {
         const [template] = await tx
@@ -148,18 +208,20 @@ export async function POST(request: Request) {
         if (!template) throw new Error("Création de la séance impossible");
 
         if (s.exercices.length > 0) {
-          await tx.insert(exerciseInTemplate).values(
-            s.exercices.map((ex) => ({
+          const lignes = [];
+          for (const ex of s.exercices) {
+            lignes.push({
               seanceTemplateId: template.id,
-              exerciseInstanceId: ex.instanceId,
+              exerciseInstanceId: await instancePour(ex.instanceId),
               ordre: ex.ordre,
               seriesCibles: ex.seriesCibles,
               fourchetteRepsMin: ex.fourchetteRepsMin,
               fourchetteRepsMax: ex.fourchetteRepsMax,
               rpeCible: ex.rpeCible,
               reposSecondes: ex.reposSecondes,
-            })),
-          );
+            });
+          }
+          await tx.insert(exerciseInTemplate).values(lignes);
         }
         resultat.push({ id: template.id, lettre: template.lettre, nom: template.nom });
       }

@@ -26,8 +26,20 @@ export interface SeanceProgrammee {
 export interface EntreeEtatDuJour {
   /** Salle du jour : préférence de l'utilisateur, ou unique salle active. */
   salle: Salle | null;
-  /** Exercices renseignés dans cette salle — appareils ou non. Zéro = inconnu. */
-  machinesDansLaSalle: number;
+  /**
+   * Exercices que ce lieu permet de faire : appareils décrits ET exercices
+   * déduits du matériel déclaré.
+   */
+  exercicesRealisablesIci: number;
+  /**
+   * Quelqu'un a-t-il décrit ce lieu ?
+   *
+   * Distincte du compte ci-dessus : le poids du corps est disponible partout,
+   * donc un lieu inconnu n'est jamais à zéro. Sans cette question, on aurait
+   * proposé une séance de pompes à quelqu'un debout dans une salle équipée,
+   * au lieu de lui demander ce qu'elle contient.
+   */
+  lieuRenseigne: boolean;
   prochaineSeance: SeanceProgrammee | null;
   /** Une séance a déjà été enregistrée aujourd'hui. */
   seanceFaiteAujourdhui: boolean;
@@ -81,7 +93,7 @@ export function etatDuJour(e: EntreeEtatDuJour): EtatDuJour {
     };
   }
 
-  if (e.machinesDansLaSalle === 0) {
+  if (!e.lieuRenseigne || e.exercicesRealisablesIci === 0) {
     return {
       etat: "salle_vide",
       salle: e.salle,

@@ -186,10 +186,12 @@ describe("parcours d'un nouveau départ", () => {
     expect(etat.enAttenteDeDonnees).toBe(true);
   });
 
-  it("4. la calibration refuse de s'inventer une séance dans une salle vide", async () => {
+  it("4. la calibration ne s'invente pas une séance dans un lieu non décrit", async () => {
+    // Rien n'a été dit de cette salle : proposer une séance de pompes à
+    // quelqu'un debout dans une salle équipée serait pire que demander.
     const res = await calibration.POST(poste("http://test/api/programme/calibration", {}));
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/Aucun exercice renseigné/);
+    expect((await res.json()).error).toMatch(/pas encore décrite/);
   });
 
   it("5. équiper la salle passe par la vraie route de création", async () => {
