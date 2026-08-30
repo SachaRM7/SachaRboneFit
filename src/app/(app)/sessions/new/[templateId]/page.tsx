@@ -11,6 +11,7 @@ import { TableauSeries } from "@/components/session/TableauSeries";
 import { BandeauAdaptation } from "@/components/session/BandeauAdaptation";
 import { initAudioContext, playBeep } from "@/lib/audio/beep";
 import { SOSBar } from "@/components/session/SOSBar";
+import { ChangerDeLieu } from "@/components/session/ChangerDeLieu";
 import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
 import { SOSDouleur } from "@/components/session/SOSDouleur";
 import { SOSEnergie } from "@/components/session/SOSEnergie";
@@ -70,6 +71,9 @@ function ContenuSeanceLive() {
   const [timerVisible, setTimerVisible] = useState(false);
   const [audioPret, setAudioPret] = useState(false);
   const [modaleSOS, setModaleSOS] = useState<ModaleSOS>(null);
+  // Changer de lieu se décide avant de commencer, pas en pleine série : le
+  // panneau reste replié tant qu'on ne le demande pas.
+  const [changementDeLieu, setChangementDeLieu] = useState(false);
   const [dureeSOSMin, setDureeSOSMin] = useState(0);
   const [parcSalle, setParcSalle] = useState<ExerciseInstanceWithExercise[]>([]);
   const [musclesCourbatures, setMusclesCourbatures] = useState<string[]>([]);
@@ -252,8 +256,31 @@ function ContenuSeanceLive() {
         exercices={visibles}
       />
 
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-4 space-y-3">
         <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
+
+        {sessionId && gymId && (
+          changementDeLieu ? (
+            <div className="rounded-xl border border-filet bg-carte p-4">
+              <ChangerDeLieu
+                sessionLogId={sessionId}
+                lieuActuelId={gymId}
+                onApplique={() => {
+                  setChangementDeLieu(false);
+                  window.location.reload();
+                }}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setChangementDeLieu(true)}
+              className="text-encre-2 text-sm underline underline-offset-4"
+            >
+              Je m&apos;entraîne ailleurs aujourd&apos;hui
+            </button>
+          )
+        )}
       </div>
 
       {/* La séance entière tient dans une page défilante : on voit ce qui reste

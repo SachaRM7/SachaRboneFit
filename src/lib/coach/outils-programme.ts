@@ -63,7 +63,7 @@ interface ActiviteMuscle {
  * séries loin de l'échec n'est pas deux jours après vingt séries à RIR 0. On
  * conserve donc le coût de la dernière exposition, pas seulement son moment.
  */
-async function activiteMusculaire(userId: string, jours: number) {
+export async function activiteMusculaire(userId: string, jours: number) {
   const lignes = await db
     .select({
       date: sessionLogs.date,
@@ -115,7 +115,7 @@ async function activiteMusculaire(userId: string, jours: number) {
 }
 
 /** Ce que le validateur attend pour juger la récupération d'un muscle. */
-function etatMusclesDepuis(activite: Map<string, ActiviteMuscle>, courbatures: Map<string, number>) {
+export function etatMusclesDepuis(activite: Map<string, ActiviteMuscle>, courbatures: Map<string, number>) {
   const etats: Record<string, EtatMuscle> = {};
   for (const [muscle, a] of activite) {
     const rirs = a.rirsDerniereExposition;
@@ -130,7 +130,7 @@ function etatMusclesDepuis(activite: Map<string, ActiviteMuscle>, courbatures: M
 }
 
 /** Courbatures signalées aujourd'hui, par muscle canonique. */
-async function courbaturesDuJour(userId: string): Promise<Map<string, number>> {
+export async function courbaturesDuJour(userId: string): Promise<Map<string, number>> {
   const etat = await db.query.dailyStates.findFirst({
     where: and(eq(dailyStates.userId, userId), eq(dailyStates.date, new Date().toISOString().slice(0, 10))),
   });
@@ -153,7 +153,7 @@ async function courbaturesDuJour(userId: string): Promise<Map<string, number>> {
 const CIBLE_HEBDO_PAR_DEFAUT = 12;
 const CIBLE_HEBDO_PRIORITAIRE = 18;
 
-function ciblesHebdo(prioritairesBruts: string[]): Record<string, number> {
+export function ciblesHebdo(prioritairesBruts: string[]): Record<string, number> {
   const prioritaires = new Set(
     prioritairesBruts.map(versMuscle).filter((m): m is Muscle => m !== null),
   );
@@ -240,7 +240,7 @@ function phaseDepuisTypeCycle(type: string | null | undefined): PhaseCycle {
  * Le validateur en a besoin autant que l'outil de lecture : la phase decide
  * du seuil de recuperation et des regles de decharge.
  */
-async function mesurerCycle(userId: string) {
+export async function mesurerCycle(userId: string) {
   const bloc = await db.query.programmeBlocs.findFirst({
     where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
   });
