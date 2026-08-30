@@ -1,8 +1,8 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/db/client";
-import { gyms, exerciseInstances, exercises } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { gyms, exerciseInstances, programmeBlocs, seanceTemplates } from "@/db/schema";
+import { and, eq, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { Button } from "@/components/ui/button";
 import { GestionMachines, type MachineAffichee } from "@/components/gyms/GestionMachines";
@@ -30,13 +30,36 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
 
   const [instances, tousExercices] = await Promise.all([
     db.query.exerciseInstances.findMany({
-      where: and(eq(exerciseInstances.gymId, id), eq(exerciseInstances.userId, userId)),
+      // Sans ce filtre, une machine archivée s'affichait comme présente et
+      // `presentsParExercice` interdisait de la recréer : l'exercice devenait
+      // impossible à remettre dans la salle.
+      where: and(
+        eq(exerciseInstances.gymId, id),
+        eq(exerciseInstances.userId, userId),
+        isNull(exerciseInstances.archiveLe),
+      ),
       with: { exercise: true },
     }),
     db.query.exercises.findMany(),
   ]);
 
   const presentsParExercice = new Set(instances.map((i) => i.exerciseId));
+
+  // Équiper une salle n'est pas une fin en soi : l'écran ne disait pas ce que
+  // ces machines allaient permettre, ni où aller ensuite. On ne propose la
+  // suite que lorsqu'elle est réellement disponible — un bloc actif sans
+  // aucune séance, et au moins une machine pour en construire une.
+  const blocActif = await db.query.programmeBlocs.findFirst({
+    where: and(
+      eq(programmeBlocs.userId, userId),
+      isNull(programmeBlocs.archiveLe),
+      eq(programmeBlocs.actif, true),
+    ),
+  });
+  const seancesDuBloc = blocActif
+    ? await db.$count(seanceTemplates, eq(seanceTemplates.blocId, blocActif.id))
+    : 0;
+  const calibrationAPreparer = Boolean(blocActif) && seancesDuBloc === 0;
 
   const machines: MachineAffichee[] = instances.map((i) => ({
     id: i.id,
@@ -77,6 +100,31 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
           </p>
         </div>
       </div>
+
+      {calibrationAPreparer && (
+        <div className="rounded-xl border border-filet bg-carte p-4 space-y-2">
+          {machines.length === 0 ? (
+            <>
+              <p className="text-encre font-semibold">Commence par ce que tu vois sur place</p>
+              <p className="text-encre-2 text-sm">
+                Chaque machine ajoutée est un exercice que je peux te proposer. Inutile de tout
+                lister d&apos;un coup : tu compléteras au fil des séances.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-encre font-semibold">Prêt à construire ta calibration</p>
+              <p className="text-encre-2 text-sm">
+                Je peux préparer tes premières séances à partir de ces {machines.length} machines.
+                Tu pourras en ajouter d&apos;autres ensuite.
+              </p>
+              <Link href="/session/calibration">
+                <Button className="mt-1 h-10 bg-encre text-papier">Préparer ma calibration</Button>
+              </Link>
+            </>
+          )}
+        </div>
+      )}
 
       <GestionMachines gymId={id} machines={machines} exercices={exercicesSelectionnables} />
     </div>
