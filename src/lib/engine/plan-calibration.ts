@@ -14,8 +14,8 @@
  *   une progression à partir de chiffres inventés.
  * — Elle couvre. Sur peu de séances, la priorité est de toucher chaque pilier
  *   au moins une fois : on ne peut pas calibrer ce qu'on n'a pas fait.
- * — Elle n'invente rien. Un pilier sans machine dans la salle n'est pas
- *   remplacé par un exercice absent : il est signalé.
+ * — Elle n'invente rien. Un pilier que la salle ne permet pas de travailler
+ *   n'est pas remplacé par un exercice absent : il est signalé.
  */
 
 export interface MachineDisponible {
@@ -145,8 +145,8 @@ export function planCalibration(e: EntreePlanCalibration): PlanCalibration {
   if (utilisables.length === 0) {
     avertissements.push(
       e.machines.length === 0
-        ? "Aucune machine renseignée dans cette salle."
-        : "Toutes les machines de cette salle sont écartées par tes contraintes.",
+        ? "Aucun exercice renseigné dans cette salle."
+        : "Tous les exercices de cette salle sont écartés par tes contraintes.",
     );
     return { seances: [], piliersNonCouverts: [...ORDRE_PILIERS], avertissements };
   }
@@ -220,7 +220,7 @@ export function planCalibration(e: EntreePlanCalibration): PlanCalibration {
 
   if (piliersNonCouverts.length > 0) {
     avertissements.push(
-      `Aucune machine pour : ${piliersNonCouverts.join(", ")}. Ajoute-les quand tu les repères en salle.`,
+      `Rien pour : ${piliersNonCouverts.join(", ")}. Ajoute ce que tu trouves en salle.`,
     );
   }
   const tropCourt = seances.find((s) => s.exercices.length < parSeance);

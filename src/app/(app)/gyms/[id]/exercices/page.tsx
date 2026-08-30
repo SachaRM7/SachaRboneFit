@@ -9,13 +9,18 @@ import { GestionMachines, type MachineAffichee } from "@/components/gyms/Gestion
 import type { ExerciceSelectionnable } from "@/components/gyms/MachineForm";
 import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
 import { ArrowLeft } from "lucide-react";
+import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
 
 /**
- * Configuration du materiel d'une salle.
+ * Les exercices qu'une salle permet de faire.
  *
- * Il n'existait aucun chemin applicatif pour equiper une salle : les machines ne
- * pouvaient venir que du script de seed. Une salle nouvellement creee restait donc
- * inutilisable.
+ * L'ecran s'appelait « Materiel » et ne parlait que de machines. Une salle
+ * contient aussi des barres, des halteres, une barre de traction : ce qu'on y
+ * declare, ce sont des exercices rendus possibles par le lieu, machine ou pas.
+ *
+ * Il n'existait par ailleurs aucun chemin applicatif pour equiper une salle :
+ * le parc ne pouvait venir que du script de seed, et une salle nouvellement
+ * creee restait inutilisable.
  */
 export default async function MaterielSallePage({ params }: { params: Promise<{ id: string }> }) {
   const userId = await getAuthenticatedUserId();
@@ -57,6 +62,9 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
     : 0;
   const calibrationAPreparer = Boolean(blocActif) && seancesDuBloc === 0;
 
+  // La liste est commune ; la tenir a jour revient au createur de la salle.
+  const gestionAutorisee = peutGererLaSalle(salle, userId);
+
   const machines: MachineAffichee[] = instances.map((i) => ({
     id: i.id,
     exerciseId: i.exerciseId,
@@ -90,12 +98,19 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
           <Button variant="ghost" size="icon"><ArrowLeft className="w-5 h-5 text-encre" /></Button>
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-encre">Matériel · {salle.nom}</h1>
+          <h1 className="text-xl font-bold text-encre">Exercices · {salle.nom}</h1>
           <p className="text-encre-3 text-sm">
-            {machines.length} machine{machines.length > 1 ? "s" : ""} sur {tousExercices.length} exercices au catalogue
+            {machines.length} exercice{machines.length > 1 ? "s" : ""} disponible
+            {machines.length > 1 ? "s" : ""} sur {tousExercices.length} au catalogue
           </p>
         </div>
       </div>
+
+      {!gestionAutorisee && (
+        <p className="rounded-xl border border-filet bg-carte p-4 text-sm text-encre-2">
+          {REFUS_GESTION_SALLE}
+        </p>
+      )}
 
       {calibrationAPreparer && (
         <div className="rounded-xl border border-filet bg-carte p-4 space-y-2">
@@ -103,15 +118,16 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
             <>
               <p className="text-encre font-semibold">Commence par ce que tu vois sur place</p>
               <p className="text-encre-2 text-sm">
-                Chaque machine ajoutée est un exercice que je peux te proposer. Inutile de tout
-                lister d&apos;un coup : tu compléteras au fil des séances.
+                Appareils, mais aussi barres, haltères, barre de traction : tout ce que tu peux
+                faire ici. Chaque exercice ajouté est un exercice que je peux te proposer. Inutile
+                de tout lister d&apos;un coup, tu compléteras au fil des séances.
               </p>
             </>
           ) : (
             <>
               <p className="text-encre font-semibold">Prêt à construire ta calibration</p>
               <p className="text-encre-2 text-sm">
-                Je peux préparer tes premières séances à partir de ces {machines.length} machines.
+                Je peux préparer tes premières séances à partir de ces {machines.length} exercices.
                 Tu pourras en ajouter d&apos;autres ensuite.
               </p>
               <Link href="/session/calibration">
@@ -122,7 +138,12 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      <GestionMachines gymId={id} machines={machines} exercices={exercicesSelectionnables} />
+      <GestionMachines
+        gymId={id}
+        machines={machines}
+        exercices={exercicesSelectionnables}
+        lectureSeule={!gestionAutorisee}
+      />
     </div>
   );
 }

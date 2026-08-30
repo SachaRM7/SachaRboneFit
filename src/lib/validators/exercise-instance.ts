@@ -17,14 +17,19 @@ export const LIBELLES_POULIE: Record<(typeof TYPES_POULIE)[number], string> = {
 };
 
 /**
- * Champs modifiables d'une machine.
+ * Champs modifiables d'un exercice de salle.
  *
  * Le PATCH faisait auparavant `.set({ ...body })` sans validation : n'importe
  * quelle colonne pouvait etre ecrasee depuis le client, `userId` et `gymId`
  * compris. Ce schema fixe la liste exacte de ce qui est acceptable.
+ *
+ * Le nom sur place est facultatif. « Machine » etait une vulgarisation : une
+ * salle contient aussi des barres, des halteres et une barre de traction, qui
+ * ne portent aucun nom d'appareil. L'exiger rendait ces exercices impossibles
+ * a declarer. Faute de nom, celui de l'exercice fait l'affaire.
  */
 export const champsMachineSchema = z.object({
-  machineNom: z.string().trim().min(1).max(120),
+  machineNom: z.string().trim().max(120).optional(),
   typePoulie: z.enum(TYPES_POULIE).default("na"),
   conventionCharge: z.enum(CONVENTIONS_CHARGE),
   incrementsPossibles: z.array(z.number().positive().max(100)).min(1).max(12),
@@ -32,6 +37,9 @@ export const champsMachineSchema = z.object({
   chargeMax: z.number().positive().max(1000).nullable().optional(),
   notesMachine: z.string().trim().max(500).nullable().optional(),
 });
+
+/** Seuls un appareil ou une poulie portent un nom propre sur place. */
+export const EQUIPEMENTS_NOMMES = ["machine", "poulie"] as const;
 
 export const creationMachineSchema = champsMachineSchema.extend({
   exerciseId: z.string().uuid(),

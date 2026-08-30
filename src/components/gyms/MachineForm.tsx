@@ -87,13 +87,12 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
 
   const enregistrer = async () => {
     if (!exerciseId) {
-      toast.error("Choisis l'exercice réalisé sur cette machine");
+      toast.error("Choisis l'exercice disponible ici");
       return;
     }
-    if (!machineNom.trim()) {
-      toast.error("Donne un nom à la machine");
-      return;
-    }
+    // Le nom sur place était exigé : une barre, des haltères, une barre de
+    // traction n'en portent aucun, et ces exercices étaient donc impossibles à
+    // déclarer. Sans nom, le serveur retient celui de l'exercice.
     const valeurs = parseIncrements();
     if (!valeurs) {
       toast.error("Incréments invalides — sépare-les par des virgules");
@@ -105,7 +104,7 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
     setEnvoi(true);
     try {
       const corps = {
-        machineNom: machineNom.trim(),
+        machineNom: machineNom.trim() || undefined,
         typePoulie,
         conventionCharge,
         incrementsPossibles: valeurs,
@@ -201,15 +200,18 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="machineNom">Nom de la machine sur place</Label>
+        <Label htmlFor="machineNom">
+          Nom sur place <span className="text-encre-3 font-normal">(facultatif)</span>
+        </Label>
         <Input
           id="machineNom"
           value={machineNom}
           onChange={(e) => setMachineNom(e.target.value)}
-          placeholder="Matrix Perfect Squat, Pec Fly réglage 1…"
+          placeholder="Matrix Perfect Squat, rack 2, Pec Fly réglage 1…"
         />
         <p className="text-encre-3 text-xs">
-          Le nom que tu utilises dans cette salle. Le réglage fait partie de l&apos;identité de la machine.
+          Utile pour un appareil, dont le réglage fait partie de l&apos;identité. Pour une barre ou
+          des haltères, laisse vide : le nom de l&apos;exercice suffit.
         </p>
       </div>
 

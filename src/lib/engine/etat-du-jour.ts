@@ -7,9 +7,9 @@
  * qui constatait son propre vide.
  *
  * La règle tenue ici : il y a toujours une prochaine action, et cette action
- * est ce qui manque réellement. Quand l'application ne connaît pas encore le
- * parc d'une salle, elle ne peut pas inventer une séance — elle demande le
- * parc. Ce n'est pas un écran d'erreur, c'est l'étape suivante.
+ * est ce qui manque réellement. Quand l'application ne sait pas encore ce
+ * qu'une salle permet de faire, elle ne peut pas inventer une séance — elle
+ * pose la question. Ce n'est pas un écran d'erreur, c'est l'étape suivante.
  */
 
 export interface Salle {
@@ -26,7 +26,7 @@ export interface SeanceProgrammee {
 export interface EntreeEtatDuJour {
   /** Salle du jour : préférence de l'utilisateur, ou unique salle active. */
   salle: Salle | null;
-  /** Machines renseignées dans cette salle. Zéro = parc inconnu. */
+  /** Exercices renseignés dans cette salle — appareils ou non. Zéro = inconnu. */
   machinesDansLaSalle: number;
   prochaineSeance: SeanceProgrammee | null;
   /** Une séance a déjà été enregistrée aujourd'hui. */
@@ -86,7 +86,7 @@ export function etatDuJour(e: EntreeEtatDuJour): EtatDuJour {
       etat: "salle_vide",
       salle: e.salle,
       seance: null,
-      action: { type: "equiper_salle", href: `/gyms/${e.salle.id}/materiel` },
+      action: { type: "equiper_salle", href: `/gyms/${e.salle.id}/exercices` },
       enAttenteDeDonnees: true,
     };
   }

@@ -30,10 +30,10 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
   },
   salle_vide: {
     icone: Wrench,
-    titre: (e) => `${e.salle?.nom ?? "Ta salle"} — parc à renseigner`,
+    titre: (e) => `${e.salle?.nom ?? "Ta salle"} — à renseigner`,
     texte:
-      "Ajoute les machines que tu vois sur place. Chaque machine ajoutée est un exercice que je peux te proposer.",
-    bouton: "Ajouter mes machines",
+      "Dis-moi ce qu'on peut faire ici : appareils, barres, haltères, barre de traction. Chaque exercice ajouté est un exercice que je peux te proposer.",
+    bouton: "Renseigner la salle",
   },
   calibration: {
     icone: Ruler,

@@ -98,7 +98,7 @@ export async function POST(request: Request) {
           const [creee] = await tx.insert(gyms).values({
             userId,
             nom: d.nouvelleSalleNom,
-            notes: "Machines à compléter pendant les séances.",
+            notes: "Exercices disponibles à compléter au fil des séances.",
           }).returning();
           salleId = creee?.id;
         }

@@ -22,9 +22,11 @@ interface Props {
   gymId: string;
   machines: MachineAffichee[];
   exercices: ExerciceSelectionnable[];
+  /** La liste est commune ; seul le créateur de la salle la tient à jour. */
+  lectureSeule?: boolean;
 }
 
-export function GestionMachines({ gymId, machines, exercices }: Props) {
+export function GestionMachines({ gymId, machines, exercices, lectureSeule = false }: Props) {
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [enEdition, setEnEdition] = useState<MachineAffichee | null>(null);
@@ -45,11 +47,13 @@ export function GestionMachines({ gymId, machines, exercices }: Props) {
     setSuppression(m.id);
     try {
       const res = await fetch(`/api/exercise-instances/${m.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-      toast.success("Machine retirée");
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "");
+      toast.success("Exercice retiré de la salle");
       router.refresh();
-    } catch {
-      toast.error("Suppression impossible");
+    } catch (cause) {
+      // Le message était constant : un refus d'autorisation se présentait
+      // comme une panne, sans dire ce qui bloquait.
+      toast.error(cause instanceof Error && cause.message ? cause.message : "Suppression impossible");
     } finally {
       setSuppression(null);
     }
@@ -62,16 +66,19 @@ export function GestionMachines({ gymId, machines, exercices }: Props) {
 
   return (
     <div className="space-y-5">
-      <Button className="w-full h-12" onClick={ouvrirAjout}>
-        <Plus className="w-4 h-4 mr-2" />
-        Ajouter une machine
-      </Button>
+      {!lectureSeule && (
+        <Button className="w-full h-12" onClick={ouvrirAjout}>
+          <Plus className="w-4 h-4 mr-2" />
+          Ajouter un exercice
+        </Button>
+      )}
 
       {machines.length === 0 && (
         <div className="bg-carte border border-filet rounded-lg p-4">
           <p className="text-encre-2 text-sm">
-            Aucune machine référencée. Tant que le matériel n&apos;est pas décrit, une séance
-            dans cette salle ne peut proposer aucun exercice.
+            {lectureSeule
+              ? "Cette salle n'a encore aucun exercice renseigné."
+              : "Aucun exercice renseigné. Tant que la salle n'est pas décrite, une séance ici ne peut rien proposer."}
           </p>
         </div>
       )}
@@ -117,16 +124,18 @@ export function GestionMachines({ gymId, machines, exercices }: Props) {
                       <p className="text-encre-3 text-xs mt-1 italic">{m.notesMachine}</p>
                     )}
                   </div>
-                  <div className="flex flex-col gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" aria-label={`Modifier ${m.machineNom}`}
-                      onClick={() => ouvrirEdition(m)}>
-                      <Pencil className="w-4 h-4 text-encre-2" />
-                    </Button>
-                    <Button variant="ghost" size="icon" aria-label={`Supprimer ${m.machineNom}`}
-                      disabled={suppression === m.id} onClick={() => supprimer(m)}>
-                      <Trash2 className="w-4 h-4 text-encre-3" />
-                    </Button>
-                  </div>
+                  {!lectureSeule && (
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <Button variant="ghost" size="icon" aria-label={`Modifier ${m.machineNom}`}
+                        onClick={() => ouvrirEdition(m)}>
+                        <Pencil className="w-4 h-4 text-encre-2" />
+                      </Button>
+                      <Button variant="ghost" size="icon" aria-label={`Retirer ${m.machineNom}`}
+                        disabled={suppression === m.id} onClick={() => supprimer(m)}>
+                        <Trash2 className="w-4 h-4 text-encre-3" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -138,7 +147,7 @@ export function GestionMachines({ gymId, machines, exercices }: Props) {
         <DrawerContent className="bg-papier border-filet text-encre max-h-[90vh]">
           <DrawerHeader>
             <DrawerTitle className="text-encre">
-              {enEdition ? enEdition.machineNom : "Ajouter une machine"}
+              {enEdition ? enEdition.machineNom : "Ajouter un exercice"}
             </DrawerTitle>
           </DrawerHeader>
           <div className="px-4 pb-6 overflow-y-auto">

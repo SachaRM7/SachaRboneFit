@@ -84,7 +84,7 @@ export default function PreparationCalibrationPage() {
         </h1>
         <p className="text-encre-2 text-sm leading-relaxed">
           {reponse.seances.length} séance{reponse.seances.length > 1 ? "s" : ""} construite
-          {reponse.seances.length > 1 ? "s" : ""} à partir du matériel de ta salle. Deux séries par
+          {reponse.seances.length > 1 ? "s" : ""} à partir de ce que ta salle permet. Deux séries par
           exercice, jamais près de l&apos;échec : on cherche tes charges, pas encore tes limites.
         </p>
       </div>

@@ -42,7 +42,7 @@ describe("etatDuJour", () => {
     const r = avec({ machinesDansLaSalle: 0, prochaineSeance: null });
     expect(r.etat).toBe("salle_vide");
     expect(r.seance).toBeNull();
-    expect(r.action).toEqual({ type: "equiper_salle", href: "/gyms/s-1/materiel" });
+    expect(r.action).toEqual({ type: "equiper_salle", href: "/gyms/s-1/exercices" });
   });
 
   it("n'annonce ni repos ni semaine complète tant que rien n'est possible", () => {

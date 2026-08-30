@@ -1,22 +1,48 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { exerciseInstances } from "@/db/schema";
+import { exerciseInstances, exerciseInTemplate } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { majMachineSchema } from "@/lib/validators/exercise-instance";
+import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
 
 /**
- * Une machine décrit un objet physique posé dans une salle commune, pas la
- * propriété de quelqu'un. Les salles se comportent déjà ainsi : n'importe quel
- * compte authentifié peut les lire, les corriger et les retirer. Exiger ici la
- * propriété rendait le parc invisible au deuxième compte, qui devait re-saisir
- * des machines déjà renseignées — alors que le constructeur de séance, lui,
- * lisait déjà tout le parc sans filtre.
+ * L'entree decrit un exercice tel qu'on le trouve dans une salle donnee.
  *
- * Ce qui reste protégé est ce qui appartient réellement à une personne : ses
- * séances, ses séries, ses charges, ses conversations.
+ * La lecture est commune : personne ne doit re-saisir un parc deja renseigne.
+ * L'ecriture revient au createur de la SALLE — le tenir a jour est un travail
+ * de terrain, il a un responsable. L'autorisation se lit donc sur la salle, et
+ * jamais sur la ligne : sinon le premier a corriger un reglage se
+ * l'approprierait, et le responsable changerait a chaque modification.
  */
+async function salleDeLEntree(id: string) {
+  const entree = await db.query.exerciseInstances.findFirst({
+    where: eq(exerciseInstances.id, id),
+    with: { gym: true },
+  });
+  return entree ?? null;
+}
 
+/**
+ * Un exercice tel qu'on le trouve dans une salle donnée.
+ *
+ * « Machine » était une vulgarisation : une salle contient aussi des barres,
+ * des haltères et une barre de traction. Ce que décrit cette entrée, c'est un
+ * mouvement rendu possible par un lieu — avec ses incréments, sa convention de
+ * charge, ses réglages.
+ *
+ * Lecture commune : personne ne doit re-saisir un parc déjà renseigné, et le
+ * constructeur de séance lisait de toute façon déjà tout le parc sans filtre.
+ * Écriture réservée au créateur de la SALLE : la tenir à jour est un travail de
+ * terrain, qui a un responsable.
+ *
+ * L'autorisation se lit sur la salle, jamais sur la ligne — sinon le premier à
+ * corriger un réglage se l'approprierait, et le responsable changerait à chaque
+ * modification.
+ *
+ * Ce qui appartient réellement à une personne — séances, séries, charges,
+ * conversations — reste protégé ailleurs, par le filtre sur son identifiant.
+ */
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -63,6 +89,12 @@ export async function PATCH(
       return NextResponse.json({ error: "Aucun champ à mettre à jour" }, { status: 400 });
     }
 
+    const entree = await salleDeLEntree(id);
+    if (!entree) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!peutGererLaSalle(entree.gym, userId)) {
+      return NextResponse.json({ error: REFUS_GESTION_SALLE }, { status: 403 });
+    }
+
     const [updated] = await db.update(exerciseInstances)
       .set({ ...champs, updatedAt: new Date() })
       .where(eq(exerciseInstances.id, id))
@@ -84,6 +116,28 @@ export async function DELETE(
 
   const { id } = await params;
   try {
+    const entree = await salleDeLEntree(id);
+    if (!entree) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (!peutGererLaSalle(entree.gym, userId)) {
+      return NextResponse.json({ error: REFUS_GESTION_SALLE }, { status: 403 });
+    }
+
+    // Une entrée citée par un programme ne peut pas disparaître : la clé
+    // étrangère refuse, et le refus remontait en 500 sans rien expliquer.
+    const citations = await db.query.exerciseInTemplate.findMany({
+      where: eq(exerciseInTemplate.exerciseInstanceId, id),
+      limit: 1,
+    });
+    if (citations.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Cet exercice est utilisé dans un programme. Retire-le d'abord de tes séances, ou archive-le.",
+        },
+        { status: 409 },
+      );
+    }
+
     await db.delete(exerciseInstances).where(eq(exerciseInstances.id, id));
     return NextResponse.json({ success: true });
   } catch (error) {

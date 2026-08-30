@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { gyms } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { gyms, exerciseInstances } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
+import { majSalleSchema } from "@/lib/validators/salle";
 
 export async function GET(
   request: Request,
@@ -32,9 +34,30 @@ export async function PATCH(
 
   const { id } = await params;
   try {
-    const body = await request.json();
+    // `.set({ ...body })` acceptait n'importe quelle colonne depuis le client,
+    // `userId` compris : n'importe qui pouvait se réattribuer une salle.
+    const parsed = majSalleSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Données invalides", details: parsed.error.flatten() },
+        { status: 400 },
+      );
+    }
+    const champs = Object.fromEntries(
+      Object.entries(parsed.data).filter(([, v]) => v !== undefined),
+    );
+    if (Object.keys(champs).length === 0) {
+      return NextResponse.json({ error: "Aucun champ à mettre à jour" }, { status: 400 });
+    }
+
+    const salle = await db.query.gyms.findFirst({ where: eq(gyms.id, id) });
+    if (!salle) return NextResponse.json({ error: "Gym not found" }, { status: 404 });
+    if (!peutGererLaSalle(salle, userId)) {
+      return NextResponse.json({ error: REFUS_GESTION_SALLE }, { status: 403 });
+    }
+
     const [updated] = await db.update(gyms)
-      .set({ ...body, updatedAt: new Date() })
+      .set({ ...champs, updatedAt: new Date() })
       .where(eq(gyms.id, id))
       .returning();
     if (!updated) return NextResponse.json({ error: "Gym not found" }, { status: 404 });
@@ -53,9 +76,16 @@ export async function DELETE(
 
   const { id } = await params;
   try {
-    // Check if gym has exercise instances
+    const salle = await db.query.gyms.findFirst({ where: eq(gyms.id, id) });
+    if (!salle) return NextResponse.json({ error: "Gym not found" }, { status: 404 });
+    if (!peutGererLaSalle(salle, userId)) {
+      return NextResponse.json({ error: REFUS_GESTION_SALLE }, { status: 403 });
+    }
+
+    // Le filtre portait sur `gyms.id` dans une requête sur `exercise_instances` :
+    // il ne désignait pas la colonne attendue, et le garde ne gardait rien.
     const instances = await db.query.exerciseInstances.findMany({
-      where: eq(gyms.id, id),
+      where: eq(exerciseInstances.gymId, id),
       limit: 1,
     });
     if (instances.length > 0) {

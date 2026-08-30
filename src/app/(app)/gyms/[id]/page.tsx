@@ -27,7 +27,7 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
     <div className="p-4 space-y-4">
       <h1 className="text-xl font-bold text-encre">{gym.nom}</h1>
 
-      <Link href={`/gyms/${id}/materiel`} className="block">
+      <Link href={`/gyms/${id}/exercices`} className="block">
         <Button variant="outline" className="w-full bg-carte border-filet">
           Voir le matériel de cette salle
         </Button>

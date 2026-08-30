@@ -182,14 +182,14 @@ describe("parcours d'un nouveau départ", () => {
 
   it("3. l'accueil demande le matériel, pas une séance impossible", async () => {
     const etat = await etatDuJourAttendu("salle_vide");
-    expect(etat.action).toEqual({ type: "equiper_salle", href: `/gyms/${salleId}/materiel` });
+    expect(etat.action).toEqual({ type: "equiper_salle", href: `/gyms/${salleId}/exercices` });
     expect(etat.enAttenteDeDonnees).toBe(true);
   });
 
   it("4. la calibration refuse de s'inventer une séance dans une salle vide", async () => {
     const res = await calibration.POST(poste("http://test/api/programme/calibration", {}));
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/Aucune machine renseignée/);
+    expect((await res.json()).error).toMatch(/Aucun exercice renseigné/);
   });
 
   it("5. équiper la salle passe par la vraie route de création", async () => {

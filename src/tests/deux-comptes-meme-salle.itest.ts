@@ -218,11 +218,47 @@ describe("deux comptes dans la même salle", () => {
     await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.userId, A));
   });
 
-  it("une machine corrigée par B l'est pour tout le monde", async () => {
-    // Si Basic-Fit change la pile d'une machine, celui qui le remarque corrige.
+  it("B ne peut ni modifier ni retirer un exercice de la salle de A", async () => {
+    // Lecture commune, écriture au responsable : tenir un parc à jour est un
+    // travail de terrain, il a un auteur.
+    const { PATCH, DELETE } = await import("@/app/api/exercise-instances/[id]/route");
+    const cible = machinesDeA[0]!;
+    const params = { params: Promise.resolve({ id: cible }) };
+
+    const modif = await enTantQue(B, () => PATCH(poste({ incrementsPossibles: [1.25] }), params));
+    expect(modif.status).toBe(403);
+
+    const suppr = await enTantQue(B, () => DELETE(poste({}), params));
+    expect(suppr.status).toBe(403);
+
+    const relue = await db.query.exerciseInstances.findFirst({
+      where: eq(schema.exerciseInstances.id, cible),
+    });
+    expect(relue, "l'entrée doit avoir survécu aux deux refus").toBeTruthy();
+    expect(relue!.incrementsPossibles).toEqual([2.5, 5]);
+  });
+
+  it("B ne peut pas non plus ajouter un exercice à la salle de A", async () => {
+    const res = await enTantQue(B, () =>
+      instances.POST(
+        poste({
+          exerciseId: idsExercices[0],
+          gymId: salleId,
+          machineNom: "Ajout non autorisé",
+          conventionCharge: "poids_total",
+          incrementsPossibles: [5],
+        }),
+      ),
+    );
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/consulter/);
+  });
+
+  it("A, lui, corrige ce qu'il a saisi", async () => {
+    // Si Basic-Fit change la pile d'un appareil, le responsable met à jour.
     const { PATCH } = await import("@/app/api/exercise-instances/[id]/route");
     const cible = machinesDeA[0]!;
-    const res = await enTantQue(B, () =>
+    const res = await enTantQue(A, () =>
       PATCH(poste({ incrementsPossibles: [1.25] }), { params: Promise.resolve({ id: cible }) }),
     );
     expect(res.status, await res.clone().text()).toBe(200);
@@ -231,7 +267,47 @@ describe("deux comptes dans la même salle", () => {
       where: eq(schema.exerciseInstances.id, cible),
     });
     expect(relue?.incrementsPossibles).toEqual([1.25]);
-    // La trace de saisie reste celle de A : partagé ne veut pas dire réattribué.
     expect(relue?.userId).toBe(A);
+  });
+
+  it("un exercice sans appareil se déclare sans nom sur place", async () => {
+    // « Machine » était une vulgarisation : une barre de traction n'a pas de nom
+    // d'appareil, et l'exiger rendait l'exercice impossible à déclarer.
+    const [libre] = await db
+      .insert(schema.exercises)
+      .values({
+        userId: null,
+        nom: "Traction à la barre",
+        pilier: "P2_tirage",
+        profilTension: "stretch",
+        type: "polyarticulaire",
+        categorieRole: "pilier",
+        musclesPrincipaux: ["dorsaux"],
+        musclesSecondaires: ["biceps"],
+        equipement: "poids_du_corps",
+        slug: `traction-${A.slice(0, 8)}`,
+      })
+      .returning();
+    idsExercices.push(libre!.id);
+    const exerciceLibre = libre!.id;
+
+    const res = await enTantQue(A, () =>
+      instances.POST(
+        poste({
+          exerciseId: exerciceLibre,
+          gymId: salleId,
+          conventionCharge: "poids_total",
+          incrementsPossibles: [2.5],
+        }),
+      ),
+    );
+    expect(res.status, await res.clone().text()).toBe(201);
+
+    const creee = await res.json();
+    const exercice = await db.query.exercises.findFirst({
+      where: eq(schema.exercises.id, exerciceLibre),
+    });
+    // Faute de nom sur place, celui de l'exercice fait l'affaire.
+    expect(creee.machineNom).toBe(exercice!.nom);
   });
 });

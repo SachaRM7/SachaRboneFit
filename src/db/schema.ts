@@ -57,9 +57,13 @@ export const gyms = pgTable("gyms", {
   /**
    * Compte ayant enregistre la salle.
    *
-   * Une salle et son parc decrivent un lieu, pas un pratiquant : deux comptes
-   * qui s'y entrainent decrivent le meme materiel. Cet identifiant garde la
-   * trace de qui l'a saisie ; il ne restreint plus la lecture.
+   * Une salle et les exercices qu'on y trouve decrivent un lieu, pas un
+   * pratiquant : deux comptes qui s'y entrainent y trouvent la meme chose. La
+   * lecture est donc commune a tous.
+   *
+   * Cet identifiant designe le responsable : celui qui a saisi la salle est le
+   * seul a pouvoir la modifier et a gerer les exercices qu'elle contient. Tenir
+   * un parc a jour est un travail de terrain, il a un auteur.
    */
   userId: uuid("user_id").references(() => users.id).notNull(),
   nom: text("nom").notNull(),
@@ -110,7 +114,11 @@ export const exercises = pgTable("exercises", {
 
 export const exerciseInstances = pgTable("exercise_instances", {
   id: uuid("id").defaultRandom().primaryKey(),
-  /** Compte ayant renseigne la machine. Elle appartient a la salle, pas a lui. */
+  /**
+   * Compte ayant saisi l'entree. Trace d'auteur, sans effet sur les droits :
+   * c'est le createur de la SALLE qui decide de son contenu. Sinon le premier a
+   * corriger un reglage se l'approprierait.
+   */
   userId: uuid("user_id").references(() => users.id).notNull(),
   exerciseId: uuid("exercise_id").references(() => exercises.id).notNull(),
   gymId: uuid("gym_id").references(() => gyms.id).notNull(),

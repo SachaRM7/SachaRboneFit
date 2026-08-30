@@ -77,13 +77,13 @@ describe("planCalibration", () => {
     );
     expect(plan.piliersNonCouverts).toContain("P3_squat");
     expect(plan.piliersNonCouverts).not.toContain("P1_poussee");
-    expect(plan.avertissements.join(" ")).toMatch(/Aucune machine pour/);
+    expect(plan.avertissements.join(" ")).toMatch(/Rien pour/);
   });
 
   it("ne rend aucune séance quand la salle est vide, et le dit", () => {
     const plan = planCalibration(base({ machines: [] }));
     expect(plan.seances).toEqual([]);
-    expect(plan.avertissements[0]).toMatch(/Aucune machine renseignée/);
+    expect(plan.avertissements[0]).toMatch(/Aucun exercice renseigné/);
   });
 
   it("distingue une salle vide d'une salle entièrement écartée", () => {
@@ -94,7 +94,7 @@ describe("planCalibration", () => {
       }),
     );
     expect(plan.seances).toEqual([]);
-    expect(plan.avertissements[0]).toMatch(/écartées par tes contraintes/);
+    expect(plan.avertissements[0]).toMatch(/écartés par tes contraintes/);
   });
 
   it("écarte un exercice refusé à l'onboarding", () => {

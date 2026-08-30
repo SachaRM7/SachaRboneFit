@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { exerciseInstances } from "@/db/schema";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { creationMachineSchema } from "@/lib/validators/exercise-instance";
+import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
 
 export async function GET(request: Request) {
   try {
@@ -56,12 +57,17 @@ export async function POST(request: Request) {
     ]);
     if (!exercice) return NextResponse.json({ error: "Exercice introuvable" }, { status: 404 });
     if (!salle) return NextResponse.json({ error: "Salle introuvable ou archivée" }, { status: 404 });
+    if (!peutGererLaSalle(salle, userId)) {
+      return NextResponse.json({ error: REFUS_GESTION_SALLE }, { status: 403 });
+    }
 
     const [instance] = await db.insert(exerciseInstances).values({
       userId,
       exerciseId: parsed.data.exerciseId,
       gymId: parsed.data.gymId,
-      machineNom: parsed.data.machineNom,
+      // Sans nom sur place — une barre, une barre de traction —, celui de
+      // l'exercice suffit a s'y retrouver en salle.
+      machineNom: parsed.data.machineNom?.trim() || exercice.nom,
       typePoulie: parsed.data.typePoulie,
       conventionCharge: parsed.data.conventionCharge,
       incrementsPossibles: parsed.data.incrementsPossibles,
