@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { exerciseInstances } from "@/db/schema";
+import { exerciseInstances, exercises } from "@/db/schema";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { creationMachineSchema } from "@/lib/validators/exercise-instance";
 import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
@@ -12,6 +13,35 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const gymId = searchParams.get("gymId");
+
+    /**
+     * Recherche par identifiants, avec le nom de l'exercice.
+     *
+     * L'écran de fin de séance n'a que des identifiants d'instances, et le
+     * seul moyen d'obtenir leurs noms était deux requêtes PAR exercice depuis
+     * le navigateur — qui retombaient sur le littéral « Exercice » au moindre
+     * échec. Une requête suffit pour tout le lot.
+     */
+    const ids = searchParams.get("ids");
+    if (ids !== null) {
+      const demandes = [...new Set(ids.split(",").map((s) => s.trim()).filter(Boolean))];
+      if (demandes.length === 0) return NextResponse.json([]);
+
+      const lignes = await db
+        .select({
+          id: exerciseInstances.id,
+          exerciseId: exerciseInstances.exerciseId,
+          gymId: exerciseInstances.gymId,
+          machineNom: exerciseInstances.machineNom,
+          nom: exercises.nom,
+          pilier: exercises.pilier,
+        })
+        .from(exerciseInstances)
+        .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+        .where(and(inArray(exerciseInstances.id, demandes), isNull(exerciseInstances.archiveLe)));
+
+      return NextResponse.json(lignes);
+    }
 
     // Le parc d'une salle est commun, comme la salle elle-même : filtrer par
     // propriétaire obligeait un deuxième compte à re-saisir des machines déjà
