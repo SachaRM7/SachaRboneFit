@@ -25,6 +25,8 @@ export interface MachineDisponible {
   pilier: string;
   categorieRole: string;
   musclesPrincipaux: string[];
+  /** Famille de matériel, pour départager selon la préférence déclarée. */
+  equipement?: string | null;
 }
 
 export interface EntreePlanCalibration {
@@ -33,8 +35,21 @@ export interface EntreePlanCalibration {
   dureeSeanceCibleMinutes: number;
   /** Muscles que l'utilisateur veut prioriser : départage à couverture égale. */
   musclesPrioritaires?: string[];
-  /** Noms d'exercices refusés à l'onboarding. */
+  /**
+   * Exercices refusés à l'onboarding.
+   *
+   * Des identifiants depuis que la saisie passe par le catalogue. Les noms
+   * restent acceptés : les profils enregistrés avant ce changement en
+   * contiennent, et les oublier reviendrait à reproposer silencieusement un
+   * exercice que quelqu'un avait écarté.
+   */
   exercicesRefuses?: string[];
+  /**
+   * Préférence déclarée : machines, poids libres, mélange, peu importe.
+   * Départage à fidélité égale, sans jamais écarter un exercice — une
+   * préférence n'est pas une contrainte.
+   */
+  preferenceMateriel?: string;
   /** Muscles déclarés sensibles : écartés de la calibration. */
   musclesSensibles?: string[];
 }
@@ -80,6 +95,18 @@ export const ORDRE_PILIERS = [
   "core",
 ] as const;
 
+/** Familles rangées de part et d'autre de la préférence « machines / poids libres ». */
+const FAMILLES_MACHINE = new Set(["machine", "poulie"]);
+const FAMILLES_LIBRE = new Set(["barre", "halteres", "kettlebell", "disque", "poids_du_corps"]);
+
+/** 0 quand l'exercice va dans le sens de la préférence, 1 sinon. */
+function ecartPreference(equipement: string | null | undefined, preference?: string): number {
+  if (!preference || preference === "aucune" || preference === "melange" || !equipement) return 0;
+  if (preference === "machines") return FAMILLES_MACHINE.has(equipement) ? 0 : 1;
+  if (preference === "poids_libres") return FAMILLES_LIBRE.has(equipement) ? 0 : 1;
+  return 0;
+}
+
 /** Un rôle de pilier se mesure avant son substitut, qui passe avant un accessoire. */
 const RANG_ROLE: Record<string, number> = { pilier: 0, substitut: 1, accessoire: 2 };
 
@@ -102,12 +129,15 @@ export function nombreDExercices(dureeMinutes: number): number {
 }
 
 export function planCalibration(e: EntreePlanCalibration): PlanCalibration {
-  const refuses = new Set((e.exercicesRefuses ?? []).map((n) => n.toLowerCase().trim()));
+  // Identifiants et noms cohabitent : on indexe les deux formes.
+  const refuses = new Set(
+    (e.exercicesRefuses ?? []).flatMap((v) => [v, v.toLowerCase().trim()]),
+  );
   const sensibles = new Set(e.musclesSensibles ?? []);
   const prioritaires = new Set(e.musclesPrioritaires ?? []);
 
   const utilisables = e.machines.filter((m) => {
-    if (refuses.has(m.nom.toLowerCase().trim())) return false;
+    if (refuses.has(m.exerciceId) || refuses.has(m.nom.toLowerCase().trim())) return false;
     // Un exercice dont tous les muscles principaux sont sensibles est écarté.
     // S'il en sollicite d'autres, il reste proposable : une gêne à l'épaule
     // n'interdit pas de mesurer les jambes.
@@ -129,6 +159,11 @@ export function planCalibration(e: EntreePlanCalibration): PlanCalibration {
       const prioA = (a.musclesPrincipaux ?? []).some((mu) => prioritaires.has(mu)) ? 0 : 1;
       const prioB = (b.musclesPrincipaux ?? []).some((mu) => prioritaires.has(mu)) ? 0 : 1;
       if (prioA !== prioB) return prioA - prioB;
+      // La préférence départage en dernier recours : elle oriente le choix
+      // entre deux exercices également valables, elle n'en écarte aucun.
+      const prefA = ecartPreference(a.equipement, e.preferenceMateriel);
+      const prefB = ecartPreference(b.equipement, e.preferenceMateriel);
+      if (prefA !== prefB) return prefA - prefB;
       // Tri final par identifiant : le plan doit être reproductible.
       return a.instanceId.localeCompare(b.instanceId);
     });

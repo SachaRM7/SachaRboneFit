@@ -115,6 +115,7 @@ export async function POST(request: Request) {
       pilier: r.pilier,
       categorieRole: r.categorieRole,
       musclesPrincipaux: r.musclesPrincipaux,
+      equipement: r.equipement,
     }));
     const aCreer = new Map(realisables.filter((r) => !r.instanceId).map((r) => [r.exerciceId, r]));
 
@@ -128,6 +129,7 @@ export async function POST(request: Request) {
       dureeSeanceCibleMinutes: profil?.dureeSeanceCibleMinutes ?? 60,
       musclesPrioritaires: profil?.objectifMusclesPrioritaires ?? [],
       exercicesRefuses: profil?.exercicesRefuses ?? [],
+      preferenceMateriel: profil?.preferenceMateriel ?? undefined,
       // Une contrainte sévère écarte le muscle ; une gêne légère ne justifie pas
       // de ne jamais le mesurer.
       musclesSensibles: zonesSensibles

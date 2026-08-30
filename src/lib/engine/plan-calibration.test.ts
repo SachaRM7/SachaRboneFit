@@ -34,6 +34,70 @@ const base = (patch: Partial<EntreePlanCalibration> = {}): EntreePlanCalibration
   ...patch,
 });
 
+describe("exercices refusés", () => {
+  it("reconnaît un identifiant du catalogue", () => {
+    // La saisie passe désormais par le catalogue : c'est l'identifiant qui est
+    // enregistré, pas un nom tapé à la main.
+    const machines = [
+      machine("P1_poussee", "Développé couché"),
+      machine("P1_poussee", "Développé incliné"),
+    ];
+    const plan = planCalibration(
+      base({ machines, exercicesRefuses: [machines[0]!.exerciceId] }),
+    );
+    const utilises = plan.seances.flatMap((s) => s.exercices.map((e) => e.instanceId));
+    expect(utilises).not.toContain(machines[0]!.instanceId);
+    expect(utilises).toContain(machines[1]!.instanceId);
+  });
+
+  it("accepte encore un nom, pour les profils enregistrés avant", () => {
+    // Les oublier reviendrait à reproposer un exercice que quelqu'un avait
+    // écarté, sans rien lui dire.
+    const machines = [
+      machine("P1_poussee", "Développé couché"),
+      machine("P1_poussee", "Développé incliné"),
+    ];
+    const plan = planCalibration(base({ machines, exercicesRefuses: ["  développé couché "] }));
+    const utilises = plan.seances.flatMap((s) => s.exercices.map((e) => e.instanceId));
+    expect(utilises).not.toContain(machines[0]!.instanceId);
+  });
+});
+
+describe("préférence de matériel", () => {
+  const avecEquipement = (equipement: string, nom: string) => ({
+    ...machine("P1_poussee", nom),
+    equipement,
+  });
+
+  it("oriente le choix entre deux exercices également valables", () => {
+    const machines = [avecEquipement("barre", "Développé barre"), avecEquipement("machine", "Chest press")];
+    const versMachines = planCalibration(
+      base({ machines, frequenceCibleParSemaine: 1, dureeSeanceCibleMinutes: 20, preferenceMateriel: "machines" }),
+    );
+    const versLibre = planCalibration(
+      base({ machines, frequenceCibleParSemaine: 1, dureeSeanceCibleMinutes: 20, preferenceMateriel: "poids_libres" }),
+    );
+    const premier = (p: ReturnType<typeof planCalibration>) =>
+      machines.find((m) => m.instanceId === p.seances[0]!.exercices[0]!.instanceId)!.nom;
+
+    expect(premier(versMachines)).toBe("Chest press");
+    expect(premier(versLibre)).toBe("Développé barre");
+  });
+
+  it("n'écarte jamais un exercice : une préférence n'est pas une contrainte", () => {
+    const machines = [avecEquipement("barre", "Développé barre")];
+    const plan = planCalibration(base({ machines, preferenceMateriel: "machines" }));
+    expect(plan.seances[0]!.exercices).toHaveLength(1);
+  });
+
+  it("ne change rien quand elle est neutre", () => {
+    const machines = [avecEquipement("barre", "A"), avecEquipement("machine", "B")];
+    const e = base({ machines, frequenceCibleParSemaine: 1, dureeSeanceCibleMinutes: 20 });
+    expect(planCalibration({ ...e, preferenceMateriel: "melange" }))
+      .toEqual(planCalibration({ ...e, preferenceMateriel: "aucune" }));
+  });
+});
+
 describe("nombreDExercices", () => {
   it("tient dans la durée annoncée et reste dans des bornes raisonnables", () => {
     expect(nombreDExercices(60)).toBe(6);

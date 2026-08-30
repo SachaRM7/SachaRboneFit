@@ -30,3 +30,42 @@ export function nombre(valeur: string, defaut: number): number {
 export function fourchetteCoherente(min: number, cible: number, max: number): boolean {
   return min <= cible && cible <= max;
 }
+
+export interface Fourchette {
+  min: number;
+  cible: number;
+  max: number;
+}
+
+export type ChampFourchette = keyof Fourchette;
+
+/**
+ * Déplacer une borne emmène les autres avec elle.
+ *
+ * Laisser l'utilisateur produire « minimum 4, objectif 3 » puis lui reprocher
+ * son incohérence est une mauvaise façon de poser la question : à trois
+ * curseurs liés, c'est l'interface qui doit tenir la contrainte.
+ *
+ * La règle : la borne qu'on touche gagne toujours, les deux autres cèdent le
+ * strict nécessaire.
+ */
+export function ajusterFourchette(
+  actuelle: Fourchette,
+  champ: ChampFourchette,
+  valeur: number,
+): Fourchette {
+  const f = { ...actuelle, [champ]: valeur };
+
+  if (champ === "min") {
+    if (f.cible < f.min) f.cible = f.min;
+    if (f.max < f.cible) f.max = f.cible;
+  } else if (champ === "cible") {
+    if (f.min > f.cible) f.min = f.cible;
+    if (f.max < f.cible) f.max = f.cible;
+  } else {
+    if (f.cible > f.max) f.cible = f.max;
+    if (f.min > f.cible) f.min = f.cible;
+  }
+
+  return f;
+}

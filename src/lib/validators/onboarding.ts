@@ -55,6 +55,25 @@ export const LIBELLES_MATERIEL: Record<(typeof PREFERENCES_MATERIEL)[number], st
   aucune: "Peu importe",
 };
 
+/**
+ * Bornes métier d'une durée de séance.
+ *
+ * Centralisées parce qu'elles servent à trois endroits qui divergeaient :
+ * le schéma de validation, les valeurs proposées à l'écran, et le repli quand
+ * un champ reste vide.
+ */
+export const BORNES_DUREE = { min: 20, max: 180, defaut: 60, defautMax: 90 } as const;
+
+/** Durées courantes, proposées en un tap. « Autre » couvre le reste. */
+export const DUREES_PROPOSEES = [45, 60, 75, 90] as const;
+
+/**
+ * Au-delà de cette sévérité, le moteur écarte le muscle au lieu de l'alléger.
+ * La valeur vit ici parce que l'écran doit pouvoir DÉCRIRE la conséquence —
+ * sans pour autant exposer la règle avant que l'utilisateur ait répondu.
+ */
+export const SEVERITE_ECARTEMENT = 7;
+
 const contrainteSchema = z.object({
   muscle: z.enum(MUSCLES as unknown as [string, ...string[]]),
   severite: z.number().int().min(1).max(10),
@@ -76,11 +95,19 @@ export const onboardingSchema = z
     frequenceCibleParSemaine: z.number().int().min(1).max(7),
     frequenceMinParSemaine: z.number().int().min(1).max(7),
     frequenceMaxParSemaine: z.number().int().min(1).max(7),
-    dureeSeanceCibleMinutes: z.number().int().min(15).max(180),
-    dureeSeanceMaxMinutes: z.number().int().min(15).max(240),
+    dureeSeanceCibleMinutes: z.number().int().min(BORNES_DUREE.min).max(BORNES_DUREE.max),
+    dureeSeanceMaxMinutes: z.number().int().min(BORNES_DUREE.min).max(BORNES_DUREE.max),
 
     preferenceMateriel: z.enum(PREFERENCES_MATERIEL).default("aucune"),
-    exercicesRefuses: z.array(z.string().max(80)).max(20).default([]),
+    /**
+     * Identifiants d'exercices du catalogue.
+     *
+     * C'était une liste de noms séparés par des virgules : une faute de frappe,
+     * une variante ou un mot anglais et l'exercice n'était jamais retrouvé. Le
+     * moteur accepte encore les noms pour les profils enregistrés avant ce
+     * changement, mais on n'en produit plus.
+     */
+    exercicesRefuses: z.array(z.string().uuid()).max(20).default([]),
 
     /** Salle du jour, existante ou à créer. Le parc peut rester vide. */
     salleId: z.string().uuid().optional(),
