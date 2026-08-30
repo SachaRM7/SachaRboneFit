@@ -41,7 +41,7 @@ export interface EntreeEtatDuJour {
 export type ActionDuJour =
   | { type: "choisir_salle"; href: "/gyms" }
   | { type: "equiper_salle"; href: string }
-  | { type: "demarrer_calibration"; href: string }
+  | { type: "demarrer_calibration"; href: "/session/calibration" }
   | { type: "demarrer_seance"; href: string; templateId: string }
   | { type: "voir_progression"; href: "/progression" };
 
@@ -122,7 +122,9 @@ export function etatDuJour(e: EntreeEtatDuJour): EtatDuJour {
       etat: "calibration",
       salle: e.salle,
       seance: null,
-      action: { type: "demarrer_calibration", href: lienDemarrage(e.salle.id) },
+      // La séance n'existe pas encore : cet écran la construit à partir du
+      // parc de la salle, puis enchaîne sur le démarrage.
+      action: { type: "demarrer_calibration", href: "/session/calibration" },
       enAttenteDeDonnees: false,
     };
   }
