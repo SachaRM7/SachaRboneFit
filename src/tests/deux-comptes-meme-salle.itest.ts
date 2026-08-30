@@ -221,6 +221,63 @@ describe("deux comptes dans la même salle", () => {
     await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.userId, A));
   });
 
+  it("A remet son compte à zéro sans toucher à celui de B", async () => {
+    // Rejouer le parcours doit être possible à volonté, et rester strictement
+    // personnel : effacer ses données ne doit jamais emporter celles d'un autre.
+    const { reinitialiserCompte } = await import("@/services/reinitialisation");
+
+    const [seanceB] = await db.insert(schema.sessionLogs).values({
+      userId: B, date: "2026-09-10", gymId: salleId, dureeMinutes: 50,
+    }).returning();
+    const [seanceA] = await db.insert(schema.sessionLogs).values({
+      userId: A, date: "2026-09-10", gymId: salleId, dureeMinutes: 50,
+    }).returning();
+    await db.insert(schema.setLogs).values({
+      sessionLogId: seanceA!.id, exerciseInstanceId: machinesDeA[0]!,
+      numeroSerie: 1, charge: 50, repsEffectuees: 10,
+    });
+    await db.update(schema.users)
+      .set({ onboardingTermineLe: new Date(), objectifType: "prise_de_muscle" })
+      .where(eq(schema.users.id, A));
+
+    const resume = await reinitialiserCompte(A);
+
+    // Le compte A est vide et redevient un compte neuf.
+    expect(resume.seances).toBeGreaterThan(0);
+    expect(await db.$count(schema.sessionLogs, eq(schema.sessionLogs.userId, A))).toBe(0);
+    expect(await db.$count(schema.programmeBlocs, eq(schema.programmeBlocs.userId, A))).toBe(0);
+    const profilA = await db.query.users.findFirst({ where: eq(schema.users.id, A) });
+    expect(profilA?.onboardingTermineLe).toBeNull();
+    expect(profilA?.objectifType).toBeNull();
+
+    // B n'a rien perdu.
+    expect(await db.$count(schema.sessionLogs, eq(schema.sessionLogs.userId, B))).toBe(1);
+    const profilB = await db.query.users.findFirst({ where: eq(schema.users.id, B) });
+    expect(profilB?.onboardingTermineLe).not.toBeNull();
+
+    // Le parc commun est intact : il n'appartient à personne en particulier.
+    expect(await db.$count(schema.exerciseInstances, eq(schema.exerciseInstances.gymId, salleId)))
+      .toBe(machinesDeA.length);
+    expect(await db.query.gyms.findFirst({ where: eq(schema.gyms.id, salleId) })).toBeTruthy();
+
+    await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.id, seanceB!.id));
+  });
+
+  it("refuse de supprimer un lieu où un autre compte s'est entraîné", async () => {
+    const { reinitialiserCompte } = await import("@/services/reinitialisation");
+    const [seanceB] = await db.insert(schema.sessionLogs).values({
+      userId: B, date: "2026-09-11", gymId: salleId, dureeMinutes: 50,
+    }).returning();
+
+    const resume = await reinitialiserCompte(A, { supprimerMesLieux: true });
+
+    expect(resume.lieuxSupprimes).not.toContain(`Salle commune ${A.slice(0, 8)}`);
+    expect(resume.lieuxConserves.map((l) => l.raison).join(" ")).toMatch(/entraîné/);
+    expect(await db.query.gyms.findFirst({ where: eq(schema.gyms.id, salleId) })).toBeTruthy();
+
+    await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.id, seanceB!.id));
+  });
+
   it("B ne peut ni modifier ni retirer un exercice de la salle de A", async () => {
     // Lecture commune, écriture au responsable : tenir un parc à jour est un
     // travail de terrain, il a un auteur.
