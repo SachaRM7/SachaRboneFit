@@ -10,6 +10,7 @@ import { applyVolumeAdjustment, type ExerciseInTemplateWithDetails } from "@/lib
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { resoudrePourSalle, type InstanceResolvable } from "@/lib/engine/resolution-salle";
 import { versMuscles } from "@/lib/referentiels/muscles";
+import { expliquerRetours } from "@/services/retours";
 import type { DailyStateInput } from "@/lib/validators/daily-state";
 import type { SessionLog, SessionPlanItem } from "@/db/schema";
 
@@ -40,6 +41,12 @@ export interface ResultatConstruction {
   ajustement: { totalPct: number; raisons: string[] };
   /** Exercices retires faute d'equivalent dans la salle du jour. */
   ecartes: Array<{ exerciceNom: string; raison: string }>;
+  /**
+   * Exercices remis aujourd'hui apres avoir ete empeches, avec la phrase qui
+   * l'explique. Jamais un ajout : ce sont des places deja prevues par le
+   * gabarit, dont on dit seulement pourquoi elles retrouvent leur exercice.
+   */
+  retours: Array<{ exerciceNom: string; explication: string }>;
 }
 
 /** Muscles a menager : courbatures fortes du jour + contraintes actives. */
@@ -226,6 +233,25 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
     }),
   );
 
+  // --- Retours d'exercices precedemment empeches ---
+  //
+  // La memoire n'ajoute rien : la place existe deja dans le gabarit, et la
+  // resolution y a deja remis l'exercice prevu puisqu'il est de nouveau
+  // disponible. Ce qu'elle apporte est la RAISON, et le droit de veto des
+  // garde-fous : si le muscle n'est pas recupere ou si la semaine est servie,
+  // on ne s'en felicite pas.
+  const retours = await expliquerRetours({
+    userId: ctx.userId,
+    resolus: resolus.map((r) => ({
+      exerciceId: r.instance.exerciseId,
+      exerciceNom: r.instance.exerciceNom,
+      musclesPrincipaux: r.instance.musclesPrincipaux,
+      series: seriesParLigne.get(r.ligne.id) ?? r.ligne.seriesCibles,
+    })),
+    date: ctx.date,
+    dureeDisponibleMinutes: null,
+  });
+
   // --- Persistance ---
   return db.transaction(async (tx) => {
     const [seance] = await tx
@@ -280,6 +306,7 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
       feuJour,
       ajustement: { totalPct: ajustement.totalPct, raisons: ajustement.raisons },
       ecartes,
+      retours,
     };
   });
 }

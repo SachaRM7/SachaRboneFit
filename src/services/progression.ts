@@ -7,6 +7,7 @@ import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
 import { empecheParLesCirconstances, semainesEmpechees } from "@/lib/engine/tracabilite";
+import { memoireEmpechements } from "./memoire";
 
 /**
  * Agrégats de progression.
@@ -288,19 +289,33 @@ export async function feuDeTendance(userId: string): Promise<FeuBiologique | nul
 
 /** Toutes les alertes de l'utilisateur, nourries de vraies valeurs. */
 export async function alertes(userId: string): Promise<Alert[]> {
-  const [completedRanges, listeStagnations, sansDeload, tendance] = await Promise.all([
+  const [completedRanges, listeStagnations, sansDeload, tendance, memoire] = await Promise.all([
     fourchettesCompletees(userId),
     stagnations(userId),
     semainesSansDeload(userId),
     feuDeTendance(userId),
+    memoireEmpechements(userId),
   ]);
 
-  return computeAlerts({
+  const alertesCalculees = computeAlerts({
     completedRanges,
     semainesSansDeload: sansDeload,
     stagnations: listeStagnations,
     feuTendance: tendance,
   });
+
+  // Un empêchement devenu durable ne se rattrape pas : il se constate. Rien
+  // n'est modifié automatiquement, la décision revient à l'utilisateur.
+  const contexte: Alert[] = memoire.suggestions.map((s) => ({
+    type: "contexte_durable" as const,
+    timing: "pre_seance" as const,
+    exerciseName: s.nom,
+    message: s.message,
+    actionLabel: "Revoir mon programme",
+    priority: "info" as const,
+  }));
+
+  return [...alertesCalculees, ...contexte];
 }
 
 // ---------------------------------------------------------------------------

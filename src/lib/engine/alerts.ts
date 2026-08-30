@@ -4,7 +4,12 @@ export type AlertType =
   | "fourchette_completee"
   | "deload_recommande"
   | "stagnation"
-  | "tendance_rouge";
+  | "tendance_rouge"
+  /**
+   * Le programme vise du matériel qu'on n'a plus sous la main, séance après
+   * séance. Ce n'est pas une contre-performance : c'est un programme à revoir.
+   */
+  | "contexte_durable";
 export type AlertTiming = "pre_seance" | "post_seance";
 
 export interface Alert {

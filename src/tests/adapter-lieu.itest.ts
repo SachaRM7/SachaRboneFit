@@ -420,6 +420,128 @@ describe("8. niveaux d'adaptation explicites", () => {
   });
 });
 
+describe("9. la mémoire des empêchements nourrit le planificateur", () => {
+
+  /** Enregistre une séance passée où l'exercice prévu a été empêché. */
+  const seancePassee = async (date: string, type = "changement_lieu") => {
+    const [s] = await db.insert(schema.sessionLogs).values({
+      userId: U, date, gymId: maison, dureeMinutes: 55,
+    }).returning();
+    const [instPompes] = await db.insert(schema.exerciseInstances).values({
+      userId: U, exerciseId: pompes, gymId: maison,
+      machineNom: "Pompes", conventionCharge: "poids_total", incrementsPossibles: [1],
+    }).returning();
+    await db.insert(schema.sessionPlanItems).values({
+      sessionLogId: s!.id, ordre: 1,
+      exerciseInstanceId: instPompes!.id,
+      exerciseInstancePrevuId: instDeveloppe,
+      raisonSubstitution: "Developpe couche indisponible a Maison",
+      contexteAdaptation: {
+        type: type as "changement_lieu",
+        lieuAvantId: salle, lieuAvantNom: "Salle",
+        lieuApresId: maison, lieuApresNom: "Maison",
+      },
+      seriesCibles: 4, seriesPrevuesAvantAjustement: 4,
+      fourchetteRepsMin: 8, fourchetteRepsMax: 12, rpeCible: 8,
+      reposSecondes: 120, statut: "prevu",
+    });
+    return s!.id;
+  };
+
+  const nettoyer = async (ids: string[]) => {
+    for (const id of ids) {
+      await db.delete(schema.setLogs).where(eq(schema.setLogs.sessionLogId, id));
+      await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, id));
+      await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.id, id));
+    }
+  };
+
+  it("un empêchement isolé reste un incident", async () => {
+    const { memoireEmpechements } = await import("@/services/memoire");
+    const id = await seancePassee("2026-09-19");
+    const m = await memoireEmpechements(U, "2026-09-21");
+    const dev = m.classes.find((c) => c.exerciceId === developpe);
+    expect(dev!.statut).toBe("ponctuel");
+    // Un incident ne remet pas le programme en cause.
+    expect(m.suggestions).toEqual([]);
+    await nettoyer([id]);
+  });
+
+  it("trois empêchements au même endroit deviennent un changement durable", async () => {
+    const { memoireEmpechements } = await import("@/services/memoire");
+    const ids = [
+      await seancePassee("2026-09-19"),
+      await seancePassee("2026-09-17"),
+      await seancePassee("2026-09-15"),
+    ];
+    const m = await memoireEmpechements(U, "2026-09-21");
+    const dev = m.classes.find((c) => c.exerciceId === developpe);
+    expect(dev!.statut).toBe("durable");
+    expect(dev!.occurrences).toBe(3);
+
+    // Le programme est mis en cause, pas la performance.
+    expect(m.suggestions).toHaveLength(1);
+    expect(m.suggestions[0]!.message).toMatch(/programme/);
+    expect(m.suggestions[0]!.message).not.toMatch(/rattrap|dette|retard/i);
+    await nettoyer(ids);
+  });
+
+  it("une substitution par préférence n'entre pas dans la mémoire", async () => {
+    // La distinction posée précédemment tient : seul l'empêchement subi compte.
+    const { memoireEmpechements } = await import("@/services/memoire");
+    const id = await seancePassee("2026-09-19", "autre");
+    const m = await memoireEmpechements(U, "2026-09-21");
+    expect(m.classes.find((c) => c.exerciceId === developpe)).toBeUndefined();
+    await nettoyer([id]);
+  });
+
+  it("remonte en alerte, sans rien modifier au programme", async () => {
+    const { alertes } = await import("@/services/progression");
+    const avant = await db.query.seanceTemplates.findMany({});
+
+    const ids = [
+      await seancePassee("2026-09-19"),
+      await seancePassee("2026-09-17"),
+      await seancePassee("2026-09-15"),
+    ];
+    const liste = await alertes(U);
+    const contexte = liste.filter((a) => a.type === "contexte_durable");
+    expect(contexte).toHaveLength(1);
+    expect(contexte[0]!.priority).toBe("info");
+
+    // Rien n'a été modifié automatiquement.
+    expect(await db.query.seanceTemplates.findMany({})).toEqual(avant);
+    await nettoyer(ids);
+  });
+
+  it("n'ajoute aucun volume pour compenser", async () => {
+    // La séance du jour garde exactement les séries du gabarit, quel que soit
+    // le nombre d'empêchements passés.
+    const ids = [
+      await seancePassee("2026-09-19"),
+      await seancePassee("2026-09-17"),
+      await seancePassee("2026-09-15"),
+    ];
+    const avant = await seanceEnBase();
+    const seriesAvant = avant.reduce((n, x) => n + x.series, 0);
+
+    await appeler({ gymId: salle });
+
+    const apres = await seanceEnBase();
+    expect(apres.reduce((n, x) => n + x.series, 0)).toBe(seriesAvant);
+    expect(apres).toHaveLength(avant.length);
+    await nettoyer(ids);
+  });
+
+  it("oublie ce qui est trop ancien", async () => {
+    const { memoireEmpechements } = await import("@/services/memoire");
+    const id = await seancePassee("2026-01-05");
+    const m = await memoireEmpechements(U, "2026-09-21");
+    expect(m.classes).toEqual([]);
+    await nettoyer([id]);
+  });
+});
+
 describe("6. changement en plein cycle", () => {
   it("repasse les trois contrôles et mesure la dérive de volume", async () => {
     const { corps } = await appeler({ gymId: maison, apercu: true });

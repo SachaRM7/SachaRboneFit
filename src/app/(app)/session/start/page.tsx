@@ -36,6 +36,9 @@ function ContenuDemarrage() {
   const router = useRouter();
   const [erreur, setErreur] = useState<string | null>(null);
   const [ecartes, setEcartes] = useState<Ecarte[] | null>(null);
+  // Ce qui revient après avoir été empêché, et pourquoi. Ni un reproche ni un
+  // rattrapage : une place du programme retrouve son exercice.
+  const [retours, setRetours] = useState<Array<{ exerciceNom: string; explication: string }>>([]);
 
   const date = searchParams.get("date");
   const gymId = searchParams.get("gymId");
@@ -71,8 +74,10 @@ function ContenuDemarrage() {
 
       // Les exercices écartés faute d'équivalent dans la salle méritent d'être vus
       // avant d'entrer en séance : c'est une décision de l'application.
-      if (resultat.ecartes?.length > 0) {
-        setEcartes(resultat.ecartes);
+      if (resultat.retours?.length > 0) setRetours(resultat.retours);
+
+      if (resultat.ecartes?.length > 0 || resultat.retours?.length > 0) {
+        setEcartes(resultat.ecartes ?? []);
         setTimeout(() => router.push(destination), 3500);
         return;
       }
@@ -93,6 +98,13 @@ function ContenuDemarrage() {
       <div className="min-h-screen bg-papier flex items-center justify-center p-6">
         <div className="max-w-sm space-y-3">
           <p className="text-encre font-medium">Séance adaptée à cette salle</p>
+          {retours.length > 0 && (
+            <ul className="space-y-2">
+              {retours.map((r) => (
+                <li key={r.exerciceNom} className="text-sm text-encre">{r.explication}</li>
+              ))}
+            </ul>
+          )}
           <ul className="space-y-2">
             {ecartes.map((e) => (
               <li key={e.exerciceNom} className="text-sm text-encre-2">
