@@ -379,6 +379,34 @@ export const sessionPlanItems = pgTable("session_plan_items", {
   exerciseInTemplateId: uuid("exercise_in_template_id").references(() => exerciseInTemplate.id),
   /** Instance initialement prevue, quand la salle a impose une substitution. */
   substitutionDeInstanceId: uuid("substitution_de_instance_id").references(() => exerciseInstances.id),
+  /**
+   * Ce qui etait prevu au depart, ecrit une fois et jamais reecrit.
+   *
+   * `substitution_de_instance_id` ne suffisait pas : il porte le remplacement
+   * precedent, donc il bouge a chaque adaptation. Apres un aller-retour
+   * salle -> maison -> salle, plus rien ne disait ce que la seance devait etre.
+   *
+   * La progression en a besoin pour ne PAS conclure a une stagnation ni a une
+   * absence inexpliquee : un exercice remplace faute de materiel n'a pas ete
+   * rate, il n'a pas ete propose.
+   */
+  exerciseInstancePrevuId: uuid("exercise_instance_prevu_id").references(() => exerciseInstances.id),
+  /**
+   * Pourquoi l'adaptation a eu lieu : lieu change, materiel absent, machine
+   * occupee, materiel apporte. La raison textuelle s'adresse a l'utilisateur ;
+   * ceci s'adresse au moteur et au planificateur.
+   */
+  contexteAdaptation: jsonb("contexte_adaptation").$type<{
+    type: "changement_lieu" | "materiel_absent" | "machine_occupee" | "autre";
+    lieuAvantId?: string | null;
+    lieuAvantNom?: string | null;
+    lieuApresId?: string | null;
+    lieuApresNom?: string | null;
+    materielApporte?: string[];
+    niveauFidelite?: string;
+    qualite?: string;
+    horodatage?: string;
+  }>(),
   raisonSubstitution: text("raison_substitution"),
 
   /** Prescription effective, ajustement de volume compris. */

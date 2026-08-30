@@ -1,11 +1,12 @@
 import { db } from "@/db/client";
 import {
-  exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, setLogs,
+  exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
 import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
 import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
+import { empecheParLesCirconstances, semainesEmpechees } from "@/lib/engine/tracabilite";
 
 /**
  * Agrégats de progression.
@@ -64,6 +65,8 @@ export async function semainesSansDeload(userId: string): Promise<number> {
 }
 
 export interface Stagnation {
+  /** Semaines pendant lesquelles l'exercice n'a pas pu être proposé. */
+  semainesEmpechees?: number;
   exerciseInstanceId: string;
   exerciseName: string;
   semainesSansProgression: number;
@@ -96,6 +99,35 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
     parInstance.set(l.exerciseInstanceId, [...(parInstance.get(l.exerciseInstanceId) ?? []), l]);
   }
 
+  // Un exercice remplacé faute de matériel n'a pas stagné : il n'a pas été
+  // proposé. Sans cette lecture, trois séances à la maison faisaient conclure
+  // que le développé de la salle stagne depuis six semaines — une absence
+  // parfaitement expliquée, présentée comme un échec.
+  const empechements = await db
+    .select({
+      prevu: sessionPlanItems.exerciseInstancePrevuId,
+      fait: sessionPlanItems.exerciseInstanceId,
+      contexte: sessionPlanItems.contexteAdaptation,
+      raison: sessionPlanItems.raisonSubstitution,
+      date: sessionLogs.date,
+    })
+    .from(sessionPlanItems)
+    .innerJoin(sessionLogs, eq(sessionLogs.id, sessionPlanItems.sessionLogId))
+    .where(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)));
+
+  const datesEmpechees = new Map<string, string[]>();
+  for (const e of empechements) {
+    const ligne = {
+      exerciseInstanceId: e.fait,
+      exerciseInstancePrevuId: e.prevu,
+      raisonSubstitution: e.raison,
+      contexteAdaptation: e.contexte,
+    };
+    if (!empecheParLesCirconstances(ligne)) continue;
+    const cle = e.prevu!;
+    datesEmpechees.set(cle, [...(datesEmpechees.get(cle) ?? []), e.date]);
+  }
+
   const resultat: Stagnation[] = [];
 
   for (const [instanceId, series] of parInstance) {
@@ -119,7 +151,10 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
       }
     }
 
-    const semaines = semainesDepuis(dateRecord);
+    // Les semaines où l'exercice était empêché ne comptent pas comme des
+    // occasions de progresser.
+    const empechees = semainesEmpechees(datesEmpechees.get(instanceId) ?? []);
+    const semaines = Math.max(0, semainesDepuis(dateRecord) - empechees);
     if (semaines < seuilSemaines) continue;
 
     // Le contexte est normal si la majorité des séances récentes étaient vertes :
@@ -132,6 +167,7 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
       exerciseInstanceId: instanceId,
       exerciseName: series[0]!.exerciseName,
       semainesSansProgression: semaines,
+      semainesEmpechees: empechees,
       contexteNormal: renseignes === 0 || verts / renseignes >= 0.5,
     });
   }

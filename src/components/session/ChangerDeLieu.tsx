@@ -24,6 +24,10 @@ interface Remplacement {
 
 interface Apercu {
   lieu: { id: string; nom: string };
+  qualite: "equivalente" | "degradee" | "insuffisante";
+  libelleQualite: string;
+  explicationQualite: string;
+  motifs: string[];
   conserves: number;
   remplacements: Remplacement[];
   retires: Array<{ nom: string; raison: string }>;
@@ -153,6 +157,23 @@ export function ChangerDeLieu({ sessionLogId, lieuActuelId, onApplique }: Props)
         </Button>
       ) : (
         <div className="space-y-3">
+          {/* Le niveau d'abord : c'est ce qui décide s'il faut lire le détail. */}
+          <div
+            className={`rounded-xl border p-3 ${
+              apercu.qualite === "equivalente"
+                ? "border-gain/30 bg-gain-fond"
+                : apercu.qualite === "degradee"
+                  ? "border-filet bg-carte"
+                  : "border-feu-orange/30 bg-feu-orange/10"
+            }`}
+          >
+            <p className="text-encre font-semibold text-sm">{apercu.libelleQualite}</p>
+            <p className="text-encre-2 text-xs mt-0.5">{apercu.explicationQualite}</p>
+            {apercu.motifs.map((m) => (
+              <p key={m} className="text-encre-2 text-xs mt-1">{m}</p>
+            ))}
+          </div>
+
           <div className="rounded-xl border border-filet bg-carte p-4 space-y-3">
             <p className="text-encre text-sm">
               <span className="chiffres font-semibold">{apercu.conserves}</span> exercice
@@ -197,10 +218,10 @@ export function ChangerDeLieu({ sessionLogId, lieuActuelId, onApplique }: Props)
 
           {(apercu.reconstructionConseillee || bloquantes.length > 0 || !apercu.validation.cycle.aligne) && (
             <div className="rounded-xl border border-feu-orange/30 bg-feu-orange/10 p-4 space-y-1.5">
-              {apercu.motifReconstruction && (
+              {apercu.reconstructionConseillee && (
                 <p className="text-sm text-encre flex gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-feu-orange" aria-hidden />
-                  <span>{apercu.motifReconstruction} Mieux vaut construire une autre séance.</span>
+                  <span>Mieux vaut construire une autre séance que forcer celle-ci.</span>
                 </p>
               )}
               {apercu.validation.cycle.motifs.map((m) => (

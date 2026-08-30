@@ -16,6 +16,7 @@ import { exercicesRealisables, incrementsParDefaut } from "@/lib/engine/disponib
 import { adapterSeance, type CandidatDisponible, type ExerciceEnPlace } from "@/lib/engine/adaptation-lieu";
 import { validerSeanceComplete } from "@/services/validation";
 import { MATERIEL_PORTABLE } from "@/lib/referentiels/capacites";
+import { LIBELLES_QUALITE, EXPLICATIONS_QUALITE } from "@/lib/engine/seuils-adaptation";
 
 /**
  * Changer de lieu, ou de matériel, alors que la séance est déjà construite.
@@ -65,9 +66,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cette séance est terminée." }, { status: 409 });
     }
 
-    const salle = await db.query.gyms.findFirst({
-      where: and(eq(gyms.id, gymId), isNull(gyms.archiveLe)),
-    });
+    const [salle, lieuAvant] = await Promise.all([
+      db.query.gyms.findFirst({ where: and(eq(gyms.id, gymId), isNull(gyms.archiveLe)) }),
+      seance.gymId
+        ? db.query.gyms.findFirst({ where: eq(gyms.id, seance.gymId) })
+        : Promise.resolve(null),
+    ]);
     if (!salle) return NextResponse.json({ error: "Lieu introuvable ou archivé" }, { status: 404 });
 
     // --- La séance telle qu'elle est aujourd'hui ---
@@ -75,6 +79,8 @@ export async function POST(request: Request) {
       .select({
         planItemId: sessionPlanItems.id,
         instanceId: sessionPlanItems.exerciseInstanceId,
+        // Ce qui était prévu au départ, écrit une fois et jamais réécrit.
+        prevuInstanceId: sessionPlanItems.exerciseInstancePrevuId,
         origineInstanceId: sessionPlanItems.substitutionDeInstanceId,
         ordre: sessionPlanItems.ordre,
         seriesCibles: sessionPlanItems.seriesCibles,
@@ -101,7 +107,13 @@ export async function POST(request: Request) {
 
     // L'exercice d'origine d'une ligne déjà substituée, pour pouvoir le rendre
     // si le nouveau lieu le permet de nouveau.
-    const idsOrigine = [...new Set(lignes.map((l) => l.origineInstanceId).filter((v): v is string => Boolean(v)))];
+    const idsOrigine = [
+      ...new Set(
+        lignes
+          .flatMap((l) => [l.prevuInstanceId, l.origineInstanceId])
+          .filter((v): v is string => Boolean(v)),
+      ),
+    ];
     const originesParInstance = new Map<string, string>(
       idsOrigine.length
         ? (
@@ -123,8 +135,14 @@ export async function POST(request: Request) {
       profilTension: l.profilTension,
       categorieRole: l.categorieRole,
       musclesPrincipaux: l.musclesPrincipaux ?? [],
-      origineInstanceId: l.origineInstanceId,
-      origineExerciceId: l.origineInstanceId ? originesParInstance.get(l.origineInstanceId) ?? null : null,
+      origineInstanceId: l.prevuInstanceId ?? l.origineInstanceId,
+      // Le retour à l'exercice d'origine vise ce qui était prévu au départ,
+      // pas le remplaçant précédent : sinon un aller-retour ramènerait au
+      // pis-aller de l'étape d'avant.
+      origineExerciceId: (() => {
+        const ref = l.prevuInstanceId ?? l.origineInstanceId;
+        return ref ? originesParInstance.get(ref) ?? null : null;
+      })(),
       seriesCibles: l.seriesCibles,
       fourchetteRepsMin: l.fourchetteRepsMin,
       fourchetteRepsMax: l.fourchetteRepsMax,
@@ -201,9 +219,24 @@ export async function POST(request: Request) {
       seriesApres: adaptation.exercices.reduce((n, x) => n + x.seriesCibles, 0),
     });
 
+    const contexte = {
+      type: "changement_lieu" as const,
+      lieuAvantId: seance.gymId,
+      lieuAvantNom: lieuAvant?.nom ?? null,
+      lieuApresId: salle.id,
+      lieuApresNom: salle.nom,
+      materielApporte,
+      qualite: adaptation.qualite,
+      horodatage: new Date().toISOString(),
+    };
+
     const resume = {
       lieu: { id: salle.id, nom: salle.nom },
       materielApporte,
+      qualite: adaptation.qualite,
+      libelleQualite: LIBELLES_QUALITE[adaptation.qualite],
+      explicationQualite: EXPLICATIONS_QUALITE[adaptation.qualite],
+      motifs: adaptation.motifs,
       conserves: adaptation.conserves,
       remplacements: adaptation.remplacements,
       retires: adaptation.retires,
@@ -266,6 +299,13 @@ export async function POST(request: Request) {
               x.niveau === "conserve" || retourALOrigine
                 ? null
                 : avant.origineInstanceId ?? avant.instanceId,
+            // Écrit une seule fois : c'est la mémoire de ce que la séance
+            // devait être, et elle ne doit pas suivre les remplacements.
+            exerciseInstancePrevuId: avant.origineInstanceId ?? avant.instanceId,
+            contexteAdaptation:
+              x.niveau === "conserve" || retourALOrigine
+                ? null
+                : { ...contexte, niveauFidelite: x.niveau },
             raisonSubstitution:
               x.niveau === "conserve" || retourALOrigine
                 ? null

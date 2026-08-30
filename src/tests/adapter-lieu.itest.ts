@@ -128,6 +128,7 @@ afterAll(async () => {
 beforeEach(async () => {
   const anciennes = await db.query.sessionLogs.findMany({ where: eq(schema.sessionLogs.userId, U) });
   for (const s of anciennes) {
+    await db.delete(schema.setLogs).where(eq(schema.setLogs.sessionLogId, s.id));
     await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, s.id));
   }
   await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.userId, U));
@@ -312,6 +313,108 @@ describe("5. aucun remplacement possible", () => {
     expect(corps.reconstructionConseillee).toBe(true);
     expect(String(corps.motifReconstruction)).toMatch(/sans équivalent ici/);
 
+    await db.update(schema.exercises).set({ equipement: "poids_du_corps" })
+      .where(inArray(schema.exercises.id, [pompes, fente]));
+  });
+});
+
+describe("7. traçabilité prévu / effectué", () => {
+  it("garde la mémoire de ce qui était prévu, et le contexte", async () => {
+    await appeler({ gymId: maison, materielApporte: ["elastiques"] });
+
+    const lignes = await db.query.sessionPlanItems.findMany({
+      where: eq(schema.sessionPlanItems.sessionLogId, sessionLogId),
+    });
+    expect(lignes.length).toBe(2);
+    for (const l of lignes) {
+      // Ce qui était prévu au départ, distinct de ce qui sera fait.
+      expect([instDeveloppe, instSquat]).toContain(l.exerciseInstancePrevuId);
+      expect(l.exerciseInstancePrevuId).not.toBe(l.exerciseInstanceId);
+      expect(l.raisonSubstitution).toMatch(/indisponible/);
+
+      const c = l.contexteAdaptation!;
+      expect(c.type).toBe("changement_lieu");
+      expect(c.lieuAvantId).toBe(salle);
+      expect(c.lieuApresId).toBe(maison);
+      expect(c.materielApporte).toEqual(["elastiques"]);
+      expect(c.niveauFidelite).toBeTruthy();
+      expect(c.qualite).toBeTruthy();
+    }
+  });
+
+  it("ne réécrit pas le prévu à la deuxième adaptation", async () => {
+    // Après un aller-retour, ce que la séance devait être ne doit pas s'être
+    // perdu au profit du pis-aller de l'étape précédente.
+    await appeler({ gymId: maison });
+    await appeler({ gymId: salle });
+
+    const lignes = await db.query.sessionPlanItems.findMany({
+      where: eq(schema.sessionPlanItems.sessionLogId, sessionLogId),
+    });
+    for (const l of lignes) {
+      expect([instDeveloppe, instSquat]).toContain(l.exerciseInstancePrevuId);
+      // De retour à la salle, on refait ce qui était prévu : plus de substitution.
+      expect(l.exerciseInstanceId).toBe(l.exerciseInstancePrevuId);
+      expect(l.raisonSubstitution).toBeNull();
+      expect(l.contexteAdaptation).toBeNull();
+    }
+  });
+
+  it("la progression ne compte pas un exercice empêché comme une stagnation", async () => {
+    // Le point de la demande : une substitution ne doit jamais devenir une
+    // mauvaise performance ni une absence inexpliquée.
+    const { stagnations } = await import("@/services/progression");
+
+    // Un record ancien sur le développé, puis une séance en deçà : deux dates,
+    // ce qu'il faut pour que la stagnation soit calculable.
+    const [record] = await db.insert(schema.sessionLogs).values({
+      userId: U, date: "2026-06-01", gymId: salle, dureeMinutes: 60,
+    }).returning();
+    const [ancienne] = await db.insert(schema.sessionLogs).values({
+      userId: U, date: "2026-07-01", gymId: salle, dureeMinutes: 60,
+    }).returning();
+    await db.insert(schema.setLogs).values([
+      { sessionLogId: record!.id, exerciseInstanceId: instDeveloppe, numeroSerie: 1, charge: 90, repsEffectuees: 8 },
+      { sessionLogId: ancienne!.id, exerciseInstanceId: instDeveloppe, numeroSerie: 1, charge: 70, repsEffectuees: 8 },
+    ]);
+
+    const avant = (await stagnations(U, 0)).find((x) => x.exerciseInstanceId === instDeveloppe);
+    expect(avant, "le développé doit apparaître avant adaptation").toBeTruthy();
+    const semainesAvant = avant!.semainesSansProgression;
+
+    await appeler({ gymId: maison });
+
+    const apres = (await stagnations(U, 0)).find((x) => x.exerciseInstanceId === instDeveloppe);
+    expect(apres!.semainesEmpechees).toBeGreaterThan(0);
+    expect(apres!.semainesSansProgression).toBeLessThan(semainesAvant);
+
+    for (const s of [record!, ancienne!]) {
+      await db.delete(schema.setLogs).where(eq(schema.setLogs.sessionLogId, s.id));
+      await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.id, s.id));
+    }
+  });
+});
+
+describe("8. niveaux d'adaptation explicites", () => {
+  it("annonce le niveau et son explication", async () => {
+    const { corps } = await appeler({ gymId: maison, apercu: true });
+    expect(["equivalente", "degradee", "insuffisante"]).toContain(corps.qualite);
+    expect(corps.libelleQualite).toBeTruthy();
+    expect(corps.explicationQualite).toBeTruthy();
+  });
+
+  it("équivalente quand rien ne change", async () => {
+    const { corps } = await appeler({ gymId: salle, apercu: true });
+    expect(corps.qualite).toBe("equivalente");
+    expect(corps.motifs).toEqual([]);
+  });
+
+  it("insuffisante quand un pilier disparaît", async () => {
+    await db.update(schema.exercises).set({ equipement: "barre" })
+      .where(inArray(schema.exercises.id, [pompes, fente]));
+    const { corps } = await appeler({ gymId: maison, apercu: true });
+    expect(corps.qualite).toBe("insuffisante");
+    expect(corps.reconstructionConseillee).toBe(true);
     await db.update(schema.exercises).set({ equipement: "poids_du_corps" })
       .where(inArray(schema.exercises.id, [pompes, fente]));
   });

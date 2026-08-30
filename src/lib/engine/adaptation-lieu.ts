@@ -17,6 +17,8 @@
  * séance, on ne bricole pas : on le dit, et on propose de reconstruire.
  */
 
+import { qualiteAdaptation, SEUILS_ADAPTATION, type QualiteAdaptation, type SeuilsAdaptation } from "./seuils-adaptation";
+
 /** Fidélité du remplacement, de la plus haute à la plus basse. */
 export type NiveauFidelite =
   | "conserve"          // toujours réalisable ici : rien n'a changé
@@ -100,6 +102,10 @@ export interface ResultatAdaptation {
   conserves: number;
   remplacements: Remplacement[];
   retires: Retrait[];
+  /** Équivalente, dégradée mais acceptable, ou insuffisante. */
+  qualite: QualiteAdaptation;
+  motifs: string[];
+  piliersPerdus: string[];
   /** Vrai quand rapiécer ne suffit plus et qu'il vaut mieux reconstruire. */
   reconstructionConseillee: boolean;
   motifReconstruction: string | null;
@@ -112,12 +118,8 @@ const LIBELLE_NIVEAU: Record<Exclude<NiveauFidelite, "conserve" | "indisponible"
   meme_pilier: "même pilier, muscles proches",
 };
 
-/**
- * Part de la séance qu'on accepte de perdre avant de proposer de reconstruire.
- * Au-delà, ce qui reste n'est plus la séance prévue : le dire vaut mieux que
- * de livrer un reliquat en prétendant l'avoir adaptée.
- */
-export const PART_PERDUE_TOLEREE = 1 / 3;
+/** @deprecated Les seuils vivent dans `seuils-adaptation`. Conservé le temps de la transition. */
+export const PART_PERDUE_TOLEREE = SEUILS_ADAPTATION.partPerdueToleree;
 
 const communs = (a: string[], b: string[]) => a.filter((m) => b.includes(m)).length;
 
@@ -152,6 +154,8 @@ export interface EntreeAdaptation {
   seance: ExerciceEnPlace[];
   /** Ce que le lieu du jour permet, matériel apporté compris. */
   disponibles: CandidatDisponible[];
+  /** Réglages de tolérance. Par défaut, ceux de `seuils-adaptation`. */
+  seuils?: SeuilsAdaptation;
 }
 
 export function adapterSeance(e: EntreeAdaptation): ResultatAdaptation {
@@ -273,23 +277,28 @@ export function adapterSeance(e: EntreeAdaptation): ResultatAdaptation {
   );
   const piliersPerdus = [...piliersPrevus].filter((p) => !piliersTenus.has(p));
 
-  // Les deux motifs se cumulent : n'en garder qu'un masquerait le plus
-  // instructif des deux, qui n'est pas toujours le premier rencontré.
-  const motifs: string[] = [];
-  if (total > 0 && retires.length / total > PART_PERDUE_TOLEREE) {
-    motifs.push(`${retires.length} exercice${retires.length > 1 ? "s" : ""} sur ${total} sans équivalent ici.`);
-  }
-  if (piliersPerdus.length > 0) {
-    motifs.push(`Plus rien ne travaille : ${piliersPerdus.join(", ")}.`);
-  }
-  const motifReconstruction = motifs.length > 0 ? motifs.join(" ") : null;
+  // Le jugement est rendu par `seuils-adaptation` : les conditions vivaient
+  // ici, en tests écrits à la main, et personne ne pouvait lire d'un coup
+  // d'œil ce que l'application tient pour une séance encore fidèle.
+  const { qualite, motifs } = qualiteAdaptation({
+    total,
+    niveaux: exercices.map((x) => x.niveau),
+    retires: retires.length,
+    piliersPerdus,
+    seuils: e.seuils,
+  });
+
+  const insuffisante = qualite === "insuffisante";
 
   return {
     exercices,
     conserves,
     remplacements,
     retires,
-    reconstructionConseillee: motifReconstruction !== null,
-    motifReconstruction,
+    qualite,
+    motifs,
+    piliersPerdus,
+    reconstructionConseillee: insuffisante,
+    motifReconstruction: insuffisante ? motifs.join(" ") : null,
   };
 }
