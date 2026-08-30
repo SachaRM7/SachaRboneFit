@@ -32,6 +32,15 @@ const nombre = (n: number, decimales = 0) =>
 const pluriel = (n: number, singulier: string, pluriel_ = `${singulier}s`) =>
   n > 1 ? pluriel_ : singulier;
 
+/** « il y a » lisible : on ne compte pas en jours au-delà d'un mois. */
+function ilYA(jours: number): string {
+  if (jours <= 0) return "aujourd'hui";
+  if (jours === 1) return "hier";
+  if (jours < 14) return `il y a ${jours} jours`;
+  if (jours < 60) return `il y a ${Math.round(jours / 7)} semaines`;
+  return `il y a ${Math.round(jours / 30)} mois`;
+}
+
 function Bloc({ titre, children }: { titre: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
@@ -227,16 +236,33 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
               <li key={e.exerciseInstanceId} className="px-4 py-3 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                   <p className="text-encre text-sm font-medium truncate">{e.exerciceNom}</p>
+                  {/* Les métriques brutes, celles qu'on peut vérifier. Le score
+                      qui décide de l'ordre n'est pas affiché : ce serait donner
+                      un choix de pondération pour une mesure. */}
                   <p className="text-encre-3 text-xs">
-                    <span className="chiffres">{e.seances}</span> séances mesurées
+                    <span className="chiffres">{e.ameliorations}</span>{" "}
+                    {pluriel(e.ameliorations, "amélioration")} ·{" "}
+                    <span className="chiffres">{e.seances}</span> séances
+                    {e.joursDepuisAmelioration !== null && <> · {ilYA(e.joursDepuisAmelioration)}</>}
                   </p>
                 </div>
-                <span className="text-gain text-sm font-semibold chiffres shrink-0">
-                  +{nombre(e.progressionPct, 1)} %
+                <span className="text-right shrink-0">
+                  <span className="block text-gain text-sm font-semibold chiffres">
+                    +{nombre(e.progressionPct, 1)} %
+                  </span>
+                  <span className="block text-encre-3 text-[11px] chiffres">
+                    {nombre(e.e1rmDebut)} → {nombre(e.e1rmActuel)} kg
+                  </span>
                 </span>
               </li>
             ))}
           </ul>
+          <p className="text-encre-3 text-xs">
+            Classés par clarté de l&apos;amélioration — régularité, fraîcheur et nombre de séances
+            comparables — et non par pourcentage : un exercice léger gagne mécaniquement plus de
+            pourcents qu&apos;un exercice lourd. Le maximum estimé tient compte des répétitions et
+            de la réserve.
+          </p>
         </Bloc>
       )}
 

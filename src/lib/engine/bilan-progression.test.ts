@@ -279,6 +279,30 @@ describe("exercices en progression", () => {
     expect(trois.enProgression[0]!.progressionPct).toBeCloseTo(16.7, 1);
   });
 
+  it("classe l'exercice le mieux documenté devant le plus gros pourcentage", () => {
+    // Bout en bout : les élévations gagnent 25 % sur trois séances, le développé
+    // 10 % sur huit. Trier sur le pourcentage mettrait les élévations en tête.
+    const dates = ["2026-06-13", "2026-06-20", "2026-06-27", "2026-07-04",
+                   "2026-07-11", "2026-07-18", "2026-07-25", "2026-08-01"];
+    const b = bilanProgression(
+      entree({
+        seances: dates.map((date) => ({ date, dureeMinutes: 60 })),
+        series: [
+          ...dates.map((d, i) => serie(d, "Développé", 100 + i * 1.43, 10)),
+          ...dates.slice(-3).map((d, i) => serie(d, "Élévations", 8 + i, 10)),
+        ],
+      }),
+    );
+
+    const noms = b.enProgression.map((e) => e.exerciceNom);
+    expect(noms[0]).toBe("Développé");
+
+    const elevations = b.enProgression.find((e) => e.exerciceNom === "Élévations")!;
+    const developpe = b.enProgression.find((e) => e.exerciceNom === "Développé")!;
+    // Le pourcentage reste affiché, et reste plus élevé pour les élévations.
+    expect(elevations.progressionPct).toBeGreaterThan(developpe.progressionPct);
+  });
+
   it("ne retient pas un exercice fait trois fois sans jamais progresser", () => {
     const b = bilanProgression(
       entree({

@@ -17,11 +17,11 @@ import { lundiDe, semainesRevolues, joursEntre } from "@/lib/semaines";
 import {
   recordsDeLExercice,
   recordsFranchis,
-  etapeDuParcours,
   type RecordFranchi,
   type SerieRealisee,
   type Plage,
 } from "./records";
+import { progressionDeLExercice, type ProgressionExercice } from "./score-progression";
 
 // ---------------------------------------------------------------------------
 // Seuils — centralisés, parce que ce sont eux qui décident de ce qu'on ose dire
@@ -118,12 +118,16 @@ export interface RecordRecent {
   progressionPct: number;
 }
 
-export interface ExerciceEnProgression {
+/**
+ * Un exercice qui progresse, avec de quoi le classer ET de quoi le montrer.
+ *
+ * Le score décide de l'ordre ; les métriques brutes qui l'accompagnent sont
+ * ce qu'on affiche. On ne montre pas le score : ce serait présenter un choix
+ * de pondération comme une mesure.
+ */
+export interface ExerciceEnProgression extends ProgressionExercice {
   exerciseInstanceId: string;
   exerciceNom: string;
-  progressionPct: number;
-  plage: Plage;
-  seances: number;
 }
 
 export interface MuscleTravaille {
@@ -333,34 +337,38 @@ function calculerRecords(series: SerieBilan[], depuis: string): RecordRecent[] {
 }
 
 /**
- * Exercices dont une plage a été dépassée depuis le début.
+ * Exercices sur lesquels les données montrent le plus clairement une
+ * amélioration récente.
  *
- * On exige trois séances : avec deux, « progresser » ne distingue pas un gain
- * réel du simple fait d'avoir trouvé la bonne charge après la première mesure.
+ * Le classement ne se fait PAS sur le pourcentage de gain : les incréments
+ * disponibles ne sont pas proportionnels à la charge, donc le pourcentage
+ * place mécaniquement les petits exercices devant. Le détail du score et de
+ * ses pondérations vit dans `score-progression`.
  */
-function calculerProgression(series: SerieBilan[]): ExerciceEnProgression[] {
+function calculerProgression(series: SerieBilan[], aujourdhui: string): ExerciceEnProgression[] {
   const resultat: ExerciceEnProgression[] = [];
 
   for (const [instanceId, lignes] of parInstance(series)) {
-    const realisees = lignes.map(versSerieRealisee);
-    if (etapeDuParcours(realisees) !== "progression") continue;
-
-    const records = recordsDeLExercice(realisees);
-    const meilleure = records.parPlage
-      .filter((m) => m.nature === "record" && (m.progressionDepuisDebut ?? 0) > 0)
-      .sort((a, b) => (b.progressionDepuisDebut ?? 0) - (a.progressionDepuisDebut ?? 0))[0];
-    if (!meilleure) continue;
+    const progression = progressionDeLExercice(
+      lignes.map((l) => ({ ...versSerieRealisee(l), date: l.date })),
+      aujourdhui,
+    );
+    if (!progression || progression.score <= 0) continue;
 
     resultat.push({
+      ...progression,
       exerciseInstanceId: instanceId,
       exerciceNom: lignes[0]!.exerciceNom,
-      progressionPct: meilleure.progressionDepuisDebut!,
-      plage: meilleure.plage,
-      seances: new Set(lignes.map((l) => l.date)).size,
     });
   }
 
-  return resultat.sort((a, b) => b.progressionPct - a.progressionPct);
+  return resultat.sort(
+    (a, b) =>
+      b.score - a.score ||
+      // À score égal, l'historique le mieux documenté passe devant.
+      b.seances - a.seances ||
+      a.exerciceNom.localeCompare(b.exerciceNom),
+  );
 }
 
 function calculerMuscles(series: SerieBilan[]): MuscleTravaille[] {
@@ -478,7 +486,7 @@ export function bilanProgression(e: EntreeBilan): Bilan {
   const adherence = calculerAdherence(e, datesSeances);
   const volume = calculerVolume(e);
   const records = calculerRecords(e.series, debut);
-  const enProgression = calculerProgression(e.series);
+  const enProgression = calculerProgression(e.series, e.aujourdhui);
   const muscles = calculerMuscles(e.series);
   const stagnations = calculerStagnations(e.stagnations, e.series, SEUILS.semainesPourTendance);
 

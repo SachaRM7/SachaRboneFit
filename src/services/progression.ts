@@ -7,7 +7,7 @@ import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
 import { empecheParLesCirconstances, semainesEmpechees } from "@/lib/engine/tracabilite";
-import { recordsDeLExercice, type NatureMesure } from "@/lib/engine/records";
+import { estimer1RM, recordsDeLExercice, type NatureMesure } from "@/lib/engine/records";
 import { SEUILS } from "@/lib/engine/bilan-progression";
 import { memoireEmpechements } from "./memoire";
 
@@ -87,6 +87,7 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
       exerciseName: exercises.nom,
       charge: setLogs.charge,
       reps: setLogs.repsEffectuees,
+      rpe: setLogs.rpeEffectif,
       date: sessionLogs.date,
       feuJour: sessionLogs.feuBiologiqueJour,
     })
@@ -134,10 +135,18 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
   const resultat: Stagnation[] = [];
 
   for (const [instanceId, series] of parInstance) {
-    // Meilleur 1RM par date, puis date du dernier record.
+    // Meilleur 1RM par date, puis date du dernier record. L'estimation vient
+    // du moteur `records` : c'est la même que celle qui décide des records
+    // affichés, donc « depuis ton dernier record » désigne bien la même séance
+    // dans les deux blocs de l'écran.
     const meilleurParDate = new Map<string, number>();
     for (const s of series) {
-      const rm = estimation1RM(s.charge, s.reps);
+      const rm = estimer1RM({
+        date: s.date,
+        charge: s.charge,
+        reps: s.reps,
+        rir: s.rpe == null ? null : Math.max(0, Math.round(10 - s.rpe)),
+      });
       meilleurParDate.set(s.date, Math.max(meilleurParDate.get(s.date) ?? 0, rm));
     }
 

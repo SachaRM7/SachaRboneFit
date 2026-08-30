@@ -63,7 +63,18 @@ const REPS_EFFECTIVES_MAXIMALES = 20;
 /** Variation en deçà de laquelle deux charges ne se distinguent pas vraiment. */
 const BRUIT_CHARGE = 0.001;
 
-function estimer1RM(serie: SerieRealisee): number {
+/**
+ * Maximum estimé d'une série, réserve comprise.
+ *
+ * Exporté parce que c'est la définition de référence. La formule vit en huit
+ * exemplaires dans l'application, dont plusieurs ignorent la réserve : deux
+ * écrans peuvent donc désigner deux « meilleures séries » différentes pour le
+ * même historique. Tout ce qui alimente l'écran Progression passe par ici.
+ *
+ * Compter la réserve rend comparables trois façons de progresser : plus lourd,
+ * plus de répétitions, ou la même chose avec plus de marge avant l'échec.
+ */
+export function estimer1RM(serie: SerieRealisee): number {
   const effectives = Math.min(serie.reps + (serie.rir ?? 0), REPS_EFFECTIVES_MAXIMALES);
   if (serie.charge <= 0 || effectives <= 0) return 0;
   return effectives === 1 ? serie.charge : serie.charge * (1 + effectives / 30);
