@@ -33,11 +33,7 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
       // Sans ce filtre, une machine archivée s'affichait comme présente et
       // `presentsParExercice` interdisait de la recréer : l'exercice devenait
       // impossible à remettre dans la salle.
-      where: and(
-        eq(exerciseInstances.gymId, id),
-        eq(exerciseInstances.userId, userId),
-        isNull(exerciseInstances.archiveLe),
-      ),
+      where: and(eq(exerciseInstances.gymId, id), isNull(exerciseInstances.archiveLe)),
       with: { exercise: true },
     }),
     db.query.exercises.findMany(),

@@ -145,7 +145,6 @@ export async function GET() {
       ? await db.$count(
           exerciseInstances,
           and(
-            eq(exerciseInstances.userId, userId),
             eq(exerciseInstances.gymId, salleDuJour.id),
             isNull(exerciseInstances.archiveLe),
           ),

@@ -92,7 +92,6 @@ export async function POST(request: Request) {
       .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
       .where(
         and(
-          eq(exerciseInstances.userId, userId),
           eq(exerciseInstances.gymId, salleId),
           isNull(exerciseInstances.archiveLe),
         ),

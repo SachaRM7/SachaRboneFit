@@ -170,9 +170,12 @@ export interface AjoutExerciceProgramme {
 export async function ajouterExerciceAuTemplate(donnees: AjoutExerciceProgramme) {
   await seanceDeLUtilisateur(donnees.seanceTemplateId, donnees.userId);
 
+  // Le parc est commun : exiger que la machine appartienne a l'appelant
+  // rendait impossible de programmer un exercice sur une machine saisie par
+  // quelqu'un d'autre dans la meme salle.
   const instance = await db.query.exerciseInstances.findFirst({
-    where: (ei, { and, eq }) =>
-      and(eq(ei.id, donnees.exerciseInstanceId), eq(ei.userId, donnees.userId)),
+    where: (ei, { and, eq, isNull }) =>
+      and(eq(ei.id, donnees.exerciseInstanceId), isNull(ei.archiveLe)),
   });
   if (!instance) throw new RessourceIntrouvable("Machine");
 

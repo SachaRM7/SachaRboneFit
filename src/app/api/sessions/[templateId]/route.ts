@@ -37,7 +37,7 @@ export async function GET(
 
     // Fetch all exercise instances for the user
     const allInstances = await db.query.exerciseInstances.findMany({
-      where: (ei, { eq }) => eq(ei.userId, userId),
+      where: (ei, { isNull }) => isNull(ei.archiveLe),
     });
 
     // Manually load exercise and gym relations

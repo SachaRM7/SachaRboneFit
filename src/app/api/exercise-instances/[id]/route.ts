@@ -1,9 +1,21 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { exerciseInstances } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { majMachineSchema } from "@/lib/validators/exercise-instance";
+
+/**
+ * Une machine décrit un objet physique posé dans une salle commune, pas la
+ * propriété de quelqu'un. Les salles se comportent déjà ainsi : n'importe quel
+ * compte authentifié peut les lire, les corriger et les retirer. Exiger ici la
+ * propriété rendait le parc invisible au deuxième compte, qui devait re-saisir
+ * des machines déjà renseignées — alors que le constructeur de séance, lui,
+ * lisait déjà tout le parc sans filtre.
+ *
+ * Ce qui reste protégé est ce qui appartient réellement à une personne : ses
+ * séances, ses séries, ses charges, ses conversations.
+ */
 
 export async function GET(
   request: Request,
@@ -15,7 +27,7 @@ export async function GET(
   const { id } = await params;
   try {
     const instance = await db.query.exerciseInstances.findFirst({
-      where: and(eq(exerciseInstances.id, id), eq(exerciseInstances.userId, userId)),
+      where: eq(exerciseInstances.id, id),
       with: { exercise: true, gym: true },
     });
     if (!instance) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -53,7 +65,7 @@ export async function PATCH(
 
     const [updated] = await db.update(exerciseInstances)
       .set({ ...champs, updatedAt: new Date() })
-      .where(and(eq(exerciseInstances.id, id), eq(exerciseInstances.userId, userId)))
+      .where(eq(exerciseInstances.id, id))
       .returning();
     if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json(updated);
@@ -72,7 +84,7 @@ export async function DELETE(
 
   const { id } = await params;
   try {
-    await db.delete(exerciseInstances).where(and(eq(exerciseInstances.id, id), eq(exerciseInstances.userId, userId)));
+    await db.delete(exerciseInstances).where(eq(exerciseInstances.id, id));
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Failed" }, { status: 500 });

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { exerciseInstances } from "@/db/schema";
-import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { creationMachineSchema } from "@/lib/validators/exercise-instance";
 
@@ -13,16 +12,15 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const gymId = searchParams.get("gymId");
 
-    let allInstances;
-    if (gymId) {
-      allInstances = await db.query.exerciseInstances.findMany({
-        where: (ei, { and, eq }) => and(eq(ei.userId, userId), eq(ei.gymId, gymId)),
-      });
-    } else {
-      allInstances = await db.query.exerciseInstances.findMany({
-        where: (ei, { eq }) => eq(ei.userId, userId),
-      });
-    }
+    // Le parc d'une salle est commun, comme la salle elle-même : filtrer par
+    // propriétaire obligeait un deuxième compte à re-saisir des machines déjà
+    // renseignées. Les machines archivées restent écartées.
+    const allInstances = await db.query.exerciseInstances.findMany({
+      where: (ei, { and, eq, isNull }) =>
+        gymId
+          ? and(eq(ei.gymId, gymId), isNull(ei.archiveLe))
+          : isNull(ei.archiveLe),
+    });
     return NextResponse.json(allInstances);
   } catch (error) {
     console.error("[exercise-instances GET] error:", error);

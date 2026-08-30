@@ -20,14 +20,26 @@ export function seancesActives(userId: string): SQL | undefined {
   return and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe));
 }
 
-/** Salles encore fréquentées. */
-export function sallesActives(userId: string): SQL | undefined {
-  return and(eq(gyms.userId, userId), isNull(gyms.archiveLe));
+/**
+ * Salles encore fréquentées.
+ *
+ * Une salle décrit un lieu, pas une personne : elle est commune à tous les
+ * comptes. Le `user_id` qu'elle porte n'est qu'une trace de qui l'a saisie.
+ */
+export function sallesActives(): SQL | undefined {
+  return isNull(gyms.archiveLe);
 }
 
-/** Machines d'un parc encore d'actualité. */
-export function machinesActives(userId: string): SQL | undefined {
-  return and(eq(exerciseInstances.userId, userId), isNull(exerciseInstances.archiveLe));
+/**
+ * Machines d'un parc encore d'actualité.
+ *
+ * Même raison que les salles : une machine est un objet physique posé dans un
+ * lieu partagé. Filtrer par propriétaire obligeait le deuxième compte à
+ * re-saisir un parc déjà renseigné, alors même que le constructeur de séance,
+ * lui, lisait déjà tout le parc sans filtre.
+ */
+export function machinesActives(): SQL | undefined {
+  return isNull(exerciseInstances.archiveLe);
 }
 
 /** Blocs de programme encore en vigueur. */
