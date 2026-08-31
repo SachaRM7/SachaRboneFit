@@ -65,8 +65,20 @@ const NOTES_SALLE = [
   "Râtelier d'haltères : 2 à 50 kg, de 2 en 2 sur toute la plage. Deux paires",
   "par charge jusqu'à 28 kg, une seule paire de 30 à 50 kg.",
   "",
+  "Piles sélectorisées : graduées en livres, 10 lbs au premier cran puis",
+  "+15 lbs, affichées en kilogrammes. L'échelle est donc irrégulière une fois",
+  "convertie — 4,5 · 11 · 18 · 25 · 32 · 39 · 45 · 52 · 59 · 66 · 73 · 79 ·",
+  "86 · 93 · 100 · 107 · 113 · 120 · 127 · 134 — et commune à tous les",
+  "appareils. Seul le NOMBRE de plaques change d'une machine à l'autre, et il",
+  "n'a pas été compté : chaque pile reçoit l'échelle complète, plafonnée à la",
+  "plus lourde vue dans la salle. Sur une machine plus légère, les derniers",
+  "crans n'existent donc pas.",
+  "",
   "À CONFIRMER SUR PLACE — rien de tout cela n'est saisi tant que ce n'est pas mesuré :",
-  "· le pas de chaque pile, machine par machine ;",
+  "· le NOMBRE de plaques de chaque pile — le pas est connu, la hauteur non ;",
+  "· un maximum de 91 kg figure au relevé, et l'échelle commune ne le produit",
+  "  pas (elle passe de 86 à 93). Soit la lecture est approximative, soit cet",
+  "  appareil-là a des plaques différentes : à revérifier sur place ;",
   "· la résistance des Smith machines (contrepoids ou non, et combien) ;",
   "· la résistance initiale du chariot des plate-loaded non relevées",
   "  (bench press, rack) ;",
@@ -103,6 +115,49 @@ interface Entree {
   etat?: "disponible" | "temporairement_indisponible";
   quantite?: number | null;
   notesMachine?: string | null;
+}
+
+/**
+ * L'échelle d'une pile sélectorisée, chez Matrix.
+ *
+ * Les plaques sont graduées en livres — premier cran à 10 lbs, puis 15 lbs de
+ * plus à chaque fois — et l'appareil affiche la conversion en kilogrammes. Ce
+ * n'est donc pas une grille à pas constant une fois convertie : les écarts
+ * réels alternent entre 6 et 7 kg (4,5 · 11 · 18 · 25 · 32 · 39 · 45 …). Un
+ * incrément unique aurait produit des charges qui n'existent sur aucune
+ * machine ; c'est exactement ce que la collection de paliers sait dire.
+ *
+ * Le premier cran garde sa demi-unité : c'est ainsi qu'il est marqué sur les
+ * piles, et le relevé le confirme.
+ */
+const LIVRES_PREMIER_CRAN = 10;
+const LIVRES_PAR_CRAN = 15;
+const KG_PAR_LIVRE = 0.45359237;
+
+/**
+ * Vingt crans, soit 134 kg.
+ *
+ * Ce n'est pas la hauteur de CETTE pile — le nombre de plaques n'a pas été
+ * compté machine par machine — mais celle de la plus lourde vue dans la salle.
+ * Aucune pile d'ici ne monte plus haut, donc aucune charge inventée au-delà du
+ * parc réel. En revanche, sur une machine plus légère, l'échelle dépasse son
+ * vrai plafond : c'est une approximation assumée, écrite dans les notes et
+ * portée par la liste « à confirmer ». Elle ne se voit qu'au dernier cran, et
+ * elle vaut mieux qu'un appareil muet.
+ */
+const CRANS_OBSERVES = 20;
+
+function echelleDUnePile(crans = CRANS_OBSERVES): number[] {
+  return Array.from({ length: crans }, (_, i) => {
+    const kg = (LIVRES_PREMIER_CRAN + LIVRES_PAR_CRAN * i) * KG_PAR_LIVRE;
+    return i === 0 ? 4.5 : Math.round(kg);
+  });
+}
+
+/** Ce que la pile affiche, tronqué au plafond de la machine quand il est connu. */
+function pileJusqua(chargeMax?: number): number[] {
+  const echelle = echelleDUnePile();
+  return chargeMax === undefined ? echelle : echelle.filter((v) => v <= chargeMax);
 }
 
 const RELEVE: Entree[] = [
@@ -209,11 +264,13 @@ const RELEVE: Entree[] = [
     conventionCharge: "pile_affichee",
     typePoulie: "simple",
     quantite: 2,
+    paliersCharges: pileJusqua(),
     chargeMinimale: 4.5,
     notesMachine:
-      "Deux exemplaires identiques. Départ de pile relevé à 4,5 kg ; le cran "
-      + "n'a pas été compté, donc aucun incrément n'est déclaré et aucune charge "
-      + "ne sera suggérée tant que ce n'est pas mesuré.",
+      "Deux exemplaires identiques. Pile graduée en livres — 10 lbs au premier "
+      + "cran, +15 lbs ensuite — affichée en kilogrammes. Le nombre de plaques "
+      + "de CETTE pile n'a pas été compté : l'échelle va donc jusqu'au plafond "
+      + "de la plus lourde pile de la salle, ce qui la dépasse peut-être.",
   },
 
   /**
@@ -229,11 +286,13 @@ const RELEVE: Entree[] = [
     machineNom: "Dip/Chin Assist",
     conventionCharge: "pile_affichee",
     natureCharge: "assistance",
-    chargeMinimale: 0,
+    paliersCharges: pileJusqua(),
     notesMachine:
       "Sens à confirmer : le nombre affiché doit être l'assistance, pas la charge. "
       + "Déclarée assistance par prudence — l'erreur inverse ferait lire un recul "
-      + "comme une progression. Crans non relevés.",
+      + "comme une progression. Même échelle de pile que les autres appareils. "
+      + "Pas de plancher à zéro : le premier cran est 4,5 kg, et « aucune "
+      + "assistance » veut dire faire le mouvement sans la machine.",
   },
 
   /**
@@ -247,8 +306,12 @@ const RELEVE: Entree[] = [
     slug: "machine-glute-kickback",
     machineNom: "Glute Trainer",
     conventionCharge: "pile_affichee",
+    paliersCharges: pileJusqua(),
+    chargeMinimale: 4.5,
     etat: "temporairement_indisponible",
-    notesMachine: "Hors service au moment du relevé. À réactiver quand elle repart.",
+    notesMachine:
+      "Hors service au moment du relevé. À réactiver quand elle repart. "
+      + "Échelle de pile commune, plafond propre non compté.",
   },
 
   /**
@@ -262,6 +325,8 @@ const RELEVE: Entree[] = [
     slug: "seated-row",
     machineNom: "Station intégrée au rack — à identifier",
     conventionCharge: "pile_affichee",
+    paliersCharges: pileJusqua(),
+    chargeMinimale: 4.5,
     notesMachine:
       "Appareil non identifié lors du relevé. Nom, convention et crans à confirmer "
       + "sur place. L'exercice rattaché est une hypothèse de travail.",
