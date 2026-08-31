@@ -23,13 +23,26 @@ const contrainte = (p: Partial<ContrainteLue> = {}): ContrainteLue => ({
   dateDebut: "2026-08-01", dateFin: null, aReevaluerLe: null, notes: null, ...p,
 });
 
-describe("les seuils sont enfin au même endroit", () => {
-  it("garde les valeurs qui existaient, sans les retoucher", () => {
-    // Elles vivaient en trois exemplaires : 7 dans le validateur de séance, 7
-    // réécrit à la main dans le constructeur, 6 dans la calibration. Ce
-    // chantier réunit, il ne change pas les décisions.
+describe("il n'y a plus qu'un seuil d'exclusion", () => {
+  it("vaut 7, la valeur canonique du moteur", () => {
     expect(SEVERITE.ecartement).toBe(7);
-    expect(SEVERITE.calibrationEvitee).toBe(6);
+  });
+
+  it("une gêne à 6 n'exclut plus nulle part, calibration comprise", () => {
+    // C'était la divergence : la calibration écartait à 6 ce que le validateur
+    // acceptait. Le commentaire qui l'accompagnait plaidait pourtant pour ne
+    // pas être plus strict que la règle générale.
+    const six = contrainte({ severite: 6 });
+    expect(musclesSousContrainte([six], AUJOURDHUI)).toEqual([]);
+    expect(effetSurLEntrainement(6, "entree").join(" ")).toMatch(/sans exclusion/);
+  });
+
+  it("une gêne à 7 exclut partout de la même façon", () => {
+    const sept = contrainte({ severite: 7 });
+    expect(musclesSousContrainte([sept], AUJOURDHUI)).toEqual(["epaules"]);
+    const effets = effetSurLEntrainement(7, "entree").join(" ");
+    expect(effets).toMatch(/ne seront plus proposés/);
+    expect(effets).toMatch(/calibration ne mesurera pas/);
   });
 });
 
@@ -131,9 +144,11 @@ describe("ce que le moteur écarte", () => {
   });
 
   it("accepte un autre seuil sans le coder en dur", () => {
-    const legere = contrainte({ severite: SEVERITE.calibrationEvitee });
+    // Le paramètre reste : il sert aux tests et à un éventuel appelant qui
+    // aurait une raison nommée de juger autrement. Aucun n'en a une aujourd'hui.
+    const legere = contrainte({ severite: SEVERITE.ecartement - 1 });
     expect(musclesSousContrainte([legere], AUJOURDHUI)).toEqual([]);
-    expect(musclesSousContrainte([legere], AUJOURDHUI, SEVERITE.calibrationEvitee))
+    expect(musclesSousContrainte([legere], AUJOURDHUI, SEVERITE.ecartement - 1))
       .toEqual(["epaules"]);
   });
 });

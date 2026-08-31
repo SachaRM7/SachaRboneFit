@@ -13,6 +13,12 @@ import { randomUUID } from "node:crypto";
 const U = randomUUID();
 const VOISIN = randomUUID();
 vi.mock("@/lib/supabase/auth-helper", () => ({ getAuthenticatedUserId: async () => U }));
+// L'onboarding n'utilise pas l'assistant : il appelle Supabase directement.
+vi.mock("@/lib/supabase/server", () => ({
+  createClient: async () => ({
+    auth: { getUser: async () => ({ data: { user: { id: U, email: `${U}@t.test` } } }) },
+  }),
+}));
 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
@@ -211,6 +217,49 @@ describe("la sortie", () => {
   });
 });
 
+describe("aucun chemin n'échappe au cycle de vie", () => {
+  it("une gêne déclarée à l'inscription porte une échéance et son origine", async () => {
+    await purger();
+    const { POST } = await import("@/app/api/onboarding/route");
+
+    // L'onboarding insérait directement en base, sans échéance ni origine : la
+    // gêne la plus susceptible de devenir périmée — saisie une fois, jamais
+    // revue — était la seule à échapper au cycle de vie.
+    const res = await POST(
+      new Request("http://t/api/onboarding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          objectifType: "prise_de_muscle",
+          niveauExperience: "intermediaire",
+          contraintes: [{ muscle: "epaules", severite: 6, notes: "vieille gêne" }],
+          frequenceCibleParSemaine: 3,
+          frequenceMinParSemaine: 2,
+          frequenceMaxParSemaine: 4,
+          dureeSeanceCibleMinutes: 60,
+          dureeSeanceMaxMinutes: 90,
+          salleId: salle,
+        }),
+      }),
+    );
+    expect(res.status).toBeLessThan(400);
+
+    const [creee] = await contraintesActives(U);
+    expect(creee).toBeDefined();
+    expect(creee!.muscle).toBe("epaules");
+    // Elle sera reposée comme n'importe quelle autre.
+    expect(creee!.aReevaluerLe).toBe(decalerDe(AUJOURDHUI, REEVALUATION_JOURS));
+
+    const ligne = await db.query.contraintes.findFirst({
+      where: eq(schema.contraintes.id, creee!.id),
+    });
+    expect(ligne!.origine).toBe("onboarding");
+
+    const dues = await contraintesAReevaluer(U, decalerDe(AUJOURDHUI, REEVALUATION_JOURS));
+    expect(dues.map((c) => c.id)).toContain(creee!.id);
+  });
+});
+
 describe("les lignes anciennes", () => {
   it("restent actives et ne sont jamais relancées", async () => {
     await purger();
@@ -300,6 +349,77 @@ describe("le coach propose, il n'écrit pas", () => {
       }),
     ).rejects.toThrow(/pas active|n'existe pas/);
     await db.delete(schema.contraintes).where(eq(schema.contraintes.userId, VOISIN));
+  });
+});
+
+describe("la disponibilité d'une machine ne contourne pas une exclusion", () => {
+  /**
+   * Le défaut corrigé : `resoudrePourSalle` renvoyait « identique » dès que
+   * l'exercice prévu existait dans la salle du jour, avant de regarder les
+   * muscles. Une contrainte sévère était donc sans effet sur la séance
+   * réellement construite — seulement sur le choix d'un remplaçant.
+   */
+  it("retire de la séance construite l'exercice dont la zone est sous contrainte", async () => {
+    await purger();
+    const demain = decalerDe(AUJOURDHUI, 1);
+
+    const avant = await construireSeanceDuJour({
+      userId: U, seanceTemplateId: gabarit, gymId: salle, date: demain,
+    });
+    expect(avant.items.map((i) => i.exerciseInstanceId)).toContain(instances.militaire);
+
+    await creerContrainte({ userId: U, muscle: "epaules", severite: SEVERITE.ecartement });
+
+    const pendant = await construireSeanceDuJour({
+      userId: U, seanceTemplateId: gabarit, gymId: salle, date: decalerDe(AUJOURDHUI, 2),
+    });
+    // La machine est pourtant bien là : c'est la contrainte qui décide.
+    expect(pendant.items.map((i) => i.exerciseInstanceId)).not.toContain(instances.militaire);
+    // Le dos, lui, reste programmé : une gêne à l'épaule n'efface pas la séance.
+    expect(pendant.items.map((i) => i.exerciseInstanceId)).toContain(instances.tirage);
+    // Et l'athlète sait pourquoi.
+    expect(pendant.ecartes.map((e) => e.raison).join(" ")).toMatch(/zone que tu ménages/);
+  });
+
+  it("le laisse revenir dès la contrainte levée", async () => {
+    const active = (await contraintesActives(U))[0]!;
+    await repondreAReevaluation(U, active.id, "resolu");
+
+    const apres = await construireSeanceDuJour({
+      userId: U, seanceTemplateId: gabarit, gymId: salle, date: decalerDe(AUJOURDHUI, 3),
+    });
+    expect(apres.items.map((i) => i.exerciseInstanceId)).toContain(instances.militaire);
+    expect(apres.ecartes).toHaveLength(0);
+  });
+
+  it("ne retire rien pour une gêne sous le seuil", async () => {
+    await purger();
+    await creerContrainte({
+      userId: U, muscle: "epaules", severite: SEVERITE.ecartement - 1,
+    });
+    const plan = await construireSeanceDuJour({
+      userId: U, seanceTemplateId: gabarit, gymId: salle, date: decalerDe(AUJOURDHUI, 4),
+    });
+    expect(plan.items.map((i) => i.exerciseInstanceId)).toContain(instances.militaire);
+  });
+
+  it("ne retire rien pour une gêne sur une autre zone", async () => {
+    await purger();
+    await creerContrainte({ userId: U, muscle: "ischios", severite: 10 });
+    const plan = await construireSeanceDuJour({
+      userId: U, seanceTemplateId: gabarit, gymId: salle, date: decalerDe(AUJOURDHUI, 5),
+    });
+    expect(plan.items.map((i) => i.exerciseInstanceId)).toContain(instances.militaire);
+  });
+
+  it("ne laisse pas la contrainte d'un voisin toucher ma séance", async () => {
+    await purger();
+    const sienne = await creerContrainte({ userId: VOISIN, muscle: "epaules", severite: 10 });
+    const plan = await construireSeanceDuJour({
+      userId: U, seanceTemplateId: gabarit, gymId: salle, date: decalerDe(AUJOURDHUI, 6),
+    });
+    expect(plan.items.map((i) => i.exerciseInstanceId)).toContain(instances.militaire);
+    await db.delete(schema.contraintes).where(eq(schema.contraintes.id, sienne.id));
   });
 });
 

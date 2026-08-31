@@ -98,3 +98,71 @@ describe("résolution vers la salle du jour", () => {
     expect(r.instance?.id).toBe("s-bench");
   });
 });
+
+describe("une exclusion ne se contourne pas par la disponibilité", () => {
+  /**
+   * Le défaut : le raccourci « identique » rendait l'exercice prévu dès qu'il
+   * existait dans la salle du jour, sans jamais regarder les muscles. Une zone
+   * sous contrainte sévère était donc contournée par la simple présence de la
+   * machine — le seul chemin par lequel une décision du moteur de contraintes
+   * pouvait être ignorée.
+   */
+
+  it("ne garde pas l'exercice prévu quand sa zone est exclue", () => {
+    const r = resoudrePourSalle(prevuLalande, [prevuLalande], [], [], ["pectoraux"]);
+    expect(r.niveau).not.toBe("identique");
+    expect(r.instance).toBeNull();
+    // Et la raison le dit : « absent » et « écarté » n'appellent pas la même
+    // réaction de l'athlète.
+    expect(r.raison).toMatch(/zone que tu ménages/);
+  });
+
+  it("le rend de nouveau éligible une fois la contrainte levée", () => {
+    // Même situation, liste d'exclusion vide : c'est ce que produit une
+    // résolution de contrainte.
+    const r = resoudrePourSalle(prevuLalande, [prevuLalande], [], [], []);
+    expect(r.niveau).toBe("identique");
+    expect(r.instance?.id).toBe("l-chest");
+  });
+
+  it("laisse passer une gêne sous le seuil, qui n'exclut rien", () => {
+    // Une contrainte légère ne remplit jamais `musclesExclus` : le
+    // comportement d'avant est intact.
+    const r = resoudrePourSalle(prevuLalande, [prevuLalande], [], ["pectoraux"], []);
+    expect(r.niveau).toBe("identique");
+    expect(r.instance?.id).toBe("l-chest");
+  });
+
+  it("ne touche pas à un exercice dont la zone n'est pas concernée", () => {
+    const r = resoudrePourSalle(prevuLalande, [prevuLalande], [], [], ["ischios"]);
+    expect(r.niveau).toBe("identique");
+  });
+
+  it("propose un remplaçant qui évite la zone exclue, s'il en existe un", () => {
+    const jambes = inst("l-squat", "lalande", "squat", "P1_poussee", "mi_range", "pilier", ["quadriceps"]);
+    const r = resoudrePourSalle(prevuLalande, [prevuLalande, jambes], [], [], ["pectoraux"]);
+    expect(r.instance?.id).toBe("l-squat");
+    // Le niveau reste celui que dicte la fidélité, ici le profil de tension
+    // partagé : l'exclusion filtre les candidats, elle ne change pas le
+    // classement de ceux qui restent.
+    expect(r.niveau).toBe("profil_identique");
+  });
+
+  it("n'autorise pas un remplaçant à ramener la zone exclue", () => {
+    // Même exercice, autre machine, mêmes muscles : il ne doit pas revenir
+    // par la porte des substitutions.
+    const autreMachine = inst("l-chest-2", "lalande", "chest-press", "P1_poussee", "mi_range", "pilier");
+    const r = resoudrePourSalle(prevuLalande, [autreMachine], [], [], ["pectoraux"]);
+    expect(r.instance).toBeNull();
+  });
+
+  it("une courbature reste une préférence, une contrainte reste une exclusion", () => {
+    // La distinction est le cœur du correctif : sans elle, corriger le
+    // contournement aurait aussi fait disparaître les exercices sur un muscle
+    // simplement courbaturé.
+    const courbature = resoudrePourSalle(prevuLalande, [prevuLalande], [], ["pectoraux"], []);
+    const contrainte = resoudrePourSalle(prevuLalande, [prevuLalande], [], [], ["pectoraux"]);
+    expect(courbature.niveau).toBe("identique");
+    expect(contrainte.niveau).toBe("indisponible");
+  });
+});

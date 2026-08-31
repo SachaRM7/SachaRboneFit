@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { messageErreur } from "@/lib/messages";
+import { SEVERITE, INTENSITE_MINIMALE_REPETITION } from "@/lib/engine/contraintes";
 
 interface Affichee {
   id: string;
@@ -22,8 +23,19 @@ function enClair(iso: string): string {
   });
 }
 
+/**
+ * Le libellé suit le seuil du moteur, il ne le redéfinit pas.
+ *
+ * « Marquée » doit vouloir dire « celle qui exclut » : écrire 7 ici en clair
+ * aurait recréé la divergence qu'on vient de supprimer, à l'endroit le moins
+ * visible — celui que personne ne relit en changeant une règle métier.
+ */
 const NIVEAU = (severite: number) =>
-  severite >= 7 ? "Gêne marquée" : severite >= 4 ? "Gêne modérée" : "Gêne légère";
+  severite >= SEVERITE.ecartement
+    ? "Gêne marquée"
+    : severite >= INTENSITE_MINIMALE_REPETITION
+      ? "Gêne modérée"
+      : "Gêne légère";
 
 export function ListeContraintes({
   actives, passees,

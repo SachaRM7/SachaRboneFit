@@ -510,24 +510,14 @@ l'export ne contient pas le programme.
   fois. `suiteASignalement` regarde les incidents, pas les contraintes
   passées. À faire quand il y aura de quoi mesurer si ça vaut le coup.
 
-### L'effet réel d'une contrainte est plus faible que son nom ne le dit
+### L'effet d'une contrainte — traité
 
-Découvert pendant l'audit : `resoudrePourSalle` renvoie « identique » **avant**
-de regarder les muscles à ménager. Un exercice prévu et disponible dans la
-salle du jour est donc conservé, même sous contrainte sévère. Le filtre ne
-s'applique qu'au choix d'un **remplaçant**.
-
-Concrètement, une contrainte à 7/10 :
-- fait lever une anomalie bloquante au validateur (coach, adaptation de lieu,
-  propositions) ;
-- empêche de choisir un remplaçant sur cette zone ;
-- écarte la zone de la calibration à partir de 6 ;
-- **mais ne retire pas l'exercice déjà programmé de la séance du jour.**
-
-Ce n'est pas corrigé ici : le faire changerait ce que l'application propose
-sans que ce chantier l'ait demandé, et l'écart est désormais écrit noir sur
-blanc dans `SEVERITE.ecartement`. À trancher séparément — soit le retrait
-devient réel, soit le vocabulaire cesse de parler d'écartement.
+Le raccourci « identique » de `resoudrePourSalle` était le seul chemin par
+lequel une exclusion du moteur pouvait être contournée : un exercice prévu et
+disponible dans la salle du jour était rendu tel quel, sans qu'on regarde les
+muscles. Corrigé — l'exclusion se juge avant. Les courbatures gardent leur
+sémantique de préférence, la distinction est désormais portée par deux
+paramètres nommés plutôt que par une liste unique.
 
 ### Le signalement en séance n'a pas encore d'écran
 
@@ -543,6 +533,31 @@ Comme le seuil RPE de 60 % : `REEVALUATION_JOURS` (14),
 `INTENSITE_PROPOSITION_IMMEDIATE` (7), `FENETRE_REPETITION_JOURS` (21) et
 `BAISSE_SI_MIEUX` (3) sont des valeurs choisies, pas mesurées. Elles sont
 toutes dans `lib/engine/contraintes.ts`, nommées, et aucune n'est dupliquée.
+
+Le seuil d'exclusion, lui, est unique depuis l'audit qui a suivi : le `6` de
+la calibration était une divergence, pas une règle. Trois indices l'ont
+établi — le commentaire qui l'accompagnait plaidait pour ne PAS être plus
+strict que la règle générale alors que 6 l'est davantage ; le commit qui l'a
+introduit n'évoque aucune règle propre à la calibration ; aucun test n'a
+jamais fixé cette valeur. Et l'effet était de même nature des deux côtés, une
+exclusion. Il n'y a plus que `SEVERITE.ecartement`.
+
+### Écriture des contraintes en deux endroits
+
+`propositions-coach.ts` insère et met à jour les contraintes directement dans
+sa transaction, au lieu de passer par `creerContrainte` /
+`repondreAReevaluation` — qui ouvrent la leur. Les RÈGLES sont partagées
+(`decalerDe`, `REEVALUATION_JOURS`, `reevaluer`), seule la persistance est
+écrite deux fois. Risque de dérive faible mais réel ; le corriger demanderait
+de rendre le service transactionnel, ce qui dépasse la correction d'une
+incohérence.
+
+### `src/lib/sos/` : code mort avec ses propres seuils
+
+`douleur.ts` et `energie-chute.ts` portent un `niveau >= 7` qui leur est
+propre. Ce n'est pas un contournement — la question posée est autre (faut-il
+arrêter la séance ?) — mais surtout **aucun de ces modules n'a d'appelant**.
+Code mort préexistant, laissé tel quel.
 
 ### Le cas où deux gênes se suivent sur la même zone
 

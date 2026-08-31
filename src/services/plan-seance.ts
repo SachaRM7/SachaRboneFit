@@ -52,24 +52,37 @@ export interface ResultatConstruction {
 }
 
 /** Muscles a menager : courbatures fortes du jour + contraintes actives. */
+interface ZonesAMenager {
+  /** Muscles fatigués : ils écartent les remplaçants, sans rien retirer. */
+  aEviter: string[];
+  /** Muscles sous contrainte sévère : ils écartent l'exercice lui-même. */
+  exclus: string[];
+}
+
 async function musclesAMenager(
   userId: string,
   etat: DailyStateInput | null,
   date = new Date().toISOString().slice(0, 10),
-): Promise<string[]> {
+): Promise<ZonesAMenager> {
   // Le seuil était écrit ici à la main, et la définition d'« active » était
   // celle de ce fichier seulement : trois autres lectures exigeaient
   // `date_fin IS NULL`, donc une contrainte datée pour la semaine prochaine
   // était active ici et terminée ailleurs. Les deux viennent maintenant du
   // même endroit.
   const actives = await contraintesActives(userId, db, date);
-  const depuisContraintes = musclesSousContrainte(actives, date);
 
   const depuisCourbatures = (etat?.courbatures ?? [])
     .filter((c) => c.intensite > 7)
     .map((c) => c.muscle);
 
-  return versMuscles([...depuisContraintes, ...depuisCourbatures]);
+  return {
+    // Une courbature est passagère : elle oriente le choix d'un remplaçant,
+    // elle ne retire pas l'exercice prévu. Comportement inchangé.
+    aEviter: versMuscles(depuisCourbatures),
+    // Une contrainte sévère, elle, exclut : c'est une décision du moteur, et
+    // la présence de la machine ne doit pas permettre de la contourner.
+    exclus: versMuscles(musclesSousContrainte(actives, date)),
+  };
 }
 
 /** Toutes les instances de l'utilisateur, enrichies de leur exercice. */
@@ -191,7 +204,9 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
     const prevu = parcParId.get(ligne.exerciseInstanceId);
     if (!prevu) continue;
 
-    const resolution = resoudrePourSalle(prevu, parcDuJour, retenues, aMenager);
+    const resolution = resoudrePourSalle(
+      prevu, parcDuJour, retenues, aMenager.aEviter, aMenager.exclus,
+    );
     if (!resolution.instance) {
       ecartes.push({ exerciceNom: prevu.exerciceNom, raison: resolution.raison ?? "Indisponible" });
       continue;

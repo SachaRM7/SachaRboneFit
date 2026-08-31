@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { users, gyms, contraintes, programmeBlocs } from "@/db/schema";
+import { REEVALUATION_JOURS, decalerDe } from "@/lib/engine/contraintes";
 import { and, eq, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { createClient } from "@/lib/supabase/server";
@@ -109,6 +110,7 @@ export async function POST(request: Request) {
       }
 
       if (d.contraintes.length > 0) {
+        const aujourdhui = new Date().toISOString().slice(0, 10);
         await tx.insert(contraintes).values(
           d.contraintes.map((c) => ({
             userId,
@@ -116,7 +118,14 @@ export async function POST(request: Request) {
             type: "zone_sensible" as const,
             severite: c.severite,
             notes: c.notes ?? null,
-            dateDebut: new Date().toISOString().slice(0, 10),
+            dateDebut: aujourdhui,
+            // Une gêne déclarée à l'inscription est celle qui a le plus de
+            // chances de devenir périmée sans que personne ne s'en aperçoive :
+            // elle est saisie une fois, puis jamais revue. Elle porte donc une
+            // échéance comme les autres — c'était le seul chemin de création
+            // qui échappait au cycle de vie.
+            aReevaluerLe: decalerDe(aujourdhui, REEVALUATION_JOURS),
+            origine: "onboarding" as const,
           })),
         );
       }

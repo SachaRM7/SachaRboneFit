@@ -21,30 +21,32 @@
 // ---------------------------------------------------------------------------
 
 /**
- * Les seuils de sévérité, tels qu'ils étaient — pas tels qu'on les voudrait.
+ * Les seuils de sévérité, réunis et ramenés à un seul.
  *
- * Ils existaient en trois exemplaires : `SEVERITE_ECARTEMENT = 7` dans le
- * validateur de séance, un `>= 7` écrit à la main dans le constructeur de
- * séance, et un `>= 6` dans la route de calibration. Deux valeurs pour la même
- * notion, aucune nommée au même endroit.
+ * Il en existait trois exemplaires pour deux valeurs : `SEVERITE_ECARTEMENT = 7`
+ * dans le validateur de séance, un `>= 7` écrit à la main dans le constructeur,
+ * et un `>= 6` dans la route de calibration.
  *
- * Les valeurs sont reprises telles quelles : ce chantier réunit, il ne
- * retouche pas. Ce qu'elles déclenchent est décrit ci-dessous, parce qu'aucun
- * des trois endroits ne le disait.
+ * Le 6 était une divergence, pas une règle. Trois indices concordants : le
+ * commentaire qui l'accompagnait plaidait pour NE PAS être plus strict que la
+ * règle générale (« une gêne légère ne justifie pas de ne jamais le mesurer »)
+ * alors que 6 l'est davantage ; le message du commit qui l'a introduit ne
+ * mentionne aucune règle propre à la calibration ; et aucun test n'a jamais
+ * fixé cette valeur. Enfin l'effet est de même nature des deux côtés — une
+ * exclusion, pas une mise en retrait — donc rien ne justifiait qu'il se
+ * déclenche plus tôt.
+ *
+ * Il n'y a donc qu'un seuil d'exclusion, et il vaut 7.
  */
 export const SEVERITE = {
   /**
    * À partir d'ici, le muscle est écarté plutôt qu'allégé.
    *
-   * Concrètement : le validateur de séance lève une anomalie bloquante, et le
-   * constructeur de séance refuse de choisir un remplaçant qui sollicite ce
-   * muscle. Attention — il n'enlève PAS l'exercice déjà prévu : `resoudrePourSalle`
-   * garde l'exercice prévu quand il est disponible, avant même de regarder les
-   * muscles à ménager.
+   * Tout ce qui exclut passe par là : le validateur lève une anomalie
+   * bloquante, le constructeur de séance ne retient pas un exercice qui
+   * sollicite ce muscle, et la calibration ne le mesure pas.
    */
   ecartement: 7,
-  /** À partir d'ici, la calibration ne mesure pas ce muscle. */
-  calibrationEvitee: 6,
   /** En deçà, il ne reste rien à signaler : la contrainte se résout. */
   plancher: 2,
   minimum: 1,
@@ -304,26 +306,21 @@ export function reevaluer(
  * elle réponde.
  */
 export function effetSurLEntrainement(severite: number, sens: "entree" | "sortie"): string[] {
-  const effets: string[] = [];
-  if (severite >= SEVERITE.ecartement) {
-    effets.push(
-      sens === "entree"
-        ? "Les exercices qui sollicitent cette zone en premier ne seront plus proposés en remplacement, et une séance qui en contient sera signalée."
-        : "Les exercices qui sollicitent cette zone redeviennent proposables.",
-    );
-  } else {
-    effets.push(
+  if (severite < SEVERITE.ecartement) {
+    return [
       sens === "entree"
         ? "La zone est notée comme sensible, sans exclusion : la programmation reste inchangée."
         : "La zone n'est plus notée comme sensible.",
-    );
+    ];
   }
-  if (severite >= SEVERITE.calibrationEvitee) {
-    effets.push(
-      sens === "entree"
-        ? "Une calibration ne mesurera pas cette zone."
-        : "Une calibration pourra de nouveau mesurer cette zone.",
-    );
-  }
-  return effets;
+  // Un seul seuil, donc une seule liste : ce qui s'exclut s'exclut partout.
+  return sens === "entree"
+    ? [
+        "Les exercices qui sollicitent cette zone ne seront plus proposés, et une séance qui en contient sera signalée.",
+        "Une calibration ne mesurera pas cette zone.",
+      ]
+    : [
+        "Les exercices qui sollicitent cette zone redeviennent proposables.",
+        "Une calibration pourra de nouveau mesurer cette zone.",
+      ];
 }

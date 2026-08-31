@@ -52,28 +52,56 @@ const LIBELLE_NIVEAU: Record<Exclude<NiveauResolution, "identique" | "indisponib
 };
 
 /**
+ * Deux listes de muscles, et la difference entre elles est le coeur de ce
+ * module.
+ *
+ * `musclesAEviter` ecarte les REMPLACANTS : quand il faut de toute facon
+ * choisir une autre machine, autant en prendre une qui ne tape pas dans un
+ * muscle fatigue. C'est une preference, elle ne retire rien.
+ *
+ * `musclesExclus` ecarte l'exercice LUI-MEME, avant tout le reste. Une zone
+ * sous contrainte severe n'est pas une preference : la disponibilite d'une
+ * machine ne peut pas rendre a nouveau acceptable ce que le moteur de
+ * contraintes a exclu.
+ *
  * @param prevu             instance programmee (potentiellement d'une autre salle)
  * @param parcSalleDuJour   instances disponibles dans la salle du jour
  * @param dejaRetenues      instances deja placees dans la seance, a ne pas repeter
- * @param musclesAEviter    muscles courbatures ou sous contrainte
+ * @param musclesAEviter    muscles fatigues : ecarte les remplacants
+ * @param musclesExclus     muscles sous contrainte severe : ecarte aussi le prevu
  */
 export function resoudrePourSalle(
   prevu: InstanceResolvable,
   parcSalleDuJour: InstanceResolvable[],
   dejaRetenues: string[] = [],
   musclesAEviter: string[] = [],
+  musclesExclus: string[] = [],
 ): ResolutionSalle {
   const disponibles = parcSalleDuJour.filter((i) => !dejaRetenues.includes(i.id));
 
-  if (prevu.gymId === parcSalleDuJour[0]?.gymId && disponibles.some((i) => i.id === prevu.id)) {
+  const sollicite = (i: InstanceResolvable, liste: string[]) =>
+    liste.length > 0 && i.musclesPrincipaux.some((m) => liste.some((e) => memeMuscle(e, m)));
+
+  // L'exclusion se juge AVANT le raccourci « identique ».
+  //
+  // Ce raccourci rendait l'exercice prevu quand il existait dans la salle du
+  // jour, sans jamais regarder les muscles : une zone sous contrainte severe
+  // etait donc contournee par la simple presence de la machine. C'etait le
+  // seul chemin par lequel une exclusion du moteur pouvait etre ignoree.
+  const prevuExclu = sollicite(prevu, musclesExclus);
+
+  if (
+    !prevuExclu &&
+    prevu.gymId === parcSalleDuJour[0]?.gymId &&
+    disponibles.some((i) => i.id === prevu.id)
+  ) {
     return { niveau: "identique", instance: prevu, raison: null };
   }
 
-  const solliciteMuscleAEviter = (i: InstanceResolvable) =>
-    musclesAEviter.length > 0 &&
-    i.musclesPrincipaux.some((m) => musclesAEviter.some((e) => memeMuscle(e, m)));
-
-  const compatibles = disponibles.filter((i) => !solliciteMuscleAEviter(i));
+  // Un muscle exclu l'est pour tout le monde : il ne sert a rien de le retirer
+  // du prevu pour le laisser revenir par un remplacant.
+  const aEviter = [...musclesAEviter, ...musclesExclus];
+  const compatibles = disponibles.filter((i) => !sollicite(i, aEviter));
 
   // 1. Le meme exercice existe ici, sur une autre machine.
   const memeExercice = compatibles.find((i) => i.exerciseId === prevu.exerciseId);
@@ -112,10 +140,14 @@ export function resoudrePourSalle(
   }
 
   // 4. Rien de compatible : on preferera retirer l'exercice plutot que proposer
-  //    une machine qui n'existe pas sur place.
+  //    une machine qui n'existe pas sur place — ou qui tape dans une zone
+  //    qu'on menage. La raison distingue les deux : « absent » et « ecarte »
+  //    n'appellent pas la meme reaction de l'athlete.
   return {
     niveau: "indisponible",
     instance: null,
-    raison: `Aucun équivalent de ${prevu.exerciceNom} dans cette salle`,
+    raison: prevuExclu
+      ? `${prevu.exerciceNom} sollicite une zone que tu ménages`
+      : `Aucun équivalent de ${prevu.exerciceNom} dans cette salle`,
   };
 }
