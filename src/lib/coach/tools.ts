@@ -17,7 +17,33 @@ export interface ToolExecutionResult {
   output: string;
 }
 
-export type ToolExecutor = (params: Record<string, unknown>, userId: string) => Promise<ToolExecutionResult>;
+/**
+ * Références de l'objet regardé, résolues et vérifiées côté serveur.
+ *
+ * Redéclarées ici plutôt qu'importées du service : les outils ne doivent pas
+ * dépendre d'une couche au-dessus d'eux. Le service fournit la valeur, ce type
+ * dit ce qu'un outil a le droit d'en attendre.
+ */
+export interface RefsContexteOutil {
+  ecran: string;
+  blocId: string | null;
+  seanceTemplateId: string | null;
+  exerciseInstanceId: string | null;
+}
+
+/**
+ * Un outil reçoit ses arguments, l'utilisateur authentifié, et — pour ceux que
+ * ça concerne — les références de ce qui est affiché à l'écran.
+ *
+ * Le troisième paramètre est facultatif : les outils qui n'en ont pas besoin
+ * gardent leur signature à deux arguments. Il ne vient jamais du modèle, qui
+ * ne peut donc ni le fabriquer ni désigner l'objet d'un autre utilisateur.
+ */
+export type ToolExecutor = (
+  params: Record<string, unknown>,
+  userId: string,
+  contexte?: RefsContexteOutil,
+) => Promise<ToolExecutionResult>;
 
 export interface CoachToolSet {
   definitions: CoachTool[];
@@ -335,18 +361,28 @@ export async function endSessionTool(
   return { success: true, output: "Séance clôturée" };
 }
 
+/**
+ * Ce qu'on dit au modèle plutôt que de le laisser deviner un identifiant.
+ *
+ * Un identifiant recopié de travers est un identifiant faux, pas une erreur
+ * visible : le champ devient facultatif, et son absence désigne l'objet que le
+ * serveur a lui-même résolu depuis l'écran.
+ */
+const OMETTRE_POUR_ECRAN =
+  "Omets l'identifiant pour désigner l'exercice actuellement affiché à l'écran.";
+
 export function createCoachTools(): CoachToolSet {
   const definitions: CoachTool[] = [
     {
       name: "get_exercise_history",
-      description: "Retourne l'historique des séries pour un exercice donné",
+      description:
+        "Retourne l'historique des séries pour un exercice. " + OMETTRE_POUR_ECRAN,
       input_schema: {
         type: "object",
         properties: {
-          exerciseInstanceId: { type: "string", description: "ID de l'instance d'exercice" },
+          exerciseInstanceId: { type: "string", description: "ID de l'instance d'exercice. " + OMETTRE_POUR_ECRAN },
           limit: { type: "number", description: "Nombre de séances à retourner (défaut: 10)" },
         },
-        required: ["exerciseInstanceId"],
       },
     },
     {
@@ -361,25 +397,25 @@ export function createCoachTools(): CoachToolSet {
     },
     {
       name: "get_available_substitutes",
-      description: "Retourne la liste des exercices substituables",
+      description: "Retourne la liste des exercices substituables. " + OMETTRE_POUR_ECRAN,
       input_schema: {
         type: "object",
         properties: {
-          exerciseInstanceId: { type: "string", description: "ID de l'exercice à remplacer" },
+          exerciseInstanceId: { type: "string", description: "ID de l'exercice à remplacer. " + OMETTRE_POUR_ECRAN },
           gymId: { type: "string", description: "ID de la salle" },
         },
-        required: ["exerciseInstanceId", "gymId"],
+        required: ["gymId"],
       },
     },
     {
       name: "suggest_next_sets",
-      description: "Suggère la prochaine charge et reps via double progression",
+      description:
+        "Suggère la prochaine charge et reps via double progression. " + OMETTRE_POUR_ECRAN,
       input_schema: {
         type: "object",
         properties: {
-          exerciseInstanceId: { type: "string", description: "ID de l'instance d'exercice" },
+          exerciseInstanceId: { type: "string", description: "ID de l'instance d'exercice. " + OMETTRE_POUR_ECRAN },
         },
-        required: ["exerciseInstanceId"],
       },
     },
     {
@@ -429,17 +465,25 @@ export function createCoachTools(): CoachToolSet {
   ];
 
   const executors: Record<string, ToolExecutor> = {
-    get_exercise_history: async (params, userId) => {
-      return getExerciseHistory(params.exerciseInstanceId as string, (params.limit as number) || 10, userId);
+    get_exercise_history: async (params, userId, contexte) => {
+      // À défaut d'identifiant fourni, celui de l'écran : « pourquoi cet
+      // exercice ? » ne nomme rien, et le modèle n'a pas à deviner.
+      const id = (params.exerciseInstanceId as string) || contexte?.exerciseInstanceId;
+      if (!id) return { success: false, output: "Aucun exercice désigné." };
+      return getExerciseHistory(id, (params.limit as number) || 10, userId);
     },
     get_weekly_summary: async (params, userId) => {
       return getWeeklySummary((params.weekOffset as number) || 0, userId);
     },
-    get_available_substitutes: async (params, userId) => {
-      return getAvailableSubstitutes(params.exerciseInstanceId as string, params.gymId as string, userId);
+    get_available_substitutes: async (params, userId, contexte) => {
+      const id = (params.exerciseInstanceId as string) || contexte?.exerciseInstanceId;
+      if (!id) return { success: false, output: "Aucun exercice désigné." };
+      return getAvailableSubstitutes(id, params.gymId as string, userId);
     },
-    suggest_next_sets: async (params, userId) => {
-      return suggestNextSetsTool(params.exerciseInstanceId as string, userId);
+    suggest_next_sets: async (params, userId, contexte) => {
+      const id = (params.exerciseInstanceId as string) || contexte?.exerciseInstanceId;
+      if (!id) return { success: false, output: "Aucun exercice désigné." };
+      return suggestNextSetsTool(id, userId);
     },
     log_set: async (params, userId) => {
       return logSetTool(

@@ -18,6 +18,7 @@ const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
 const { eq } = await import("drizzle-orm");
 const { resoudreContexte } = await import("@/services/contexte-coach");
+const { createCoachTools } = await import("@/lib/coach/tools");
 const { contexteValide } = await import("@/lib/coach/contexte-ecran");
 const { lundiDe, decalerDe } = await import("@/lib/semaines");
 
@@ -89,15 +90,17 @@ afterAll(async () => {
 
 describe("résolution du contexte d'écran", () => {
   it("ne résout rien sans contexte", async () => {
-    expect(await resoudreContexte(U, null)).toBeNull();
+    expect(await resoudreContexte(U, null)).toEqual({ texte: null, refs: null });
   });
 
   it("ne fabrique aucun contexte sportif depuis l'écran « Plus »", async () => {
-    expect(await resoudreContexte(U, { ecran: "plus" })).toBeNull();
+    const plus = await resoudreContexte(U, { ecran: "plus" });
+    expect(plus.texte).toBeNull();
+    expect(plus.refs).toEqual({ ecran: "plus", blocId: null, seanceTemplateId: null, exerciseInstanceId: null });
   });
 
   it("résout le cycle, la semaine réelle et la semaine type depuis Programme", async () => {
-    const texte = await resoudreContexte(U, { ecran: "programme" });
+    const { texte } = await resoudreContexte(U, { ecran: "programme" });
     expect(texte).toContain("Mon bloc");
     expect(texte).toContain("Dominante volume");
     // Le bloc a démarré il y a deux semaines : ni « semaine 1 », ni le compteur figé.
@@ -106,7 +109,7 @@ describe("résolution du contexte d'écran", () => {
   });
 
   it("nomme l'objet regardé quand il appartient à l'utilisateur", async () => {
-    const texte = await resoudreContexte(U, {
+    const { texte } = await resoudreContexte(U, {
       ecran: "programme", typeEntite: "bloc", entiteId: blocMien,
     });
     expect(texte).toContain("Bloc regardé : « Mon bloc »");
@@ -115,7 +118,7 @@ describe("résolution du contexte d'écran", () => {
   it("ignore un objet qui appartient à quelqu'un d'autre", async () => {
     // Le cœur de la sécurité : un identifiant valide mais étranger ne
     // révèle rien. Le contexte de l'écran reste, l'objet est simplement ignoré.
-    const texte = await resoudreContexte(U, {
+    const { texte } = await resoudreContexte(U, {
       ecran: "programme", typeEntite: "bloc", entiteId: blocAutre,
     });
     expect(texte).not.toContain("Bloc secret du voisin");
@@ -124,35 +127,89 @@ describe("résolution du contexte d'écran", () => {
   });
 
   it("vérifie le propriétaire d'un gabarit par son bloc", async () => {
-    const texte = await resoudreContexte(U, {
+    const { texte } = await resoudreContexte(U, {
       ecran: "programme", typeEntite: "seance", entiteId: gabaritMien,
     });
     expect(texte).toContain("Séance regardée : Haut du corps");
   });
 
   it("nomme l'exercice regardé depuis Progression", async () => {
-    const texte = await resoudreContexte(U, {
+    const { texte } = await resoudreContexte(U, {
       ecran: "progression", typeEntite: "instance", entiteId: instMienne,
     });
     expect(texte).toContain("Exercice regardé : Developpe couche — Banc");
   });
 
   it("transmet l'intention déclarée", async () => {
-    const texte = await resoudreContexte(U, { ecran: "programme", sujet: "modifier_programme" });
+    const { texte } = await resoudreContexte(U, { ecran: "programme", sujet: "modifier_programme" });
     expect(texte).toContain("modifier_programme");
   });
 
   it("ne laisse pas passer un identifiant d'utilisateur envoyé par le client", async () => {
     // Le contexte est nettoyé avant d'atteindre la résolution : même en
     // essayant, le client ne peut pas désigner les données d'un autre.
-    const nettoye = contexteValide({
+    const nettoye2 = contexteValide({
       ecran: "programme",
       userId: AUTRE,
       entiteId: blocAutre,
       typeEntite: "bloc",
     });
-    const texte = await resoudreContexte(U, nettoye);
+    const { texte } = await resoudreContexte(U, nettoye2);
     expect(texte).not.toContain("Bloc secret du voisin");
     expect(texte).toContain("Mon bloc");
+  });
+
+  it("donne l'exercice courant à l'outil sans que le modèle fournisse son ID", async () => {
+    // Le point de la correction : « pourquoi cet exercice ? » ne nomme rien.
+    // L'outil doit savoir de quoi on parle sans que le modèle recopie un UUID.
+    const { texte, refs } = await resoudreContexte(U, {
+      ecran: "progression", typeEntite: "instance", entiteId: instMienne,
+    });
+    expect(refs!.exerciseInstanceId).toBe(instMienne);
+    expect(texte).toContain("Developpe couche");
+
+    const outils = createCoachTools();
+    // Arguments VIDES : tout vient du contexte résolu côté serveur.
+    const res = await outils.executors.get_exercise_history!({}, U, refs!);
+    expect(res.success).toBe(true);
+  });
+
+  it("refuse l'appel quand aucun exercice n'est désigné, ni par le modèle ni par l'écran", async () => {
+    const outils = createCoachTools();
+    const { refs } = await resoudreContexte(U, { ecran: "programme" });
+    const res = await outils.executors.suggest_next_sets!({}, U, refs!);
+    expect(res.success).toBe(false);
+    expect(res.output).toMatch(/aucun exercice/i);
+  });
+
+  it("ne met jamais dans les références l'objet d'un autre utilisateur", async () => {
+    const { refs } = await resoudreContexte(U, {
+      ecran: "programme", typeEntite: "bloc", entiteId: blocAutre,
+    });
+    // Le bloc actif de l'utilisateur reste, celui du voisin n'entre pas.
+    expect(refs!.blocId).toBe(blocMien);
+    expect(refs!.blocId).not.toBe(blocAutre);
+  });
+
+  it("remplace les références au changement d'écran", async () => {
+    const surProgression = await resoudreContexte(U, {
+      ecran: "progression", typeEntite: "instance", entiteId: instMienne,
+    });
+    expect(surProgression.refs!.exerciseInstanceId).toBe(instMienne);
+
+    // Naviguer ailleurs ne doit pas traîner l'objet précédent.
+    const surProgramme = await resoudreContexte(U, { ecran: "programme" });
+    expect(surProgramme.refs!.ecran).toBe("programme");
+    expect(surProgramme.refs!.exerciseInstanceId).toBeNull();
+  });
+
+  it("zéro contexte reste zéro contexte", async () => {
+    const rien = await resoudreContexte(U, null);
+    expect(rien.refs).toBeNull();
+
+    const outils = createCoachTools();
+    // Sans références, un outil qui en dépend refuse plutôt que d'inventer.
+    const res = await outils.executors.get_exercise_history!({}, U, undefined);
+    expect(res.success).toBe(false);
   });
 });

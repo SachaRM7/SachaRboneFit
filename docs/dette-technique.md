@@ -213,13 +213,23 @@ Trois outils écrivent : `log_set`, `end_session`, `log_incident`. Ils portent
 sur la séance en cours, pas sur la structure du programme. `create_coach_memory`
 écrit aussi, désormais filtré par `verdictMemoire`.
 
-### Le contexte d'écran n'est pas transmis aux outils
+### Contexte transmis aux outils : fait, pour trois d'entre eux
 
-`resoudreContexte` enrichit le prompt système. Les outils, eux, reçoivent
-seulement `userId` : un outil ne sait pas quel exercice l'utilisateur
-regardait. Suffisant tant que le modèle relaie l'information dans ses
-arguments ; à revoir si un outil doit agir sur « l'exercice courant » sans
-qu'il soit nommé.
+`resoudreContexte` renvoie désormais un texte pour le prompt ET des références
+vérifiées (`blocId`, `seanceTemplateId`, `exerciseInstanceId`) remises en
+troisième argument aux exécuteurs. Trois outils de lecture en profitent :
+`get_exercise_history`, `get_available_substitutes`, `suggest_next_sets` — leur
+identifiant d'exercice devient facultatif, son absence désignant l'objet à
+l'écran.
+
+Les vingt autres gardent leur signature à deux arguments. Le modèle ne peut ni
+fabriquer ces références ni les remplacer : elles ne viennent pas de lui.
+
+*Reste à faire :* les outils d'écriture de séance (`log_set`, `end_session`,
+`log_incident`) prennent encore un `sessionLogId` fourni par le modèle. Ils
+vérifient le propriétaire, donc il n'y a pas de faille — mais ils pourraient
+agir sur la mauvaise séance si le modèle recopie mal. À traiter avec le
+chantier des outils d'écriture.
 
 ### Non vérifié
 
@@ -228,3 +238,37 @@ viewport iPhone 13 (champ et bouton d'envoi à l'écran, cible 48 × 48), mais u
 navigateur sans clavier logiciel ne reproduit pas le redimensionnement du
 `visualViewport`. `dvh` et `env(safe-area-inset-bottom)` sont en place ; à
 confirmer sur un appareil.
+
+---
+
+## 7. Audit des clés et de l'isolation (vérifié, rien à faire)
+
+Vérification demandée après une alerte trop rapide de ma part : je conseillais
+de faire tourner la clé anon Supabase au seul motif qu'elle est exposée au
+client. C'était une erreur — une clé anon est publique par conception.
+
+Ce qui a été réellement contrôlé :
+
+- **Aucune clé privilégiée exposée.** `SUPABASE_SERVICE_ROLE_KEY` n'apparaît
+  que dans `src/lib/supabase/admin.ts`, sans préfixe `NEXT_PUBLIC_` : elle ne
+  peut pas atteindre le navigateur.
+- **Seules deux variables publiques** existent : `NEXT_PUBLIC_SUPABASE_URL` et
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`. Toutes deux publiques par nature.
+- **Aucun secret en dur** dans le dépôt (le seul motif ressemblant à un JWT est
+  une empreinte d'intégrité npm dans `package-lock.json`).
+- **Aucun fichier `.env` suivi** par git ; `.gitignore` couvre `.env*` avec une
+  exception pour `.env.example`, qui ne contient que des gabarits vides.
+- **Aucun secret référencé depuis un composant client.**
+
+**Conclusion : pas de fuite, donc aucune rotation de clé.**
+
+Deux points à connaître, sans action requise :
+
+- `createAdminClient` (`src/lib/supabase/admin.ts`) n'est **importé nulle
+  part** : c'est du code privilégié mort. Il ne fuit rien, mais il constitue
+  une surface inutile — à supprimer si le besoin ne se concrétise pas.
+- `DATABASE_URL` emploie le rôle `postgres`, qui a `BYPASSRLS`. **L'isolation
+  du chemin applicatif ne repose donc pas sur la RLS** mais sur les clauses
+  `WHERE` des requêtes Drizzle. La RLS protège l'autre chemin — l'accès direct
+  via PostgREST avec la clé anon, qui est celui réellement exposé. Les deux
+  sont nécessaires et ne se remplacent pas.

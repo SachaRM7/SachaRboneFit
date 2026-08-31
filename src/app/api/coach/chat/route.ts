@@ -90,8 +90,8 @@ export async function POST(request: Request) {
 
   // Le contexte d'écran s'ajoute au prompt plutôt qu'au message : c'est une
   // situation, pas une question de l'utilisateur.
-  const promptComplet = contexteDeLEcran
-    ? `${buildSystemPrompt(contexte)}\n\n## Écran en cours\n${contexteDeLEcran}`
+  const promptComplet = contexteDeLEcran.texte
+    ? `${buildSystemPrompt(contexte)}\n\n## Écran en cours\n${contexteDeLEcran.texte}`
     : buildSystemPrompt(contexte);
 
   try {
@@ -108,7 +108,9 @@ export async function POST(request: Request) {
       for (const appel of reponse.appelsOutils) {
         const executeur = outils.executors[appel.nom];
         const resultat = executeur
-          ? await executeur(appel.arguments, userId).then(
+          // Les références de l'écran sont remises à l'outil directement : le
+          // modèle n'a pas à les recopier, et ne peut pas les remplacer.
+          ? await executeur(appel.arguments, userId, contexteDeLEcran.refs ?? undefined).then(
               (r) => r.output,
               (e: unknown) => `Erreur : ${e instanceof Error ? e.message : String(e)}`,
             )

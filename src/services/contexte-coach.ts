@@ -22,14 +22,42 @@ import { bilanDeProgression } from "./bilan";
  * faire relire ce que l'application sait déjà calculer.
  */
 
-/** Ce qui est ajouté au prompt système. Du texte, court, déjà interprété. */
+/**
+ * Références de l'objet regardé, résolues et vérifiées.
+ *
+ * Les identifiants ne sont ici QUE parce que leur propriétaire a été contrôlé.
+ * Ils sont remis aux outils sans passer par le modèle : sans cela, savoir quel
+ * exercice l'utilisateur regarde dépendrait de la capacité du modèle à le
+ * recopier correctement dans les arguments — et un identifiant recopié de
+ * travers est un identifiant faux, pas une erreur visible.
+ */
+export interface ReferencesContexte {
+  ecran: ContexteEcran["ecran"];
+  blocId: string | null;
+  seanceTemplateId: string | null;
+  exerciseInstanceId: string | null;
+}
+
+export interface ContexteResolu {
+  /** Ce qui est ajouté au prompt système. Du texte, court, déjà interprété. */
+  texte: string | null;
+  /** Ce qui est remis aux outils. Des identifiants, déjà vérifiés. */
+  refs: ReferencesContexte | null;
+}
+
 export async function resoudreContexte(
   userId: string,
   contexte: ContexteEcran | null,
-): Promise<string | null> {
-  if (!contexte) return null;
+): Promise<ContexteResolu> {
+  if (!contexte) return { texte: null, refs: null };
 
   const lignes: string[] = [];
+  const refs: ReferencesContexte = {
+    ecran: contexte.ecran,
+    blocId: null,
+    seanceTemplateId: null,
+    exerciseInstanceId: null,
+  };
 
   switch (contexte.ecran) {
     case "programme": {
@@ -38,6 +66,7 @@ export async function resoudreContexte(
         lignes.push("L'athlète regarde son programme : aucun cycle actif.");
         break;
       }
+      refs.blocId = vue.cycle.id;
       lignes.push(
         `L'athlète regarde son programme : « ${vue.cycle.nom} » (${vue.cycle.libelle.libelle}), ` +
           `semaine ${vue.cycle.position.semaine}` +
@@ -128,14 +157,21 @@ export async function resoudreContexte(
   // à l'utilisateur. Un identifiant qui n'est pas à lui est simplement ignoré.
   if (contexte.typeEntite && contexte.entiteId) {
     const nomme = await nommerEntite(userId, contexte.typeEntite, contexte.entiteId);
-    if (nomme) lignes.push(nomme);
+    if (nomme) {
+      lignes.push(nomme);
+      // La référence n'est retenue que si l'objet a bien été trouvé pour CET
+      // utilisateur : `nommerEntite` renvoie null sinon.
+      if (contexte.typeEntite === "bloc") refs.blocId = contexte.entiteId;
+      if (contexte.typeEntite === "seance") refs.seanceTemplateId = contexte.entiteId;
+      if (contexte.typeEntite === "instance") refs.exerciseInstanceId = contexte.entiteId;
+    }
   }
 
   if (contexte.sujet) {
     lignes.push(`Intention déclarée en ouvrant la conversation : ${contexte.sujet}.`);
   }
 
-  return lignes.length ? lignes.join("\n") : null;
+  return { texte: lignes.length ? lignes.join("\n") : null, refs };
 }
 
 /** Nomme un objet désigné, après vérification qu'il appartient à l'utilisateur. */
