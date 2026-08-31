@@ -55,6 +55,22 @@ export function phaseDepuisTypeCycle(type: string | null | undefined): PhaseCycl
 }
 
 /**
+ * La semaine courante d'un bloc — définition de référence, unique.
+ *
+ * `programme_blocs.semaine_actuelle` est écrite à 1 et jamais incrémentée.
+ * Tout ce qui parle de « la semaine » passe donc par ici : l'écran Programme,
+ * le tableau de bord, le prompt du coach, ses outils, et le classement de
+ * l'état du cycle. Sans ce point unique, l'interface disait « semaine 4 »
+ * pendant que le coach recevait « semaine 1 » et raisonnait dessus.
+ */
+export function positionDuBloc(
+  bloc: { dateDebut: string; dateFinPrevue: string | null },
+  aujourdhui = new Date().toISOString().slice(0, 10),
+): PositionDansLeCycle {
+  return positionDansLeCycle(bloc.dateDebut, bloc.dateFinPrevue, aujourdhui);
+}
+
+/**
  * Mesure de l'état du cycle, partagée.
  *
  * Le validateur en a besoin autant que l'outil de lecture : la phase décide
@@ -133,7 +149,16 @@ export async function mesurerCycle(userId: string) {
   });
 
   return {
-    bloc: bloc ? { nom: bloc.nom, typeCycle: bloc.typeCycle, semaine: bloc.semaineActuelle } : null,
+    bloc: bloc
+      ? {
+          nom: bloc.nom,
+          typeCycle: bloc.typeCycle,
+          libelleCycle: libelleCycle(bloc.typeCycle).libelle,
+          // La semaine déduite, jamais la colonne figée.
+          semaine: positionDuBloc(bloc).semaine,
+          semainesTotal: positionDuBloc(bloc).semainesTotal,
+        }
+      : null,
     douleurSignalee,
     ...etat,
   };

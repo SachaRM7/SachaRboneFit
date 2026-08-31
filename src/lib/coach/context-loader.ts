@@ -1,4 +1,6 @@
 import { db } from "@/db/client";
+import { positionDuBloc } from "@/services/cycle";
+import { libelleCycle } from "@/lib/referentiels/cycle";
 import { users, programmeBlocs, sessionLogs, dailyStates, bodyWeights, seanceTemplates } from "@/db/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 
@@ -11,8 +13,9 @@ export interface CoachContext {
   objectifChiffre: string | null;
   blocActif: {
     nom: string;
-    typeCycle: string;
-    semaineActuelle: number;
+    libelleCycle: string;
+    semaine: number;
+    semainesTotal: number | null;
   } | null;
   dailyStateToday: {
     sommeilHeures: number | null;
@@ -100,11 +103,15 @@ export async function loadCoachContext(userId: string): Promise<CoachContext> {
     currentWeight: lastWeight?.poids ?? null,
     phaseNutritionnelle: user?.phaseNutritionnelle ?? null,
     objectifChiffre: user?.objectifChiffre ?? null,
+    // `semaine_actuelle` est figée à 1 en base : le coach recevait « semaine 1 »
+    // quelle que soit l'ancienneté du bloc, pendant que l'interface affichait
+    // la vraie. Une seule définition, celle de `positionDuBloc`.
     blocActif: blocActif
       ? {
           nom: blocActif.nom,
-          typeCycle: blocActif.typeCycle,
-          semaineActuelle: blocActif.semaineActuelle ?? 1,
+          libelleCycle: libelleCycle(blocActif.typeCycle).libelle,
+          semaine: positionDuBloc(blocActif).semaine,
+          semainesTotal: positionDuBloc(blocActif).semainesTotal,
         }
       : null,
     dailyStateToday: dailyStateToday

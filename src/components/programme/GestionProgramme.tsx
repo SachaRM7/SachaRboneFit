@@ -44,7 +44,8 @@ export interface MachineDisponible {
 }
 
 interface Props {
-  bloc: { id: string; nom: string; typeCycle: string; semaineActuelle: number | null } | null;
+  /** `semaineActuelle` n'est plus transmise : elle vaut 1 et ne bouge pas. */
+  bloc: { id: string; nom: string; typeCycle: string } | null;
   seances: SeanceProgramme[];
   machines: MachineDisponible[];
 }

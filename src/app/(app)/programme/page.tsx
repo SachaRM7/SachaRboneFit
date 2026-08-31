@@ -116,7 +116,7 @@ export default async function ProgrammePage() {
           <GestionProgramme
             bloc={
               bloc
-                ? { id: bloc.id, nom: bloc.nom, typeCycle: bloc.typeCycle, semaineActuelle: bloc.semaineActuelle }
+                ? { id: bloc.id, nom: bloc.nom, typeCycle: bloc.typeCycle }
                 : null
             }
             seances={seances}

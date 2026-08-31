@@ -9,7 +9,7 @@ export function buildSystemPrompt(context: CoachContext): string {
 Tu es le coach de ${context.userName || "l'utilisateur"}. Tu connais son profil : poids actuel ${context.currentWeight ? `${context.currentWeight} kg` : "non renseigné"}, phase nutritionnelle: ${context.phaseNutritionnelle || "non renseignée"}, objectif: ${context.objectifChiffre || "non renseigné"}.
 
 ## Current Programme
-${context.blocActif ? `L'athlète est actuellement dans le "${context.blocActif.nom}" (cycle ${context.blocActif.typeCycle}, semaine ${context.blocActif.semaineActuelle}).` : "Aucun programme actif."}
+${context.blocActif ? `L'athlète est actuellement dans le "${context.blocActif.nom}" (${context.blocActif.libelleCycle}, semaine ${context.blocActif.semaine}${context.blocActif.semainesTotal ? ` sur ${context.blocActif.semainesTotal}` : ""}).` : "Aucun programme actif."}
 
 ## Today's State
 - Date: ${context.today}

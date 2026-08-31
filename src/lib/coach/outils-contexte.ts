@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { positionDuBloc } from "@/services/cycle";
 import { users, gyms, exercises, exerciseInstances, dailyStates, coachMemoires } from "@/db/schema";
 import { and, eq, desc, isNull, inArray } from "drizzle-orm";
 import { computeFeuJour } from "@/lib/engine/feu-biologique";
@@ -233,7 +234,8 @@ async function seanceDuJour(_p: Record<string, unknown>, userId: string): Promis
 
   return ok(JSON.stringify({
     programmee: true,
-    bloc: { nom: suite.bloc.nom, semaine: suite.bloc.semaineActuelle },
+    // La semaine déduite, comme partout ailleurs : `semaine_actuelle` vaut 1.
+    bloc: { nom: suite.bloc.nom, semaine: positionDuBloc(suite.bloc).semaine },
     seance: { lettre: suite.template.lettre, nom: suite.template.nom, id: suite.template.id },
     rotation: suite.toutesLesSeances.map((s) => s.lettre),
   }));

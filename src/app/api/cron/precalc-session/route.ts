@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
         const context = await loadCoachContext(userId);
         const summaryLines = [
           `Aujourd'hui: ${context.today}`,
-          context.blocActif ? `Bloc: ${context.blocActif.nom} (semaine ${context.blocActif.semaineActuelle})` : null,
+          context.blocActif ? `Bloc: ${context.blocActif.nom} (${context.blocActif.libelleCycle}, semaine ${context.blocActif.semaine})` : null,
           context.dailyStateToday ? `Feu du jour: ${context.dailyStateToday.feuJour ?? "non renseigné"}` : null,
           context.last5Sessions.length > 0 ? `5 dernières séances: ${context.last5Sessions.map(s => s.date).join(", ")}` : null,
         ].filter(Boolean).join("\n");

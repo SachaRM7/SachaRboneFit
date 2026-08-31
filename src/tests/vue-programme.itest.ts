@@ -17,7 +17,10 @@ vi.mock("@/lib/supabase/auth-helper", () => ({ getAuthenticatedUserId: async () 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
 const { eq } = await import("drizzle-orm");
-const { vueDuProgramme } = await import("@/services/cycle");
+const { vueDuProgramme, mesurerCycle } = await import("@/services/cycle");
+const { loadCoachContext } = await import("@/lib/coach/context-loader");
+const { buildSystemPrompt } = await import("@/lib/coach/system-prompt");
+const { lundiDe, decalerDe } = await import("@/lib/semaines");
 
 const AUJOURDHUI = "2026-08-05"; // mercredi
 const LUNDI = "2026-08-03";
@@ -246,6 +249,48 @@ describe("vue du programme", () => {
       where: eq(schema.programmeBlocs.id, blocId),
     });
     expect(enBase!.typeCycle).toBe("mecanique");
+  });
+
+  it("ne transmet plus « semaine 1 » au coach pour un bloc ancien", async () => {
+    // Le point de la demande : `semaine_actuelle` reste à 1 en base, mais
+    // l'interface, le classement de l'état et le coach doivent tous parler de
+    // la même semaine — celle déduite de la date de début.
+    // `mesurerCycle` et le contexte du coach lisent l'horloge réelle : le bloc
+    // est donc ancré sur aujourd'hui pour que la semaine attendue soit sûre.
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const debut = decalerDe(lundiDe(aujourdhui), -21);
+    await creerBloc("volume", debut);
+    await enregistrerSeance(aujourdhui, templates[0]!);
+
+    const enBase = await db.query.programmeBlocs.findFirst({
+      where: eq(schema.programmeBlocs.id, blocId),
+    });
+    expect(enBase!.semaineActuelle).toBe(1);
+
+    const vue = await vueDuProgramme(U, aujourdhui);
+    const mesure = await mesurerCycle(U);
+    const contexte = await loadCoachContext(U);
+    const prompt = buildSystemPrompt(contexte);
+
+    // Une seule semaine, partout.
+    expect(vue.cycle!.position.semaine).toBe(4);
+    expect(mesure.bloc!.semaine).toBe(4);
+    expect(contexte.blocActif!.semaine).toBe(4);
+    expect(prompt).toContain("semaine 4");
+    expect(prompt).not.toContain("semaine 1");
+
+    // Et aucune valeur brute de type de cycle dans le prompt.
+    expect(contexte.blocActif!.libelleCycle).toBe("Dominante volume");
+    expect(prompt).not.toContain("typeCycle");
+  });
+
+  it("ne promet pas de total au coach quand la date de fin manque", async () => {
+    await creerBloc("volume", decalerDe(lundiDe(new Date().toISOString().slice(0, 10)), -21));
+    const contexte = await loadCoachContext(U);
+    expect(contexte.blocActif!.semainesTotal).toBeNull();
+    // La semaine est dite seule : pas de dénominateur inventé.
+    expect(buildSystemPrompt(contexte)).toMatch(/semaine 4\)/);
+    expect(buildSystemPrompt(contexte)).not.toMatch(/semaine 4 sur/);
   });
 
   it("n'affiche jamais une valeur de type de cycle inconnue telle quelle", async () => {

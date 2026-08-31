@@ -18,7 +18,12 @@ import type { SeanceTemplate } from "@/db/schema";
  */
 
 export interface ProchaineSeance {
-  bloc: { id: string; nom: string; semaineActuelle: number | null };
+  /**
+   * `semaineActuelle` n'est pas exposée : la colonne vaut 1 et n'est jamais
+   * incrementee. Les dates permettent a l'appelant de deduire la semaine
+   * reelle via `positionDuBloc`, qui est la definition de reference.
+   */
+  bloc: { id: string; nom: string; typeCycle: string; dateDebut: string; dateFinPrevue: string | null };
   template: SeanceTemplate;
   /** Seances du bloc, dans l'ordre, pour laisser l'utilisateur choisir autrement. */
   toutesLesSeances: SeanceTemplate[];
@@ -50,7 +55,13 @@ export async function prochaineSeance(userId: string): Promise<ProchaineSeance |
   const suivante = seances[(indexPrecedent + 1) % seances.length]!;
 
   return {
-    bloc: { id: bloc.id, nom: bloc.nom, semaineActuelle: bloc.semaineActuelle },
+    bloc: {
+      id: bloc.id,
+      nom: bloc.nom,
+      typeCycle: bloc.typeCycle,
+      dateDebut: bloc.dateDebut,
+      dateFinPrevue: bloc.dateFinPrevue,
+    },
     template: suivante,
     toutesLesSeances: seances,
   };
