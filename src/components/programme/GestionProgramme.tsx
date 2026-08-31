@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { libelleCycle } from "@/lib/referentiels/cycle";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -162,10 +163,10 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
     <div className="space-y-5">
       <div className="bg-carte border border-filet rounded-lg p-4">
         <p className="text-encre font-medium">{bloc.nom}</p>
-        <p className="text-encre-3 text-sm mt-0.5">
-          Cycle {bloc.typeCycle}
-          {bloc.semaineActuelle ? ` · semaine ${bloc.semaineActuelle}` : ""}
-        </p>
+        {/* Ni `type_cycle` brut, ni `semaine_actuelle` : cette colonne est
+            écrite à 1 et jamais incrémentée. La semaine réelle se déduit de la
+            date de début, et se lit en haut de l'écran. */}
+        <p className="text-encre-3 text-sm mt-0.5">{libelleCycle(bloc.typeCycle).libelle}</p>
       </div>
 
       {seances.map((s) => (

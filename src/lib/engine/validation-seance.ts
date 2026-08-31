@@ -111,7 +111,15 @@ export interface ResultatValidation {
   scoresRecuperation: Record<string, number>;
 }
 
-export function dureeEstimeeMinutes(exercices: ExercicePropose[]): number {
+/**
+ * Durée estimée d'une séance.
+ *
+ * Le paramètre ne demande que ce qui est réellement lu : l'écran Programme
+ * estime la durée de gabarits, qui n'ont ni muscles ni pilier à fournir.
+ */
+export function dureeEstimeeMinutes(
+  exercices: Array<Pick<ExercicePropose, "series" | "reposSecondes">>,
+): number {
   const secondes = exercices.reduce((total, e) => {
     // Le dernier repos d'un exercice ne compte pas : on enchaîne sur le suivant.
     const repos = Math.max(0, e.series - 1) * e.reposSecondes;

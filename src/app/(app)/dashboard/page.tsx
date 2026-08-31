@@ -14,7 +14,7 @@ import { AlertList } from "@/components/alerts/AlertList";
 
 interface DashboardData {
   user: { nom: string; poidsActuel: number | null };
-  blocActif: { nom: string; typeCycle: string; semaineActuelle: number } | null;
+  blocActif: { nom: string; libelleCycle: string; semaine: number } | null;
   etat: EtatDuJour;
   feuJour: "vert" | "orange" | "rouge" | null;
   feuTendance: "vert" | "orange" | "rouge" | null;
@@ -110,8 +110,8 @@ export default function DashboardPage() {
         </div>
         {data?.blocActif && (
           <p className="text-encre-3 text-xs mt-1">
-            {data.blocActif.nom} — {data.blocActif.typeCycle} — Semaine{" "}
-            {data.blocActif.semaineActuelle}
+            {data.blocActif.libelleCycle} — Semaine{" "}
+            <span className="chiffres">{data.blocActif.semaine}</span>
           </p>
         )}
       </div>

@@ -4,7 +4,14 @@ import { and, eq, gte, desc, isNull } from "drizzle-orm";
 import { versMuscle, MUSCLES, type Muscle } from "@/lib/referentiels/muscles";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
 import { semainesSansDeload } from "@/services/progression";
-import { classerEtatCycle, type EntreeSeance, type PhaseCycle } from "@/lib/engine/etat-cycle";
+/**
+ * `mesurerCycle` vit desormais dans les services : l'ecran Programme en a
+ * besoin des memes mesures, et le laisser ici aurait impose soit d'importer
+ * les internes du coach depuis une page, soit de reclasser l'etat une seconde
+ * fois. Le reexport garde ces outils inchanges.
+ */
+export { mesurerCycle, phaseDepuisTypeCycle } from "@/services/cycle";
+import { mesurerCycle } from "@/services/cycle";
 import {
   validerSeance,
   type ExercicePropose,
@@ -222,78 +229,6 @@ async function recuperationMusculaire(_p: Record<string, unknown>, userId: strin
 }
 
 // ---------------------------------------------------------------------------
-
-/** Le type de cycle stocké en base ramené aux phases du moteur. */
-function phaseDepuisTypeCycle(type: string | null | undefined): PhaseCycle {
-  const t = (type ?? "").toLowerCase();
-  if (t.includes("decharge") || t.includes("deload")) return "decharge";
-  if (t.includes("surcharge") || t.includes("overreach") || t.includes("intensification")) return "surcharge";
-  if (t.includes("mecanique") || t.includes("hypertroph") || t.includes("accumulation") || t.includes("force")) {
-    return "accumulation";
-  }
-  return "hors_cycle";
-}
-
-/**
- * Mesure de l'etat du cycle, partagee.
- *
- * Le validateur en a besoin autant que l'outil de lecture : la phase decide
- * du seuil de recuperation et des regles de decharge.
- */
-export async function mesurerCycle(userId: string) {
-  const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
-  });
-
-  const seances = await db.query.sessionLogs.findMany({
-    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
-    orderBy: [desc(sessionLogs.date)],
-    limit: 8,
-  });
-
-  const entrees: EntreeSeance[] = await Promise.all(
-    seances.map(async (s) => {
-      const series = await db.query.setLogs.findMany({ where: eq(setLogs.sessionLogId, s.id) });
-      const meilleur = series.reduce((max, x) => {
-        const estime = x.charge * (1 + x.repsEffectuees / 30);
-        return estime > max ? estime : max;
-      }, 0);
-      const rpes = series.map((x) => x.rpeEffectif).filter((v): v is number => v !== null);
-      return {
-        date: s.date,
-        meilleur1RM: meilleur > 0 ? Math.round(meilleur) : null,
-        rpeMoyen: rpes.length ? rpes.reduce((t, v) => t + v, 0) / rpes.length : null,
-        seriesRealisees: series.length,
-      };
-    }),
-  );
-
-  const etatsRecents = await db.query.dailyStates.findMany({
-    where: and(eq(dailyStates.userId, userId), gte(dailyStates.date, ilYaJours(7))),
-    orderBy: [desc(dailyStates.date)],
-  });
-
-  const etat = classerEtatCycle({
-    phasePrevue: phaseDepuisTypeCycle(bloc?.typeCycle),
-    semainesSansDecharge: await semainesSansDeload(userId),
-    seancesRecentes: entrees,
-    signaux: {
-      sommeilRecent: etatsRecents.map((e) => e.sommeilHeures ?? 7),
-      courbatureMax: Math.max(
-        0,
-        ...etatsRecents.flatMap((e) => (e.courbatures ?? []).map((c) => c.intensite)),
-      ),
-      douleurSignalee: etatsRecents.some((e) =>
-        (e.courbatures ?? []).some((c) => c.intensite >= 8),
-      ),
-    },
-  });
-
-  return {
-    bloc: bloc ? { nom: bloc.nom, typeCycle: bloc.typeCycle, semaine: bloc.semaineActuelle } : null,
-    ...etat,
-  };
-}
 
 async function etatDuCycle(_p: Record<string, unknown>, userId: string): Promise<ToolExecutionResult> {
   return ok(JSON.stringify(await mesurerCycle(userId)));

@@ -6,19 +6,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DOMINANTES, LIBELLES_DOMINANTE } from "@/lib/referentiels/cycle";
 
+/**
+ * Les dominantes du modèle actuel.
+ *
+ * L'opposition « mécanique / métabolique » n'est plus proposée : elle ne
+ * décrit pas ce qu'un bloc fait varier. Les cycles déjà enregistrés sous ces
+ * valeurs les gardent et restent lisibles (`libelleCycle`) — rien n'est
+ * réécrit en base.
+ */
 const TYPES_CYCLE = [
-  { valeur: "mecanique", libelle: "Mécanique" },
-  { valeur: "metabolique", libelle: "Métabolique" },
-  { valeur: "force", libelle: "Force" },
-  { valeur: "deload", libelle: "Deload" },
+  ...DOMINANTES.map((d) => ({ valeur: d, libelle: LIBELLES_DOMINANTE[d] })),
+  { valeur: "deload", libelle: "Décharge" },
 ] as const;
 
 export function CreationBlocForm() {
   const router = useRouter();
   const [nom, setNom] = useState("");
   const [dateDebut, setDateDebut] = useState(new Date().toISOString().slice(0, 10));
-  const [typeCycle, setTypeCycle] = useState<string>("mecanique");
+  const [typeCycle, setTypeCycle] = useState<string>("volume");
   const [envoi, setEnvoi] = useState(false);
 
   const creer = async () => {
@@ -58,7 +65,7 @@ export function CreationBlocForm() {
         </div>
         <div className="space-y-2">
           <Label>Type de cycle</Label>
-          <Select value={typeCycle} onValueChange={(v) => setTypeCycle(v ?? "mecanique")}>
+          <Select value={typeCycle} onValueChange={(v) => setTypeCycle(v ?? "volume")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {TYPES_CYCLE.map((t) => (

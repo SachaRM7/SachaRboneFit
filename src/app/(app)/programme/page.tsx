@@ -1,23 +1,40 @@
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import {
-  programmeBlocs, seanceTemplates, exerciseInTemplate, exerciseInstances, gyms,
+  programmeBlocs, seanceTemplates, exerciseInTemplate, exerciseInstances, gyms, users,
 } from "@/db/schema";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { GestionProgramme, type SeanceProgramme, type MachineDisponible } from "@/components/programme/GestionProgramme";
 import { CreationBlocForm } from "@/components/programme/CreationBlocForm";
+import { VueCycle, OptionsAvancees } from "@/components/programme/VueCycle";
+import { vueDuProgramme } from "@/services/cycle";
 
 /**
- * Gestion du programme.
+ * Programme : comprendre et inspecter la programmation.
  *
- * Aucun chemin applicatif ne permettait de créer un bloc, une séance ou d'y
- * programmer un exercice : seul `npm run seed` en produisait. L'application
- * n'était donc pas utilisable sans passer par un terminal.
+ * Le rôle de cet écran est tranché. Il répond à « qu'est-ce qui est prévu, et
+ * pourquoi ». Il ne double pas l'Accueil, qui reste le parcours opérationnel :
+ * une séance se lance depuis là, ou depuis son propre détail. Il ne double pas
+ * non plus Progression, qui répond à « qu'est-ce qui s'est passé ».
+ *
+ * L'écran était un CRUD — bloc, séances, exercices, séries, répétitions, RPE,
+ * tempo, repos, le tout déplié d'emblée. Cette capacité n'est pas supprimée :
+ * elle passe derrière « Édition avancée », là où elle sert.
  */
 export default async function ProgrammePage() {
   const userId = await getAuthenticatedUserId();
   if (!userId) redirect("/login");
+
+  // Sans onboarding terminé, il n'y a rien à programmer : on y renvoie plutôt
+  // que d'afficher un écran vide expliquant qu'il n'y a rien.
+  const profil = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { onboardingTermineLe: true },
+  });
+  if (!profil?.onboardingTermineLe) redirect("/bienvenue");
+
+  const vue = await vueDuProgramme(userId);
 
   const bloc = await db.query.programmeBlocs.findFirst({
     where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
@@ -88,21 +105,25 @@ export default async function ProgrammePage() {
   }
 
   return (
-    <div className="p-4 space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-encre">Programme</h1>
-        <p className="text-encre-3 text-sm mt-1">
-          {bloc ? "Bloc actif, séances et exercices programmés." : "Crée un bloc pour commencer."}
-        </p>
-      </div>
+    <div className="min-h-dvh bg-papier text-encre p-4 pb-24 space-y-5">
+      <h1 className="text-2xl font-bold">Programme</h1>
 
-      {!bloc && <CreationBlocForm />}
+      <VueCycle vue={vue} />
 
-      <GestionProgramme
-        bloc={bloc ? { id: bloc.id, nom: bloc.nom, typeCycle: bloc.typeCycle, semaineActuelle: bloc.semaineActuelle } : null}
-        seances={seances}
-        machines={machines}
-      />
+      <OptionsAvancees>
+        <div className="space-y-4">
+          {!bloc && <CreationBlocForm />}
+          <GestionProgramme
+            bloc={
+              bloc
+                ? { id: bloc.id, nom: bloc.nom, typeCycle: bloc.typeCycle, semaineActuelle: bloc.semaineActuelle }
+                : null
+            }
+            seances={seances}
+            machines={machines}
+          />
+        </div>
+      </OptionsAvancees>
     </div>
   );
 }

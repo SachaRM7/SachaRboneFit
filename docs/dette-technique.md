@@ -93,12 +93,98 @@ des deux calculs a servi : c'est la donnée qui permettra de trancher.
 
 Issus de la spécification d'usage, non encore repris :
 
-- représentation du cycle (§17) ;
 - bouton flottant du coach (§22/23) ;
-- retour de fin de séance en dix secondes (§13) ;
 - écran « Plus » (§25) ;
 - passe de microcopie (§28).
 
-Le §13 conditionne la qualité des données que consomme l'écran Progression :
-c'est là que se saisissent le RPE et la durée, dont dépendent respectivement
-le point 2 ci-dessus et la « durée habituelle » du bilan.
+Traités depuis : le retour de fin de séance (§13) et la représentation du
+cycle (§17).
+
+---
+
+## 4. `programme_blocs` : trois colonnes qui ne disent pas ce qu'elles promettent
+
+**Statut :** contournées, non migrées. Migration additive à prévoir.
+
+Découvertes en auditant l'écran Programme (§17).
+
+### `semaine_actuelle` — écrite à 1, jamais incrémentée
+
+La colonne est écrite à deux endroits (`api/onboarding`, `services/programmes`),
+toujours avec la valeur littérale `1`, et **aucun code ne l'incrémente**. Elle
+était pourtant affichée comme une vérité sur le tableau de bord (« Semaine 1 »
+indéfiniment), dans l'écran Programme, et transmise au coach dans son prompt
+système.
+
+*Contournement :* la semaine est désormais **déduite** de `date_debut`
+(`positionDansLeCycle`), qui est `NOT NULL` et fiable. La colonne n'est plus
+lue nulle part à l'affichage.
+
+*Reste à faire :* soit un travail planifié qui l'incrémente et en fait une
+donnée réelle, soit sa suppression. Elle est encore transmise au coach via
+`mesurerCycle` (champ `bloc.semaine`) — à traiter avec le chantier coach.
+
+### `date_fin_prevue` — facultative et jamais renseignée
+
+Aucun écran ne l'écrit : `CreationBlocForm` ne l'envoie pas, seule l'API
+l'accepte. En pratique elle est toujours `NULL`, donc **un cycle n'a pas de
+durée totale**.
+
+*Conséquence assumée :* « Semaine 3 sur 6 » n'est affiché que si la date
+existe. Sinon l'écran dit « Semaine 3 », sans dénominateur et sans barre de
+progression. Un cycle terminé ne peut pas non plus être détecté sans elle.
+
+*Reste à faire :* la demander à la création d'un bloc, ou dériver une durée
+par défaut de la dominante. C'est le préalable au parcours « cycle terminé →
+préparer le suivant » (§10), qui n'est donc **pas implémenté** : seule l'UI
+compatible existe.
+
+### `seance_templates` — un ordre, pas un jour
+
+La table porte `ordre_dans_semaine`, et rien d'autre. **Aucune séance n'a de
+jour attribué.**
+
+*Conséquences assumées :* l'écran n'affiche aucun « Lundi / Mercredi /
+Vendredi », et aucune séance ne peut être déclarée « manquée » — il n'existe
+pas de date à laquelle elle aurait dû avoir lieu. L'état « aujourd'hui » n'est
+affirmé que si une séance a réellement été enregistrée aujourd'hui ; sinon la
+première séance non faite de la semaine est dite « prochaine ».
+
+*Reste à faire :* une colonne `jour_prevu` nullable permettrait les jours et la
+notion de séance manquée. Migration additive, non faite.
+
+### `type_cycle` — texte libre
+
+Colonne `text` sans contrainte, alimentée par trois sources et acceptant
+n'importe quelle chaîne via l'API. Les valeurs observables : `calibration`,
+`mecanique`, `metabolique`, `force`, `deload`.
+
+*Traitement :* `libelleCycle()` traduit les valeurs connues, humanise les
+inconnues, et marque `herite: true` pour les vocabulaires abandonnés
+(`mecanique` → « Dominante charge »). **Aucune réécriture en base.** Le
+formulaire de création propose désormais les quatre dominantes actuelles.
+
+*Piège corrigé au passage :* `phaseDepuisTypeCycle()` reconnaissait les
+valeurs par sous-chaîne. Les nouvelles dominantes (`volume`, `densite`…) n'y
+correspondaient pas et retombaient sur `hors_cycle` — ce qui change le seuil de
+récupération et les règles de décharge. La correspondance est maintenant
+explicite et testée.
+
+---
+
+## 5. `classerEtatCycle` conseille une décharge au calendrier
+
+**Statut :** filtré à l'affichage, moteur inchangé.
+
+`dechargeConseillee` passe à `true` dès `semainesSansDecharge >= 6`, sans
+aucun signal corporel. Afficher cette recommandation telle quelle reviendrait à
+décréter une décharge à la date.
+
+*Contournement :* `dechargeJustifiee()` exige au moins un motif venant du corps
+ou des performances (fatigue anormale, performances en baisse, douleur
+signalée). L'ancienneté seule n'affiche rien.
+
+*Reste à faire :* décider si le moteur lui-même doit distinguer « décharge
+recommandée » de « décharge à planifier ». Le changer affecterait les alertes,
+qui consomment `computeAlerts` — d'où le choix de filtrer en aval pour
+l'instant.
