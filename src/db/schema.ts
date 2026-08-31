@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp, real, integer, jsonb, date, unique } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, timestamp, real, integer, jsonb, date, unique, index } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
 export const users = pgTable("users", {
@@ -296,7 +296,17 @@ export const exerciseInTemplate = pgTable("exercise_in_template", {
   archiveLe: timestamp("archive_le"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  /**
+   * Les lignes encore programmées d'un gabarit : la lecture la plus fréquente
+   * de cette table.
+   *
+   * Cet index vivait dans la migration 0005 sans être déclaré ici. Un
+   * `drizzle-kit push` l'aurait supprimé sans bruit — un index manquant ne
+   * casse rien, il ralentit, et personne ne l'aurait vu partir.
+   */
+  index("exercise_in_template_actives_idx").on(t.seanceTemplateId, t.archiveLe),
+]);
 
 export const dailyStates = pgTable("daily_states", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -554,7 +564,15 @@ export const contraintes = pgTable("contraintes", {
   origine: text("origine").notNull().default("athlete"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => [
+  /**
+   * Les contraintes actives d'un compte : lues à chaque construction de séance.
+   *
+   * Déclaré dans la migration 0006 et nulle part ici — même angle mort que les
+   * deux autres index de lecture.
+   */
+  index("contraintes_actives_idx").on(t.userId, t.dateFin),
+]);
 
 /**
  * Mémoire du coach.
@@ -644,7 +662,14 @@ export const coachPropositions = pgTable("coach_propositions", {
   resultat: jsonb("resultat").$type<Record<string, unknown>>(),
   decideLe: timestamp("decide_le"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => [
+  /**
+   * Les propositions qu'un compte doit encore trancher.
+   *
+   * Déclaré dans la migration 0004 et absent du schéma jusqu'ici.
+   */
+  index("coach_propositions_en_attente_idx").on(t.userId, t.statut, t.createdAt),
+]);
 
 
 // ---------------------------------------------------------------------------
