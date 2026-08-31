@@ -2,20 +2,51 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { RejouerOnboarding } from "@/components/settings/RejouerOnboarding";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { Download, LogOut, User, History, CalendarRange, Palette, BookOpen, MapPin } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import {
+  Download, LogOut, User, History, CalendarRange, Palette, BookOpen, MapPin, Scale,
+} from "lucide-react";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 import { useSessionStore } from "@/stores/sessionStore";
 import { ChoixTheme } from "@/components/layout/ChoixTheme";
+import { RejouerOnboarding } from "@/components/settings/RejouerOnboarding";
+import { GroupeReglages, LigneAction, type Entree } from "@/components/settings/ListeReglages";
+import { DeclarerContexte } from "@/components/coach/ContexteCoach";
+
+/**
+ * Plus.
+ *
+ * L'écran empilait six cartes complètes — en-tête, icône, description, bouton
+ * pleine largeur — pour six liens de navigation. Trois écrans de défilement
+ * avant d'atteindre la déconnexion.
+ *
+ * Il est maintenant fait de listes, regroupées par ce qu'on vient y chercher :
+ * ce qui touche à l'entraînement, ce qui te concerne, l'application, puis le
+ * compte. Aucune capacité n'a été retirée — et une a été rendue atteignable :
+ * le suivi du poids de corps existait sans qu'aucun lien n'y mène.
+ *
+ * Le geste destructeur reste en dernier et garde sa carte : c'est le seul
+ * endroit où la lourdeur est utile.
+ */
+
+const ENTRAINEMENT: Entree[] = [
+  { href: "/programme", libelle: "Programme", description: "Ton cycle et ta semaine", icone: CalendarRange },
+  { href: "/historique", libelle: "Historique", description: "Toutes tes séances passées", icone: History },
+  { href: "/exercises", libelle: "Bibliothèque", description: "Tous les exercices", icone: BookOpen },
+  { href: "/gyms", libelle: "Salles", description: "Lieux et matériel disponible", icone: MapPin },
+];
+
+const TOI: Entree[] = [
+  { href: "/profil", libelle: "Mon profil", description: "Objectif, fréquence, durée de séance", icone: User },
+  // L'écran existait et fonctionnait, sans qu'aucun lien de l'application n'y
+  // mène : il n'était atteignable qu'en tapant l'adresse à la main.
+  { href: "/bodyweight", libelle: "Poids de corps", description: "Suivi et tendance", icone: Scale },
+];
 
 export default function SettingsPage() {
   const router = useRouter();
-  const clearSession = useSessionStore((state) => state.clear);
-  const [exporting, setExporting] = useState(false);
+  const viderSeance = useSessionStore((state) => state.clear);
+  const [export_, setExport] = useState(false);
 
   // Trois comptes portent le même prénom : sans l'adresse affichée, un compte
   // vide est indiscernable d'une application qui aurait perdu les données.
@@ -27,8 +58,8 @@ export default function SettingsPage() {
       .catch(() => setEmailConnecte(null));
   }, []);
 
-  const handleExportJSON = async () => {
-    setExporting(true);
+  const exporter = async () => {
+    setExport(true);
     try {
       const res = await fetch("/api/export?format=json");
       if (!res.ok) throw new Error();
@@ -43,171 +74,66 @@ export default function SettingsPage() {
     } catch {
       toast.error("Erreur lors de l'export");
     } finally {
-      setExporting(false);
+      setExport(false);
     }
   };
 
-  const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    clearSession();
+  const deconnecter = async () => {
+    await createClient().auth.signOut();
+    viderSeance();
     toast.success("Déconnecté");
     router.push("/login");
     router.refresh();
   };
 
   return (
-    <div className="min-h-screen bg-papier text-encre pb-20">
-      <div className="p-4">
-        <h1 className="text-2xl font-bold mb-6">Plus</h1>
+    <div className="min-h-dvh bg-papier text-encre p-4 pb-24 space-y-6">
+      {/* Aucun contexte sportif : on ne fabrique pas de situation ici. */}
+      <DeclarerContexte ecran="plus" />
 
-        {/* La bibliothèque et les salles ont quitté la barre de navigation :
-            elles se consultent rarement, mais doivent rester à un geste. */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
-          <Link href="/exercises" className="block">
-            <div className="h-full rounded-xl border border-filet bg-carte p-4">
-              <BookOpen className="w-5 h-5 text-encre-2 mb-2" />
-              <p className="font-semibold text-encre text-sm">Bibliothèque</p>
-              <p className="text-encre-3 text-xs mt-0.5">Tous les exercices</p>
-            </div>
-          </Link>
-          <Link href="/gyms" className="block">
-            <div className="h-full rounded-xl border border-filet bg-carte p-4">
-              <MapPin className="w-5 h-5 text-encre-2 mb-2" />
-              <p className="font-semibold text-encre text-sm">Salles</p>
-              <p className="text-encre-3 text-xs mt-0.5">Machines et réglages</p>
-            </div>
-          </Link>
+      <h1 className="text-2xl font-bold">Plus</h1>
+
+      <GroupeReglages titre="Entraînement" entrees={ENTRAINEMENT} />
+      <GroupeReglages titre="Toi" entrees={TOI} />
+
+      <section className="space-y-2">
+        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">Application</h2>
+        <div className="rounded-xl border border-filet bg-carte divide-y divide-filet">
+          <div className="px-4 py-3.5 flex items-center gap-3">
+            <Palette className="w-4 h-4 text-encre-2 shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="block text-encre text-sm font-medium">Apparence</span>
+              <span className="block mt-2">
+                <ChoixTheme />
+              </span>
+            </span>
+          </div>
+          <LigneAction
+            libelle="Exporter mes données"
+            description="Séances, exercices, poids, états du jour — en JSON"
+            icone={Download}
+            onClick={() => void exporter()}
+            disabled={export_}
+          />
         </div>
+      </section>
 
-        {/* Profil */}
-        <Card className="bg-carte border-filet mb-4">
-          <CardHeader>
-            <CardTitle className="text-encre-2 flex items-center gap-2">
-              <User className="w-4 h-4" />
-              Profil
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-encre-3 text-sm">
-              Taille, objectif, muscles prioritaires, fréquence et durée de séance.
+      <section className="space-y-2">
+        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">Compte</h2>
+        <div className="rounded-xl border border-filet bg-carte divide-y divide-filet">
+          <div className="px-4 py-3.5">
+            <p className="text-encre-3 text-xs">Connecté en tant que</p>
+            <p className="text-encre text-sm font-medium mt-0.5 break-all">
+              {emailConnecte ?? "…"}
             </p>
-            <Link href="/profil" className="block">
-              <Button variant="outline" className="w-full bg-papier-2 border-filet">
-                Modifier mon profil
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
+          </div>
+          <LigneAction libelle="Se déconnecter" icone={LogOut} onClick={() => void deconnecter()} />
+        </div>
+      </section>
 
-        {/* Historique */}
-        <Card className="bg-carte border-filet mb-4">
-          <CardHeader>
-            <CardTitle className="text-encre-2 flex items-center gap-2">
-              <History className="w-4 h-4" />
-              Historique
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-encre-3 text-sm">
-              Toutes tes séances passées, par mois, avec volume et durée.
-            </p>
-            <Link href="/historique" className="block">
-              <Button variant="outline" className="w-full bg-papier-2 border-filet">
-                Parcourir l&apos;historique
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Programme */}
-        <Card className="bg-carte border-filet mb-4">
-          <CardHeader>
-            <CardTitle className="text-encre-2 flex items-center gap-2">
-              <CalendarRange className="w-4 h-4" />
-              Programme
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-encre-3 text-sm">
-              Bloc actif, séances et exercices programmés.
-            </p>
-            <Link href="/programme" className="block">
-              <Button variant="outline" className="w-full bg-papier-2 border-filet">
-                Gérer mon programme
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Data Export */}
-        <Card className="bg-carte border-filet mb-4">
-          <CardHeader>
-            <CardTitle className="text-encre-2 flex items-center gap-2">
-              <Download className="w-4 h-4" />
-              Mes données
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-encre-3 text-sm">
-              Exporte toutes tes données : séances, exercices, poids, état du jour.
-            </p>
-            <Button
-              variant="outline"
-              className="w-full bg-papier-2 border-filet"
-              onClick={handleExportJSON}
-              disabled={exporting}
-            >
-              Exporter en JSON
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Apparence */}
-        <Card className="bg-carte border-filet mb-4">
-          <CardHeader>
-            <CardTitle className="text-encre-2 flex items-center gap-2">
-              <Palette className="w-4 h-4" />
-              Apparence
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ChoixTheme />
-          </CardContent>
-        </Card>
-
-        {/* Account */}
-        <Card className="bg-carte border-filet">
-          <CardHeader>
-            <CardTitle className="text-encre-2 flex items-center gap-2">
-              <LogOut className="w-4 h-4" />
-              Compte
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <p className="text-encre-3 text-xs uppercase tracking-wide">Connecté en tant que</p>
-              <p className="text-encre font-medium text-sm mt-0.5 break-all">
-                {emailConnecte ?? "…"}
-              </p>
-            </div>
-            <p className="text-encre-3 text-sm">
-              Déconnecte-toi pour changer de compte.
-            </p>
-            <Button
-              variant="outline"
-              className="w-full bg-papier-2 border-filet hover:bg-papier-2"
-              onClick={handleLogout}
-            >
-              Se déconnecter
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* En dernier, et non dans une liste d'actions anodines : ce geste
-            efface un historique sans corbeille. */}
-        <RejouerOnboarding />
-      </div>
+      {/* En dernier, et non dans une liste d'actions anodines : ce geste
+          efface un historique sans corbeille. */}
+      <RejouerOnboarding />
     </div>
   );
 }

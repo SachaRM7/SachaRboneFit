@@ -26,6 +26,7 @@ const RATTACHEMENTS: Record<string, string> = {
   "/profil": "/settings",
   "/historique": "/settings",
   "/programme": "/settings",
+  "/bodyweight": "/settings",
 };
 
 export function BottomNav() {

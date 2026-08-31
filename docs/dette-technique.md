@@ -93,11 +93,17 @@ des deux calculs a servi : c'est la donnée qui permettra de trancher.
 
 Issus de la spécification d'usage, non encore repris :
 
-- écran « Plus » (§25) ;
 - passe de microcopie (§28).
 
 Traités depuis : le retour de fin de séance (§13), la représentation du
-cycle (§17) et le coach contextuel (§22/23).
+cycle (§17), le coach contextuel (§22/23) et l'écran « Plus » (§25).
+
+**Question de navigation restée ouverte.** Depuis le chantier §17, Programme
+est un écran de plein droit, mais il n'est atteignable que par « Plus ». La
+barre du bas porte quatre onglets — Accueil, Séance, Progression, Plus — et
+lui en ajouter un cinquième est une décision de navigation, pas de mise en
+page : non tranchée ici. Programme est en tête du groupe « Entraînement », ce
+qui le met à deux gestes.
 
 ---
 
