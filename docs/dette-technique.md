@@ -182,24 +182,10 @@ l'instant.
 
 **Statut :** contourné ou volontairement laissé de côté.
 
-### Propositions structurelles sans application automatique
+### Propositions structurelles — traité (voir § 9)
 
-Aucun outil du coach n'applique aujourd'hui un changement structurel de
-programme : il n'existe ni `modifier_programme`, ni `changer_frequence`. Le
-coach peut donc PROPOSER par écrit, et rien ne s'applique — la garantie est
-obtenue par absence d'outil, pas par un mécanisme de confirmation.
-
-*Conséquence :* le parcours demandé « [Voir les changements] [Appliquer]
-[Garder le programme] » n'existe pas. Il n'a pas été construit parce qu'il
-suppose d'abord des outils d'écriture qu'il faudrait créer — et créer un outil
-d'écriture avant son garde-fou serait le mauvais ordre. À faire ensemble, dans
-un chantier dédié.
-
-### Écriture réellement possible par le coach
-
-Trois outils écrivent : `log_set`, `end_session`, `log_incident`. Ils portent
-sur la séance en cours, pas sur la structure du programme. `create_coach_memory`
-écrit aussi, désormais filtré par `verdictMemoire`.
+Résolu par le chantier des outils d'écriture : le coach propose, l'athlète
+confirme, l'application est atomique et tracée. Le détail est en § 9.
 
 ### Contexte transmis aux outils : fait, pour trois d'entre eux
 
@@ -213,11 +199,8 @@ l'écran.
 Les vingt autres gardent leur signature à deux arguments. Le modèle ne peut ni
 fabriquer ces références ni les remplacer : elles ne viennent pas de lui.
 
-*Reste à faire :* les outils d'écriture de séance (`log_set`, `end_session`,
-`log_incident`) prennent encore un `sessionLogId` fourni par le modèle. Ils
-vérifient le propriétaire, donc il n'y a pas de faille — mais ils pourraient
-agir sur la mauvaise séance si le modèle recopie mal. À traiter avec le
-chantier des outils d'écriture.
+*Traité :* le `sessionLogId` fourni par le modèle a disparu — voir § 9. Les
+références résolues portent désormais aussi `sessionLogId`.
 
 ### Non vérifié
 
@@ -265,7 +248,10 @@ Deux points à connaître, sans action requise :
 
 ## 8. Deux pages résolvent la même route `/`
 
-**Statut :** signalé, non tranché. Découvert pendant la passe de microcopie.
+**Statut :** résolu. `src/app/page.tsx` était bien la page servie, prouvé par
+instrumentation ; `src/app/(app)/page.tsx` a été supprimée, et
+`src/tests/routes.test.ts` fait échouer toute nouvelle route en double dès
+l'écriture. Conservé ici pour mémoire du raisonnement.
 
 `src/app/page.tsx` (redirection vers `/dashboard` ou `/login`) et
 `src/app/(app)/page.tsx` (un ancien tableau de bord en grille de cartes)
@@ -282,3 +268,87 @@ pas si elle est servie n'est pas un geste de microcopie.
 
 *À trancher :* vérifier laquelle est servie en production, puis supprimer
 l'autre.
+
+---
+
+## 9. Outils d'écriture du coach : ce qui est exposé, et ce qui ne l'est pas
+
+**Statut :** chantier fait. Les points ci-dessous sont ce qu'il a laissé de
+côté, avec la raison.
+
+### Mutations auditées et écartées
+
+**`log_set` — retirée du coach.** Elle insérait dans `set_logs` pendant la
+séance. Or la clôture (`terminerSeance`) commence par
+`delete(setLogs).where(sessionLogId = …)` puis réinsère depuis l'état du
+client : toute série écrite par le coach était **effacée sans trace** à la fin
+de la séance. L'outil ne vérifiait pas non plus le propriétaire de
+`exerciseInstanceId`. Une écriture en séance depuis le coach suppose d'abord
+que la saisie de séance persiste au fil de l'eau au lieu d'être poussée en bloc
+à la fin — c'est une refonte du flux de séance, pas un outil.
+
+**`end_session` — retirée du coach.** Elle écrivait `energieFin` et
+`notesSeance`, sans durée, sans séries, et sans recalculer le feu de tendance —
+là où `terminerSeance` fait les trois. Elle produisait donc une séance
+« clôturée » qu'aucun calcul ne reconnaît comme telle (`dureeMinutes` reste
+nul, ce qui la laisse « en cours » pour `seanceCourante` et pour l'adaptation
+de lieu). La clôture reste `PATCH /api/session-logs/[id]`.
+
+**Contraintes physiques (`contraintes`) — hors périmètre.** Une douleur
+déclarée au coach devrait pouvoir devenir une contrainte durable : c'est la
+mutation qui aurait le plus de valeur. Elle est écartée parce que **rien
+n'écrit jamais `date_fin`** — la colonne n'est que lue. Une contrainte créée
+est définitive, et sévérité > 7 écarte l'exercice au lieu de l'alléger. Créer
+un chemin d'entrée sans chemin de sortie fabriquerait des exclusions
+permanentes et involontaires. *Préalable :* un cycle de vie complet
+(prolonger, atténuer, lever) et l'écran qui va avec.
+
+**Décharge et création de mésocycle — hors périmètre.** Reprend les réserves
+du § 4 et du § 5 : `semaine_actuelle` est figée, `date_fin_prevue` souvent
+absente, et une décharge ne se décrète pas au calendrier. Le coach ne peut pas
+proposer une décharge tant que le modèle de cycle ne sait pas dire où l'on en
+est.
+
+**Retirer un exercice d'une séance — hors périmètre.**
+`session_plan_items.exercise_in_template_id` référence la ligne de gabarit avec
+`ON DELETE NO ACTION`. Toute ligne déjà servie dans une séance est donc
+indélébile : l'outil aurait marché sur les lignes neuves et échoué sur les
+autres, c'est-à-dire de façon imprévisible pour l'athlète.
+
+> **À noter :** le chemin existant `DELETE /api/programme/exercices/[id]`
+> (`retirerExerciceDuTemplate`, utilisé par l'écran Programme) a **le même
+> défaut** et lèvera une violation de clé étrangère dès qu'on retire un
+> exercice déjà réalisé. Défaut préexistant, découvert pendant cet audit, non
+> corrigé ici — il demande de décider ce que devient l'historique : cascade,
+> mise à nul du lien, ou archivage de la ligne plutôt que suppression.
+
+### Mutations exposées
+
+Trois, toutes sur `exercise_in_template`, toutes bornées à une séance :
+`propose_exercise_swap`, `propose_volume_adjustment`,
+`propose_exercise_addition`. Aucune n'écrit : elles préparent une proposition.
+`get_session_exercises` les accompagne — sans les identifiants de lignes, le
+modèle désignerait par description.
+
+`log_incident` reste en écriture immédiate : elle ajoute une ligne à un
+journal, ne modifie rien d'existant, et consigne ce que l'athlète vient de
+dire. Sa séance est résolue par le serveur (`seanceCourante`), et son absence
+fait échouer l'outil au lieu de le faire écrire ailleurs.
+
+`create_coach_memory` reste séparée : mémoriser une observation et modifier un
+programme sont deux décisions différentes, et la première a déjà son propre
+garde-fou (`verdictMemoire`).
+
+### Ce qui reste à surveiller
+
+- **La restauration après échec des contrôles** défait l'écriture ligne à
+  ligne, sans transaction commune avec l'application elle-même : entre le
+  commit et la restauration, la séance est brièvement dans l'état refusé. Le
+  cas ne se produit qu'avec un contrôle qui passe avant écriture et échoue
+  après — donc une modification concurrente dans cette fenêtre. Acceptable
+  aujourd'hui ; à revoir si les contrôles gagnent des règles dépendant du temps.
+- **Les propositions décidées ne sont jamais purgées.** C'est voulu — elles
+  sont la trace — mais la table grandira. Aucune purge tant que le volume ne le
+  demande pas.
+- **`BORNES.validiteMinutes` (30 min)** est une valeur choisie, pas mesurée.
+  Comme le seuil RPE, à réévaluer sur usage réel.

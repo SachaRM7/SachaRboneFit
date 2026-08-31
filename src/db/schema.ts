@@ -488,6 +488,54 @@ export const coachMemoires = pgTable("coach_memoires", {
 });
 
 
+/**
+ * Propositions du coach.
+ *
+ * Une proposition n'est pas une modification : c'est une modification calculée,
+ * montrée, et qui attend un oui. Elle vit en base plutôt qu'en mémoire pour
+ * trois raisons.
+ *
+ * D'abord parce que la confirmation arrive dans une seconde requête : entre les
+ * deux, rien ne dit que le serveur est le même. Ensuite parce que l'avant doit
+ * être figé au moment du calcul — le reconstruire à l'application reviendrait à
+ * comparer l'après à un avant qui a peut-être bougé. Enfin parce que ces lignes
+ * sont la trace : ce qui a été proposé, par quelle conversation, accepté ou non,
+ * et ce que l'application a donné. Une proposition refusée se conserve autant
+ * qu'une proposition appliquée.
+ */
+export const coachPropositions = pgTable("coach_propositions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  /** La conversation d'où elle vient, pour l'afficher au bon endroit. */
+  conversationId: uuid("conversation_id").references(() => coachConversations.id),
+  /** Séance programmée visée. Le périmètre actuel s'arrête à cet objet. */
+  seanceTemplateId: uuid("seance_template_id").references(() => seanceTemplates.id).notNull(),
+  /** 'remplacer_exercice' | 'ajuster_volume' | 'ajouter_exercice' | 'retirer_exercice' */
+  operation: text("operation").notNull(),
+  /** L'opération telle que le serveur l'a retenue, identifiants vérifiés. */
+  parametres: jsonb("parametres").$type<Record<string, unknown>>().notNull(),
+  /** L'état d'avant, construit par le serveur — jamais transmis par le modèle. */
+  avant: jsonb("avant").$type<unknown[]>().notNull(),
+  apres: jsonb("apres").$type<unknown[]>().notNull(),
+  /** Ce qui a été montré à l'humain, mot pour mot. */
+  apercu: jsonb("apercu").$type<Record<string, unknown>>().notNull(),
+  /**
+   * Empreinte de la séance au moment du calcul.
+   *
+   * Applique-t-on encore la bonne chose ? Si la séance a changé entre la
+   * proposition et le oui, l'opération pourrait s'exécuter et produire autre
+   * chose que ce qui était affiché. Cette empreinte rend l'écart détectable.
+   */
+  empreinte: text("empreinte").notNull(),
+  /** 'en_attente' | 'appliquee' | 'refusee' | 'perimee' | 'echouee' */
+  statut: text("statut").notNull().default("en_attente"),
+  /** Contrôles passés après écriture, ou la raison d'un échec. */
+  resultat: jsonb("resultat").$type<Record<string, unknown>>(),
+  decideLe: timestamp("decide_le"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+
 // ---------------------------------------------------------------------------
 // Relations
 //

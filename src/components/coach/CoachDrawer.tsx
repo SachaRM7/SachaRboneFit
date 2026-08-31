@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { X, Send, Plus, ChevronLeft } from "lucide-react";
 import { useCoach } from "./ContexteCoach";
 import { amorce, suggestions } from "@/lib/coach/contexte-ecran";
+import { CarteProposition, type Proposition } from "./CarteProposition";
 
 interface Message {
   id: string;
@@ -41,6 +42,13 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
   const [loading, setLoading] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  /**
+   * Ce que le coach a proposé et qui attend une décision.
+   *
+   * Cette liste vient du serveur, pas de la réponse du modèle : une carte ne
+   * s'affiche que si une proposition a réellement été calculée et contrôlée.
+   */
+  const [propositions, setPropositions] = useState<Proposition[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -82,23 +90,52 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
     }
   }
 
+  async function chargerPropositions(convId: string | null) {
+    try {
+      const res = await fetch(
+        `/api/coach/propositions${convId ? `?conversationId=${convId}` : ""}`,
+      );
+      if (res.ok) setPropositions(await res.json());
+    } catch (e) {
+      // Une proposition non affichée n'est pas une modification perdue : rien
+      // n'a été écrit, et elle reste en attente côté serveur.
+      console.error("Propositions du coach illisibles", e);
+    }
+  }
+
   async function selectConversation(convId: string) {
     setActiveConvId(convId);
     setVue("conversation");
     await loadMessages(convId);
+    await chargerPropositions(convId);
   }
 
   function startNewConversation() {
     setActiveConvId(null);
     setMessages([]);
+    setPropositions([]);
     setVue("conversation");
   }
 
   function revenirALaListe() {
     setActiveConvId(null);
     setMessages([]);
+    setPropositions([]);
     setVue("liste");
     loadConversations();
+  }
+
+  /**
+   * Après un oui ou un non, la carte disparaît et la conversation dit ce qui
+   * s'est passé. Sans cette phrase, l'athlète n'aurait que la disparition de la
+   * carte pour savoir si son geste a produit quelque chose.
+   */
+  function apresDecision(id: string, _decision: "appliquer" | "refuser", message: string) {
+    setPropositions((prev) => prev.filter((p) => p.id !== id));
+    setMessages((prev) => [
+      ...prev,
+      { id: `decision-${id}`, role: "assistant", content: message, createdAt: new Date().toISOString() },
+    ]);
   }
 
   async function handleSend(messageImpose?: string) {
@@ -154,6 +191,10 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
           createdAt: new Date().toISOString(),
         },
       ]);
+
+      // Le coach a pu déposer une proposition pendant ce tour : on va la
+      // chercher là où elle existe vraiment, plutôt que de croire sa réponse.
+      await chargerPropositions(data.conversationId ?? activeConvId);
 
       loadConversations();
     } catch (e) {
@@ -291,6 +332,12 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                       <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                     </div>
                   </div>
+                ))}
+                {/* Les propositions vivent sous la conversation, au plus près
+                    du message qui les explique et juste au-dessus du champ de
+                    saisie : c'est là que le pouce arrive. */}
+                {propositions.map((p) => (
+                  <CarteProposition key={p.id} proposition={p} onDecide={apresDecision} />
                 ))}
                 {loading && (
                   <div className="flex justify-start">

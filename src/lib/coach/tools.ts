@@ -1,11 +1,13 @@
 import { db } from "@/db/client";
 import { estimer1RMDepuisRpe } from "@/lib/engine/records";
-import { setLogs, sessionLogs, exercises, exerciseInstances, seanceTemplates, programmeBlocs, sessionIncidents } from "@/db/schema";
-import { eq, desc, and, isNull } from "drizzle-orm";
-import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria, type SubstituteResult } from "@/lib/engine/substitutions";
+import { setLogs, sessionLogs, exercises, exerciseInstances, sessionIncidents } from "@/db/schema";
+import { eq, desc, isNull } from "drizzle-orm";
+import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { DEFINITIONS_CONTEXTE, EXECUTEURS_CONTEXTE } from "./outils-contexte";
 import { DEFINITIONS_PROGRAMME, EXECUTEURS_PROGRAMME } from "./outils-programme";
+import { DEFINITIONS_ECRITURE, EXECUTEURS_ECRITURE } from "./outils-ecriture";
+import { seanceCourante } from "@/services/seances";
 
 export interface CoachTool {
   name: string;
@@ -30,6 +32,8 @@ export interface RefsContexteOutil {
   blocId: string | null;
   seanceTemplateId: string | null;
   exerciseInstanceId: string | null;
+  /** Séance du jour en cours, quand l'écran en désigne une. Jamais du modèle. */
+  sessionLogId: string | null;
 }
 
 /**
@@ -276,91 +280,44 @@ export async function suggestNextSetsTool(
   };
 }
 
-export async function logSetTool(
-  sessionLogId: string,
-  exerciseInstanceId: string,
-  reps: number,
-  charge: number,
-  rpe: number | null,
-  tempo: string | null,
-  userId: string
-): Promise<ToolExecutionResult> {
-  // Verify session belongs to user
-  const session = await db.query.sessionLogs.findFirst({
-    where: eq(sessionLogs.id, sessionLogId),
-  });
-
-  if (!session || session.userId !== userId) {
-    return { success: false, output: "Session non trouvée ou non autorisée" };
-  }
-
-  // Get next serie number
-  const existingSets = await db.query.setLogs.findMany({
-    where: eq(setLogs.sessionLogId, sessionLogId),
-  });
-
-  const maxSerie = existingSets.reduce((max, s) => Math.max(max, s.numeroSerie), 0);
-
-  await db.insert(setLogs).values({
-    sessionLogId,
-    exerciseInstanceId,
-    numeroSerie: maxSerie + 1,
-    repsEffectuees: reps,
-    charge,
-    rpeEffectif: rpe ?? null,
-    tempoRespecte: tempo ? true : null,
-  });
-
-  return { success: true, output: `Série enregistrée: ${charge}kg x ${reps} reps` };
-}
-
+/**
+ * Consigne un incident survenu pendant la séance du jour.
+ *
+ * Le seul outil d'écriture immédiate qui reste, et il l'est pour une raison
+ * précise : il n'ajoute qu'une ligne à un journal, il ne modifie rien
+ * d'existant, et ce qu'il consigne vient d'être dit par l'athlète — le
+ * soumettre à confirmation reviendrait à lui redemander ce qu'il vient
+ * d'affirmer.
+ *
+ * La séance n'est plus nommée par le modèle. Elle est résolue ici, et son
+ * absence est une raison de ne rien écrire plutôt que d'écrire ailleurs.
+ */
 export async function logIncidentTool(
-  sessionLogId: string,
   type: "machine_occupee" | "douleur" | "energie_chute" | "temps_depasse",
   contexte: Record<string, unknown>,
   decision: string,
   impactProgramme: string | null,
-  userId: string
+  userId: string,
+  sessionLogId: string | null,
 ): Promise<ToolExecutionResult> {
-  // Verify session belongs to user
-  const session = await db.query.sessionLogs.findFirst({
-    where: eq(sessionLogs.id, sessionLogId),
-  });
-
-  if (!session || session.userId !== userId) {
-    return { success: false, output: "Session non trouvée ou non autorisée" };
+  const seance = sessionLogId ?? (await seanceCourante(userId))?.id ?? null;
+  if (!seance) {
+    return {
+      success: false,
+      output:
+        "Aucune séance en cours aujourd'hui : un incident se rattache à une séance, il n'est pas enregistré. Dis-le à l'athlète plutôt que de réessayer.",
+    };
   }
 
   await db.insert(sessionIncidents).values({
-    sessionLogId,
+    sessionLogId: seance,
     type,
     contexte,
     decision,
     impactProgramme,
   });
 
-  return { success: true, output: `Incident ${type} enregistré` };
-}
-
-export async function endSessionTool(
-  sessionLogId: string,
-  energieFin: number,
-  notes: string | null,
-  userId: string
-): Promise<ToolExecutionResult> {
-  const session = await db.query.sessionLogs.findFirst({
-    where: eq(sessionLogs.id, sessionLogId),
-  });
-
-  if (!session || session.userId !== userId) {
-    return { success: false, output: "Session non trouvée ou non autorisée" };
-  }
-
-  await db.update(sessionLogs)
-    .set({ energieFin, notesSeance: notes, updatedAt: new Date() })
-    .where(eq(sessionLogs.id, sessionLogId));
-
-  return { success: true, output: "Séance clôturée" };
+  return { success: true, output: `Incident ${type} enregistré sur la séance du jour` };
 }
 
 /**
@@ -421,47 +378,20 @@ export function createCoachTools(): CoachToolSet {
       },
     },
     {
-      name: "log_set",
-      description: "Enregistre une série dans une session",
-      input_schema: {
-        type: "object",
-        properties: {
-          sessionLogId: { type: "string" },
-          exerciseInstanceId: { type: "string" },
-          reps: { type: "number" },
-          charge: { type: "number" },
-          rpe: { type: "number" },
-          tempo: { type: "string" },
-        },
-        required: ["sessionLogId", "exerciseInstanceId", "reps", "charge"],
-      },
-    },
-    {
-      name: "end_session",
-      description: "Clôture une séance",
-      input_schema: {
-        type: "object",
-        properties: {
-          sessionLogId: { type: "string" },
-          energieFin: { type: "number" },
-          notes: { type: "string" },
-        },
-        required: ["sessionLogId", "energieFin"],
-      },
-    },
-    {
       name: "log_incident",
-      description: "Logger un incident pendant une séance (machine occupée, douleur, énergie en chute, temps dépassé)",
+      description:
+        "Consigne un incident survenu pendant la séance du jour : machine occupée, douleur, " +
+        "énergie en chute, temps dépassé. La séance concernée est déterminée par l'application — " +
+        "ne la demande pas et ne la nomme pas.",
       input_schema: {
         type: "object",
         properties: {
-          sessionLogId: { type: "string", description: "ID de la session log" },
           type: { type: "string", enum: ["machine_occupee", "douleur", "energie_chute", "temps_depasse"], description: "Type d'incident" },
           contexte: { type: "object", description: "Contexte de l'incident (détails spécifiques au type)" },
           decision: { type: "string", description: "Décision prise pour gérer l'incident" },
           impactProgramme: { type: "string", description: "Impact sur le programme si applicable" },
         },
-        required: ["sessionLogId", "type", "contexte", "decision"],
+        required: ["type", "contexte", "decision"],
       },
     },
   ];
@@ -487,37 +417,31 @@ export function createCoachTools(): CoachToolSet {
       if (!id) return { success: false, output: "Aucun exercice désigné." };
       return suggestNextSetsTool(id, userId);
     },
-    log_set: async (params, userId) => {
-      return logSetTool(
-        params.sessionLogId as string,
-        params.exerciseInstanceId as string,
-        params.reps as number,
-        params.charge as number,
-        (params.rpe as number) || null,
-        (params.tempo as string) || null,
-        userId
-      );
-    },
-    end_session: async (params, userId) => {
-      return endSessionTool(params.sessionLogId as string, params.energieFin as number, (params.notes as string) || null, userId);
-    },
-    log_incident: async (params, userId) => {
+    log_incident: async (params, userId, contexte) => {
       return logIncidentTool(
-        params.sessionLogId as string,
         params.type as "machine_occupee" | "douleur" | "energie_chute" | "temps_depasse",
-        params.contexte as Record<string, unknown>,
+        (params.contexte as Record<string, unknown>) ?? {},
         params.decision as string,
         (params.impactProgramme as string) || null,
-        userId
+        userId,
+        // La séance de l'écran quand il y en a une, celle du jour sinon. Dans
+        // les deux cas résolue par le serveur.
+        contexte?.sessionLogId ?? null,
       );
     },
   };
 
   // Les outils de séance ne suffisent pas : sans profil, sans état du jour et
   // sans le parc réel de la salle, le modèle doit improviser ce que
-  // l'application sait déjà.
+  // l'application sait déjà. Les outils d'écriture ferment la dernière lacune —
+  // le coach pouvait tout analyser du programme sans pouvoir en toucher une
+  // ligne — et le font par proposition, jamais par mutation directe.
   return {
-    definitions: [...definitions, ...DEFINITIONS_CONTEXTE, ...DEFINITIONS_PROGRAMME],
-    executors: { ...executors, ...EXECUTEURS_CONTEXTE, ...EXECUTEURS_PROGRAMME },
+    definitions: [
+      ...definitions, ...DEFINITIONS_CONTEXTE, ...DEFINITIONS_PROGRAMME, ...DEFINITIONS_ECRITURE,
+    ],
+    executors: {
+      ...executors, ...EXECUTEURS_CONTEXTE, ...EXECUTEURS_PROGRAMME, ...EXECUTEURS_ECRITURE,
+    },
   };
 }

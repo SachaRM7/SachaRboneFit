@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { sessionLogs, setLogs } from "@/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import type { SessionLog } from "@/db/schema";
 import { feuDeTendance } from "./progression";
 
@@ -56,6 +56,34 @@ export async function creerSeance(donnees: CreationSeance): Promise<SessionLog> 
 
   if (!seance) throw new Error("Creation de la seance impossible");
   return seance;
+}
+
+/**
+ * La séance en cours, résolue côté serveur.
+ *
+ * Trois outils du coach recevaient `sessionLogId` du modèle. Un identifiant
+ * fourni par un modèle est au mieux recopié d'un résultat précédent, au pire
+ * inventé — et une écriture sur la mauvaise séance ne lève aucune erreur : elle
+ * range une donnée juste au mauvais endroit, où personne ne la cherchera.
+ *
+ * « En cours » veut dire : d'aujourd'hui, non archivée, pas encore clôturée.
+ * `dureeMinutes` est ce que la clôture renseigne — c'est donc lui qui distingue
+ * une séance ouverte d'une séance finie.
+ */
+export async function seanceCourante(
+  userId: string,
+  aujourdhui = new Date().toISOString().slice(0, 10),
+): Promise<SessionLog | null> {
+  const seance = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.userId, userId),
+      eq(sessionLogs.date, aujourdhui),
+      isNull(sessionLogs.archiveLe),
+      isNull(sessionLogs.dureeMinutes),
+    ),
+    orderBy: [desc(sessionLogs.createdAt)],
+  });
+  return seance ?? null;
 }
 
 export interface CloturSeance {

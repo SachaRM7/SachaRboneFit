@@ -96,7 +96,10 @@ describe("résolution du contexte d'écran", () => {
   it("ne fabrique aucun contexte sportif depuis l'écran « Plus »", async () => {
     const plus = await resoudreContexte(U, { ecran: "plus" });
     expect(plus.texte).toBeNull();
-    expect(plus.refs).toEqual({ ecran: "plus", blocId: null, seanceTemplateId: null, exerciseInstanceId: null });
+    expect(plus.refs).toEqual({
+      ecran: "plus", blocId: null, seanceTemplateId: null,
+      exerciseInstanceId: null, sessionLogId: null,
+    });
   });
 
   it("résout le cycle, la semaine réelle et la semaine type depuis Programme", async () => {

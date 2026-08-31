@@ -7,6 +7,8 @@ import { libelleCycle } from "@/lib/referentiels/cycle";
 import type { ContexteEcran } from "@/lib/coach/contexte-ecran";
 import { vueDuProgramme } from "./cycle";
 import { bilanDeProgression } from "./bilan";
+import { seanceCourante } from "./seances";
+import { prochaineSeance } from "./programmes";
 
 /**
  * Résolution du contexte d'écran, côté serveur.
@@ -36,6 +38,14 @@ export interface ReferencesContexte {
   blocId: string | null;
   seanceTemplateId: string | null;
   exerciseInstanceId: string | null;
+  /**
+   * La séance du jour en cours, quand l'écran en montre une.
+   *
+   * Elle est ici pour la même raison que les autres : ce que l'application
+   * connaît déjà n'a pas à transiter par le modèle. Un incident consigné sur
+   * une séance devinée n'échoue pas — il se range au mauvais endroit.
+   */
+  sessionLogId: string | null;
 }
 
 export interface ContexteResolu {
@@ -57,6 +67,7 @@ export async function resoudreContexte(
     blocId: null,
     seanceTemplateId: null,
     exerciseInstanceId: null,
+    sessionLogId: null,
   };
 
   switch (contexte.ecran) {
@@ -137,12 +148,22 @@ export async function resoudreContexte(
         break;
       }
       lignes.push(`L'athlète est en séance (séance du ${derniere.date}).`);
+      refs.seanceTemplateId = derniere.seanceTemplateId;
+      // La séance affichée n'est pas forcément ouverte : consigner un incident
+      // sur une séance déjà close reviendrait à réécrire un compte rendu.
+      refs.sessionLogId = (await seanceCourante(userId))?.id ?? null;
       break;
     }
 
-    case "accueil":
+    case "accueil": {
       lignes.push("L'athlète regarde son accueil et sa séance du jour.");
+      // La séance que la carte d'accueil propose : c'est celle dont on parle si
+      // l'athlète demande d'y changer quelque chose depuis cet écran.
+      const suite = await prochaineSeance(userId);
+      refs.seanceTemplateId = suite?.template.id ?? null;
+      refs.sessionLogId = (await seanceCourante(userId))?.id ?? null;
       break;
+    }
 
     case "exercices":
       lignes.push("L'athlète regarde son catalogue d'exercices.");

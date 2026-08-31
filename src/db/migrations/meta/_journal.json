@@ -29,6 +29,13 @@
       "when": 1787735656731,
       "tag": "0003_seance_du_jour",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788161070449,
+      "tag": "0004_propositions_coach",
+      "breakpoints": true
     }
   ]
 }
