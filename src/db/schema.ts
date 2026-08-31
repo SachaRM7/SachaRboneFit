@@ -211,6 +211,21 @@ export const exerciseInTemplate = pgTable("exercise_in_template", {
   tempo: text("tempo"),
   reposSecondes: integer("repos_secondes"),
   notes: text("notes"),
+  /**
+   * Date de retrait du programme.
+   *
+   * Une ligne de programme ne se supprime pas une fois qu'elle a servi.
+   * `session_plan_items` la référence pour dire d'où venait un exercice réalisé,
+   * et la clé étrangère refusait la suppression — l'écran Programme échouait
+   * donc dès qu'on retirait un exercice déjà travaillé, et l'écran Matériel
+   * conseillait précisément cette manœuvre pour libérer une machine.
+   *
+   * Retirer, c'est cesser de programmer. La ligne reste, l'historique garde son
+   * origine, et plus rien ne la propose. Les lectures du programme ACTIF
+   * l'excluent ; celles de l'historique n'en dépendent pas — `lirePlan` lit
+   * `session_plan_items`, qui porte sa propre copie de la prescription.
+   */
+  archiveLe: timestamp("archive_le"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

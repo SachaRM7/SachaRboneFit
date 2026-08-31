@@ -154,8 +154,13 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
 
   const feuJour = etat ? computeFeuJour(etat).feu : "vert";
 
+  // Un exercice retiré du programme ne se planifie plus. Sa ligne reste en base
+  // parce que des séances passées la citent, mais elle ne construit plus rien.
   const lignesTemplate = await db.query.exerciseInTemplate.findMany({
-    where: eq(exerciseInTemplate.seanceTemplateId, ctx.seanceTemplateId),
+    where: and(
+      eq(exerciseInTemplate.seanceTemplateId, ctx.seanceTemplateId),
+      isNull(exerciseInTemplate.archiveLe),
+    ),
     orderBy: [asc(exerciseInTemplate.ordre)],
   });
 

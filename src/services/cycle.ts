@@ -248,7 +248,12 @@ export async function vueDuProgramme(
         .from(exerciseInTemplate)
         .innerJoin(exerciseInstances, eq(exerciseInstances.id, exerciseInTemplate.exerciseInstanceId))
         .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-        .where(inArray(exerciseInTemplate.seanceTemplateId, gabarits.map((g) => g.id)))
+        .where(and(
+          inArray(exerciseInTemplate.seanceTemplateId, gabarits.map((g) => g.id)),
+          // Le compte d'exercices et la durée estimée décrivent le programme
+          // tel qu'il est aujourd'hui, pas tel qu'il a été.
+          isNull(exerciseInTemplate.archiveLe),
+        ))
     : [];
 
   // Les séances faites depuis le début du cycle : elles servent au décompte de

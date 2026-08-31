@@ -31,7 +31,8 @@ export async function GET(
     // Sans tri explicite, l'ordre d'affichage dependait de l'ordre de retour de
     // Postgres : la seance pouvait sortir dans le desordre d'une fois sur l'autre.
     const exercisesInTemplate = await db.query.exerciseInTemplate.findMany({
-      where: eq(exerciseInTemplate.seanceTemplateId, templateId),
+      where: (eit, { and, eq, isNull }) =>
+        and(eq(eit.seanceTemplateId, templateId), isNull(eit.archiveLe)),
       orderBy: (eit, { asc }) => [asc(eit.ordre)],
     });
 

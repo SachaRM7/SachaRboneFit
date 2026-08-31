@@ -309,24 +309,14 @@ absente, et une décharge ne se décrète pas au calendrier. Le coach ne peut pa
 proposer une décharge tant que le modèle de cycle ne sait pas dire où l'on en
 est.
 
-**Retirer un exercice d'une séance — hors périmètre.**
-`session_plan_items.exercise_in_template_id` référence la ligne de gabarit avec
-`ON DELETE NO ACTION`. Toute ligne déjà servie dans une séance est donc
-indélébile : l'outil aurait marché sur les lignes neuves et échoué sur les
-autres, c'est-à-dire de façon imprévisible pour l'athlète.
-
-> **À noter :** le chemin existant `DELETE /api/programme/exercices/[id]`
-> (`retirerExerciceDuTemplate`, utilisé par l'écran Programme) a **le même
-> défaut** et lèvera une violation de clé étrangère dès qu'on retire un
-> exercice déjà réalisé. Défaut préexistant, découvert pendant cet audit, non
-> corrigé ici — il demande de décider ce que devient l'historique : cascade,
-> mise à nul du lien, ou archivage de la ligne plutôt que suppression.
+**Retirer un exercice d'une séance — traité, voir § 10.**
 
 ### Mutations exposées
 
-Trois, toutes sur `exercise_in_template`, toutes bornées à une séance :
+Quatre, toutes sur `exercise_in_template`, toutes bornées à une séance :
 `propose_exercise_swap`, `propose_volume_adjustment`,
-`propose_exercise_addition`. Aucune n'écrit : elles préparent une proposition.
+`propose_exercise_addition`, `propose_exercise_removal`. Aucune n'écrit : elles
+préparent une proposition.
 `get_session_exercises` les accompagne — sans les identifiants de lignes, le
 modèle désignerait par description.
 
@@ -351,3 +341,76 @@ garde-fou (`verdictMemoire`).
   demande pas.
 - **`BORNES.validiteMinutes` (30 min)** est une valeur choisie, pas mesurée.
   Comme le seuil RPE, à réévaluer sur usage réel.
+
+---
+
+## 10. Retirer un exercice d'un programme : archivage logique
+
+**Statut :** résolu. Le défaut était préexistant et découvert pendant l'audit
+du § 9.
+
+### Le défaut
+
+`session_plan_items.exercise_in_template_id` référence `exercise_in_template`
+en `ON DELETE NO ACTION`. Toute ligne de programme déjà servie dans une séance
+était donc indélébile, et `DELETE /api/programme/exercices/[id]` — le bouton
+« retirer » de l'écran Programme — levait une violation de clé étrangère
+remontée en 500. Reproduit en base avant correction :
+
+```
+ERROR: update or delete on table "exercise_in_template" violates foreign key
+constraint "session_plan_items_exercise_in_template_id_exercise_in_template"
+```
+
+Aggravant : l'écran Matériel refusait de supprimer une machine citée par un
+programme avec le message « Retire-le d'abord de tes séances » — il envoyait
+donc précisément vers le geste qui échoue.
+
+### La sémantique retenue
+
+Retirer, c'est cesser de programmer, pas effacer. Décidée après avoir vérifié
+que **`lirePlan` ne lit jamais `exercise_in_template`** : `session_plan_items`
+porte sa propre copie de la prescription (séries, fourchette, RPE, tempo,
+repos). L'historique ne dépend donc pas du contenu de la ligne de programme —
+il ne dépend que de son *existence*, comme pointeur de provenance.
+
+Les trois options envisagées :
+
+| Option | Écartée parce que |
+|---|---|
+| `ON DELETE CASCADE` | efface les `session_plan_items`, donc l'historique lui-même. |
+| `ON DELETE SET NULL` | garde l'historique mais perd la provenance, et fait passer une ligne programmée pour un exercice ajouté à la volée — le sens exact que porte déjà `exercise_in_template_id = NULL`. |
+| **`archive_le` (retenue)** | la ligne reste, la provenance reste, plus rien ne la programme. |
+
+C'est aussi la convention déjà en place dans ce schéma : `gyms`,
+`exercise_instances`, `session_logs` et `programme_blocs` s'archivent tous
+ainsi.
+
+### Ce que ça change dans le code
+
+Une colonne, `exercise_in_template.archive_le`, plus un index sur
+`(seance_template_id, archive_le)`. **Aucune contrainte n'a été modifiée** : la
+clé étrangère reste en `NO ACTION`, et c'est très bien — plus rien ne tente de
+supprimer.
+
+Sept lectures filtrent désormais sur `archive_le IS NULL`, toutes celles qui
+décrivent le programme **actif** : construction de la séance du jour, vue de la
+semaine, écran Programme, démarrage d'une séance, calcul de l'ordre à l'ajout,
+lecture du coach, et le contrôle de citation de l'écran Matériel. Les lectures
+d'historique n'ont rien eu à changer, puisqu'elles ne passent pas par cette
+table.
+
+### Reste à surveiller
+
+- Une ligne retirée **garde son ancien `ordre`**. Il ne veut plus rien dire
+  pour le programme, et l'historique porte le sien dans
+  `session_plan_items.ordre` — mais deux lignes peuvent donc partager un rang,
+  l'une active et l'autre retirée. Sans conséquence tant que toutes les
+  lectures d'ordre filtrent ; c'est le cas.
+- **Rien ne permet de remettre une ligne retirée.** L'opération inverse
+  existerait en une ligne de SQL, mais elle n'a ni écran ni outil : ajouter à
+  nouveau l'exercice crée une nouvelle ligne, ce qui est acceptable. À revoir
+  si le besoin apparaît.
+- `src/app/api/export/route.ts` **importe `exerciseInTemplate` sans jamais
+  l'utiliser** : l'export ne contient pas le programme. Import mort, hors
+  périmètre, signalé.

@@ -124,8 +124,11 @@ export async function DELETE(
 
     // Une entrée citée par un programme ne peut pas disparaître : la clé
     // étrangère refuse, et le refus remontait en 500 sans rien expliquer.
+    // Une machine que plus aucune séance ne programme redevient supprimable :
+    // seules les lignes actives font obstacle.
     const citations = await db.query.exerciseInTemplate.findMany({
-      where: eq(exerciseInTemplate.exerciseInstanceId, id),
+      where: (eit, { and, eq, isNull }) =>
+        and(eq(eit.exerciseInstanceId, id), isNull(eit.archiveLe)),
       limit: 1,
     });
     if (citations.length > 0) {

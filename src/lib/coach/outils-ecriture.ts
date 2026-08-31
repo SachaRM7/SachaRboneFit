@@ -140,6 +140,24 @@ export const DEFINITIONS_ECRITURE: CoachTool[] = [
     },
   },
   {
+    name: "propose_exercise_removal",
+    description:
+      "Propose de retirer un exercice d'une séance programmée. Ne modifie rien : l'athlète voit " +
+      "l'avant/après et confirme. L'exercice cesse d'être programmé ; les séances déjà faites " +
+      "gardent leur contenu. " + DEPUIS_L_ECRAN,
+    input_schema: {
+      type: "object",
+      properties: {
+        ligneId: {
+          type: "string",
+          description: "Identifiant de la ligne à retirer, issu de get_session_exercises",
+        },
+        seanceTemplateId: { type: "string", description: DEPUIS_L_ECRAN },
+      },
+      required: ["ligneId"],
+    },
+  },
+  {
     name: "propose_exercise_addition",
     description:
       "Propose d'ajouter un exercice à une séance programmée. Ne modifie rien : l'athlète voit " +
@@ -206,6 +224,16 @@ export const EXECUTEURS_ECRITURE: Record<string, ToolExecutor> = {
     }
     return proposer(
       { type: "ajuster_volume", ligneId, seriesCibles, repsMin, repsMax },
+      userId,
+      texte(params.seanceTemplateId) ?? contexte?.seanceTemplateId,
+    );
+  },
+
+  propose_exercise_removal: async (params, userId, contexte) => {
+    const ligneId = texte(params.ligneId);
+    if (!ligneId) return echec("ligneId est requis.");
+    return proposer(
+      { type: "retirer_exercice", ligneId },
       userId,
       texte(params.seanceTemplateId) ?? contexte?.seanceTemplateId,
     );

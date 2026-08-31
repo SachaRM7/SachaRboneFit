@@ -190,8 +190,13 @@ export async function ajouterExerciceAuTemplate(donnees: AjoutExerciceProgramme)
   });
   if (!instance) throw new RessourceIntrouvable("Machine");
 
+  // Les lignes retirées ne comptent pas dans l'ordre : sans ce filtre, chaque
+  // retrait suivi d'un ajout laisserait un rang vide au milieu de la séance.
   const existants = await db.query.exerciseInTemplate.findMany({
-    where: eq(exerciseInTemplate.seanceTemplateId, donnees.seanceTemplateId),
+    where: and(
+      eq(exerciseInTemplate.seanceTemplateId, donnees.seanceTemplateId),
+      isNull(exerciseInTemplate.archiveLe),
+    ),
   });
 
   const [ligne] = await db
@@ -214,18 +219,41 @@ export async function ajouterExerciceAuTemplate(donnees: AjoutExerciceProgramme)
   return ligne;
 }
 
+/**
+ * Retire un exercice du programme.
+ *
+ * Retirer, ce n'est pas effacer. La ligne a peut-être déjà servi dans des
+ * séances, et `session_plan_items` la référence pour dire d'où venait
+ * l'exercice réalisé ce jour-là : la supprimer était refusé par la clé
+ * étrangère — l'écran échouait en 500 sur un geste ordinaire — et l'aurait été
+ * au prix de l'origine de l'historique si la contrainte avait cascadé.
+ *
+ * Elle est donc datée. Plus rien ne la programme, les séances déjà faites
+ * gardent leur provenance, et rien n'est détruit.
+ */
 export async function retirerExerciceDuTemplate(userId: string, ligneId: string) {
   const ligne = await db.query.exerciseInTemplate.findFirst({
     where: eq(exerciseInTemplate.id, ligneId),
   });
   if (!ligne) throw new RessourceIntrouvable("Exercice programmé");
+  if (ligne.archiveLe) throw new RessourceIntrouvable("Exercice programmé");
   await seanceDeLUtilisateur(ligne.seanceTemplateId, userId);
 
-  // Renumerotation pour garder un ordre continu.
   await db.transaction(async (tx) => {
-    await tx.delete(exerciseInTemplate).where(eq(exerciseInTemplate.id, ligneId));
+    await tx
+      .update(exerciseInTemplate)
+      .set({ archiveLe: new Date(), updatedAt: new Date() })
+      .where(eq(exerciseInTemplate.id, ligneId));
+
+    // Renumérotation des lignes encore actives, pour garder un ordre continu.
+    // Celle qui est retirée conserve son ancien rang : il ne veut plus rien
+    // dire pour le programme, et l'historique porte le sien dans
+    // `session_plan_items.ordre`.
     const restants = await tx.query.exerciseInTemplate.findMany({
-      where: eq(exerciseInTemplate.seanceTemplateId, ligne.seanceTemplateId),
+      where: and(
+        eq(exerciseInTemplate.seanceTemplateId, ligne.seanceTemplateId),
+        isNull(exerciseInTemplate.archiveLe),
+      ),
       orderBy: (eit, { asc }) => [asc(eit.ordre)],
     });
     for (const [index, r] of restants.entries()) {

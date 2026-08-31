@@ -36,6 +36,13 @@
       "when": 1788161070449,
       "tag": "0004_propositions_coach",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788169139108,
+      "tag": "0005_retrait_exercice_programme",
+      "breakpoints": true
     }
   ]
 }

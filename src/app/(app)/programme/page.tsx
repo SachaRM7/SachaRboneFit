@@ -71,7 +71,10 @@ export default async function ProgrammePage() {
 
     const lignes = templates.length
       ? await db.query.exerciseInTemplate.findMany({
-          where: inArray(exerciseInTemplate.seanceTemplateId, templates.map((t) => t.id)),
+          where: and(
+            inArray(exerciseInTemplate.seanceTemplateId, templates.map((t) => t.id)),
+            isNull(exerciseInTemplate.archiveLe),
+          ),
           orderBy: [asc(exerciseInTemplate.ordre)],
         })
       : [];

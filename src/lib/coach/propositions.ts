@@ -64,23 +64,25 @@ export type Operation =
       seriesCibles: number;
       repsMin: number;
       repsMax: number;
-    };
+    }
+  | { type: "retirer_exercice"; ligneId: string };
 
 export type TypeOperation = Operation["type"];
 
 /**
- * Les trois opérations exposées.
+ * Les quatre opérations exposées.
  *
- * Retirer un exercice n'en fait pas partie, et l'absence est délibérée :
- * `session_plan_items` référence la ligne de gabarit sans cascade, donc toute
- * ligne déjà servie dans une séance est indélébile. Un outil « retirer » aurait
- * fonctionné sur les lignes jamais utilisées et échoué sur les autres — c'est
- * la pire des deux situations. Le sujet est documenté en dette.
+ * Retirer un exercice en fait partie depuis que retirer ne veut plus dire
+ * supprimer : la ligne est datée, l'historique garde sa provenance, et plus
+ * rien ne la programme. Tant que la suppression était physique, l'opération
+ * aurait fonctionné sur les lignes jamais utilisées et échoué sur les autres —
+ * c'était la pire des deux situations.
  */
 export const OPERATIONS: readonly TypeOperation[] = [
   "remplacer_exercice",
   "ajuster_volume",
   "ajouter_exercice",
+  "retirer_exercice",
 ] as const;
 
 /**
@@ -218,6 +220,24 @@ export function projeter(
             repsMax: operation.repsMax,
           },
         ],
+      };
+    }
+
+    case "retirer_exercice": {
+      const cible = ordonnees.find((l) => l.id === operation.ligneId);
+      if (!cible) return inchange("Cette ligne n'existe plus dans la séance.");
+      if (ordonnees.length === 1) {
+        return inchange(
+          "C'est le dernier exercice de la séance : la vider entièrement se fait à la main.",
+        );
+      }
+      return {
+        refus: null,
+        // La renumérotation appartient à la projection : l'aperçu doit montrer
+        // l'ordre que la séance aura, pas un trou dans la numérotation.
+        lignes: ordonnees
+          .filter((l) => l.id !== cible.id)
+          .map((l, index) => ({ ...l, ordre: index + 1 })),
       };
     }
   }

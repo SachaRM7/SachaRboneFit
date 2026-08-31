@@ -31,15 +31,44 @@ describe("le catalogue d'opérations", () => {
   it("ne contient que des opérations métier nommées", () => {
     // Pas d'update_program(json) : ce qui n'est pas listé est impossible.
     expect([...OPERATIONS]).toEqual([
-      "remplacer_exercice", "ajuster_volume", "ajouter_exercice",
+      "remplacer_exercice", "ajuster_volume", "ajouter_exercice", "retirer_exercice",
     ]);
   });
+});
 
-  it("n'expose pas le retrait, que le modèle de données ne permet pas", () => {
-    // `session_plan_items` référence la ligne de gabarit sans cascade : une
-    // ligne déjà servie est indélébile. Un outil qui marcherait une fois sur
-    // deux serait pire que pas d'outil.
-    expect(OPERATIONS).not.toContain("retirer_exercice");
+describe("retirer un exercice", () => {
+  it("le sort de la séance et renumérote ce qui reste", () => {
+    const { lignes, refus } = projeter(
+      SEANCE, { type: "retirer_exercice", ligneId: "l2" }, nommer,
+    );
+    expect(refus).toBeNull();
+    expect(lignes.map((l) => l.id)).toEqual(["l1", "l3"]);
+    // L'aperçu doit montrer l'ordre que la séance aura, pas un trou.
+    expect(lignes.map((l) => l.ordre)).toEqual([1, 2]);
+  });
+
+  it("refuse de vider la séance de son dernier exercice", () => {
+    const { refus } = projeter(
+      [SEANCE[0]!], { type: "retirer_exercice", ligneId: "l1" }, nommer,
+    );
+    expect(refus).toMatch(/dernier exercice/);
+  });
+
+  it("refuse une ligne déjà partie", () => {
+    const { refus } = projeter(
+      SEANCE, { type: "retirer_exercice", ligneId: "l9" }, nommer,
+    );
+    expect(refus).toMatch(/n'existe plus/);
+  });
+
+  it("se lit comme un retrait, et chiffre le volume perdu", () => {
+    const { lignes } = projeter(SEANCE, { type: "retirer_exercice", ligneId: "l3" }, nommer);
+    const apercu = construireApercu(SEANCE, lignes);
+    expect(apercu.lignes.filter((l) => l.mouvement === "retire")).toEqual([
+      { mouvement: "retire", nom: "Élévations latérales", avant: "3 × 12-15", apres: null },
+    ]);
+    expect(apercu.lignes.filter((l) => l.mouvement === "ajoute")).toHaveLength(0);
+    expect(apercu.resume).toContain("−3 séries");
   });
 });
 

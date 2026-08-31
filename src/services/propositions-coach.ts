@@ -96,7 +96,10 @@ async function lireCible(
     .from(exerciseInTemplate)
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, exerciseInTemplate.exerciseInstanceId))
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(eq(exerciseInTemplate.seanceTemplateId, gabarit.id))
+    .where(and(
+      eq(exerciseInTemplate.seanceTemplateId, gabarit.id),
+      isNull(exerciseInTemplate.archiveLe),
+    ))
     .orderBy(asc(exerciseInTemplate.ordre));
 
   return {
@@ -375,7 +378,10 @@ export async function appliquerProposition(
       await tx
         .select({ id: exerciseInTemplate.id })
         .from(exerciseInTemplate)
-        .where(eq(exerciseInTemplate.seanceTemplateId, proposition.seanceTemplateId))
+        .where(and(
+          eq(exerciseInTemplate.seanceTemplateId, proposition.seanceTemplateId),
+          isNull(exerciseInTemplate.archiveLe),
+        ))
         .for("update");
 
       const cible = await lireCible(userId, proposition.seanceTemplateId, tx);
@@ -494,6 +500,17 @@ async function ecrire(
 ): Promise<void> {
   const parIdAvant = new Map(avant.map((l) => [l.id, l]));
   const maintenant = new Date();
+
+  // Retirer, c'est dater — jamais supprimer. Même sémantique que l'écran
+  // Programme : `session_plan_items` cite ces lignes pour dire d'où venait un
+  // exercice réalisé, et l'historique doit garder cette origine.
+  for (const l of avant) {
+    if (apres.some((a) => a.id === l.id)) continue;
+    await tx
+      .update(exerciseInTemplate)
+      .set({ archiveLe: maintenant, updatedAt: maintenant })
+      .where(eq(exerciseInTemplate.id, l.id));
+  }
 
   for (const l of apres) {
     if (l.id === NOUVELLE_LIGNE) {
