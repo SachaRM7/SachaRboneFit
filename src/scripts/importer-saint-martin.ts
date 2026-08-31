@@ -62,9 +62,10 @@ const NOTES_SALLE = [
   "Cardio (rameurs, tapis, vélos, ClimbMill), plyo boxes, cordes, ballons,",
   "steps : présents, sans effet sur la programmation actuelle.",
   "",
+  "Râtelier d'haltères : 2 à 50 kg, de 2 en 2 sur toute la plage. Deux paires",
+  "par charge jusqu'à 28 kg, une seule paire de 30 à 50 kg.",
+  "",
   "À CONFIRMER SUR PLACE — rien de tout cela n'est saisi tant que ce n'est pas mesuré :",
-  "· le pas réel des haltères au-dessus de 28 kg (30, 32, 35 ?) et la liste",
-  "  exacte des charges intermédiaires jusqu'à 50 kg ;",
   "· le pas de chaque pile, machine par machine ;",
   "· la résistance des Smith machines (contrepoids ou non, et combien) ;",
   "· la résistance initiale du chariot des plate-loaded non relevées",
@@ -109,21 +110,28 @@ const RELEVE: Entree[] = [
    * Les haltères : UNE entrée par exercice, jamais une par haltère.
    *
    * Cinquante instances pour un râtelier scinderaient l'historique du curl en
-   * cinquante courbes sans lien. Ce qui manque ici n'est pas la modélisation,
-   * c'est la mesure : le pas change au-dessus de 28 kg et personne ne l'a
-   * relevé, donc la plage s'arrête là où l'observation s'arrête.
+   * cinquante courbes sans lien.
+   *
+   * Le pas est de 2 kg sur toute la plage, sans exception. Ce qui change à
+   * 30 kg n'est pas la charge disponible mais le nombre d'exemplaires : deux
+   * paires jusqu'à 28, une seule au-delà. C'est une question de disponibilité
+   * à l'instant où l'on veut la barre, pas de charge atteignable — la
+   * progression est identique dans les deux moitiés du râtelier.
    */
   {
     slug: "dumbbell-bench-press",
     machineNom: "Haltères — râtelier",
     conventionCharge: "poids_total",
-    paliersCharges: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28],
+    paliersCharges: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50],
     chargeMinimale: 2,
     chargeMax: 50,
     notesMachine:
-      "Râtelier annoncé 2–50 kg. Seuls les paliers jusqu'à 28 kg sont relevés : "
-      + "au-delà, le pas change et n'a pas été mesuré. La liste s'arrête donc à 28, "
-      + "et chargeMax dit jusqu'où le râtelier monte.",
+      "Râtelier 2–50 kg, de 2 en 2 sur toute la plage. "
+      + "Deux paires par charge jusqu'à 28 kg, une seule paire de 30 à 50 kg. "
+      + "La quantité n'est pas portée par le champ prévu pour ça : il vaut pour "
+      + "toute l'entrée, alors qu'elle change ici selon la charge. Elle reste "
+      + "une note, sans effet sur la programmation — il n'y a pas de notion "
+      + "d'occupation en temps réel.",
   },
 
   /**
