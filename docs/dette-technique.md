@@ -6,68 +6,52 @@ retient la correction.
 
 ---
 
-## 1. Sept implémentations divergentes du maximum estimé (e1RM)
+## 1. Maximum estimé (e1RM) — unifié
 
-**Statut :** identifiée, non corrigée. À traiter dans un chantier dédié.
+**Statut :** résolu. Conservé ici pour mémoire du raisonnement.
 
-La formule d'Epley (`charge × (1 + reps / 30)`) est réécrite à la main dans
-neuf endroits. Deux d'entre eux font autorité et sont cohérents ; les sept
-autres divergent chacun à leur façon.
+La formule d'Epley était réécrite à la main à sept endroits divergents. Une
+seule définition subsiste, dans `src/lib/engine/records.ts` :
 
-### La référence
+| Fonction | Rôle |
+|---|---|
+| `estimer1RM(serie)` | **la référence**. Réserve comprise, plafond de 20 répétitions effectives, garde sur la série d'une répétition, aucun arrondi. |
+| `estimer1RMDepuisRpe(charge, reps, rpe)` | même calcul, à partir des colonnes de la base. |
+| `estimer1RMSansReserve(charge, reps)` | **variante nommée**, pour les cas où la réserve n'est pas exploitable. Son nom dit qu'elle sous-estime. |
+| `reserveDepuisRpe(rpe)` | la conversion RPE → réserve, qui vivait recopiée dans trois services. |
+| `REPS_EFFECTIVES_MAXIMALES` | exporté : la fonction inverse (`chargePourCible`) doit borner au même endroit. |
 
-| Emplacement | Réserve (RIR) | Plafond 20 reps | Garde `reps === 1` | Arrondi |
-|---|---|---|---|---|
-| `src/lib/engine/records.ts` → `estimer1RM()` | oui | oui | oui | non |
-| `src/lib/engine/calibration.ts` → `estimer1RM()` | oui | oui | oui | non |
+Zéro formule anonyme ne subsiste : la seule autre occurrence de `/ 30` est
+`chargePourCible`, l'inverse d'Epley, qui est une fonction différente et nommée.
 
-`records.ts` est la définition de référence, exportée depuis le chantier
-Progression. `calibration.ts` en est l'équivalent exact sur un autre type
-d'entrée (`EssaiCalibration`) : consolidation à faible risque.
+### Ce qui a réellement changé
 
-### Les sept copies divergentes
+- **`feuDeTendance`** (écrit `feu_biologique_tendance` à la clôture d'une
+  séance) comptait les répétitions seules. Il compte désormais la réserve —
+  **mais seulement si elle est renseignée sur au moins 60 % des séries des
+  trois séances comparées**, au même seuil centralisé que le score de
+  progression. Sans cette porte, le feu aurait changé de couleur au gré de la
+  saisie du RPE plutôt que de la fatigue.
+- **`ProgressionSummary`** (fin de séance) arrondissait à la source, ce qui
+  pouvait faire passer pour égales deux séances distinctes. L'arrondi est
+  parti ; et `/api/set-logs/last-session` renvoie maintenant le RPE, sans quoi
+  la séance précédente était estimée sans réserve et la séance en cours avec —
+  les deux côtés de la comparaison ne mesuraient pas la même chose.
+- **`get_exercise_history`** (coach) et **`/api/progression/exercise`** tiennent
+  compte de la réserve. Les valeurs remontent, l'ordre relatif ne change pas.
 
-| Emplacement | Réserve | Plafond | Garde `reps === 1` | Arrondi |
-|---|---|---|---|---|
-| `src/lib/engine/feu-biologique.ts:69` | **non** | **non** | oui | non |
-| `src/services/progression.ts:30` (`feuDeTendance` seul) | **non** | **non** | oui | non |
-| `src/components/session/ProgressionSummary.tsx:21` | **non** | **non** | oui | **oui** |
-| `src/app/api/sessions/tendency/route.ts:52` | **non** | **non** | **non** | non |
-| `src/lib/coach/tools.ts:51` | **non** | **non** | **non** | **oui** |
-| `src/lib/coach/outils-programme.ts:258` | **non** | **non** | **non** | non |
-| `src/app/api/progression/exercise/route.ts:55` | **non** | **non** | **non** | non |
+### Copies supprimées ou neutralisées
 
-### Conséquences observables
+- `feu-biologique.ts` portait une copie **jamais appelée** : supprimée.
+- `calibration.ts` appelle la référence au lieu de refaire le calcul.
+- `outils-programme.ts` n'en a plus depuis le déplacement de `mesurerCycle`.
 
-- **Réserve ignorée (les sept).** Une série de 10 répétitions arrêtée à RIR 3
-  vaut autant qu'une série de 13 menée à l'échec. Sans la réserve, elle est
-  sous-estimée d'environ 10 %. Deux écrans peuvent donc désigner deux
-  « meilleures séries » différentes pour le même historique — et c'est déjà le
-  cas entre l'écran Progression (réserve comprise) et le coach (non).
-- **Pas de plafond à 20 répétitions effectives (les sept).** Epley dérive sur
-  les séries longues : 40 kg × 25 donne 73 kg estimés, une valeur qui ne veut
-  rien dire. Les exercices au poids du corps et les séries d'endurance sont les
-  premiers concernés.
-- **Garde `reps === 1` absente (quatre copies).** Un vrai maximum à une
-  répétition de 100 kg est rapporté à 103,3 kg. L'erreur est petite mais
-  systématique, et elle touche précisément la mesure la plus fiable.
-- **Arrondi à la source (deux copies).** Comparer des valeurs déjà arrondies
-  fait passer pour égales deux performances distinctes, et inversement.
+### Reste
 
-### Ce qui retient la correction
-
-Chacune de ces copies alimente une logique testée ailleurs — feu biologique,
-tendance de séance, outils du coach. Les aligner d'un coup changerait plusieurs
-comportements en même temps, sans qu'aucun test existant ne dise lesquels sont
-volontaires. Le risque est une régression diffuse, difficile à attribuer.
-
-**Chantier dédié, dans cet ordre :** consolider `calibration.ts` sur
-`records.ts` (équivalent, risque nul) ; puis les copies sans conséquence
-métier (`coach/tools.ts`, `api/sessions/tendency`, `api/progression/exercise`) ;
-puis, une par une et avec caractérisation préalable, `feu-biologique.ts` et
-`progression.ts` — celles-ci décident de comportements d'entraînement.
-
----
+`/api/sessions/tendency` est unifiée mais **n'a aucun appelant dans le dépôt**.
+Elle n'a pas été supprimée : contrairement à une page, on ne peut pas prouver
+depuis les sources qu'aucun client externe ne l'appelle. À supprimer après
+vérification des journaux d'accès.
 
 ## 2. Seuil de couverture RPE à 60 %, à réévaluer sur données réelles
 

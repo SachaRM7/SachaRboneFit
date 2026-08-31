@@ -57,8 +57,13 @@ export interface RecordsExercice {
   debutDuParcours: string | null;
 }
 
-/** Répétitions au-delà desquelles l'estimation d'un maximum dérive. */
-const REPS_EFFECTIVES_MAXIMALES = 20;
+/**
+ * Répétitions au-delà desquelles l'estimation d'un maximum dérive.
+ *
+ * Exportée : la fonction inverse — quelle charge pour une cible donnée — doit
+ * borner au même endroit, sinon aller-retour ne redonne pas le point de départ.
+ */
+export const REPS_EFFECTIVES_MAXIMALES = 20;
 
 /** Variation en deçà de laquelle deux charges ne se distinguent pas vraiment. */
 const BRUIT_CHARGE = 0.001;
@@ -78,6 +83,49 @@ export function estimer1RM(serie: SerieRealisee): number {
   const effectives = Math.min(serie.reps + (serie.rir ?? 0), REPS_EFFECTIVES_MAXIMALES);
   if (serie.charge <= 0 || effectives <= 0) return 0;
   return effectives === 1 ? serie.charge : serie.charge * (1 + effectives / 30);
+}
+
+/**
+ * La réserve déduite d'un RPE.
+ *
+ * RPE 8 vaut deux répétitions en réserve. La conversion vivait recopiée à la
+ * main dans trois services.
+ *
+ * Elle ne passe pas par `rpeVersReserve` du module `reserve` : celui-ci plafonne
+ * à 5 pour répondre à une autre question — « cette série peut-elle servir à
+ * fixer une charge de travail ? ». Ici on estime un maximum, et c'est le
+ * plafond de vingt répétitions effectives qui borne la dérive de la formule.
+ * Deux plafonds pour deux questions, chacun nommé.
+ */
+export function reserveDepuisRpe(rpe: number | null | undefined): number | null {
+  if (rpe == null || !Number.isFinite(rpe)) return null;
+  return Math.max(0, Math.round(10 - rpe));
+}
+
+/**
+ * Maximum estimé à partir des colonnes de la base.
+ *
+ * La forme que prennent les séries partout ailleurs : une charge, des
+ * répétitions, un RPE parfois nul. Passe par la définition de référence.
+ */
+export function estimer1RMDepuisRpe(
+  charge: number,
+  reps: number,
+  rpe: number | null | undefined,
+): number {
+  return estimer1RM({ date: "", charge, reps, rir: reserveDepuisRpe(rpe) });
+}
+
+/**
+ * Maximum estimé SANS tenir compte de la réserve.
+ *
+ * Variante nommée, et non une copie anonyme : elle existe pour les rares
+ * endroits où la réserve n'est pas disponible, et son nom dit qu'elle
+ * sous-estimera une série arrêtée loin de l'échec. Toute nouvelle utilisation
+ * doit se justifier — sinon c'est `estimer1RMDepuisRpe` qu'il faut.
+ */
+export function estimer1RMSansReserve(charge: number, reps: number): number {
+  return estimer1RM({ date: "", charge, reps, rir: null });
 }
 
 /** Ordre chronologique, du plus ancien au plus récent. */

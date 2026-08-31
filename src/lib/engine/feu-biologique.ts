@@ -66,11 +66,9 @@ export interface FeuTendanceResult {
  */
 const SEUIL_VARIATION = 0.02;
 
-function estimated1RM(charge: number, reps: number): number {
-  if (reps <= 0 || charge <= 0) return 0;
-  if (reps === 1) return charge;
-  return charge * (1 + reps / 30);
-}
+// Ce module ne calcule aucun maximum : il reçoit `estimated1RM` déjà mesuré
+// dans `SessionPilierPerf`. Une copie de la formule d'Epley vivait ici sans
+// être appelée une seule fois — supprimée plutôt que branchée.
 
 export function computeFeuTendance(input: FeuTendanceInput): FeuTendanceResult {
   if (input.sessions.length < 3) {

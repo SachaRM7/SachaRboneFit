@@ -1,3 +1,5 @@
+import { estimer1RM as estimer1RMReference, REPS_EFFECTIVES_MAXIMALES } from "./records";
+
 /**
  * Calibration d'une reprise.
  *
@@ -38,21 +40,25 @@ export interface EstimationCharge {
  */
 const RIR_PLAFOND_FIABLE = 4;
 
-/** Répétitions au-delà desquelles la formule d'Epley dérive. */
-const REPS_EFFECTIVES_MAXIMALES = 20;
-
 /**
  * Maximum théorique estimé à partir d'une série menée en réserve.
  *
  * Les répétitions effectives sont celles réalisées augmentées de celles qui
  * restaient : une série de 10 à RIR 3 informe autant qu'une série de 13 menée
  * à l'échec, sans en payer le prix.
+ *
+ * Le calcul n'est plus refait ici : c'est la définition de référence, appelée
+ * sur le type d'entrée propre à la calibration. Les deux implémentations
+ * étaient identiques au caractère près — deux copies exactes finissent
+ * toujours par cesser de l'être.
  */
 export function estimer1RM(essai: EssaiCalibration): number {
-  const effectives = Math.min(essai.reps + essai.rirRapporte, REPS_EFFECTIVES_MAXIMALES);
-  if (essai.charge <= 0 || effectives <= 0) return 0;
-  if (effectives === 1) return essai.charge;
-  return essai.charge * (1 + effectives / 30);
+  return estimer1RMReference({
+    date: "",
+    charge: essai.charge,
+    reps: essai.reps,
+    rir: essai.rirRapporte,
+  });
 }
 
 /** Charge théorique pour une cible donnée, à partir d'un maximum estimé. */

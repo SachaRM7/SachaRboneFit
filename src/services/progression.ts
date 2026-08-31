@@ -2,12 +2,16 @@ import { db } from "@/db/client";
 import {
   exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
-import { and, asc, desc, eq, gte, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
 import { empecheParLesCirconstances, semainesEmpechees } from "@/lib/engine/tracabilite";
-import { estimer1RM, recordsDeLExercice, type NatureMesure } from "@/lib/engine/records";
+import {
+  estimer1RM, estimer1RMDepuisRpe, estimer1RMSansReserve, reserveDepuisRpe,
+  recordsDeLExercice, type NatureMesure,
+} from "@/lib/engine/records";
+import { reserveFiable } from "@/lib/engine/score-progression";
 import { SEUILS } from "@/lib/engine/bilan-progression";
 import { memoireEmpechements } from "./memoire";
 
@@ -25,11 +29,6 @@ const MS_PAR_SEMAINE = 7 * 24 * 60 * 60 * 1000;
 function semainesDepuis(dateISO: string): number {
   const ecart = Date.now() - new Date(`${dateISO}T12:00:00`).getTime();
   return Math.max(0, Math.floor(ecart / MS_PAR_SEMAINE));
-}
-
-function estimation1RM(charge: number, reps: number): number {
-  if (reps <= 0 || charge <= 0) return 0;
-  return reps === 1 ? charge : charge * (1 + reps / 30);
 }
 
 /**
@@ -145,7 +144,7 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
         date: s.date,
         charge: s.charge,
         reps: s.reps,
-        rir: s.rpe == null ? null : Math.max(0, Math.round(10 - s.rpe)),
+        rir: reserveDepuisRpe(s.rpe),
       });
       meilleurParDate.set(s.date, Math.max(meilleurParDate.get(s.date) ?? 0, rm));
     }
@@ -245,7 +244,15 @@ export async function fourchettesCompletees(userId: string) {
   return resultat;
 }
 
-/** Feu de tendance sur les trois dernières séances d'un même template. */
+/**
+ * Feu de tendance sur les trois dernières séances d'un même template.
+ *
+ * La tendance compare des maximums estimés d'une séance à l'autre. La réserve
+ * n'y entre que si elle est renseignée assez souvent, au même seuil que le
+ * score de progression : si le RPE est noté une séance sur trois, la réserve
+ * ferait monter la séance où l'on a pensé à le noter, et le feu changerait de
+ * couleur au gré de la saisie plutôt que de la fatigue.
+ */
 export async function feuDeTendance(userId: string): Promise<FeuBiologique | null> {
   const dernieres = await db.query.sessionLogs.findMany({
     where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
@@ -253,6 +260,17 @@ export async function feuDeTendance(userId: string): Promise<FeuBiologique | nul
     limit: 3,
   });
   if (dernieres.length < 3) return null;
+
+  // La couverture se mesure sur les trois séances ensemble : c'est entre elles
+  // que la comparaison se fait, et c'est donc là qu'une réserve partielle
+  // fausserait le résultat.
+  const toutesLesSeries = await db
+    .select({ rpe: setLogs.rpeEffectif })
+    .from(setLogs)
+    .where(inArray(setLogs.sessionLogId, dernieres.map((s) => s.id)));
+  const reserveExploitable = reserveFiable(
+    toutesLesSeries.map((x) => ({ date: "", charge: 1, reps: 1, rir: reserveDepuisRpe(x.rpe) })),
+  );
 
   const sessions = await Promise.all(
     dernieres.map(async (s) => {
@@ -262,6 +280,7 @@ export async function feuDeTendance(userId: string): Promise<FeuBiologique | nul
           exerciseName: exercises.nom,
           charge: setLogs.charge,
           reps: setLogs.repsEffectuees,
+          rpe: setLogs.rpeEffectif,
           categorieRole: exercises.categorieRole,
         })
         .from(setLogs)
@@ -272,7 +291,9 @@ export async function feuDeTendance(userId: string): Promise<FeuBiologique | nul
       // Le feu de tendance ne regarde que les piliers : un accessoire varie trop.
       const meilleurs = new Map<string, SessionPilierPerf>();
       for (const l of lignes.filter((x) => x.categorieRole === "pilier")) {
-        const rm = estimation1RM(l.charge, l.reps);
+        const rm = reserveExploitable
+          ? estimer1RMDepuisRpe(l.charge, l.reps, l.rpe)
+          : estimer1RMSansReserve(l.charge, l.reps);
         const actuel = meilleurs.get(l.exerciseInstanceId);
         if (!actuel || rm > actuel.estimated1RM) {
           meilleurs.set(l.exerciseInstanceId, {
@@ -388,7 +409,7 @@ export async function recordsPersonnels(userId: string, limite = 20): Promise<Re
         charge: s.charge,
         reps: s.reps,
         // RPE 8 signifie deux répétitions en réserve.
-        rir: s.rpe == null ? null : Math.max(0, Math.round(10 - s.rpe)),
+        rir: reserveDepuisRpe(s.rpe),
       })),
     );
     const meilleur = records.meilleur1RM;

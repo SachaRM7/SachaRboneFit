@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs } from "@/db/schema";
 import { and, asc, eq, gte, isNull } from "drizzle-orm";
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
       date: sessionLogs.date,
       charge: setLogs.charge,
       reps: setLogs.repsEffectuees,
+      rpe: setLogs.rpeEffectif,
     })
     .from(setLogs)
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
@@ -52,7 +54,7 @@ export async function GET(request: Request) {
   >();
 
   for (const l of lignes) {
-    const estimation = l.charge * (1 + l.reps / 30);
+    const estimation = estimer1RMDepuisRpe(l.charge, l.reps, l.rpe);
     const volume = l.charge * l.reps;
     const actuel = parSeance.get(l.sessionLogId);
     if (!actuel) {

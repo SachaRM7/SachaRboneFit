@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -49,7 +50,7 @@ export async function GET(request: Request) {
       if (!exercise) continue;
 
       if (exercise.categorieRole === "pilier") {
-        const estimated1RM = sl.charge * (1 + sl.repsEffectuees / 30);
+        const estimated1RM = estimer1RMDepuisRpe(sl.charge, sl.repsEffectuees, sl.rpeEffectif);
         pilierPerfs.push({
           exerciseInstanceId: sl.exerciseInstanceId,
           exerciseName: exercise.nom,

@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { setLogs, sessionLogs, exercises, exerciseInstances, seanceTemplates, programmeBlocs, sessionIncidents } from "@/db/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria, type SubstituteResult } from "@/lib/engine/substitutions";
@@ -74,7 +75,8 @@ export async function getExerciseHistory(
     if (!session || session.userId !== userId) continue;
 
     seenSessions.add(set.sessionLogId);
-    const estimated1RM = Math.round(set.charge * (1 + set.repsEffectuees / 30));
+    // Arrondi à l'affichage seulement : le calcul, lui, passe par la référence.
+    const estimated1RM = Math.round(estimer1RMDepuisRpe(set.charge, set.repsEffectuees, set.rpeEffectif));
 
     results.push({
       date: session.date,

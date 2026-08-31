@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { reserveDepuisRpe } from "@/lib/engine/records";
 import {
   exerciseInstances, exercises, sessionLogs, setLogs, users,
 } from "@/db/schema";
@@ -71,7 +72,7 @@ export async function bilanDeProgression(
     // Le RPE est enregistré, la réserve s'en déduit : RPE 8 vaut 2 répétitions
     // en réserve. Sans lui, l'estimation du maximum sous-estime les séries
     // arrêtées loin de l'échec.
-    rir: l.rpe == null ? null : Math.max(0, Math.round(10 - l.rpe)),
+    rir: reserveDepuisRpe(l.rpe),
     musclesPrincipaux: l.musclesPrincipaux ?? [],
     musclesSecondaires: l.musclesSecondaires ?? [],
   }));

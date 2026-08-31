@@ -48,6 +48,10 @@ export async function GET(request: Request) {
       numero: sl.numeroSerie,
       reps: sl.repsEffectuees,
       charge: sl.charge,
+      // Sans le RPE, la séance précédente était estimée sans réserve et la
+      // séance en cours avec : les deux côtés de la comparaison ne mesuraient
+      // pas la même chose.
+      rpe: sl.rpeEffectif,
     }));
 
   return NextResponse.json({ sets: lastSessionSets });

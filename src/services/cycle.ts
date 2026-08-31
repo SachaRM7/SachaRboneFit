@@ -5,7 +5,7 @@ import {
 } from "@/db/schema";
 import { and, asc, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { classerEtatCycle, type EntreeSeance, type PhaseCycle } from "@/lib/engine/etat-cycle";
-import { estimer1RM } from "@/lib/engine/records";
+import { estimer1RM, reserveDepuisRpe } from "@/lib/engine/records";
 import { empecheParLesCirconstances, type ContexteAdaptation } from "@/lib/engine/tracabilite";
 import {
   positionDansLeCycle, semaineDuProgramme, dechargeJustifiee,
@@ -111,7 +111,7 @@ export async function mesurerCycle(userId: string) {
             date: s.date,
             charge: x.charge,
             reps: x.reps,
-            rir: x.rpe == null ? null : Math.max(0, Math.round(10 - x.rpe)),
+            rir: reserveDepuisRpe(x.rpe),
           }),
         ),
       0,

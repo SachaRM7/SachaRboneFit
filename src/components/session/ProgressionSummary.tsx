@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { Delta } from "@/components/carnet/Delta";
 import { Button } from "@/components/ui/button";
 
@@ -10,18 +11,17 @@ interface ExercisePerf {
   pilier: string;
   best1RM: number;
   totalVolume: number;
-  sets: { charge: number; reps: number; numero: number }[];
+  sets: { charge: number; reps: number; numero: number; rpe?: number | null }[];
 }
 
 interface ProgressionSummaryProps {
-  sets: Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number }>;
+  sets: Array<{
+    exerciseInstanceId: string;
+    repsEffectuees: number;
+    charge: number;
+    rpeEffectif?: number | null;
+  }>;
   templateId: string;
-}
-
-function estimated1RM(charge: number, reps: number): number {
-  if (reps <= 0 || charge <= 0) return 0;
-  if (reps === 1) return charge;
-  return Math.round(charge * (1 + reps / 30));
 }
 
 export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps) {
@@ -49,7 +49,7 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
     Promise.all(
       uniqueInstances.map(async (instanceId) => {
         const currentSets = sets.filter((s) => s.exerciseInstanceId === instanceId);
-        const currentBest1RM = Math.max(...currentSets.map((s) => estimated1RM(s.charge, s.repsEffectuees)));
+        const currentBest1RM = Math.max(...currentSets.map((s) => estimer1RMDepuisRpe(s.charge, s.repsEffectuees, s.rpeEffectif)));
         const currentVolume = currentSets.reduce((sum, s) => sum + s.charge * s.repsEffectuees, 0);
 
         const lastRes = await fetch(`/api/set-logs/last-session?exerciseInstanceId=${instanceId}`);
@@ -57,7 +57,8 @@ export function ProgressionSummary({ sets, templateId }: ProgressionSummaryProps
         const lastSets = lastData?.sets || [];
 
         const lastBest1RM = lastSets.length > 0
-          ? Math.max(...lastSets.map((s: { charge: number; reps: number }) => estimated1RM(s.charge, s.reps)))
+          ? Math.max(...lastSets.map((s: { charge: number; reps: number; rpe?: number | null }) =>
+              estimer1RMDepuisRpe(s.charge, s.reps, s.rpe)))
           : null;
         const lastVolume = lastSets.length > 0
           ? lastSets.reduce((sum: number, s: { charge: number; reps: number }) => sum + s.charge * s.reps, 0)
