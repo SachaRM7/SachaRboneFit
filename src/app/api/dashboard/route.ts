@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms, exerciseInstances, exercises } from "@/db/schema";
 import { eq, desc, and, inArray, isNull, gte } from "drizzle-orm";
-import { computeFeuJour } from "@/lib/engine/feu-biologique";
+import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
 import { vueDuProgramme } from "@/services/cycle";
 import { prochaineSeance } from "@/services/programmes";
@@ -49,16 +49,9 @@ export async function GET() {
 
     let feuJour: "vert" | "orange" | "rouge" | null = null;
     if (dailyStateToday) {
-      const stateForFeu = {
-        date: dailyStateToday.date,
-        sommeilHeures: dailyStateToday.sommeilHeures ?? 7,
-        jeuneBool: dailyStateToday.jeuneBool ?? false,
-        shiftRecentBool: dailyStateToday.shiftRecentBool ?? false,
-        shiftType: (dailyStateToday.shiftType as "jour" | "nuit" | "aucun") ?? "aucun",
-        energieDepart: dailyStateToday.energieDepart ?? 5,
-        courbatures: dailyStateToday.courbatures ?? [],
-      };
-      feuJour = computeFeuJour(stateForFeu).feu;
+      // Mêmes valeurs par défaut que le constructeur de séance : le tableau de
+      // bord annonçait un feu que la séance pouvait ensuite contredire.
+      feuJour = computeFeuJour(etatPourLeMoteur(dailyStateToday)).feu;
     }
 
     let feuTendance: "vert" | "orange" | "rouge" | null = null;

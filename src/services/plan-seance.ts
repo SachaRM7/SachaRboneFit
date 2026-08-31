@@ -4,7 +4,7 @@ import {
   programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
 import { and, asc, desc, eq, isNull, or, gte } from "drizzle-orm";
-import { computeFeuJour } from "@/lib/engine/feu-biologique";
+import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { computeVolumeAdjustment } from "@/lib/engine/volume-adjustment";
 import { applyVolumeAdjustment, type ExerciseInTemplateWithDetails } from "@/lib/engine/apply-adjustment";
 import { computeNextSets } from "@/lib/engine/double-progression";
@@ -113,6 +113,9 @@ export async function derniereSeriesPour(userId: string, exerciseInstanceId: str
       numero: setLogs.numeroSerie,
       reps: setLogs.repsEffectuees,
       charge: setLogs.charge,
+      // Sans le RPE, la séance précédente serait estimée sans réserve et la
+      // séance en cours avec : les deux côtés ne mesureraient pas la même chose.
+      rpe: setLogs.rpeEffectif,
       date: sessionLogs.date,
     })
     .from(setLogs)
@@ -126,31 +129,33 @@ export async function derniereSeriesPour(userId: string, exerciseInstanceId: str
   return {
     sets: lignes
       .filter((l) => l.sessionLogId === derniereSession)
-      .map((l) => ({ numero: l.numero, reps: l.reps, charge: l.charge })),
+      .map((l) => ({ numero: l.numero, reps: l.reps, charge: l.charge, rpe: l.rpe })),
   };
 }
 
 export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<ResultatConstruction> {
-  const template = await db.query.seanceTemplates.findFirst({
-    where: eq(seanceTemplates.id, ctx.seanceTemplateId),
-  });
+  // Le gabarit n'a pas de propriétaire direct : il appartient à un bloc. Sans
+  // cette jointure, `seanceTemplateId` venant du client suffisait à construire
+  // sa journée à partir du programme de quelqu'un d'autre — et à en lire le
+  // contenu au passage.
+  const [template] = await db
+    .select({ id: seanceTemplates.id, nom: seanceTemplates.nom, lettre: seanceTemplates.lettre })
+    .from(seanceTemplates)
+    .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
+    .where(
+      and(
+        eq(seanceTemplates.id, ctx.seanceTemplateId),
+        and(eq(programmeBlocs.userId, ctx.userId), isNull(programmeBlocs.archiveLe)),
+      ),
+    )
+    .limit(1);
   if (!template) throw new Error("Séance introuvable");
 
   const etatDuJour = await db.query.dailyStates.findFirst({
     where: and(eq(dailyStates.userId, ctx.userId), eq(dailyStates.date, ctx.date)),
   });
 
-  const etat: DailyStateInput | null = etatDuJour
-    ? {
-        date: etatDuJour.date,
-        sommeilHeures: etatDuJour.sommeilHeures ?? 7,
-        jeuneBool: etatDuJour.jeuneBool ?? false,
-        shiftRecentBool: etatDuJour.shiftRecentBool ?? false,
-        shiftType: (etatDuJour.shiftType as DailyStateInput["shiftType"]) ?? "aucun",
-        energieDepart: etatDuJour.energieDepart ?? 7,
-        courbatures: etatDuJour.courbatures ?? [],
-      }
-    : null;
+  const etat: DailyStateInput | null = etatDuJour ? etatPourLeMoteur(etatDuJour) : null;
 
   const feuJour = etat ? computeFeuJour(etat).feu : "vert";
 

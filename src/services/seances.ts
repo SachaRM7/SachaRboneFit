@@ -39,7 +39,34 @@ export interface CreationSeance {
   volumeAjusteRaison?: string | null;
 }
 
+/**
+ * Démarre une séance, ou reprend celle qui est déjà ouverte.
+ *
+ * La création était inconditionnelle, et appelée depuis un effet du client.
+ * Un rafraîchissement, un retour arrière, un double appui, une reconnexion
+ * après un échec réseau : chacun produisait une ligne de plus. Ces séances
+ * vides ne se voient nulle part — mais elles comptaient comme des séances
+ * faites dans la vue du programme, et faisaient avancer la rotation.
+ *
+ * Reprendre plutôt que recréer se décide ici, côté serveur, parce que c'est le
+ * seul endroit qui voit toutes les tentatives. « Déjà ouverte » veut dire : le
+ * même jour, la même séance du programme, pas encore clôturée.
+ */
 export async function creerSeance(donnees: CreationSeance): Promise<SessionLog> {
+  const ouverte = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.userId, donnees.userId),
+      eq(sessionLogs.date, donnees.date),
+      isNull(sessionLogs.archiveLe),
+      isNull(sessionLogs.dureeMinutes),
+      donnees.seanceTemplateId
+        ? eq(sessionLogs.seanceTemplateId, donnees.seanceTemplateId)
+        : isNull(sessionLogs.seanceTemplateId),
+    ),
+    orderBy: [desc(sessionLogs.createdAt)],
+  });
+  if (ouverte) return ouverte;
+
   const [seance] = await db
     .insert(sessionLogs)
     .values({
@@ -56,6 +83,24 @@ export async function creerSeance(donnees: CreationSeance): Promise<SessionLog> 
 
   if (!seance) throw new Error("Creation de la seance impossible");
   return seance;
+}
+
+/**
+ * Une séance est terminée quand elle porte une durée.
+ *
+ * Définition unique, parce qu'elle était inférée différemment selon l'écran.
+ * `seanceCourante` et l'adaptation de lieu lisent `duree_minutes` ; la rotation
+ * des séances et la vue du programme, elles, considéraient qu'une LIGNE
+ * `session_logs` suffisait à dire qu'une séance avait eu lieu. Une séance
+ * ouverte puis abandonnée était donc « en cours » pour les uns et « faite »
+ * pour les autres.
+ *
+ * Le modèle n'a pas de colonne d'état : `duree_minutes` en tient lieu, et c'est
+ * une inférence assumée — la clôture est le seul moment qui l'écrit. Une
+ * colonne explicite serait plus honnête ; elle est notée en dette.
+ */
+export function estTerminee(seance: { dureeMinutes: number | null }): boolean {
+  return seance.dureeMinutes !== null;
 }
 
 /**

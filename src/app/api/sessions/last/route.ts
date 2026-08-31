@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
 export async function GET(request: Request) {
@@ -14,10 +14,23 @@ export async function GET(request: Request) {
 
   // If exerciseInstanceId is provided, find the last session with this exercise
   if (exerciseInstanceId) {
-    const sets = await db.query.setLogs.findMany({
-      where: eq(setLogs.exerciseInstanceId, exerciseInstanceId),
-      orderBy: [desc(setLogs.createdAt)],
-    });
+    // La jointure sur l'utilisateur n'existait pas : la route renvoyait le
+    // `sessionLogId` de la dernière séance faite sur cette machine PAR
+    // N'IMPORTE QUI. Le parc étant partagé, elle divulguait l'identifiant privé
+    // d'une séance d'autrui, et le fait qu'il s'était entraîné là.
+    const sets = await db
+      .select({ sessionLogId: setLogs.sessionLogId })
+      .from(setLogs)
+      .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+      .where(
+        and(
+          eq(setLogs.exerciseInstanceId, exerciseInstanceId),
+          eq(sessionLogs.userId, userId),
+          isNull(sessionLogs.archiveLe),
+        ),
+      )
+      .orderBy(desc(sessionLogs.date), desc(setLogs.createdAt))
+      .limit(1);
 
     if (sets.length === 0) {
       return NextResponse.json(null);

@@ -10,6 +10,52 @@ export interface FeuJourResult {
   nbEchecs: number;
 }
 
+/**
+ * Ce qu'on suppose quand une case de l'état du jour est restée vide.
+ *
+ * Quatre endroits construisaient cet objet à la main, et ils ne suppléaient
+ * pas la même chose : l'énergie absente valait 7 pour l'écran de séance et le
+ * tableau de bord, 5 pour le coach. Or le critère est `energieDepart >= 7` —
+ * la même journée non renseignée passait donc le critère d'un côté et le
+ * ratait de l'autre, et le feu pouvait être vert à l'écran et orange dans la
+ * bouche du coach.
+ *
+ * La valeur retenue est celle du chemin qui décide vraiment : c'est lui qui
+ * ajuste le volume et écrit `feu_biologique_jour` sur la séance. Le reste
+ * s'aligne sur ce qui est persisté.
+ *
+ * Que l'absence de réponse vaille « journée correcte » reste discutable ; ce
+ * n'est pas ce chantier qui doit en décider, et c'est noté en dette.
+ */
+export const ETAT_DU_JOUR_PAR_DEFAUT = {
+  sommeilHeures: 7,
+  energieDepart: 7,
+  jeuneBool: false,
+  shiftRecentBool: false,
+  shiftType: "aucun" as const,
+} as const;
+
+/** Une ligne `daily_states`, telle que le moteur l'attend. */
+export function etatPourLeMoteur(etat: {
+  date: string;
+  sommeilHeures?: number | null;
+  jeuneBool?: boolean | null;
+  shiftRecentBool?: boolean | null;
+  shiftType?: string | null;
+  energieDepart?: number | null;
+  courbatures?: { muscle: string; intensite: number }[] | null;
+}): DailyStateInput {
+  return {
+    date: etat.date,
+    sommeilHeures: etat.sommeilHeures ?? ETAT_DU_JOUR_PAR_DEFAUT.sommeilHeures,
+    jeuneBool: etat.jeuneBool ?? ETAT_DU_JOUR_PAR_DEFAUT.jeuneBool,
+    shiftRecentBool: etat.shiftRecentBool ?? ETAT_DU_JOUR_PAR_DEFAUT.shiftRecentBool,
+    shiftType: (etat.shiftType as DailyStateInput["shiftType"]) ?? ETAT_DU_JOUR_PAR_DEFAUT.shiftType,
+    energieDepart: etat.energieDepart ?? ETAT_DU_JOUR_PAR_DEFAUT.energieDepart,
+    courbatures: etat.courbatures ?? [],
+  };
+}
+
 export function computeFeuJour(state: DailyStateInput): FeuJourResult {
   const criteresSommeil = state.sommeilHeures >= 6;
   const criteresEnergie = state.energieDepart >= 7;

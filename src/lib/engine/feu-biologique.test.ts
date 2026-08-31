@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { computeFeuJour, computeFeuTendance } from "./feu-biologique";
+import {
+  computeFeuJour, computeFeuTendance, etatPourLeMoteur, ETAT_DU_JOUR_PAR_DEFAUT,
+} from "./feu-biologique";
 import type { DailyStateInput } from "@/lib/validators/daily-state";
 
 const base: DailyStateInput = {
@@ -137,5 +139,33 @@ describe("feu de tendance", () => {
     });
     expect(r.feu).toBe("orange");
     expect(r.raison).toContain("Stagnation");
+  });
+});
+
+describe("un état du jour incomplet donne le même feu partout", () => {
+  it("supplée les mêmes valeurs, quel que soit l'écran qui demande", () => {
+    // Quatre endroits reconstruisaient cet objet à la main : l'énergie absente
+    // valait 7 pour le constructeur de séance, 5 pour le coach et le tableau
+    // de bord. Or le critère est « énergie >= 7 » — la même journée non
+    // renseignée passait donc d'un côté et ratait de l'autre.
+    const brut = { date: "2026-08-31" };
+    expect(etatPourLeMoteur(brut)).toMatchObject({
+      sommeilHeures: 7, energieDepart: 7, jeuneBool: false,
+      shiftRecentBool: false, shiftType: "aucun", courbatures: [],
+    });
+    expect(computeFeuJour(etatPourLeMoteur(brut)).criteresEnergie).toBe(true);
+  });
+
+  it("ne supplée que ce qui manque", () => {
+    const partiel = { date: "2026-08-31", energieDepart: 3, sommeilHeures: null };
+    const etat = etatPourLeMoteur(partiel);
+    expect(etat.energieDepart).toBe(3);
+    expect(etat.sommeilHeures).toBe(ETAT_DU_JOUR_PAR_DEFAUT.sommeilHeures);
+  });
+
+  it("zéro n'est pas une absence", () => {
+    // Une nuit blanche déclarée est une information ; la supplanter par 7
+    // reviendrait à effacer ce que l'athlète vient de dire.
+    expect(etatPourLeMoteur({ date: "2026-08-31", sommeilHeures: 0 }).sommeilHeures).toBe(0);
   });
 });

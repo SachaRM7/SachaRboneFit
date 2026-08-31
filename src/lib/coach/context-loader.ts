@@ -84,16 +84,10 @@ export async function loadCoachContext(userId: string): Promise<CoachContext> {
   let feuJour: "vert" | "orange" | "rouge" | null = null;
   if (dailyStateToday) {
     const { computeFeuJour } = await import("@/lib/engine/feu-biologique");
-    const stateForFeu = {
-      date: dailyStateToday.date,
-      sommeilHeures: dailyStateToday.sommeilHeures ?? 7,
-      jeuneBool: dailyStateToday.jeuneBool ?? false,
-      shiftRecentBool: dailyStateToday.shiftRecentBool ?? false,
-      shiftType: (dailyStateToday.shiftType as "jour" | "nuit" | "aucun") ?? "aucun",
-      energieDepart: dailyStateToday.energieDepart ?? 5,
-      courbatures: dailyStateToday.courbatures ?? [],
-    };
-    feuJour = computeFeuJour(stateForFeu).feu;
+    // Mêmes valeurs par défaut que le constructeur de séance : c'est lui qui
+    // persiste `feu_biologique_jour`, et l'affichage ne doit pas le contredire.
+    const { etatPourLeMoteur } = await import("@/lib/engine/feu-biologique");
+    feuJour = computeFeuJour(etatPourLeMoteur(dailyStateToday)).feu;
   }
 
   return {

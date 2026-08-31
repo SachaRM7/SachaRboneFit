@@ -15,9 +15,11 @@ export async function GET(request: Request) {
   cutoffDate.setMonth(cutoffDate.getMonth() - months);
   const cutoffStr = cutoffDate.toISOString().slice(0, 10);
 
+  // Une reprise après interruption archive l'ancien historique : la carte des
+  // feux était le seul écran de Progression à continuer de l'afficher.
   const sessions = await db.query.sessionLogs.findMany({
-    where: (sl, { eq, and, gte }) =>
-      and(eq(sl.userId, userId), gte(sl.date, cutoffStr)),
+    where: (sl, { eq, and, gte, isNull }) =>
+      and(eq(sl.userId, userId), isNull(sl.archiveLe), gte(sl.date, cutoffStr)),
     orderBy: [desc(sessionLogs.date)],
   });
 

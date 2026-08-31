@@ -117,9 +117,12 @@ export async function getWeeklySummary(
   const startStr = startOfWeek.toISOString().slice(0, 10);
   const endStr = endOfWeek.toISOString().slice(0, 10);
 
+  // Les séances archivées sont exclues partout ailleurs — bilan, progression,
+  // tableau de bord. Le coach était le seul à les compter : il annonçait un
+  // volume hebdomadaire que l'écran Progression contredisait.
   const sessions = await db.query.sessionLogs.findMany({
-    where: (sl, { eq, and, gte, lte }) =>
-      and(eq(sl.userId, userId), gte(sl.date, startStr), lte(sl.date, endStr)),
+    where: (sl, { eq, and, gte, lte, isNull }) =>
+      and(eq(sl.userId, userId), isNull(sl.archiveLe), gte(sl.date, startStr), lte(sl.date, endStr)),
   });
 
   if (sessions.length === 0) {

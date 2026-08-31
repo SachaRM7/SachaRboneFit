@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { exerciseInTemplate, programmeBlocs, seanceTemplates, sessionLogs } from "@/db/schema";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { SeanceTemplate } from "@/db/schema";
 
 /**
@@ -41,12 +41,22 @@ export async function prochaineSeance(userId: string): Promise<ProchaineSeance |
   });
   if (seances.length === 0) return null;
 
-  // Derniere seance effectivement realisee dans ce bloc.
+  // Derniere seance effectivement REALISEE dans ce bloc.
+  //
+  // « Realisee » veut dire cloturee. La requete se contentait auparavant de
+  // l'existence d'une ligne : ouvrir la seance A par erreur puis quitter
+  // l'application suffisait donc a faire avancer la rotation, et le lendemain
+  // l'application proposait B — la seance A n'ayant jamais eu lieu.
   const derniere = await db
     .select({ seanceTemplateId: sessionLogs.seanceTemplateId })
     .from(sessionLogs)
     .innerJoin(seanceTemplates, eq(seanceTemplates.id, sessionLogs.seanceTemplateId))
-    .where(and(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)), eq(seanceTemplates.blocId, bloc.id)))
+    .where(
+      and(
+        and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+        and(eq(seanceTemplates.blocId, bloc.id), isNotNull(sessionLogs.dureeMinutes)),
+      ),
+    )
     .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt))
     .limit(1);
 

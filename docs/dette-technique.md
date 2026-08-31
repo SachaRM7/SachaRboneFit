@@ -414,3 +414,110 @@ table.
 - `src/app/api/export/route.ts` **importe `exerciseInTemplate` sans jamais
   l'utiliser** : l'export ne contient pas le programme. Import mort, hors
   périmètre, signalé.
+
+---
+
+## 11. Audit transversal : ce qui reste en dette
+
+**Statut :** relevé pendant l'audit final, laissé volontairement de côté. Les
+bugs corrigés au même moment ne sont pas répétés ici.
+
+### Fuseau horaire : « aujourd'hui » est calculé en UTC
+
+Dix-neuf appels à `new Date().toISOString().slice(0, 10)` définissent la
+journée sportive. Le serveur tourne en UTC, l'athlète non. Entre minuit et
+02 h locales (UTC+1/+2), une séance est donc classée la veille.
+
+Ce n'est pas anodin ici : l'application modélise explicitement le travail de
+nuit (`shift_type`, `shift_recent_bool`, `horaire_seance_prevu`), donc
+s'entraîner après minuit est un cas prévu, pas une bizarrerie.
+
+**Pas corrigé** parce que le correctif n'est pas mécanique : aucun fuseau n'est
+stocké sur `users`, et « la journée sportive » n'est pas forcément la journée
+civile — pour un travailleur de nuit, une séance à 01 h appartient peut-être
+encore à la veille. *Recommandation :* stocker le fuseau au moment de
+l'inscription, puis définir la journée sportive une fois, dans un module, comme
+`semaines.ts` l'a fait pour la semaine.
+
+### « Terminée » n'est pas une colonne
+
+L'état d'une séance se déduit de `duree_minutes`. C'est ce qui a produit la
+divergence de rotation corrigée dans cet audit. Le modèle ne sait toujours pas
+dire *interrompue*, *reprise*, *partielle* ni *abandonnée* : `reprisePlusTard`
+est calculé à l'affichage et jamais persisté, et `session_plan_items.statut`
+(`prevu` / `fait` / `passe` / `reporte`) existe par exercice mais n'est écrit
+qu'à `prevu`. *Recommandation :* une colonne d'état explicite sur
+`session_logs`, plutôt que d'ajouter des inférences.
+
+### L'historique affiche les séances archivées
+
+`/(app)/historique` est le seul écran qui ne filtre pas `archive_le`. C'est
+peut-être voulu — archiver « préserve la trace » — mais rien ne distingue à
+l'écran une séance archivée d'une séance active. Décision produit, pas bug :
+soit on les masque, soit on les marque.
+
+### La valeur par défaut d'un état du jour non renseigné
+
+`ETAT_DU_JOUR_PAR_DEFAUT` unifie ce que quatre endroits supposaient
+différemment. Mais supposer 7/10 d'énergie quand rien n'est saisi revient à
+faire passer le critère `energieDepart >= 7` par défaut : l'absence de réponse
+vaut « bonne journée ». À réévaluer sur données réelles, comme le seuil RPE.
+
+### Contraintes physiques : entrer sans pouvoir sortir
+
+Le modèle actuel : `contraintes(user_id, muscle, type, severite 1-10,
+date_debut, date_fin)`. Écrit uniquement par l'onboarding. Lu par
+`validerSeanceComplete`, `plan-seance` et le profil du coach. **`date_fin`
+n'est jamais écrite par aucun chemin** — seulement lue. Au-delà de
+`SEVERITE_ECARTEMENT` (7), l'exercice est écarté au lieu d'être allégé.
+
+Conséquence : une gêne déclarée un jour exclut un mouvement pour toujours, et
+la seule sortie est le SQL.
+
+*Recommandation pour un chantier dédié* — ne pas se contenter d'ajouter un
+bouton « supprimer » :
+
+1. **Distinguer la gêne de la blessure.** `type` le permet déjà
+   (`zone_sensible` / `douleur` / `blessure`) mais rien n'en tire de
+   conséquence sur la durée. Une gêne devrait porter une échéance courte à la
+   création, une blessure non.
+2. **Faire décroître, pas disparaître.** Une sévérité qui ne bouge jamais est
+   invraisemblable. Un point de contrôle — « ton épaule, ça va mieux ? » posé
+   après quelques séances sur le muscle concerné — met à jour la sévérité et,
+   sous un seuil, écrit `date_fin`.
+3. **Rendre la sortie visible.** Les contraintes actives doivent s'afficher
+   quelque part (l'écran Plus), avec leur date de début, et pouvoir être
+   levées à la main.
+4. **Ne jamais laisser le coach en créer directement.** Une douleur mentionnée
+   en conversation devient une *proposition* de contrainte, confirmée par
+   l'athlète — le chemin construit dans le chantier précédent s'applique tel
+   quel.
+
+Tant que 1 et 2 n'existent pas, exposer la création au coach fabriquerait des
+exclusions permanentes : c'est pourquoi elle est restée hors périmètre.
+
+### Base de données
+
+- **Aucun index sur les clés étrangères les plus lues.** Postgres n'en crée pas
+  automatiquement. `set_logs.session_log_id` et
+  `session_plan_items.session_log_id` sont parcourus à chaque lecture
+  d'historique. Non traité : ce serait une optimisation sans mesure, et le
+  volume de données actuel ne la justifie pas.
+- **Pas d'unicité sur `exercise_in_template(seance_template_id,
+  exercise_instance_id)`.** Le chemin du coach refuse les doublons, l'ajout
+  manuel non — et `validerSeance` les signale ensuite comme bloquants. Une
+  contrainte partielle (`WHERE archive_le IS NULL`) serait le bon geste.
+- **`session_logs` sans unicité** : c'est volontaire, deux séances le même jour
+  sont légitimes. La création est désormais idempotente tant qu'une séance
+  reste ouverte, ce qui suffit.
+
+### Routes sans appelant interne
+
+Conservées, faute de preuve qu'aucun client externe ne les utilise :
+`/api/sessions/tendency`, `/api/progression/volume-muscle`, `/api/alerts`,
+`/api/programme/vue` (l'écran Programme lit directement en base),
+`/api/exercises/[id]`. Les deux routes `/api/cron/*` sont appelées de
+l'extérieur avec `CRON_SECRET` : elles ne sont pas mortes.
+
+`/api/export/route.ts` importe `exerciseInTemplate` sans jamais s'en servir :
+l'export ne contient pas le programme.

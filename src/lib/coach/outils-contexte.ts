@@ -3,7 +3,7 @@ import { verdictMemoire } from "./memoire-durable";
 import { positionDuBloc } from "@/services/cycle";
 import { users, gyms, exercises, exerciseInstances, dailyStates, coachMemoires } from "@/db/schema";
 import { and, eq, desc, isNull, inArray } from "drizzle-orm";
-import { computeFeuJour } from "@/lib/engine/feu-biologique";
+import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { prochaineSeance } from "@/services/programmes";
 import {
   recordsPersonnels,
@@ -107,15 +107,9 @@ async function etatDuJour(_p: Record<string, unknown>, userId: string): Promise<
     }));
   }
 
-  const calcul = computeFeuJour({
-    date: etat.date,
-    sommeilHeures: etat.sommeilHeures ?? 7,
-    jeuneBool: etat.jeuneBool ?? false,
-    shiftRecentBool: etat.shiftRecentBool ?? false,
-    shiftType: (etat.shiftType as "jour" | "nuit" | "aucun") ?? "aucun",
-    energieDepart: etat.energieDepart ?? 5,
-    courbatures: etat.courbatures ?? [],
-  });
+  // Le coach lisait un état du jour reconstruit avec ses propres valeurs par
+  // défaut : il pouvait annoncer un feu que l'écran de séance contredisait.
+  const calcul = computeFeuJour(etatPourLeMoteur(etat));
 
   return ok(JSON.stringify({
     renseigne: true,
