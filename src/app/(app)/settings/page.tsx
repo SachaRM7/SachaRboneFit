@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Download, LogOut, User, History, CalendarRange, Palette, BookOpen, MapPin, Scale,
+  Download, LogOut, User, History, CalendarRange, Palette, BookOpen, MapPin, Scale, HeartPulse,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -41,6 +41,7 @@ const TOI: Entree[] = [
   // L'écran existait et fonctionnait, sans qu'aucun lien de l'application n'y
   // mène : il n'était atteignable qu'en tapant l'adresse à la main.
   { href: "/bodyweight", libelle: "Poids de corps", description: "Suivi et tendance", icone: Scale },
+  { href: "/contraintes", libelle: "Ce que tu ménages", description: "Gênes en cours et passées", icone: HeartPulse },
 ];
 
 export default function SettingsPage() {

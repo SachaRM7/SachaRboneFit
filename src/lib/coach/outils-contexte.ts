@@ -1,6 +1,7 @@
 import { db } from "@/db/client";
 import { verdictMemoire } from "./memoire-durable";
 import { positionDuBloc } from "@/services/cycle";
+import { contraintesActives } from "@/services/contraintes";
 import { users, gyms, exercises, exerciseInstances, dailyStates, coachMemoires } from "@/db/schema";
 import { and, eq, desc, isNull, inArray } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
@@ -68,9 +69,7 @@ async function profil(_p: Record<string, unknown>, userId: string): Promise<Tool
     ? Math.floor((Date.now() - new Date(u.dateNaissance).getTime()) / 31_557_600_000)
     : null;
 
-  const contraintesActives = await db.query.contraintes.findMany({
-    where: (c, { and, eq, isNull }) => and(eq(c.userId, userId), isNull(c.dateFin)),
-  });
+  const actives = await contraintesActives(userId);
 
   return ok(JSON.stringify({
     nom: u.nom,
@@ -81,11 +80,15 @@ async function profil(_p: Record<string, unknown>, userId: string): Promise<Tool
     musclesPrioritaires: (u.objectifMusclesPrioritaires ?? []).map(libelleMuscle),
     seancesParSemaine: u.frequenceCibleParSemaine,
     dureeSeanceMinutes: u.dureeSeanceCibleMinutes,
-    contraintes: contraintesActives.map((c) => ({
+    contraintes: actives.map((c) => ({
       muscle: libelleMuscle(c.muscle),
       type: c.type,
       severite: c.severite,
       note: c.notes,
+      depuis: c.dateDebut,
+      // Le coach doit pouvoir dire « ça fait deux semaines, ça va mieux ? »
+      // plutôt que de découvrir une contrainte sans savoir si elle vaut encore.
+      aReevaluer: c.aReevaluerLe,
     })),
   }));
 }

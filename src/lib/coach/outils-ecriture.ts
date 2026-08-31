@@ -1,6 +1,8 @@
 import {
-  lireSeanceProgrammee, preparerProposition, PropositionRefusee,
+  lireSeanceProgrammee, preparerProposition, preparerPropositionContrainte, PropositionRefusee,
 } from "@/services/propositions-coach";
+import { contraintesPourAffichage } from "@/services/contraintes";
+import type { OperationContrainte } from "./propositions-contraintes";
 import { BORNES, apercuEnTexte, prescription, type Operation } from "./propositions";
 import type { CoachTool, ToolExecutor, ToolExecutionResult } from "./tools";
 
@@ -252,5 +254,137 @@ export const EXECUTEURS_ECRITURE: Record<string, ToolExecutor> = {
       userId,
       texte(params.seanceTemplateId) ?? contexte?.seanceTemplateId,
     );
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Contraintes physiques
+// ---------------------------------------------------------------------------
+
+/**
+ * Ce que le coach peut faire d'une gêne dont l'athlète lui parle.
+ *
+ * Il ne diagnostique pas et ne pronostique pas : il constate une répétition
+ * dans ce que l'application a déjà consigné, et propose de ménager une zone
+ * pendant un temps — avec une date à laquelle on redemandera. La levée passe
+ * par le même chemin : une contrainte se termine parce que l'athlète l'a dit,
+ * jamais parce qu'un délai s'est écoulé.
+ */
+export const DEFINITIONS_CONTRAINTES: CoachTool[] = [
+  {
+    name: "get_physical_constraints",
+    description:
+      "Contraintes physiques de l'athlète : celles qui s'appliquent aujourd'hui et celles qui " +
+      "sont terminées. Donne pour chacune la zone, la sévérité, depuis quand, et la date à " +
+      "laquelle il est prévu de redemander si c'est toujours le cas. À consulter avant de " +
+      "parler d'une douleur.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "propose_constraint",
+    description:
+      "Propose de ménager une zone du corps pendant un temps. Ne modifie rien : l'athlète voit " +
+      "ce que ça change et confirme. Une échéance de réévaluation est fixée automatiquement — " +
+      "ne promets aucune durée de guérison, tu n'en sais rien. N'utilise cet outil que pour une " +
+      "gêne importante ou qui revient ; une douleur légère et isolée se consigne avec " +
+      "log_incident et n'a pas à modifier le programme.",
+    input_schema: {
+      type: "object",
+      properties: {
+        muscle: { type: "string", description: "Zone concernée, en français" },
+        severite: {
+          type: "number",
+          description: "1 à 10, telle que l'athlète la décrit — pas ton estimation",
+        },
+        notes: { type: "string", description: "Ce que l'athlète a dit, en une phrase" },
+      },
+      required: ["muscle", "severite"],
+    },
+  },
+  {
+    name: "propose_constraint_resolution",
+    description:
+      "Propose de lever une contrainte devenue inutile, quand l'athlète dit que ça va mieux. " +
+      "Ne modifie rien : il voit ce qui redevient possible et confirme. La contrainte reste " +
+      "dans l'historique, datée. Appelle get_physical_constraints d'abord pour son identifiant.",
+    input_schema: {
+      type: "object",
+      properties: {
+        contrainteId: {
+          type: "string",
+          description: "Identifiant issu de get_physical_constraints",
+        },
+      },
+      required: ["contrainteId"],
+    },
+  },
+];
+
+async function proposerSurContrainte(
+  operation: OperationContrainte,
+  userId: string,
+): Promise<ToolExecutionResult> {
+  try {
+    const proposition = await preparerPropositionContrainte({ userId, operation });
+    return {
+      success: true,
+      output: JSON.stringify({
+        propositionId: proposition.id,
+        zone: proposition.nomSeance,
+        apercu: apercuEnTexte(proposition.apercu),
+        etat: "en_attente_de_confirmation",
+        consigne:
+          "Rien n'est modifié. L'athlète voit cet aperçu et décide. Dis pourquoi tu proposes " +
+          "ça en une ou deux phrases, sans annoncer que c'est fait, sans avancer de diagnostic " +
+          "ni de délai de guérison.",
+      }),
+    };
+  } catch (erreur) {
+    if (erreur instanceof PropositionRefusee) return echec(erreur.raison);
+    throw erreur;
+  }
+}
+
+export const EXECUTEURS_CONTRAINTES: Record<string, ToolExecutor> = {
+  get_physical_constraints: async (_params, userId) => {
+    const { actives, passees } = await contraintesPourAffichage(userId);
+    return {
+      success: true,
+      output: JSON.stringify({
+        actives: actives.map((c) => ({
+          contrainteId: c.id,
+          zone: c.libelle,
+          severite: c.severite,
+          depuis: c.dateDebut,
+          aReevaluerLe: c.aReevaluerLe,
+          aReevaluerMaintenant: c.aReevaluerMaintenant,
+          effets: c.effets,
+          note: c.notes,
+        })),
+        // L'historique sert à repérer une gêne qui revient, pas à ressortir une
+        // limitation levée comme si elle valait encore.
+        passees: passees.map((c) => ({
+          zone: c.libelle, severite: c.severite, du: c.dateDebut, au: c.dateFin,
+        })),
+      }),
+    };
+  },
+
+  propose_constraint: async (params, userId) => {
+    const muscle = texte(params.muscle);
+    const severite = nombre(params.severite);
+    if (!muscle || severite === undefined) {
+      return echec("muscle et severite sont requis.");
+    }
+    return proposerSurContrainte(
+      { type: "creer_contrainte", muscle, severite, notes: texte(params.notes) },
+      userId,
+    );
+  },
+
+  propose_constraint_resolution: async (params, userId) => {
+    const contrainteId = texte(params.contrainteId);
+    if (!contrainteId) return echec("contrainteId est requis.");
+    return proposerSurContrainte({ type: "resoudre_contrainte", contrainteId }, userId);
   },
 };

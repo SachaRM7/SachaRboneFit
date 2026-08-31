@@ -9,6 +9,15 @@ import {
   type Apercu, type LigneProgramme, type Operation,
 } from "@/lib/coach/propositions";
 import { validerSeanceComplete, type SeanceAValider } from "./validation";
+import { contraintes } from "@/db/schema";
+import { contraintesActives } from "./contraintes";
+import { versMuscle } from "@/lib/referentiels/muscles";
+import { libelleMuscle } from "@/lib/referentiels/libelles";
+import { REEVALUATION_JOURS, SEVERITE, decalerDe, reevaluer } from "@/lib/engine/contraintes";
+import {
+  apercuCreation, apercuResolution, empreinteContrainte, severiteRecevable,
+  type OperationContrainte,
+} from "@/lib/coach/propositions-contraintes";
 import type { Lecteur } from "@/db/lecteur";
 
 /**
@@ -250,6 +259,7 @@ export async function preparerProposition(entrees: {
     .values({
       userId,
       conversationId: entrees.conversationId ?? null,
+      sujet: "seance",
       seanceTemplateId: cible.seanceTemplateId,
       operation: operation.type,
       parametres: operation as unknown as Record<string, unknown>,
@@ -368,6 +378,16 @@ export async function appliquerProposition(
     );
   }
 
+  // Une proposition de contrainte suit le même chemin — verrou, empreinte,
+  // écriture et statut dans une transaction — mais ne relit pas une séance.
+  if (proposition.sujet === "contrainte") {
+    return appliquerSurContrainte(userId, proposition);
+  }
+
+  if (!proposition.seanceTemplateId) {
+    throw new PropositionRefusee("Cette proposition ne désigne aucune séance.", 500);
+  }
+  const seanceTemplateId = proposition.seanceTemplateId;
   const operation = proposition.parametres as unknown as Operation;
 
   try {
@@ -379,12 +399,12 @@ export async function appliquerProposition(
         .select({ id: exerciseInTemplate.id })
         .from(exerciseInTemplate)
         .where(and(
-          eq(exerciseInTemplate.seanceTemplateId, proposition.seanceTemplateId),
+          eq(exerciseInTemplate.seanceTemplateId, seanceTemplateId),
           isNull(exerciseInTemplate.archiveLe),
         ))
         .for("update");
 
-      const cible = await lireCible(userId, proposition.seanceTemplateId, tx);
+      const cible = await lireCible(userId, seanceTemplateId, tx);
       if (!cible) throw new PropositionRefusee("Cette séance a été supprimée.", 404);
 
       if (empreinteDe(cible.lignes) !== proposition.empreinte) {
@@ -397,14 +417,14 @@ export async function appliquerProposition(
       const projection = projeter(cible.lignes, operation, (id) => machines.get(id) ?? null);
       if (projection.refus) throw new PropositionRefusee(projection.refus, 422);
 
-      await ecrire(tx, proposition.seanceTemplateId, cible.lignes, projection.lignes);
+      await ecrire(tx, seanceTemplateId, cible.lignes, projection.lignes);
       await PANNES.apresMutation?.();
 
       // Relecture de ce qui vient d'être écrit, DANS la transaction : c'est
       // l'état réel, visible d'ici seulement, et pas la projection. Une
       // écriture qui produirait autre chose que ce qui a été montré se voit
       // maintenant, tant qu'il est encore possible de tout annuler.
-      const apres = await lireCible(userId, proposition.seanceTemplateId, tx);
+      const apres = await lireCible(userId, seanceTemplateId, tx);
       if (!apres) throw new PropositionRefusee("Séance illisible après application.", 500);
 
       await PANNES.pendantValidation?.();
@@ -547,5 +567,200 @@ async function ecrire(
         updatedAt: maintenant,
       })
       .where(eq(exerciseInTemplate.id, l.id));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Le second sujet : les contraintes physiques
+// ---------------------------------------------------------------------------
+
+/**
+ * Prépare une proposition qui porte sur une contrainte.
+ *
+ * Même contrat que pour une séance : rien n'est écrit, l'aperçu est construit
+ * par le serveur, et une empreinte fige la situation. Ce qu'elle fige ici,
+ * c'est l'état des contraintes de cette zone — si l'athlète en déclare une
+ * entre-temps, la proposition devient fausse et sera refusée.
+ */
+export async function preparerPropositionContrainte(entrees: {
+  userId: string;
+  operation: OperationContrainte;
+  conversationId?: string | null;
+}): Promise<PropositionPreparee> {
+  const { userId, operation } = entrees;
+  const date = new Date().toISOString().slice(0, 10);
+  const actives = await contraintesActives(userId, db, date);
+
+  let muscle: string;
+  let apercu: Apercu;
+  let contrainteId: string | null = null;
+
+  if (operation.type === "creer_contrainte") {
+    const canonique = versMuscle(operation.muscle);
+    if (!canonique) {
+      throw new PropositionRefusee(`Zone « ${operation.muscle} » inconnue du référentiel.`, 422);
+    }
+    if (actives.some((c) => c.muscle === canonique)) {
+      throw new PropositionRefusee(
+        "Une contrainte est déjà active sur cette zone. Propose plutôt de l'ajuster ou de la lever.",
+        422,
+      );
+    }
+    const severite = severiteRecevable(operation.severite);
+    if (severite === null) {
+      throw new PropositionRefusee(
+        `La sévérité doit tenir entre ${SEVERITE.minimum} et ${SEVERITE.maximum}.`,
+        422,
+      );
+    }
+    muscle = canonique;
+    apercu = apercuCreation({
+      libelleMuscle: libelleMuscle(canonique),
+      severite,
+      // Une contrainte proposée par le coach porte toujours une échéance : il
+      // ne peut pas fabriquer une limitation définitive au détour d'un échange.
+      aReevaluerLe: decalerDe(date, REEVALUATION_JOURS),
+    });
+  } else {
+    const cible = actives.find((c) => c.id === operation.contrainteId);
+    if (!cible) {
+      throw new PropositionRefusee("Cette contrainte n'est pas active, ou n'existe pas.", 404);
+    }
+    muscle = cible.muscle;
+    contrainteId = cible.id;
+    apercu = apercuResolution({
+      libelleMuscle: libelleMuscle(cible.muscle),
+      severite: cible.severite,
+      depuis: cible.dateDebut,
+    });
+  }
+
+  const [ligne] = await db
+    .insert(coachPropositions)
+    .values({
+      userId,
+      conversationId: entrees.conversationId ?? null,
+      sujet: "contrainte",
+      seanceTemplateId: null,
+      contrainteId,
+      operation: operation.type,
+      parametres: operation as unknown as Record<string, unknown>,
+      avant: actives.filter((c) => c.muscle === muscle),
+      apres: [],
+      apercu: apercu as unknown as Record<string, unknown>,
+      empreinte: empreinteContrainte(muscle, actives),
+    })
+    .returning();
+
+  if (!ligne) throw new PropositionRefusee("Proposition non enregistrée.", 500);
+
+  return {
+    id: ligne.id,
+    seanceTemplateId: "",
+    nomSeance: libelleMuscle(muscle),
+    operation: operation.type as unknown as Operation["type"],
+    apercu,
+    expireLe: new Date(ligne.createdAt.getTime() + BORNES.validiteMinutes * 60_000).toISOString(),
+  };
+}
+
+/**
+ * Applique une proposition de contrainte, confirmée.
+ *
+ * Les mêmes garanties que pour une séance, et pour la même raison : créer ou
+ * lever une contrainte change ce que l'application proposera pendant des
+ * semaines. Verrou sur les contraintes de l'athlète, empreinte revérifiée sur
+ * l'état verrouillé, écriture et statut dans la même transaction.
+ */
+async function appliquerSurContrainte(
+  userId: string,
+  proposition: typeof coachPropositions.$inferSelect,
+): Promise<Application> {
+  const operation = proposition.parametres as unknown as OperationContrainte;
+  const date = new Date().toISOString().slice(0, 10);
+
+  try {
+    return await db.transaction(async (tx) => {
+      await tx
+        .select({ id: contraintes.id })
+        .from(contraintes)
+        .where(eq(contraintes.userId, userId))
+        .for("update");
+
+      const actives = await contraintesActives(userId, tx, date);
+      const muscle =
+        operation.type === "creer_contrainte"
+          ? versMuscle(operation.muscle)
+          : actives.find((c) => c.id === operation.contrainteId)?.muscle ?? null;
+
+      if (!muscle) {
+        throw new PropositionRefusee(
+          "Cette contrainte n'est plus active : elle a peut-être déjà été levée.",
+        );
+      }
+
+      if (empreinteContrainte(muscle, actives) !== proposition.empreinte) {
+        throw new PropositionRefusee(
+          "Tes contraintes ont changé depuis cette proposition. Redemande-la au coach.",
+        );
+      }
+
+      let apercu = proposition.apercu as unknown as Apercu;
+
+      if (operation.type === "creer_contrainte") {
+        const severite = severiteRecevable(operation.severite);
+        if (severite === null) throw new PropositionRefusee("Sévérité hors bornes.", 422);
+
+        await tx.insert(contraintes).values({
+          userId,
+          muscle,
+          type: "zone_sensible",
+          severite,
+          notes: operation.notes ?? null,
+          dateDebut: date,
+          dateFin: null,
+          aReevaluerLe: decalerDe(date, REEVALUATION_JOURS),
+          origine: "coach",
+        });
+      } else {
+        const cible = actives.find((c) => c.id === operation.contrainteId)!;
+        const transition = reevaluer(cible, "resolu", date);
+        await tx
+          .update(contraintes)
+          .set({
+            dateFin: transition.dateFin,
+            aReevaluerLe: transition.aReevaluerLe,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(contraintes.id, cible.id), eq(contraintes.userId, userId)));
+        apercu = { ...apercu, resume: `${apercu.resume} ${transition.resume}` };
+      }
+
+      await tx
+        .update(coachPropositions)
+        .set({
+          statut: "appliquee",
+          decideLe: new Date(),
+          resultat: { apercu: apercu as unknown as Record<string, unknown> },
+        })
+        .where(eq(coachPropositions.id, proposition.id));
+
+      await PANNES.avantCommit?.();
+      return { id: proposition.id, apercu, avertissements: [] };
+    });
+  } catch (erreur) {
+    const raison =
+      erreur instanceof PropositionRefusee
+        ? erreur.raison
+        : erreur instanceof Error
+          ? erreur.message
+          : String(erreur);
+    const encore = await db.query.coachPropositions.findFirst({
+      where: eq(coachPropositions.id, proposition.id),
+    });
+    if (encore?.statut === "en_attente") {
+      await marquer(proposition.id, "echouee", { raison });
+    }
+    throw erreur;
   }
 }

@@ -463,38 +463,7 @@ différemment. Mais supposer 7/10 d'énergie quand rien n'est saisi revient à
 faire passer le critère `energieDepart >= 7` par défaut : l'absence de réponse
 vaut « bonne journée ». À réévaluer sur données réelles, comme le seuil RPE.
 
-### Contraintes physiques : entrer sans pouvoir sortir
-
-Le modèle actuel : `contraintes(user_id, muscle, type, severite 1-10,
-date_debut, date_fin)`. Écrit uniquement par l'onboarding. Lu par
-`validerSeanceComplete`, `plan-seance` et le profil du coach. **`date_fin`
-n'est jamais écrite par aucun chemin** — seulement lue. Au-delà de
-`SEVERITE_ECARTEMENT` (7), l'exercice est écarté au lieu d'être allégé.
-
-Conséquence : une gêne déclarée un jour exclut un mouvement pour toujours, et
-la seule sortie est le SQL.
-
-*Recommandation pour un chantier dédié* — ne pas se contenter d'ajouter un
-bouton « supprimer » :
-
-1. **Distinguer la gêne de la blessure.** `type` le permet déjà
-   (`zone_sensible` / `douleur` / `blessure`) mais rien n'en tire de
-   conséquence sur la durée. Une gêne devrait porter une échéance courte à la
-   création, une blessure non.
-2. **Faire décroître, pas disparaître.** Une sévérité qui ne bouge jamais est
-   invraisemblable. Un point de contrôle — « ton épaule, ça va mieux ? » posé
-   après quelques séances sur le muscle concerné — met à jour la sévérité et,
-   sous un seuil, écrit `date_fin`.
-3. **Rendre la sortie visible.** Les contraintes actives doivent s'afficher
-   quelque part (l'écran Plus), avec leur date de début, et pouvoir être
-   levées à la main.
-4. **Ne jamais laisser le coach en créer directement.** Une douleur mentionnée
-   en conversation devient une *proposition* de contrainte, confirmée par
-   l'athlète — le chemin construit dans le chantier précédent s'applique tel
-   quel.
-
-Tant que 1 et 2 n'existent pas, exposer la création au coach fabriquerait des
-exclusions permanentes : c'est pourquoi elle est restée hors périmètre.
+### Contraintes physiques — traité, voir § 12
 
 ### Base de données
 
@@ -521,3 +490,63 @@ l'extérieur avec `CRON_SECRET` : elles ne sont pas mortes.
 
 `/api/export/route.ts` importe `exerciseInTemplate` sans jamais s'en servir :
 l'export ne contient pas le programme.
+
+---
+
+## 12. Cycle de vie des contraintes physiques
+
+**Statut :** chantier fait. Ce qui suit est ce qu'il laisse de côté.
+
+### Ce que le modèle ne distingue toujours pas
+
+- **Le côté.** Une gêne porte sur `epaules`, pas sur l'épaule droite. Ajouter
+  une latéralité demanderait de la propager aux exercices, qui n'en ont pas
+  non plus. Disproportionné tant que rien ne l'exploite.
+- **L'articulation.** Le référentiel ne connaît que des muscles. « Douleur au
+  coude » se range donc sous `triceps` ou `avant_bras`, ce qui est
+  approximatif — mais reste proportionné à ce que l'application sait faire.
+- **L'antécédent.** Une contrainte levée reste dans l'historique et le coach
+  peut la relire, mais rien ne pondère une gêne qui revient pour la troisième
+  fois. `suiteASignalement` regarde les incidents, pas les contraintes
+  passées. À faire quand il y aura de quoi mesurer si ça vaut le coup.
+
+### L'effet réel d'une contrainte est plus faible que son nom ne le dit
+
+Découvert pendant l'audit : `resoudrePourSalle` renvoie « identique » **avant**
+de regarder les muscles à ménager. Un exercice prévu et disponible dans la
+salle du jour est donc conservé, même sous contrainte sévère. Le filtre ne
+s'applique qu'au choix d'un **remplaçant**.
+
+Concrètement, une contrainte à 7/10 :
+- fait lever une anomalie bloquante au validateur (coach, adaptation de lieu,
+  propositions) ;
+- empêche de choisir un remplaçant sur cette zone ;
+- écarte la zone de la calibration à partir de 6 ;
+- **mais ne retire pas l'exercice déjà programmé de la séance du jour.**
+
+Ce n'est pas corrigé ici : le faire changerait ce que l'application propose
+sans que ce chantier l'ait demandé, et l'écart est désormais écrit noir sur
+blanc dans `SEVERITE.ecartement`. À trancher séparément — soit le retrait
+devient réel, soit le vocabulaire cesse de parler d'écartement.
+
+### Le signalement en séance n'a pas encore d'écran
+
+`verdictSignalement` existe, est testé, et sait dire si une gêne mérite une
+proposition. Mais rien dans l'écran de séance ne l'appelle : le seul chemin
+d'entrée d'une contrainte reste l'onboarding, le coach, ou l'écran des
+contraintes. Le bouton « signaler une gêne » pendant la séance reste à
+construire — c'est de l'interface, pas du modèle, et le modèle est prêt.
+
+### Seuils à réévaluer sur données réelles
+
+Comme le seuil RPE de 60 % : `REEVALUATION_JOURS` (14),
+`INTENSITE_PROPOSITION_IMMEDIATE` (7), `FENETRE_REPETITION_JOURS` (21) et
+`BAISSE_SI_MIEUX` (3) sont des valeurs choisies, pas mesurées. Elles sont
+toutes dans `lib/engine/contraintes.ts`, nommées, et aucune n'est dupliquée.
+
+### Le cas où deux gênes se suivent sur la même zone
+
+Une contrainte active bloque la proposition d'une seconde sur la même zone
+(`deja_couvert`). Si la gêne s'aggrave, il n'y a aucun chemin pour monter la
+sévérité — il faut lever puis recréer. Peu fréquent, et l'inverse (une
+aggravation qui s'écrit toute seule) serait pire.

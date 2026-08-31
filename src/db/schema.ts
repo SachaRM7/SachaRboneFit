@@ -464,8 +464,26 @@ export const contraintes = pgTable("contraintes", {
   severite: integer("severite").notNull(),
   notes: text("notes"),
   dateDebut: date("date_debut").notNull(),
-  /** Nulle tant que la contrainte est active. */
+  /**
+   * Dernier jour où la contrainte s'applique. Nulle tant qu'elle vaut.
+   *
+   * La colonne existait depuis le début et n'était écrite par AUCUN chemin :
+   * seulement lue. Une gêne déclarée un jour valait donc pour toujours, et la
+   * seule sortie passait par le SQL. C'est elle qui porte désormais la
+   * résolution.
+   */
   dateFin: date("date_fin"),
+  /**
+   * Jour où reposer la question.
+   *
+   * Ce n'est pas une date de guérison — l'application n'en sait rien. C'est le
+   * moment où elle redemande « est-ce toujours le cas ? ». Nulle veut dire :
+   * ne plus demander, parce que l'athlète a déclaré une limitation qu'il sait
+   * durable.
+   */
+  aReevaluerLe: date("a_reevaluer_le"),
+  /** 'onboarding' | 'athlete' | 'coach' : d'où vient la ligne. */
+  origine: text("origine").notNull().default("athlete"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -523,8 +541,18 @@ export const coachPropositions = pgTable("coach_propositions", {
   userId: uuid("user_id").references(() => users.id).notNull(),
   /** La conversation d'où elle vient, pour l'afficher au bon endroit. */
   conversationId: uuid("conversation_id").references(() => coachConversations.id),
-  /** Séance programmée visée. Le périmètre actuel s'arrête à cet objet. */
-  seanceTemplateId: uuid("seance_template_id").references(() => seanceTemplates.id).notNull(),
+  /**
+   * De quoi parle la proposition : 'seance' ou 'contrainte'.
+   *
+   * Un second sujet plutôt qu'un second mécanisme. L'aperçu, l'empreinte, la
+   * péremption et l'application atomique valent pour les deux ; seule change
+   * la chose qu'on relit et qu'on écrit.
+   */
+  sujet: text("sujet").notNull().default("seance"),
+  /** Séance programmée visée, pour les propositions de sujet 'seance'. */
+  seanceTemplateId: uuid("seance_template_id").references(() => seanceTemplates.id),
+  /** Contrainte visée, pour une résolution. Nulle pour une création. */
+  contrainteId: uuid("contrainte_id").references(() => contraintes.id),
   /** 'remplacer_exercice' | 'ajuster_volume' | 'ajouter_exercice' | 'retirer_exercice' */
   operation: text("operation").notNull(),
   /** L'opération telle que le serveur l'a retenue, identifiants vérifiés. */

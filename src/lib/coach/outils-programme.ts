@@ -5,6 +5,7 @@ import { and, eq, gte, desc, isNull } from "drizzle-orm";
 import { versMuscle, MUSCLES, type Muscle } from "@/lib/referentiels/muscles";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
 import { semainesSansDeload } from "@/services/progression";
+import { contraintesActives } from "@/services/contraintes";
 /**
  * `mesurerCycle` vit desormais dans les services : l'ecran Programme en a
  * besoin des memes mesures, et le laisser ici aurait impose soit d'importer
@@ -296,10 +297,7 @@ async function validerProposition(p: Record<string, unknown>, userId: string): P
     courbaturesDuJour(userId),
   ]);
 
-  const contraintesActives = await db.query.contraintes.findMany({
-    where: (c, { and, eq, isNull }) => and(eq(c.userId, userId), isNull(c.dateFin)),
-  });
-  const contraintes: ContrainteMuscle[] = contraintesActives.map((c) => ({
+  const contraintes: ContrainteMuscle[] = (await contraintesActives(userId)).map((c) => ({
     muscle: c.muscle,
     severite: c.severite,
   }));

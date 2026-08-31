@@ -5,6 +5,8 @@ import {
 } from "@/db/schema";
 import { and, asc, desc, eq, isNull, or, gte } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
+import { contraintesActives } from "./contraintes";
+import { musclesSousContrainte } from "@/lib/engine/contraintes";
 import { computeVolumeAdjustment } from "@/lib/engine/volume-adjustment";
 import { applyVolumeAdjustment, type ExerciseInTemplateWithDetails } from "@/lib/engine/apply-adjustment";
 import { computeNextSets } from "@/lib/engine/double-progression";
@@ -50,17 +52,18 @@ export interface ResultatConstruction {
 }
 
 /** Muscles a menager : courbatures fortes du jour + contraintes actives. */
-async function musclesAMenager(userId: string, etat: DailyStateInput | null): Promise<string[]> {
-  const contraintesActives = await db.query.contraintes.findMany({
-    where: and(
-      eq(contraintes.userId, userId),
-      or(isNull(contraintes.dateFin), gte(contraintes.dateFin, new Date().toISOString().slice(0, 10))),
-    ),
-  });
-
-  const depuisContraintes = contraintesActives
-    .filter((c) => c.severite >= 7)
-    .map((c) => c.muscle);
+async function musclesAMenager(
+  userId: string,
+  etat: DailyStateInput | null,
+  date = new Date().toISOString().slice(0, 10),
+): Promise<string[]> {
+  // Le seuil était écrit ici à la main, et la définition d'« active » était
+  // celle de ce fichier seulement : trois autres lectures exigeaient
+  // `date_fin IS NULL`, donc une contrainte datée pour la semaine prochaine
+  // était active ici et terminée ailleurs. Les deux viennent maintenant du
+  // même endroit.
+  const actives = await contraintesActives(userId, db, date);
+  const depuisContraintes = musclesSousContrainte(actives, date);
 
   const depuisCourbatures = (etat?.courbatures ?? [])
     .filter((c) => c.intensite > 7)

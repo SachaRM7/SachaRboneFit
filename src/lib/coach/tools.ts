@@ -6,7 +6,10 @@ import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCr
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { DEFINITIONS_CONTEXTE, EXECUTEURS_CONTEXTE } from "./outils-contexte";
 import { DEFINITIONS_PROGRAMME, EXECUTEURS_PROGRAMME } from "./outils-programme";
-import { DEFINITIONS_ECRITURE, EXECUTEURS_ECRITURE } from "./outils-ecriture";
+import {
+  DEFINITIONS_ECRITURE, EXECUTEURS_ECRITURE,
+  DEFINITIONS_CONTRAINTES, EXECUTEURS_CONTRAINTES,
+} from "./outils-ecriture";
 import { seanceCourante } from "@/services/seances";
 
 export interface CoachTool {
@@ -442,9 +445,11 @@ export function createCoachTools(): CoachToolSet {
   return {
     definitions: [
       ...definitions, ...DEFINITIONS_CONTEXTE, ...DEFINITIONS_PROGRAMME, ...DEFINITIONS_ECRITURE,
+      ...DEFINITIONS_CONTRAINTES,
     ],
     executors: {
       ...executors, ...EXECUTEURS_CONTEXTE, ...EXECUTEURS_PROGRAMME, ...EXECUTEURS_ECRITURE,
+      ...EXECUTEURS_CONTRAINTES,
     },
   };
 }

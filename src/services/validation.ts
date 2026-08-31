@@ -5,6 +5,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { validerSeance, type ExercicePropose, type ContrainteMuscle, type ResultatValidation } from "@/lib/engine/validation-seance";
 import { validerImpactSemaine, type ResultatSemaine } from "@/lib/engine/validation-semaine";
 import { versMuscle } from "@/lib/referentiels/muscles";
+import { contraintesActives } from "./contraintes";
 import {
   activiteMusculaire,
   etatMusclesDepuis,
@@ -147,20 +148,20 @@ export async function validerSeanceComplete(entrees: {
     };
   });
 
-  const [activite, activiteSemaine, cycle, courbatures, contraintesActives] = await Promise.all([
+  const [activite, activiteSemaine, cycle, courbatures, actives] = await Promise.all([
     activiteMusculaire(userId, 21, executeur),
     activiteMusculaire(userId, 7, executeur),
     mesurerCycle(userId, executeur),
     courbaturesDuJour(userId, executeur),
-    executeur.query.contraintes.findMany({
-      where: and(eq(contraintes.userId, userId), isNull(contraintes.dateFin)),
-    }),
+    // Même définition d'« active » que le constructeur de séance : une
+    // contrainte datée pour plus tard court encore.
+    contraintesActives(userId, executeur),
   ]);
 
   const seriesSemaineParMuscle: Record<string, number> = {};
   for (const [muscle, a] of activiteSemaine) seriesSemaineParMuscle[muscle] = Math.round(a.series);
 
-  const contraintesMuscle: ContrainteMuscle[] = contraintesActives.map((c) => ({
+  const contraintesMuscle: ContrainteMuscle[] = actives.map((c) => ({
     muscle: c.muscle,
     severite: c.severite,
   }));

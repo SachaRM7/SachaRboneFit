@@ -12,6 +12,8 @@ import {
   contraintes,
 } from "@/db/schema";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { contraintesActives } from "@/services/contraintes";
+import { SEVERITE, musclesSousContrainte } from "@/lib/engine/contraintes";
 import { detailErreur } from "@/lib/erreurs";
 import { planCalibration, type MachineDisponible } from "@/lib/engine/plan-calibration";
 import { exercicesRealisables } from "@/lib/engine/disponibilite";
@@ -119,9 +121,7 @@ export async function POST(request: Request) {
     }));
     const aCreer = new Map(realisables.filter((r) => !r.instanceId).map((r) => [r.exerciceId, r]));
 
-    const zonesSensibles = await db.query.contraintes.findMany({
-      where: and(eq(contraintes.userId, userId), isNull(contraintes.dateFin)),
-    });
+    const zonesSensibles = await contraintesActives(userId);
 
     const plan = planCalibration({
       machines,
@@ -132,10 +132,15 @@ export async function POST(request: Request) {
       preferenceMateriel: profil?.preferenceMateriel ?? undefined,
       // Une contrainte sévère écarte le muscle ; une gêne légère ne justifie pas
       // de ne jamais le mesurer.
-      musclesSensibles: zonesSensibles
-        .filter((c) => (c.severite ?? 0) >= 6)
-        .map((c) => c.muscle)
-        .filter((m): m is string => Boolean(m)),
+      // Le seuil vivait ici en clair, à 6, quand les deux autres lectures
+      // utilisaient 7 : la calibration écartait une zone que le validateur de
+      // séance acceptait. Les deux valeurs sont conservées telles quelles,
+      // mais elles portent enfin un nom au même endroit.
+      musclesSensibles: musclesSousContrainte(
+        zonesSensibles,
+        new Date().toISOString().slice(0, 10),
+        SEVERITE.calibrationEvitee,
+      ),
     });
 
     // Rien n'a encore été dit de ce lieu : construire une séance de pompes pour

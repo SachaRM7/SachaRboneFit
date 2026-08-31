@@ -1,6 +1,7 @@
 import { versMuscle, type Muscle } from "@/lib/referentiels/muscles";
 import { scoreRecuperation, seuilDePhase, type EntreeRecuperation } from "./recuperation";
 import type { PhaseCycle } from "./etat-cycle";
+import { SEVERITE } from "./contraintes";
 
 /**
  * Contrôle déterministe d'une séance proposée.
@@ -80,8 +81,14 @@ export interface ContexteValidation {
   musclesAttendus?: string[];
 }
 
-/** Au-delà, la contrainte écarte le muscle au lieu de l'alléger. */
-const SEVERITE_ECARTEMENT = 7;
+/**
+ * Au-delà, la contrainte écarte le muscle au lieu de l'alléger.
+ *
+ * La valeur vit désormais avec les autres seuils de contrainte : elle était
+ * ici, réécrite à la main dans le constructeur de séance, et à 6 dans la
+ * calibration.
+ */
+const SEVERITE_ECARTEMENT = SEVERITE.ecartement;
 
 /** Durée d'une série, temps sous tension inclus, hors repos. */
 const SECONDES_PAR_SERIE = 45;
