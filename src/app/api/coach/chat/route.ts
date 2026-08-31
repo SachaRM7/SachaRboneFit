@@ -8,6 +8,8 @@ import { loadCoachContext } from "@/lib/coach/context-loader";
 import { buildSystemPrompt } from "@/lib/coach/system-prompt";
 import { appelerLLM, CoachIndisponible, type AppelOutil, type MessageLLM } from "@/lib/coach/llm-client";
 import { createCoachTools } from "@/lib/coach/tools";
+import { contexteValide } from "@/lib/coach/contexte-ecran";
+import { resoudreContexte } from "@/services/contexte-coach";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +18,12 @@ const schema = z.object({
   conversationId: z.string().uuid().nullable().optional(),
   message: z.string().trim().min(1).max(4000),
   sessionLogId: z.string().uuid().nullable().optional(),
+  /**
+   * Désignation de l'écran d'où la question est posée. Une désignation, jamais
+   * des données : le serveur les résout lui-même depuis la session
+   * authentifiée. Tout champ inattendu est ignoré par `contexteValide`.
+   */
+  contexte: z.unknown().nullable().optional(),
 });
 
 /** Au-delà, on arrête la boucle : le modèle tourne en rond. */
@@ -42,6 +50,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Message invalide" }, { status: 400 });
   }
   const { conversationId, message, sessionLogId } = parsed.data;
+  const contexteEcran = contexteValide(parsed.data.contexte);
 
   // --- Conversation ---
   let convId = conversationId ?? null;
@@ -63,8 +72,9 @@ export async function POST(request: Request) {
   await db.insert(coachMessages).values({ conversationId: convId, role: "user", content: message });
 
   // --- Contexte et historique ---
-  const [contexte, historique] = await Promise.all([
+  const [contexte, contexteDeLEcran, historique] = await Promise.all([
     loadCoachContext(userId),
+    resoudreContexte(userId, contexteEcran),
     db.query.coachMessages.findMany({
       where: eq(coachMessages.conversationId, convId),
       orderBy: [asc(coachMessages.createdAt)],
@@ -78,11 +88,17 @@ export async function POST(request: Request) {
 
   const outils = createCoachTools();
 
+  // Le contexte d'écran s'ajoute au prompt plutôt qu'au message : c'est une
+  // situation, pas une question de l'utilisateur.
+  const promptComplet = contexteDeLEcran
+    ? `${buildSystemPrompt(contexte)}\n\n## Écran en cours\n${contexteDeLEcran}`
+    : buildSystemPrompt(contexte);
+
   try {
     const resultatsOutils: Array<{ appel: AppelOutil; resultat: string }> = [];
     let reponse = await appelerLLM({
       messages,
-      system: buildSystemPrompt(contexte),
+      system: promptComplet,
       outils: outils.definitions,
     });
 
@@ -102,7 +118,7 @@ export async function POST(request: Request) {
 
       reponse = await appelerLLM({
         messages,
-        system: buildSystemPrompt(contexte),
+        system: promptComplet,
         outils: outils.definitions,
         resultatsOutils,
       });

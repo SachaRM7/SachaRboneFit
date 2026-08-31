@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { X, Send, Plus, ChevronLeft } from "lucide-react";
+import { useCoach } from "./ContexteCoach";
+import { amorce, suggestions } from "@/lib/coach/contexte-ecran";
 
 interface Message {
   id: string;
@@ -20,6 +22,7 @@ interface ConversationPreview {
 }
 
 export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { contexte } = useCoach();
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   /**
@@ -41,13 +44,15 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
   useEffect(() => {
     if (!open) return;
-    // Rouvrir le tiroir repart de la liste : rester dans une conversation
-    // fermée la veille n'a pas de sens.
-    setVue("liste");
     setActiveConvId(null);
     setMessages([]);
+    // Une intention déclarée par un bouton de l'application ouvre directement
+    // la conversation : passer par la liste ferait perdre le fil. Sans
+    // intention, on repart de la liste — rester dans une conversation fermée
+    // la veille n'a pas de sens.
+    setVue(contexte?.sujet ? "conversation" : "liste");
     loadConversations();
-  }, [open]);
+  }, [open, contexte?.sujet]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -95,11 +100,12 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
     loadConversations();
   }
 
-  async function handleSend() {
-    if (!input.trim() || loading) return;
+  async function handleSend(messageImpose?: string) {
+    const brut = messageImpose ?? input;
+    if (!brut.trim() || loading) return;
 
-    const userMessage = input.trim();
-    setInput("");
+    const userMessage = brut.trim();
+    if (!messageImpose) setInput("");
     setLoading(true);
     setErreur(null);
 
@@ -118,7 +124,13 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
       const res = await fetch("/api/coach/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ conversationId: activeConvId, message: userMessage }),
+        // Une désignation, pas des données : le serveur résout lui-même ce que
+        // l'écran affiche, depuis la session authentifiée.
+        body: JSON.stringify({
+          conversationId: activeConvId,
+          message: userMessage,
+          contexte,
+        }),
       });
 
       if (!res.ok) {
@@ -148,7 +160,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
       // sous les yeux de l'utilisateur, sans que rien n'explique pourquoi.
       console.error("Failed to send message:", e);
       setErreur(e instanceof Error ? e.message : "Le coach n'a pas répondu");
-      setInput(userMessage);
+      if (!messageImpose) setInput(userMessage);
       setMessages((prev) => prev.slice(0, -1));
     } finally {
       setLoading(false);
@@ -241,11 +253,25 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                 </p>
               )}
 
+              {/* L'amorce nomme ce qu'on regardait ; les suggestions ouvrent
+                  sur ce qu'on peut demander depuis là. Rien n'est envoyé tant
+                  que l'utilisateur n'a rien touché. */}
               {messages.length === 0 && !loading && !erreur && (
-                <p className="px-4 pt-6 text-encre-3 text-sm text-center">
-                  Pose ta question — le coach a accès à tes séances, ton état du jour
-                  et aux machines de ta salle.
-                </p>
+                <div className="px-4 pt-5 space-y-3">
+                  <p className="text-encre text-sm">{amorce(contexte)}</p>
+                  <div className="flex flex-col gap-2">
+                    {suggestions(contexte).map((s) => (
+                      <button
+                        key={s.libelle}
+                        type="button"
+                        onClick={() => void handleSend(s.message)}
+                        className="text-left rounded-xl border border-filet bg-carte px-3 py-2.5 text-encre-2 text-sm"
+                      >
+                        {s.libelle}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
 
               <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
@@ -285,13 +311,13 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSend()}
+                onKeyDown={(e) => e.key === "Enter" && void handleSend()}
                 placeholder="Message au coach..."
                 className="flex-1 bg-carte border border-filet rounded-full px-4 py-2 text-sm text-encre placeholder:text-encre-3 focus:outline-none focus:border-filet"
                 disabled={loading}
               />
               <Button
-                onClick={handleSend}
+                onClick={() => void handleSend()}
                 disabled={loading || !input.trim()}
                 className="w-12 h-12 rounded-full bg-encre text-papier hover:bg-filet p-0"
               >

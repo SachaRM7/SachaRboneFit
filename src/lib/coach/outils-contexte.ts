@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { verdictMemoire } from "./memoire-durable";
 import { positionDuBloc } from "@/services/cycle";
 import { users, gyms, exercises, exerciseInstances, dailyStates, coachMemoires } from "@/db/schema";
 import { and, eq, desc, isNull, inArray } from "drizzle-orm";
@@ -295,6 +296,18 @@ async function memoriser(p: Record<string, unknown>, userId: string): Promise<To
   if (!observation) return echec("observation manquante");
   if (!categorie || !CATEGORIES.includes(categorie)) {
     return echec(`categorie doit valoir : ${CATEGORIES.join(", ")}`);
+  }
+
+  // Une consigne dans la description de l'outil n'est pas une garantie : un
+  // fait ponctuel pouvait s'enregistrer comme préférence durable, puis être
+  // relu des mois plus tard comme un trait de l'athlète.
+  const dejaRetenues = await db.query.coachMemoires.findMany({
+    where: and(eq(coachMemoires.userId, userId), isNull(coachMemoires.invalideeLe)),
+    columns: { observation: true },
+  });
+  const verdict = verdictMemoire(observation, dejaRetenues.map((m) => m.observation));
+  if (!verdict.retenue) {
+    return ok(JSON.stringify({ enregistre: false, raison: verdict.raison }));
   }
 
   const motsCles = Array.isArray(p.motsCles)

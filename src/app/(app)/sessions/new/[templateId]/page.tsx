@@ -1,4 +1,5 @@
 "use client";
+import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -231,6 +232,9 @@ function ContenuSeanceLive() {
 
   return (
     <div className="min-h-screen bg-papier pb-40" onPointerDown={interaction}>
+      {/* Déclaré pour que l'entrée du coach s'efface : pendant la séance, ce
+          sont les actions immédiates de la barre SOS qui servent. */}
+      <DeclarerContexte ecran="seance" />
       <header className="sticky top-0 z-20 bg-papier border-b border-filet px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">

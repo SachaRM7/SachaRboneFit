@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ServiceWorkerRegister } from "@/components/layout/ServiceWorkerRegister";
 import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
-import { CoachFAB } from "@/components/coach/CoachFAB";
+import { FournisseurCoach } from "@/components/coach/ContexteCoach";
+import { BoutonCoach } from "@/components/coach/BoutonCoach";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
@@ -28,12 +29,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!profil?.onboardingTermineLe) redirect("/bienvenue");
 
   return (
-    <>
+    <FournisseurCoach>
       <ServiceWorkerRegister />
       <OfflineIndicator />
       <main className="pb-20">{children}</main>
       <BottomNav />
-      <CoachFAB />
-    </>
+      <BoutonCoach />
+    </FournisseurCoach>
   );
 }

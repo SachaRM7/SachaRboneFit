@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useCoach, DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { useState } from "react";
 import { ChevronRight, Info, Sparkles, Wrench } from "lucide-react";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
@@ -73,15 +74,19 @@ function EtatVide({ titre, texte, lien, action }: { titre: string; texte: string
 
 export function VueCycle({ vue }: { vue: VueProgramme }) {
   const [pourquoiOuvert, setPourquoiOuvert] = useState(false);
+  const { ouvrir } = useCoach();
 
   if (!vue.cycle) {
     return (
+      <>
+      <DeclarerContexte ecran="programme" />
       <EtatVide
         titre="Ton point de départ est prêt"
         texte="Il ne me manque plus qu'un premier bloc pour te proposer des séances. La calibration mesurera tes charges avant de construire quoi que ce soit."
         lien="/dashboard"
         action="Préparer mes séances"
       />
+      </>
     );
   }
 
@@ -90,6 +95,8 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
 
   return (
     <div className="space-y-6">
+      <DeclarerContexte ecran="programme" typeEntite="bloc" entiteId={cycle.id} />
+
       {/* ---------------------------------------------------------------- */}
       <section className="space-y-2">
         <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">Mon programme</h2>
@@ -247,12 +254,13 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
                 "Les signaux récents vont dans ce sens"}
               . Rien n&apos;est modifié : c&apos;est à toi de décider.
             </p>
-            <Link
-              href="/coach?sujet=decharge"
+            <button
+              type="button"
+              onClick={() => ouvrir("decharge")}
               className="block w-full h-11 rounded-xl border border-filet text-encre text-sm font-medium grid place-items-center"
             >
               En parler au coach
-            </Link>
+            </button>
           </div>
         </section>
       )}
@@ -265,12 +273,13 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
           {vue.ajustements.slice(0, 2).map((a) => (
             <div key={a.message} className="rounded-xl border border-filet bg-carte p-4 space-y-2">
               <p className="text-encre-2 text-sm leading-snug">{a.message}</p>
-              <Link
-                href="/coach?sujet=programme"
+              <button
+                type="button"
+                onClick={() => ouvrir("materiel")}
                 className="block w-full h-11 rounded-xl border border-filet text-encre text-sm font-medium grid place-items-center"
               >
                 Voir la proposition
-              </Link>
+              </button>
             </div>
           ))}
         </section>
@@ -278,12 +287,13 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
 
       {/* ---------------------------------------------------------------- */}
       <section className="space-y-2">
-        <Link
-          href="/coach?sujet=programme"
+        <button
+          type="button"
+          onClick={() => ouvrir("modifier_programme")}
           className="block w-full h-12 rounded-xl bg-encre text-papier font-semibold grid place-items-center"
         >
           Modifier avec le coach
-        </Link>
+        </button>
         <p className="text-encre-3 text-xs text-center">
           « Je ne peux plus venir le mercredi », « je veux réduire à 3 séances »… Rien n&apos;est
           appliqué sans ta confirmation.

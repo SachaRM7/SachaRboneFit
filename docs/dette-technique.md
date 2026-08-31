@@ -93,12 +93,11 @@ des deux calculs a servi : c'est la donnée qui permettra de trancher.
 
 Issus de la spécification d'usage, non encore repris :
 
-- bouton flottant du coach (§22/23) ;
 - écran « Plus » (§25) ;
 - passe de microcopie (§28).
 
-Traités depuis : le retour de fin de séance (§13) et la représentation du
-cycle (§17).
+Traités depuis : le retour de fin de séance (§13), la représentation du
+cycle (§17) et le coach contextuel (§22/23).
 
 ---
 
@@ -188,3 +187,44 @@ signalée). L'ancienneté seule n'affiche rien.
 recommandée » de « décharge à planifier ». Le changer affecterait les alertes,
 qui consomment `computeAlerts` — d'où le choix de filtrer en aval pour
 l'instant.
+
+---
+
+## 6. Coach : ce qui reste après §22/23
+
+**Statut :** contourné ou volontairement laissé de côté.
+
+### Propositions structurelles sans application automatique
+
+Aucun outil du coach n'applique aujourd'hui un changement structurel de
+programme : il n'existe ni `modifier_programme`, ni `changer_frequence`. Le
+coach peut donc PROPOSER par écrit, et rien ne s'applique — la garantie est
+obtenue par absence d'outil, pas par un mécanisme de confirmation.
+
+*Conséquence :* le parcours demandé « [Voir les changements] [Appliquer]
+[Garder le programme] » n'existe pas. Il n'a pas été construit parce qu'il
+suppose d'abord des outils d'écriture qu'il faudrait créer — et créer un outil
+d'écriture avant son garde-fou serait le mauvais ordre. À faire ensemble, dans
+un chantier dédié.
+
+### Écriture réellement possible par le coach
+
+Trois outils écrivent : `log_set`, `end_session`, `log_incident`. Ils portent
+sur la séance en cours, pas sur la structure du programme. `create_coach_memory`
+écrit aussi, désormais filtré par `verdictMemoire`.
+
+### Le contexte d'écran n'est pas transmis aux outils
+
+`resoudreContexte` enrichit le prompt système. Les outils, eux, reçoivent
+seulement `userId` : un outil ne sait pas quel exercice l'utilisateur
+regardait. Suffisant tant que le modèle relaie l'information dans ses
+arguments ; à revoir si un outil doit agir sur « l'exercice courant » sans
+qu'il soit nommé.
+
+### Non vérifié
+
+Le comportement clavier ouvert sur iOS réel. Le rendu a été contrôlé sur
+viewport iPhone 13 (champ et bouton d'envoi à l'écran, cible 48 × 48), mais un
+navigateur sans clavier logiciel ne reproduit pas le redimensionnement du
+`visualViewport`. `dvh` et `env(safe-area-inset-bottom)` sont en place ; à
+confirmer sur un appareil.

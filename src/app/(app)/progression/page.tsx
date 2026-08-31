@@ -7,6 +7,7 @@ import { BodyWeightChart } from "@/components/progression/BodyWeightChart";
 import { Records } from "@/components/progression/Records";
 import { BilanProgression } from "@/components/progression/BilanProgression";
 import type { Bilan } from "@/lib/engine/bilan-progression";
+import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 
 /**
  * Progression.
@@ -84,6 +85,11 @@ export default function ProgressionPage() {
     const active = VUES.find((v) => v.cle === vue)!;
     return (
       <div className="min-h-dvh bg-papier text-encre">
+        <DeclarerContexte
+          ecran="progression"
+          typeEntite={vue === "exercice" && instanceId ? "instance" : null}
+          entiteId={vue === "exercice" && instanceId ? instanceId : null}
+        />
         <header className="sticky top-0 z-10 bg-papier px-4 pt-8 pb-4 flex items-center gap-2">
           <button
             type="button"
@@ -144,6 +150,7 @@ export default function ProgressionPage() {
 
   return (
     <div className="min-h-dvh bg-papier text-encre">
+      <DeclarerContexte ecran="progression" />
       <header className="px-4 pt-8 pb-4">
         <h1 className="text-2xl font-bold">Progression</h1>
         {bilan?.periode && (

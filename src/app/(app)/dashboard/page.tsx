@@ -1,4 +1,5 @@
 "use client";
+import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -97,6 +98,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-papier text-encre">
+      <DeclarerContexte ecran="accueil" />
       {/* Header */}
       <div className="px-4 pt-8 pb-4">
         <h1 className="text-2xl font-bold">Salut {data?.user.nom ?? "Sacha"}</h1>
