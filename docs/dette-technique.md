@@ -93,10 +93,8 @@ des deux calculs a servi : c'est la donnée qui permettra de trancher.
 
 Issus de la spécification d'usage, non encore repris :
 
-- passe de microcopie (§28).
-
-Traités depuis : le retour de fin de séance (§13), la représentation du
-cycle (§17), le coach contextuel (§22/23) et l'écran « Plus » (§25).
+Tous traités : retour de fin de séance (§13), représentation du cycle (§17),
+coach contextuel (§22/23), écran « Plus » (§25), microcopie globale (§28).
 
 **Question de navigation restée ouverte.** Depuis le chantier §17, Programme
 est un écran de plein droit, mais il n'est atteignable que par « Plus ». La
@@ -278,3 +276,25 @@ Deux points à connaître, sans action requise :
   `WHERE` des requêtes Drizzle. La RLS protège l'autre chemin — l'accès direct
   via PostgREST avec la clé anon, qui est celui réellement exposé. Les deux
   sont nécessaires et ne se remplacent pas.
+
+---
+
+## 8. Deux pages résolvent la même route `/`
+
+**Statut :** signalé, non tranché. Découvert pendant la passe de microcopie.
+
+`src/app/page.tsx` (redirection vers `/dashboard` ou `/login`) et
+`src/app/(app)/page.tsx` (un ancien tableau de bord en grille de cartes)
+résolvent tous deux `/` — un groupe de routes n'ajoute pas de segment. Le build
+n'émet aucun conflit et le manifeste ne contient qu'une seule route `/` : l'une
+des deux gagne silencieusement, sans qu'on puisse dire laquelle depuis les
+sources.
+
+`(app)/page.tsx` duplique le tableau de bord avec un contenu plus pauvre —
+« Bloc actif », « Dernière séance », « Poids actuel » en trois cartes, sans
+séance du jour ni état du corps. Sa microcopie a été corrigée par précaution,
+mais **le fichier n'a pas été supprimé** : supprimer une page dont on ne sait
+pas si elle est servie n'est pas un geste de microcopie.
+
+*À trancher :* vérifier laquelle est servie en production, puis supprimer
+l'autre.

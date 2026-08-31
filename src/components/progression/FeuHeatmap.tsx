@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { libelleFeu } from "@/lib/referentiels/libelles";
 import { CHART_THEME } from "@/lib/chart-theme";
 
 interface FeuHeatmapProps {
@@ -120,7 +121,7 @@ export function FeuHeatmap({ months }: FeuHeatmapProps) {
                   backgroundColor: bgColor,
                   border: borderWidth === "2px" ? `2px solid ${borderColor}` : "none",
                 }}
-                title={hasData && day.data ? `${day.data.date} — Feu: ${day.data.feuJour}` : day.date.toLocaleDateString("fr-FR")}
+                title={hasData && day.data ? `${day.data.date} — ${libelleFeu(day.data.feuJour)}` : day.date.toLocaleDateString("fr-FR")}
               >
                 {!hasData && day.isCurrentMonth && (
                   <span className="text-encre-3">{day.date.getDate()}</span>

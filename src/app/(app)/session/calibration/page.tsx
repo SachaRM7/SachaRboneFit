@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { messageErreur } from "@/lib/messages";
 import Link from "next/link";
 import { Loader2, AlertTriangle, Ruler } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,7 +36,7 @@ export default function PreparationCalibrationPage() {
         const corps = await res.json().catch(() => null);
         if (annule) return;
         if (!res.ok || !corps) {
-          setErreur(corps?.error ?? `La préparation a échoué (HTTP ${res.status})`);
+          setErreur(messageErreur("préparer ta séance de calibration", corps?.error, res.status));
         } else {
           setReponse(corps);
         }

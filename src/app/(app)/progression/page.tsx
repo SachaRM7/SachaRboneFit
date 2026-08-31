@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { messageErreur } from "@/lib/messages";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { ExerciseProgressionChart } from "@/components/progression/ExerciseProgressionChart";
 import { PillarVolumeChart } from "@/components/progression/PillarVolumeChart";
@@ -53,10 +54,12 @@ export default function ProgressionPage() {
     try {
       const res = await fetch("/api/progression/bilan");
       const corps = await res.json().catch(() => null);
-      if (!res.ok || !corps?.bilan) throw new Error(corps?.error ?? `HTTP ${res.status}`);
+      if (!res.ok || !corps?.bilan) {
+        throw new Error(messageErreur("afficher ta progression", corps?.error, res.status));
+      }
       setBilan(corps.bilan as Bilan);
     } catch (cause) {
-      setErreur(cause instanceof Error ? cause.message : "Chargement impossible");
+      setErreur(cause instanceof Error ? cause.message : messageErreur("afficher ta progression"));
     } finally {
       setChargement(false);
     }
@@ -173,8 +176,7 @@ export default function ProgressionPage() {
 
         {erreur && !chargement && (
           <div className="rounded-xl border border-filet bg-carte p-4 space-y-3">
-            <p className="text-encre text-sm">Ton bilan n&apos;a pas pu être chargé.</p>
-            <p className="text-encre-3 text-xs">{erreur}</p>
+            <p className="text-encre text-sm">{erreur}</p>
             <button
               type="button"
               onClick={() => void charger()}

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { messageErreur } from "@/lib/messages";
 import { useRouter } from "next/navigation";
 import { MapPin, ArrowRight, AlertTriangle, Check, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -80,7 +81,7 @@ export function ChangerDeLieu({ sessionLogId, lieuActuelId, onApplique }: Props)
         }),
       });
       const corps = await res.json().catch(() => null);
-      if (!res.ok || !corps) throw new Error(corps?.error ?? `HTTP ${res.status}`);
+      if (!res.ok || !corps) throw new Error(corps?.error ?? messageErreur("adapter ta séance", null, res.status));
       if (appliquer) {
         router.refresh();
         onApplique();

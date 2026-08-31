@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { messageErreur } from "@/lib/messages";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -58,7 +59,7 @@ export function EquiperDansSalle({ exerciseId, exerciceNom, sallesDejaEquipees }
         const corps = await reponse.json().catch(() => null);
         if (annule) return;
         if (!reponse.ok || !Array.isArray(corps)) {
-          setErreur(corps?.error ?? `HTTP ${reponse.status}`);
+          setErreur(corps?.error ?? messageErreur("mettre à jour ce lieu", null, reponse.status));
           return;
         }
         setSalles(corps);
@@ -88,7 +89,7 @@ export function EquiperDansSalle({ exerciseId, exerciceNom, sallesDejaEquipees }
         }),
       });
       const corps = await reponse.json().catch(() => null);
-      if (!reponse.ok) throw new Error(corps?.error ?? `HTTP ${reponse.status}`);
+      if (!reponse.ok) throw new Error(corps?.error ?? messageErreur("mettre à jour ce lieu", null, reponse.status));
 
       toast.success(`${exerciceNom} équipé`);
       setOuvert(false);

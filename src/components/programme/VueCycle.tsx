@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useCoach, DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { useState } from "react";
 import { ChevronRight, Info, Sparkles, Wrench } from "lucide-react";
-import { libelleMuscle } from "@/lib/referentiels/libelles";
+import { libellePilier } from "@/lib/referentiels/libelles";
 import { LIBELLES_PHASE, LIBELLES_FATIGUE, LIBELLES_TENDANCE } from "@/lib/referentiels/cycle";
 import type { VueProgramme } from "@/services/cycle";
 import type { EtatSeance } from "@/lib/engine/semaine-programme";
@@ -22,20 +22,6 @@ import type { EtatSeance } from "@/lib/engine/semaine-programme";
  * Rien n'est calculé ici. Ce composant met en forme ce que le service a
  * établi, et n'affiche jamais un identifiant du modèle.
  */
-
-const LIBELLES_PILIER: Record<string, string> = {
-  P1_poussee: "Poussée",
-  P2_tirage: "Tirage",
-  P3_squat: "Squat",
-  P4_hanche: "Hanche",
-  epaules: "Épaules",
-  jambes_iso: "Jambes",
-  bras_triceps: "Triceps",
-  bras_biceps: "Biceps",
-  core: "Gainage",
-};
-
-const nomPilier = (p: string) => LIBELLES_PILIER[p] ?? libelleMuscle(p);
 
 const ETIQUETTES: Record<EtatSeance, { texte: string; classe: string }> = {
   terminee: { texte: "Terminée", classe: "bg-papier-2 text-encre-2" },
@@ -222,7 +208,7 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
                       <Etiquette etat={s.etat} />
                     </span>
                     <span className="block text-encre-3 text-xs mt-0.5">
-                      {s.piliers.length > 0 && <>{s.piliers.map(nomPilier).join(" · ")} — </>}
+                      {s.piliers.length > 0 && <>{s.piliers.map(libellePilier).join(" · ")} — </>}
                       <span className="chiffres">{s.exercices}</span> exercices · ~
                       <span className="chiffres">{s.dureeEstimeeMinutes}</span> min
                     </span>

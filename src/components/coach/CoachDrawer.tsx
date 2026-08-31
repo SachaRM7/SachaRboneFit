@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { messageErreur } from "@/lib/messages";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { X, Send, Plus, ChevronLeft } from "lucide-react";
@@ -67,7 +68,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
         setConversations(data);
       }
     } catch (e) {
-      console.error("Failed to load conversations", e);
+      console.error("Conversations du coach illisibles", e);
     } finally {
       setLoadingConversations(false);
     }
@@ -135,7 +136,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
       if (!res.ok) {
         const erreur = await res.json().catch(() => null);
-        throw new Error(erreur?.error || "Le coach n'a pas répondu");
+        throw new Error(messageErreur("joindre le coach", erreur?.error, res.status));
       }
 
       const data = await res.json();
@@ -158,7 +159,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
     } catch (e) {
       // Le message envoyé était simplement retiré de la liste : il disparaissait
       // sous les yeux de l'utilisateur, sans que rien n'explique pourquoi.
-      console.error("Failed to send message:", e);
+      console.error("Message au coach non transmis", e);
       setErreur(e instanceof Error ? e.message : "Le coach n'a pas répondu");
       if (!messageImpose) setInput(userMessage);
       setMessages((prev) => prev.slice(0, -1));
@@ -195,10 +196,10 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
               </Button>
 
               {loadingConversations ? (
-                <div className="text-encre-3 text-sm text-center py-4">Chargement...</div>
+                <div className="text-encre-3 text-sm text-center py-4">Un instant…</div>
               ) : conversations.length === 0 ? (
                 <div className="text-encre-3 text-sm text-center py-4">
-                  Aucune conversation. Démarre en envoyant un message !
+                  Aucune conversation pour l’instant. Pose ta première question ci-dessous.
                 </div>
               ) : (
                 conversations.map((conv) => (
@@ -312,7 +313,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && void handleSend()}
-                placeholder="Message au coach..."
+                placeholder="Écris ta question…"
                 className="flex-1 bg-carte border border-filet rounded-full px-4 py-2 text-sm text-encre placeholder:text-encre-3 focus:outline-none focus:border-filet"
                 disabled={loading}
               />

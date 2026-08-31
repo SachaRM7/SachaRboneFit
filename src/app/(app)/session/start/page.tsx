@@ -12,7 +12,7 @@ import { useSearchParams, useRouter } from "next/navigation";
  */
 export default function SessionStartPage() {
   return (
-    <Suspense fallback={<EcranAttente message="Chargement…" />}>
+    <Suspense fallback={<EcranAttente message="Je prépare ta séance…" />}>
       <ContenuDemarrage />
     </Suspense>
   );
@@ -51,7 +51,9 @@ function ContenuDemarrage() {
     (async () => {
       const prochaineRes = await fetch("/api/programme/prochaine-seance");
       if (!prochaineRes.ok) {
-        if (!annule) setErreur("Aucun programme actif. Crée un bloc et ses séances.");
+        if (!annule) setErreur(
+            "Tes séances ne sont pas encore construites. Passe par Programme pour les préparer.",
+          );
         return;
       }
       const prochaine = await prochaineRes.json();

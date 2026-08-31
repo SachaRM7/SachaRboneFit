@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { libellePilier } from "@/lib/referentiels/libelles";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -156,7 +157,7 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-encre text-sm font-medium">{exerciceChoisi.nom}</p>
-                <p className="text-encre-3 text-xs">{exerciceChoisi.pilier}</p>
+                <p className="text-encre-3 text-xs">{libellePilier(exerciceChoisi.pilier)}</p>
               </div>
               <Button variant="ghost" size="sm" onClick={() => setExerciseId("")}>
                 Changer
@@ -183,7 +184,7 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
                     )}
                     <span className="flex-1 min-w-0">
                       <span className="block text-encre text-sm truncate">{e.nom}</span>
-                      <span className="block text-encre-3 text-xs">{e.pilier}</span>
+                      <span className="block text-encre-3 text-xs">{libellePilier(e.pilier)}</span>
                     </span>
                     {e.dejaPresent && (
                       <span className="text-[10px] text-feu-orange shrink-0">déjà dans la salle</span>

@@ -4,8 +4,7 @@ import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs,
 import { eq, desc, and, inArray, isNull, gte } from "drizzle-orm";
 import { computeFeuJour } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
-import { libelleCycle } from "@/lib/referentiels/cycle";
-import { positionDansLeCycle } from "@/lib/engine/semaine-programme";
+import { vueDuProgramme } from "@/services/cycle";
 import { prochaineSeance } from "@/services/programmes";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { detailErreur } from "@/lib/erreurs";
@@ -205,24 +204,26 @@ export async function GET() {
       frequenceMaxParSemaine: user?.frequenceMaxParSemaine ?? null,
     });
 
+    const vueProgramme = await vueDuProgramme(userId);
+
     return NextResponse.json({
       etat,
       user: {
         nom: user?.nom ?? "Sacha",
         poidsActuel: lastWeight?.poids ?? null,
       },
-      // `semaine_actuelle` est écrite à 1 à la création et jamais incrémentée :
-      // l'écran annonçait « Semaine 1 » indéfiniment. La semaine se déduit de
-      // la date de début, comme sur l'écran Programme.
-      blocActif: blocActif
+      // Le raccourci vers l'écran Programme, avec exactement ce qu'il faut
+      // pour l'annoncer — et rien de plus. Les valeurs viennent du même
+      // service que l'écran lui-même : les deux ne peuvent pas diverger.
+      blocActif: vueProgramme.cycle
         ? {
-            nom: blocActif.nom,
-            libelleCycle: libelleCycle(blocActif.typeCycle).libelle,
-            semaine: positionDansLeCycle(
-              blocActif.dateDebut,
-              blocActif.dateFinPrevue,
-              new Date().toISOString().slice(0, 10),
-            ).semaine,
+            nom: vueProgramme.cycle.nom,
+            libelleCycle: vueProgramme.cycle.libelle.libelle,
+            semaine: vueProgramme.cycle.position.semaine,
+            semainesTotal: vueProgramme.cycle.position.semainesTotal,
+            enCalibration: vueProgramme.etat === "calibration",
+            seancesFaites: vueProgramme.cycle.seancesFaites,
+            seancesDeLaSemaine: vueProgramme.semaine.length,
           }
         : null,
       prochaineSeance: seanceSuivante,

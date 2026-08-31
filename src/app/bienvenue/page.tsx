@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { messageErreur } from "@/lib/messages";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { ChevronLeft, Home, Loader2, MapPin, Plus } from "lucide-react";
@@ -169,12 +170,12 @@ export default function PageBienvenue() {
         }),
       });
       const corps = await reponse.json().catch(() => null);
-      if (!reponse.ok) throw new Error(corps?.error ?? `HTTP ${reponse.status}`);
+      if (!reponse.ok) throw new Error(messageErreur("enregistrer ton profil", corps?.error, reponse.status));
       // On n'avance qu'une fois l'écriture réellement acceptée.
       router.replace("/dashboard");
       router.refresh();
     } catch (cause) {
-      setErreur(cause instanceof Error ? cause.message : "Enregistrement impossible");
+      setErreur(cause instanceof Error ? cause.message : messageErreur("enregistrer ton profil"));
       setEnvoi(false);
     }
   };

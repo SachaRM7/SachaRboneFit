@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { avecUnite } from "@/lib/format";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { CHART_THEME } from "@/lib/chart-theme";
 
@@ -126,8 +127,8 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
       <div className="text-encre-3 text-sm text-center">
         {data.length} séance{data.length > 1 ? "s" : ""} —{" "}
         {mode === "1rm"
-          ? `Meilleur 1RM: ${Math.max(...data.map((d) => d.best1RM))}kg`
-          : `Volume total: ${Math.round(data.reduce((sum, d) => sum + d.totalVolume, 0))}kg×rep`}
+          ? `Meilleur maximum estimé : ${avecUnite(Math.max(...data.map((d) => d.best1RM)), "kg")}`
+          : `Volume total : ${avecUnite(Math.round(data.reduce((sum, d) => sum + d.totalVolume, 0)), "kg soulevés")}`}
       </div>
     </div>
   );

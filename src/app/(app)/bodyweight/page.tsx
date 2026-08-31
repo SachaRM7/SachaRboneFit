@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { nombre } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db/client";
 import { bodyWeights } from "@/db/schema";
@@ -31,7 +32,7 @@ export default async function BodyweightPage() {
         <CardContent className="pt-4">
           {latest && (
             <div className="mb-4">
-              <p className="text-3xl font-bold text-encre">{latest.poids.toFixed(1)} kg</p>
+              <p className="text-3xl font-bold text-encre">{nombre(latest.poids, 1)} kg</p>
               <p className="text-encre-3 text-sm">
                 {new Date(latest.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" })}
               </p>

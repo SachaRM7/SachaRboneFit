@@ -1,12 +1,14 @@
 "use client";
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
+import { messageErreur } from "@/lib/messages";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FeuBiologique } from "@/components/ui/FeuBiologique";
 import { Sparkline } from "@/components/ui/Sparkline";
-import { Calendar, Dumbbell, Activity, TrendingDown, Play } from "lucide-react";
+import { Calendar, Dumbbell, Activity, TrendingDown, Play, ChevronRight } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { Alert } from "@/lib/engine/alerts";
 import type { EtatDuJour } from "@/lib/engine/etat-du-jour";
@@ -15,7 +17,15 @@ import { AlertList } from "@/components/alerts/AlertList";
 
 interface DashboardData {
   user: { nom: string; poidsActuel: number | null };
-  blocActif: { nom: string; libelleCycle: string; semaine: number } | null;
+  blocActif: {
+    nom: string;
+    libelleCycle: string;
+    semaine: number;
+    semainesTotal: number | null;
+    enCalibration: boolean;
+    seancesFaites: number;
+    seancesDeLaSemaine: number;
+  } | null;
   etat: EtatDuJour;
   feuJour: "vert" | "orange" | "rouge" | null;
   feuTendance: "vert" | "orange" | "rouge" | null;
@@ -53,7 +63,7 @@ export default function DashboardPage() {
         const corps = await reponse.json().catch(() => null);
         if (annule) return;
         if (!reponse.ok || !corps || typeof corps.etat === "undefined") {
-          setErreur(corps?.error ? `${corps.error} (HTTP ${reponse.status})` : `HTTP ${reponse.status}`);
+          setErreur(messageErreur("charger ton accueil", corps?.error, reponse.status));
         } else {
           setData(corps);
         }
@@ -110,13 +120,46 @@ export default function DashboardPage() {
             <Sparkline data={weightData} width={60} height={20} />
           )}
         </div>
-        {data?.blocActif && (
-          <p className="text-encre-3 text-xs mt-1">
-            {data.blocActif.libelleCycle} — Semaine{" "}
-            <span className="chiffres">{data.blocActif.semaine}</span>
-          </p>
-        )}
       </div>
+
+      {/* Le programme n'a pas d'onglet — c'est une décision assumée : ce n'est
+          pas une destination quotidienne. Mais il ne doit pas être à deux
+          gestes pour autant. Toute la carte est le lien : un second gros bouton
+          entrerait en concurrence avec celui de la séance du jour. */}
+      {data?.blocActif && (
+        <div className="px-4 pb-2">
+          <Link
+            href="/programme"
+            className="flex items-center gap-3 rounded-xl border border-filet bg-carte px-4 py-3"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-encre text-sm font-medium truncate">
+                {data.blocActif.libelleCycle}
+              </span>
+              <span className="block text-encre-3 text-xs mt-0.5">
+                {data.blocActif.enCalibration ? (
+                  <>
+                    <span className="chiffres">{data.blocActif.seancesFaites}</span> séance
+                    {data.blocActif.seancesFaites > 1 ? "s" : ""} mesurée
+                    {data.blocActif.seancesFaites > 1 ? "s" : ""}
+                  </>
+                ) : (
+                  <>
+                    Semaine <span className="chiffres">{data.blocActif.semaine}</span>
+                    {data.blocActif.semainesTotal !== null && (
+                      <> sur <span className="chiffres">{data.blocActif.semainesTotal}</span></>
+                    )}
+                  </>
+                )}
+                {" · "}
+                <span className="chiffres">{data.blocActif.seancesDeLaSemaine}</span> séance
+                {data.blocActif.seancesDeLaSemaine > 1 ? "s" : ""} cette semaine
+              </span>
+            </span>
+            <ChevronRight className="w-4 h-4 text-encre-3 shrink-0" aria-hidden />
+          </Link>
+        </div>
+      )}
 
       <div className="px-4 space-y-4 pb-20">
         {/* Le squelette s'ajoutait aux cartes au lieu de les remplacer : on
@@ -239,7 +282,7 @@ export default function DashboardPage() {
                 {data?.feuJour ? (
                   <FeuBiologique feu={data.feuJour} size="lg" />
                 ) : (
-                  <span className="text-encre-3 text-sm">Non renseigné</span>
+                  <span className="text-encre-3 text-sm">À renseigner avant ta séance</span>
                 )}
               </div>
               <div className="flex items-center gap-3">

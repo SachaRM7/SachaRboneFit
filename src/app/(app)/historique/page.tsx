@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { libelleFeu } from "@/lib/referentiels/libelles";
 import Link from "next/link";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, seanceTemplates, gyms } from "@/db/schema";
@@ -102,7 +103,7 @@ export default async function HistoriquePage() {
                       {s.feuBiologiqueJour && (
                         <span
                           className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0 ${COULEUR_FEU[s.feuBiologiqueJour] ?? "bg-filet"}`}
-                          aria-label={`Feu ${s.feuBiologiqueJour}`}
+                          aria-label={libelleFeu(s.feuBiologiqueJour)}
                         />
                       )}
                       <div className="flex-1 min-w-0">

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { messageErreur } from "@/lib/messages";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
@@ -59,7 +60,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
         const corps = await reponse.json().catch(() => null);
         if (annule) return;
         if (!reponse.ok || !Array.isArray(corps)) {
-          setErreurSalles(corps?.error ? `${corps.error} (HTTP ${reponse.status})` : `HTTP ${reponse.status}`);
+          setErreurSalles(messageErreur("charger tes lieux", corps?.error, reponse.status));
           return;
         }
         setGyms(corps);

@@ -21,6 +21,7 @@ const { vueDuProgramme, mesurerCycle } = await import("@/services/cycle");
 const { loadCoachContext } = await import("@/lib/coach/context-loader");
 const { buildSystemPrompt } = await import("@/lib/coach/system-prompt");
 const { lundiDe, decalerDe } = await import("@/lib/semaines");
+const dashboard = await import("@/app/api/dashboard/route");
 
 const AUJOURDHUI = "2026-08-05"; // mercredi
 const LUNDI = "2026-08-03";
@@ -298,5 +299,37 @@ describe("vue du programme", () => {
     const v = await vueDuProgramme(U, AUJOURDHUI);
     expect(v.cycle!.libelle.libelle).toBe("Bloc perso 2024");
     expect(v.cycle!.libelle.herite).toBe(true);
+  });
+
+  it("donne à l'Accueil de quoi renvoyer vers le programme en un geste", async () => {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    await creerBloc("volume", decalerDe(lundiDe(aujourdhui), -21));
+
+    const res = await dashboard.GET();
+    const corps = await res.json();
+
+    // Les valeurs viennent du même service que l'écran Programme : les deux
+    // ne peuvent pas annoncer deux semaines différentes.
+    expect(corps.blocActif).not.toBeNull();
+    expect(corps.blocActif.libelleCycle).toBe("Dominante volume");
+    expect(corps.blocActif.semaine).toBe(4);
+    expect(corps.blocActif.enCalibration).toBe(false);
+    expect(corps.blocActif.seancesDeLaSemaine).toBe(2);
+  });
+
+  it("annonce la calibration par ses séances mesurées, pas par une semaine", async () => {
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    await creerBloc("calibration", lundiDe(aujourdhui));
+    await enregistrerSeance(aujourdhui, templates[0]!);
+
+    const corps = await (await dashboard.GET()).json();
+    expect(corps.blocActif.enCalibration).toBe(true);
+    expect(corps.blocActif.libelleCycle).toBe("Reprise & calibration");
+    expect(corps.blocActif.seancesFaites).toBe(1);
+  });
+
+  it("ne fabrique aucun raccourci sans cycle actif", async () => {
+    const corps = await (await dashboard.GET()).json();
+    expect(corps.blocActif).toBeNull();
   });
 });

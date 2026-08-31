@@ -51,6 +51,37 @@ const EQUIPEMENTS: Record<string, string> = {
  */
 const MUSCLES: Record<string, string> = LIBELLES_MUSCLES;
 
+/**
+ * Piliers du mouvement.
+ *
+ * « P1_poussee » est une clé de tri autant qu'un nom : le préfixe ordonne les
+ * piliers dans le moteur. Il n'a rien à faire à l'écran, où seul le geste
+ * compte. La table vivait en double dans l'écran Programme.
+ */
+const PILIERS: Record<string, string> = {
+  P1_poussee: "Poussée",
+  P2_tirage: "Tirage",
+  P3_squat: "Squat",
+  P4_hanche: "Hanche",
+  epaules: "Épaules",
+  jambes_iso: "Jambes",
+  bras_triceps: "Triceps",
+  bras_biceps: "Biceps",
+  core: "Gainage",
+};
+
+/**
+ * Feu biologique du jour.
+ *
+ * « vert », « orange », « rouge » sont lisibles, mais ce ne sont pas des
+ * phrases : ce qu'ils signifient pour la séance du jour l'est.
+ */
+const FEUX: Record<string, string> = {
+  vert: "Prêt",
+  orange: "Récupération moyenne",
+  rouge: "Fatigue marquée",
+};
+
 
 function traduire(table: Record<string, string>, valeur: string | null | undefined): string {
   if (!valeur) return "—";
@@ -62,6 +93,8 @@ export const libelleTypeMouvement = (v: string | null | undefined) => traduire(T
 export const libelleCategorieRole = (v: string | null | undefined) => traduire(CATEGORIES_ROLE, v);
 export const libelleEquipement = (v: string | null | undefined) => traduire(EQUIPEMENTS, v);
 export const libelleMuscle = (v: string | null | undefined) => traduire(MUSCLES, v);
+export const libellePilier = (v: string | null | undefined) => traduire(PILIERS, v);
+export const libelleFeu = (v: string | null | undefined) => traduire(FEUX, v);
 
 /** Liste de muscles rendue lisible d'un coup. */
 export const libelleMuscles = (valeurs: string[] | null | undefined) =>

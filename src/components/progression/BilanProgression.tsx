@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Trophy, TrendingUp, TrendingDown, Minus, CalendarCheck, HelpCircle, Sparkles } from "lucide-react";
 import { LIBELLES as LIBELLES_MUSCLES } from "@/lib/referentiels/muscles";
 import type { Bilan } from "@/lib/engine/bilan-progression";
+import { nombre, pluriel } from "@/lib/format";
 
 /**
  * Ce qui évolue, dès l'ouverture.
@@ -18,19 +19,8 @@ import type { Bilan } from "@/lib/engine/bilan-progression";
 
 const nomMuscle = (m: string) => (LIBELLES_MUSCLES as Record<string, string>)[m] ?? m;
 
-/**
- * Les nombres s'écrivent en français.
- *
- * « 24180 kg » et « +25.4 % » sont des sorties de `toString()`, pas des
- * chiffres lisibles : le tonnage se lit par tranches de trois, et la virgule
- * décimale n'est pas un point. Le reste de l'application le fait déjà
- * (`Delta`, l'historique) ; cet écran ne le faisait pas.
- */
-const nombre = (n: number, decimales = 0) =>
-  n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: decimales });
 
-const pluriel = (n: number, singulier: string, pluriel_ = `${singulier}s`) =>
-  n > 1 ? pluriel_ : singulier;
+
 
 /** « il y a » lisible : on ne compte pas en jours au-delà d'un mois. */
 function ilYA(jours: number): string {

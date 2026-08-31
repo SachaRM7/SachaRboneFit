@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { libelleCategorieRole } from "@/lib/referentiels/libelles";
 import {
   Drawer,
   DrawerContent,
@@ -116,7 +117,7 @@ export function SubstitutionModal({
                       : "border-filet text-encre-2"
                   }
                 >
-                  {sub.categorieRole}
+                  {libelleCategorieRole(sub.categorieRole)}
                 </Badge>
               </button>
             ))

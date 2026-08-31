@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { avecUnite } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent>
           <Badge variant="outline" className="border-filet text-encre-2">
-            {blocActif?.nom || "Aucun bloc actif"}
+            {blocActif?.nom || "Pas encore de programme"}
           </Badge>
         </CardContent>
       </Card>
@@ -60,7 +61,7 @@ export default async function DashboardPage() {
           <p className="text-encre text-lg font-medium">
             {lastSession?.date
               ? new Date(lastSession.date).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" })
-              : "Aucune séance"}
+              : "Ta première séance reste à faire"}
           </p>
         </CardContent>
       </Card>
@@ -71,7 +72,7 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent>
           <p className="text-encre text-lg font-medium">
-            {lastWeight ? `${lastWeight.poids.toFixed(1)} kg` : "Non renseigné"}
+            {lastWeight ? avecUnite(lastWeight.poids, "kg", 1) : "À renseigner"}
           </p>
         </CardContent>
       </Card>

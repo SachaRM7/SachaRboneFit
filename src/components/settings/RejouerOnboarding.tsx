@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { messageErreur } from "@/lib/messages";
 import { useRouter } from "next/navigation";
 import { RotateCcw, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,11 +44,11 @@ export function RejouerOnboarding() {
         body: JSON.stringify({ confirmation: "REINITIALISER", supprimerMesLieux: supprimerLieux }),
       });
       const corps = await res.json().catch(() => null);
-      if (!res.ok || !corps) throw new Error(corps?.error ?? `HTTP ${res.status}`);
+      if (!res.ok || !corps) throw new Error(messageErreur("remettre ton compte à zéro", corps?.error, res.status));
       setResume(corps.resume);
       router.refresh();
     } catch (cause) {
-      setErreur(cause instanceof Error ? cause.message : "Réinitialisation impossible");
+      setErreur(cause instanceof Error ? cause.message : messageErreur("remettre ton compte à zéro"));
     } finally {
       setEnvoi(false);
     }
