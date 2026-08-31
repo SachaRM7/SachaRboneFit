@@ -42,6 +42,25 @@ export function machinesActives(): SQL | undefined {
   return isNull(exerciseInstances.archiveLe);
 }
 
+/**
+ * Machines sur lesquelles on peut s'entraîner AUJOURD'HUI.
+ *
+ * Deux retraits différents, deux durées. `archiveLe` retire durablement : la
+ * salle a fermé, on a déménagé, l'appareil est parti. `etat` retire pour un
+ * temps : le Glute Trainer est hors service, il reviendra. Confondre les deux
+ * obligeait à archiver une machine en panne, puis à la recréer au retour — et
+ * son historique se retrouvait coupé en deux entrées qui ne se parlent pas.
+ *
+ * L'entrée survit, son historique aussi, elle disparaît seulement du parc du
+ * jour. Réactiver ne demande rien d'autre que de remettre `disponible`.
+ */
+export function machinesUtilisablesAujourdhui(): SQL | undefined {
+  return and(
+    isNull(exerciseInstances.archiveLe),
+    eq(exerciseInstances.etat, "disponible"),
+  );
+}
+
 /** Blocs de programme encore en vigueur. */
 export function blocsActifs(userId: string): SQL | undefined {
   return and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe));

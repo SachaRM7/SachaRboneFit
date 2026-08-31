@@ -21,6 +21,9 @@ export interface ExercicePrescrit {
   reposSecondes?: number | null;
   incrementsPossibles: number[];
   poidsNonCompte?: number | null;
+  /** Ce que le nombre saisi signifie sur cet appareil. */
+  conventionCharge?: string | null;
+  natureCharge?: string | null;
   chargeSuggeree?: number | null;
   repsSuggerees?: number[] | null;
   messageProgression?: string | null;

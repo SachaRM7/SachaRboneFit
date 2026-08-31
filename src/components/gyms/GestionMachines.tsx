@@ -115,9 +115,32 @@ export function GestionMachines({ gymId, machines, exercices, lectureSeule = fal
                           max {m.chargeMax} kg
                         </Badge>
                       )}
+                      {m.natureCharge === "assistance" && (
+                        <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
+                          assistance
+                        </Badge>
+                      )}
+                      {/*
+                        Une machine hors service reste listée : c'est ici qu'on
+                        la remet en service, et elle a un historique à ne pas
+                        perdre. Elle est seulement retirée du parc du jour.
+                      */}
+                      {m.etat === "temporairement_indisponible" && (
+                        <Badge variant="outline" className="border-perte text-perte text-[10px]">
+                          hors service
+                        </Badge>
+                      )}
                     </div>
                     <p className="text-encre-3 text-xs mt-1.5">
-                      Incréments : {m.incrementsPossibles?.join(", ")} kg
+                      {m.paliersCharges?.length
+                        ? `Charges : ${m.paliersCharges.join(", ")} kg`
+                        : m.incrementsPossibles?.length
+                          // Dire « incréments inconnus » plutôt que d'afficher un
+                          // tiret : c'est une information, et elle explique
+                          // pourquoi aucune charge n'est suggérée sur cet appareil.
+                          ? `Incréments : ${m.incrementsPossibles.join(", ")} kg`
+                          : "Incréments non relevés — aucune charge ne sera suggérée"}
+                      {m.chargeMinimale !== null ? ` · dès ${m.chargeMinimale} kg` : ""}
                       {m.poidsNonCompte ? ` · ${m.poidsNonCompte} kg non comptés` : ""}
                     </p>
                     {m.notesMachine && (

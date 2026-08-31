@@ -147,12 +147,80 @@ export const exerciseInstances = pgTable("exercise_instances", {
   gymId: uuid("gym_id").references(() => gyms.id).notNull(),
   machineNom: text("machine_nom").notNull(),
   typePoulie: text("type_poulie").default("na"),
+  /**
+   * Ce que signifie le nombre saisi en séance, sur CET appareil.
+   *
+   * `pile_affichee` : la valeur lue sur la pile. `disques_ajoutes` : ce qu'on a
+   * ajouté, hors chariot. `poids_total` : tout ce qui se déplace, barre
+   * comprise.
+   *
+   * La convention ne rend pas les nombres comparables entre appareils : deux
+   * Smith machines à contrepoids différents affichent la même convention et
+   * mesurent autre chose. Elle dit seulement quoi saisir ici, et fige
+   * l'interprétation de l'historique de cette entrée.
+   */
   conventionCharge: text("convention_charge").notNull(),
-  incrementsPossibles: jsonb("increments_possibles").$type<number[]>().notNull(),
+  /**
+   * Sauts de charge réellement disponibles. `null` quand ils n'ont pas été
+   * mesurés — et `null` veut dire inconnu, jamais « prends la valeur
+   * habituelle ». Une donnée absente empêche une prescription précise ; elle ne
+   * s'invente pas.
+   */
+  incrementsPossibles: jsonb("increments_possibles").$type<number[]>(),
+  /**
+   * Charges réellement atteignables, quand elles forment une collection
+   * discrète : barres préchargées 10/15/20/25/30, haltères de la salle, pile
+   * aux crans irréguliers. Prime sur les incréments — la liste est mesurée, la
+   * grille est déduite.
+   */
+  paliersCharges: jsonb("paliers_charges").$type<number[]>(),
+  /**
+   * Plancher : premier cran de la pile, haltère le plus léger, barre à vide.
+   * Rien ne doit être prescrit en dessous.
+   */
+  chargeMinimale: real("charge_minimale"),
+  /**
+   * Résistance intrinsèque annoncée par le constructeur : chariot d'une presse,
+   * plateforme d'un hack squat.
+   *
+   * MÉTADONNÉE, jamais un terme de calcul. Ce n'est pas une masse sommable :
+   * inclinaison, bras de levier et cames font varier la résistance ressentie,
+   * et la convention constructeur n'est pas publiée. L'ajouter à la charge
+   * saisie produirait un nombre plus précis en apparence et moins exact en
+   * réalité. Elle sert à reconnaître l'appareil et à expliquer un écart entre
+   * deux salles, pas à corriger un historique.
+   */
   poidsNonCompte: real("poids_non_compte"),
   // Plafond de la pile ou du chargement : permet de detecter qu'un exercice
   // est arrive en butee et qu'il faut en changer.
   chargeMax: real("charge_max"),
+  /**
+   * Sens de la charge.
+   *
+   * `resistance` : plus lourd, plus dur — le cas courant. `assistance` : la
+   * charge AIDE, et progresser c'est en demander moins (Dip/Chin Assist).
+   *
+   * Remplace un booléen de sens de progression : l'orientation n'est pas une
+   * propriété à déclarer à part, elle découle de ce que le nombre mesure. Une
+   * assistance n'entre ni dans un maximum estimé ni dans un record de charge
+   * croissante — voir `charges.ts`.
+   */
+  natureCharge: text("nature_charge").default("resistance").notNull(),
+  /**
+   * `disponible` | `temporairement_indisponible`.
+   *
+   * Une machine en panne n'est pas une machine archivée : elle revient. L'état
+   * la retire de la faisabilité du jour sans toucher à son historique ni
+   * obliger à la re-saisir au retour. `archiveLe` reste réservé au retrait
+   * durable.
+   */
+  etat: text("etat").default("disponible").notNull(),
+  /**
+   * Combien d'exemplaires. Métadonnée d'inventaire : aucun module ne la lit
+   * aujourd'hui, et rien n'en déduit une probabilité d'occupation — il n'y a
+   * pas de temps réel ici.
+   */
+  quantite: integer("quantite"),
   notesMachine: text("notes_machine"),
   /**
    * Date d'archivage.

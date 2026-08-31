@@ -5,6 +5,7 @@ import {
 } from "@/db/schema";
 import { and, asc, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts";
+import { configurationDe, porteeDeLaMesure, type PorteeDeLaMesure } from "@/lib/engine/charges";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { computeFeuTendance, type FeuBiologique, type SessionPilierPerf } from "@/lib/engine/feu-biologique";
 import { empecheParLesCirconstances, semainesEmpechees } from "@/lib/engine/tracabilite";
@@ -207,6 +208,10 @@ export async function fourchettesCompletees(userId: string) {
       charge: setLogs.charge,
       rpe: setLogs.rpeEffectif,
       increments: exerciseInstances.incrementsPossibles,
+      paliersCharges: exerciseInstances.paliersCharges,
+      chargeMinimale: exerciseInstances.chargeMinimale,
+      chargeMax: exerciseInstances.chargeMax,
+      natureCharge: exerciseInstances.natureCharge,
     })
     .from(setLogs)
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
@@ -232,11 +237,15 @@ export async function fourchettesCompletees(userId: string) {
         fourchetteRepsMin: Math.min(...series.map((s) => s.reps)),
         fourchetteRepsMax: maxReps,
         seriesCibles: series.length,
-        incrementsPossibles: premiere.increments ?? [],
+        charge: configurationDe({ ...premiere, incrementsPossibles: premiere.increments }),
       },
     );
 
-    if (suggestion.fourchetteCompletee) {
+    // La fourchette peut être complétée sans qu'une charge suivante existe :
+    // appareil en butée, ou incréments jamais relevés. Annoncer « passe à
+    // null kg » serait pire que de se taire — l'alerte propose une action, et
+    // il n'y en a pas.
+    if (suggestion.fourchetteCompletee && suggestion.charge !== null) {
       resultat.push({
         exerciseName: premiere.exerciseName,
         currentCharge: premiere.charge,
@@ -365,6 +374,14 @@ export interface RecordPersonnel {
   charge: number;
   reps: number;
   estimation1RM: number;
+  /**
+   * Ce que `estimation1RM` mesure sur cette entrée.
+   *
+   * `kilos` sur une charge libre, `indice_local` sur une pile ou un Smith —
+   * comparable à lui-même, à rien d'autre. L'écran l'annonçait comme un 1RM
+   * dans les deux cas.
+   */
+  portee: PorteeDeLaMesure;
   date: string;
   /** Vrai si la performance a été établie lors de la dernière séance. */
   recent: boolean;
@@ -390,12 +407,21 @@ export async function recordsPersonnels(userId: string, limite = 20): Promise<Re
       reps: setLogs.repsEffectuees,
       rpe: setLogs.rpeEffectif,
       date: sessionLogs.date,
+      natureCharge: exerciseInstances.natureCharge,
+      conventionCharge: exerciseInstances.conventionCharge,
     })
     .from(setLogs)
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)));
+    // Un record de charge croissante sur une assistance désignerait la séance
+    // où l'on a eu le plus besoin d'aide. L'exercice a sa propre lecture — la
+    // baisse de l'assistance — et n'a rien à faire dans ce classement.
+    .where(and(
+      eq(sessionLogs.userId, userId),
+      isNull(sessionLogs.archiveLe),
+      eq(exerciseInstances.natureCharge, "resistance"),
+    ));
 
   const derniereDate = lignes.reduce((max, l) => (l.date > max ? l.date : max), "");
 
@@ -432,6 +458,7 @@ export async function recordsPersonnels(userId: string, limite = 20): Promise<Re
       charge: meilleur.charge,
       reps: meilleur.reps,
       estimation1RM: Math.round(meilleur.valeur),
+      portee: porteeDeLaMesure(series[0]!),
       date: meilleur.date,
       recent: meilleur.date === derniereDate,
       nature: plage?.nature ?? "baseline",

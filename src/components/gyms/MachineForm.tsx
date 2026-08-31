@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import {
   CONVENTIONS_CHARGE, TYPES_POULIE, LIBELLES_CONVENTION, LIBELLES_POULIE,
+  LIBELLES_NATURE_CHARGE, LIBELLES_ETAT,
 } from "@/lib/validators/exercise-instance";
+import { ETATS_INSTANCE, NATURES_CHARGE } from "@/lib/engine/charges";
 
 export interface ExerciceSelectionnable {
   id: string;
@@ -26,9 +28,14 @@ export interface MachineExistante {
   machineNom: string;
   typePoulie: string | null;
   conventionCharge: string;
-  incrementsPossibles: number[];
+  incrementsPossibles: number[] | null;
+  paliersCharges: number[] | null;
+  chargeMinimale: number | null;
   poidsNonCompte: number | null;
   chargeMax: number | null;
+  natureCharge: string;
+  etat: string;
+  quantite: number | null;
   notesMachine: string | null;
 }
 
@@ -59,11 +66,18 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
   const [machineNom, setMachineNom] = useState(machine?.machineNom ?? "");
   const [typePoulie, setTypePoulie] = useState(machine?.typePoulie ?? "na");
   const [conventionCharge, setConventionCharge] = useState(machine?.conventionCharge ?? "pile_affichee");
+  // Vide par défaut, et non « 5 » : une valeur pré-remplie se valide sans y
+  // penser, et une supposition devient alors une mesure dans la base.
   const [increments, setIncrements] = useState(
-    (machine?.incrementsPossibles ?? [5]).join(", "),
+    (machine?.incrementsPossibles ?? []).join(", "),
   );
+  const [paliers, setPaliers] = useState((machine?.paliersCharges ?? []).join(", "));
+  const [chargeMinimale, setChargeMinimale] = useState(machine?.chargeMinimale?.toString() ?? "");
   const [poidsNonCompte, setPoidsNonCompte] = useState(machine?.poidsNonCompte?.toString() ?? "");
   const [chargeMax, setChargeMax] = useState(machine?.chargeMax?.toString() ?? "");
+  const [natureCharge, setNatureCharge] = useState(machine?.natureCharge ?? "resistance");
+  const [etat, setEtat] = useState(machine?.etat ?? "disponible");
+  const [quantite, setQuantite] = useState(machine?.quantite?.toString() ?? "");
   const [notes, setNotes] = useState(machine?.notesMachine ?? "");
   const [envoi, setEnvoi] = useState(false);
 
@@ -77,12 +91,21 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
 
   const exerciceChoisi = exercices.find((e) => e.id === exerciseId);
 
-  const parseIncrements = (): number[] | null => {
-    const valeurs = increments
+  /**
+   * Une liste de nombres, ou `undefined` si elle est vide.
+   *
+   * Vide veut dire INCONNU, et c'est une réponse acceptable : le formulaire
+   * exigeait au moins un incrément, ce qui obligeait à inventer un chiffre
+   * pour enregistrer une machine dont on n'avait pas regardé la pile. `null`
+   * signale une saisie illisible.
+   */
+  const parseListe = (brut: string): number[] | null | undefined => {
+    const valeurs = brut
       .split(/[,;\s]+/)
       .filter(Boolean)
       .map((v) => Number(v.replace(",", ".")));
-    if (valeurs.length === 0 || valeurs.some((v) => !Number.isFinite(v) || v <= 0)) return null;
+    if (valeurs.length === 0) return undefined;
+    if (valeurs.some((v) => !Number.isFinite(v) || v <= 0)) return null;
     return [...new Set(valeurs)].sort((a, b) => a - b);
   };
 
@@ -94,9 +117,14 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
     // Le nom sur place était exigé : une barre, des haltères, une barre de
     // traction n'en portent aucun, et ces exercices étaient donc impossibles à
     // déclarer. Sans nom, le serveur retient celui de l'exercice.
-    const valeurs = parseIncrements();
-    if (!valeurs) {
+    const valeurs = parseListe(increments);
+    if (valeurs === null) {
       toast.error("Incréments invalides — sépare-les par des virgules");
+      return;
+    }
+    const listePaliers = parseListe(paliers);
+    if (listePaliers === null) {
+      toast.error("Paliers invalides — sépare-les par des virgules");
       return;
     }
 
@@ -108,9 +136,14 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
         machineNom: machineNom.trim() || undefined,
         typePoulie,
         conventionCharge,
-        incrementsPossibles: valeurs,
+        incrementsPossibles: valeurs ?? null,
+        paliersCharges: listePaliers ?? null,
+        chargeMinimale: nombreOuNull(chargeMinimale),
         poidsNonCompte: nombreOuNull(poidsNonCompte),
         chargeMax: nombreOuNull(chargeMax),
+        natureCharge,
+        etat,
+        quantite: nombreOuNull(quantite),
         notesMachine: notes.trim() || null,
       };
 
@@ -262,8 +295,42 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
           ))}
         </div>
         <p className="text-encre-3 text-xs">
-          Les sauts réellement disponibles. C&apos;est ce qui détermine la charge proposée à la séance suivante.
+          Les sauts réellement disponibles. Laisse vide si tu ne les as pas relevés —
+          aucune charge ne sera proposée sur cet appareil, ce qui vaut mieux qu&apos;une charge inventée.
         </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="paliers">Charges disponibles (kg)</Label>
+        <Input
+          id="paliers"
+          value={paliers}
+          onChange={(e) => setPaliers(e.target.value)}
+          placeholder="10, 15, 20, 25, 30"
+        />
+        <p className="text-encre-3 text-xs">
+          Quand les charges forment une collection : râtelier de barres préchargées,
+          haltères, pile aux crans irréguliers. Prime sur les incréments.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="natureCharge">Sens de la charge</Label>
+          <Select value={natureCharge} onValueChange={(v) => setNatureCharge(v ?? "resistance")}>
+            {NATURES_CHARGE.map((n) => (
+              <SelectItem key={n} value={n}>{LIBELLES_NATURE_CHARGE[n]}</SelectItem>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="etat">État</Label>
+          <Select value={etat} onValueChange={(v) => setEtat(v ?? "disponible")}>
+            {ETATS_INSTANCE.map((e) => (
+              <SelectItem key={e} value={e}>{LIBELLES_ETAT[e]}</SelectItem>
+            ))}
+          </Select>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -276,7 +343,9 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
             onChange={(e) => setPoidsNonCompte(e.target.value)}
             placeholder="30.4"
           />
-          <p className="text-encre-3 text-xs">Chariot à vide, barre guidée…</p>
+          <p className="text-encre-3 text-xs">
+            Chariot à vide, barre guidée… Se lit, ne s&apos;additionne pas à la charge saisie.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="chargeMax">Charge max (kg)</Label>
@@ -288,6 +357,28 @@ export function MachineForm({ gymId, exercices, machine, onTermine }: Props) {
             placeholder="100"
           />
           <p className="text-encre-3 text-xs">Plafond de la pile, si elle en a un.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="chargeMinimale">Charge minimale (kg)</Label>
+          <Input
+            id="chargeMinimale"
+            inputMode="decimal"
+            value={chargeMinimale}
+            onChange={(e) => setChargeMinimale(e.target.value)}
+            placeholder="5"
+          />
+          <p className="text-encre-3 text-xs">Premier cran, haltère le plus léger.</p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="quantite">Exemplaires</Label>
+          <Input
+            id="quantite"
+            inputMode="numeric"
+            value={quantite}
+            onChange={(e) => setQuantite(e.target.value)}
+            placeholder="2"
+          />
+          <p className="text-encre-3 text-xs">Note d&apos;inventaire : sans effet sur la programmation.</p>
         </div>
       </div>
 

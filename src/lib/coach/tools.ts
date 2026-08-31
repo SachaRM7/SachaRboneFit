@@ -4,6 +4,7 @@ import { setLogs, sessionLogs, exercises, exerciseInstances, sessionIncidents } 
 import { eq, desc, isNull } from "drizzle-orm";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
+import { configurationDe } from "@/lib/engine/charges";
 import { DEFINITIONS_CONTEXTE, EXECUTEURS_CONTEXTE } from "./outils-contexte";
 import { DEFINITIONS_PROGRAMME, EXECUTEURS_PROGRAMME } from "./outils-programme";
 import {
@@ -275,14 +276,17 @@ export async function suggestNextSetsTool(
     fourchetteRepsMin: 6,
     fourchetteRepsMax: 10,
     seriesCibles: 4,
-    incrementsPossibles: instance.incrementsPossibles || [2.5, 5],
+    charge: configurationDe(instance),
   };
 
   const suggestion = computeNextSets({ sets: sessionSets }, target);
 
   return {
     success: true,
-    output: `Prochaine séance: ${suggestion.charge}kg x [${suggestion.reps.join(", ")}] reps\n${suggestion.messageProgression || ""}`,
+    output: suggestion.charge === null
+      ? `Prochaine séance : [${suggestion.reps.join(", ")}] reps — les sauts de charge de cet appareil `
+        + `ne sont pas renseignés, aucune charge ne peut être proposée.\n${suggestion.messageProgression || ""}`
+      : `Prochaine séance: ${suggestion.charge}kg x [${suggestion.reps.join(", ")}] reps\n${suggestion.messageProgression || ""}`,
   };
 }
 

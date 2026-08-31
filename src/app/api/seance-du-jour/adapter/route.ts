@@ -10,6 +10,7 @@ import {
   sessionLogs,
   sessionPlanItems,
 } from "@/db/schema";
+import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { detailErreur } from "@/lib/erreurs";
 import { exercicesRealisables, incrementsParDefaut } from "@/lib/engine/disponibilite";
@@ -154,7 +155,7 @@ export async function POST(request: Request) {
     const [catalogue, instancesDuLieu] = await Promise.all([
       db.query.exercises.findMany(),
       db.query.exerciseInstances.findMany({
-        where: and(eq(exerciseInstances.gymId, gymId), isNull(exerciseInstances.archiveLe)),
+        where: and(eq(exerciseInstances.gymId, gymId), machinesUtilisablesAujourdhui()),
       }),
     ]);
 

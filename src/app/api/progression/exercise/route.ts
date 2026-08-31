@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { db } from "@/db/client";
-import { sessionLogs, setLogs } from "@/db/schema";
+import { exerciseInstances, sessionLogs, setLogs } from "@/db/schema";
+import { porteeDeLaMesure } from "@/lib/engine/charges";
 import { and, asc, eq, gte, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 
@@ -27,6 +28,22 @@ export async function GET(request: Request) {
   const debut = new Date();
   debut.setMonth(debut.getMonth() - mois);
   const depuis = debut.toISOString().slice(0, 10);
+
+  /**
+   * Ce que le nombre mesure sur CET appareil.
+   *
+   * La courbe s'appelait « 1RM estimé » quelle que soit l'entrée. Sur une pile
+   * sélectorisée, le nombre n'est pas une masse : il ne se compare ni à une
+   * autre marque, ni à une barre. Il reste parfaitement lisible comme indice
+   * de cette entrée — et c'est ce que la réponse dit désormais, pour que
+   * l'écran ne promette pas des kilos qu'il n'a pas mesurés.
+   */
+  const instance = await db.query.exerciseInstances.findFirst({
+    where: eq(exerciseInstances.id, instanceId),
+    columns: { natureCharge: true, conventionCharge: true },
+  });
+  if (!instance) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const portee = porteeDeLaMesure(instance);
 
   const lignes = await db
     .select({
@@ -54,7 +71,13 @@ export async function GET(request: Request) {
   >();
 
   for (const l of lignes) {
-    const estimation = estimer1RMDepuisRpe(l.charge, l.reps, l.rpe);
+    // Sur une assistance, la performance est l'assistance elle-même, et elle
+    // BAISSE. Un maximum estimé y désignerait la séance où l'on a eu le plus
+    // besoin d'aide : on retient donc la série la moins assistée, et l'écran
+    // dit dans quel sens la lire.
+    const estimation = portee === "assistance"
+      ? -l.charge
+      : estimer1RMDepuisRpe(l.charge, l.reps, l.rpe);
     const volume = l.charge * l.reps;
     const actuel = parSeance.get(l.sessionLogId);
     if (!actuel) {
@@ -77,10 +100,10 @@ export async function GET(request: Request) {
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((r) => ({
       date: r.date,
-      best1RM: Math.round(r.best1RM),
+      best1RM: Math.round(portee === "assistance" ? -r.best1RM : r.best1RM),
       totalVolume: Math.round(r.totalVolume),
       bestSet: r.bestSet,
     }));
 
-  return NextResponse.json(resultat);
+  return NextResponse.json({ portee, points: resultat });
 }

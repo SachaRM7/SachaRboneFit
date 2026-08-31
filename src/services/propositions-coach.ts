@@ -3,6 +3,7 @@ import {
   coachPropositions, exerciseInTemplate, exerciseInstances, exercises,
   programmeBlocs, seanceTemplates,
 } from "@/db/schema";
+import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import {
   BORNES, NOUVELLE_LIGNE, construireApercu, empreinteDe, estPerimee, projeter,
@@ -150,8 +151,8 @@ async function machinesDeLaSalle(
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
     .where(
       gymId
-        ? and(isNull(exerciseInstances.archiveLe), eq(exerciseInstances.gymId, gymId))
-        : isNull(exerciseInstances.archiveLe),
+        ? and(machinesUtilisablesAujourdhui(), eq(exerciseInstances.gymId, gymId))
+        : machinesUtilisablesAujourdhui(),
     );
   return new Map(lignes.map((l) => [l.id, nomLisible(l.nom, l.machineNom)]));
 }

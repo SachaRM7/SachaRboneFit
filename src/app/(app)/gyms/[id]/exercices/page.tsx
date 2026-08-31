@@ -40,6 +40,10 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
       // Sans ce filtre, une machine archivée s'affichait comme présente et
       // `presentsParExercice` interdisait de la recréer : l'exercice devenait
       // impossible à remettre dans la salle.
+      //
+      // Les machines hors service, elles, restent affichées : c'est depuis cet
+      // écran qu'on les remet en service, et les masquer rendrait l'état
+      // impossible à défaire autrement qu'en SQL.
       where: and(eq(exerciseInstances.gymId, id), isNull(exerciseInstances.archiveLe)),
       with: { exercise: true },
     }),
@@ -99,9 +103,14 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
     machineNom: i.machineNom,
     typePoulie: i.typePoulie,
     conventionCharge: i.conventionCharge,
-    incrementsPossibles: i.incrementsPossibles ?? [],
+    incrementsPossibles: i.incrementsPossibles,
+    paliersCharges: i.paliersCharges,
+    chargeMinimale: i.chargeMinimale,
     poidsNonCompte: i.poidsNonCompte,
     chargeMax: i.chargeMax,
+    natureCharge: i.natureCharge,
+    etat: i.etat,
+    quantite: i.quantite,
     notesMachine: i.notesMachine,
     exerciceNom: i.exercise?.nom ?? "",
     exercicePilier: i.exercise?.pilier ?? "autre",

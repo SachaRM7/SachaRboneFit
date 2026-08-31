@@ -10,7 +10,9 @@ export interface ExerciseInTemplateWithDetails {
   rpeCible: number;
   tempo: string;
   reposSecondes: number;
-  incrementsPossibles: number[];
+  // Les increments vivaient ici sans qu'aucune ligne de ce module ne les lise :
+  // ce fichier compte des series, il ne prescrit aucune charge. Le champ etait
+  // rempli a chaque appel, parfois avec un tableau vide, et jamais consulte.
   musclesPrincipaux: string[];
 }
 

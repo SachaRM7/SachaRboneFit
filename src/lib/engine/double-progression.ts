@@ -1,3 +1,5 @@
+import { prochaineCharge, type ConfigurationCharge } from "./charges";
+
 export interface LastSessionSets {
   sets: Array<{ numero: number; reps: number; charge: number; rpe?: number | null }>;
 }
@@ -6,13 +8,25 @@ export interface ExerciseTarget {
   fourchetteRepsMin: number;
   fourchetteRepsMax: number;
   seriesCibles: number;
-  incrementsPossibles: number[];
+  /**
+   * Ce que l'appareil sait réellement produire.
+   *
+   * C'était `incrementsPossibles: number[]`, et ce module en lisait le PREMIER
+   * élément — l'ordre de saisie faisait donc règle métier, pendant que la
+   * calibration lisait le plus petit. Une seule primitive répond désormais aux
+   * deux : `prochaineCharge`.
+   */
+  charge: ConfigurationCharge;
   /** RPE visé pour cet exercice. Sert de repère au-delà duquel on consolide. */
   rpeCible?: number | null;
 }
 
 export interface SuggestedSets {
-  charge: number;
+  /**
+   * `null` quand l'appareil n'est pas assez décrit pour qu'une charge suivante
+   * existe. La séance reste faisable — c'est la prescription qui se tait.
+   */
+  charge: number | null;
   reps: number[];
   fourchetteCompletee: boolean;
   messageProgression: string | null;
@@ -67,17 +81,55 @@ export function computeNextSets(
   const toutesAuMax = sets.every((s) => s.reps >= maxReps);
 
   if (toutesAuMax) {
-    const increment = target.incrementsPossibles[0] ?? 2.5;
-    const nouvelleCharge = sets[0]!.charge + increment;
+    const suite = prochaineCharge(target.charge, sets[0]!.charge);
     const effortMaximal = moyenne !== null && moyenne >= RPE_LIMITE;
+    const assistance = target.charge.natureCharge === "assistance";
+    const repsDeDepart = Array.from(
+      { length: target.seriesCibles },
+      () => target.fourchetteRepsMin,
+    );
+
+    // L'appareil n'a pas été mesuré : on ne fabrique pas un « +2,5 kg »
+    // plausible. La fourchette est complétée, on le dit, et la charge reste à
+    // décider sur place.
+    if (suite.statut === "indeterminable") {
+      return {
+        charge: null,
+        reps: sets.map((s) => s.reps),
+        fourchetteCompletee: true,
+        messageProgression:
+          "Fourchette complétée — les sauts de charge de cet appareil ne sont pas renseignés, "
+          + "à toi de choisir le cran suivant",
+        consolidation: false,
+      };
+    }
+
+    // Butée : la pile ne monte pas plus haut, ou il ne reste plus d'assistance
+    // à retirer. Ajouter du travail ici demande de changer d'exercice, pas de
+    // charge.
+    if (suite.statut === "butee") {
+      return {
+        charge: suite.valeur,
+        reps: sets.map((s) => s.reps),
+        fourchetteCompletee: true,
+        messageProgression: assistance
+          ? "Plus aucune assistance à retirer — l'exercice se fait au poids du corps"
+          : `Fourchette complétée, mais l'appareil est en butée à ${suite.valeur} — il faudra en changer`,
+        consolidation: false,
+      };
+    }
+
+    const pas = Math.abs(suite.delta ?? 0);
 
     return {
-      charge: nouvelleCharge,
-      reps: Array.from({ length: target.seriesCibles }, () => target.fourchetteRepsMin),
+      charge: suite.valeur,
+      reps: repsDeDepart,
       fourchetteCompletee: true,
-      messageProgression: effortMaximal
-        ? `Fourchette complétée à RPE ${moyenne!.toFixed(1)} — +${increment} kg, ça va piquer`
-        : `Fourchette complétée — +${increment} kg → ${nouvelleCharge} kg`,
+      messageProgression: assistance
+        ? `Fourchette complétée — assistance ${suite.valeur} au lieu de ${sets[0]!.charge}, tu portes ${pas} de plus`
+        : effortMaximal
+          ? `Fourchette complétée à RPE ${moyenne!.toFixed(1)} — +${pas} kg, ça va piquer`
+          : `Fourchette complétée — +${pas} kg → ${suite.valeur} kg`,
       consolidation: false,
     };
   }

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { CHARGE_INCONNUE } from "./charges";
 import { resoudrePourSalle, type InstanceResolvable } from "./resolution-salle";
 
 const inst = (
@@ -16,7 +17,7 @@ const inst = (
   pilier, profilTension, categorieRole,
   musclesPrincipaux: muscles,
   equipement: "machine",
-  incrementsPossibles: [5],
+  charge: { ...CHARGE_INCONNUE, incrementsPossibles: [5] },
 });
 
 const prevuLalande = inst("l-chest", "lalande", "chest-press", "P1_poussee", "mi_range", "pilier");

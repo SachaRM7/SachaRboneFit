@@ -1,3 +1,4 @@
+import type { ConfigurationCharge } from "./charges";
 import { memeMuscle } from "@/lib/referentiels/muscles";
 
 /**
@@ -27,8 +28,15 @@ export interface InstanceResolvable {
   categorieRole: "pilier" | "substitut" | "accessoire";
   musclesPrincipaux: string[];
   equipement: string | null;
-  /** Sauts de charge reels de cette machine, pour la double progression. */
-  incrementsPossibles: number[];
+  /**
+   * Ce que cette machine sait reellement produire comme charge.
+   *
+   * C'etait le seul tableau des increments. Une pile qui commence a 5 et
+   * s'arrete a 100, un ratelier de barres prechargees, une assistance qui
+   * baisse quand on progresse : rien de tout cela ne tenait dans un tableau de
+   * sauts, et la resolution proposait des charges qui n'existent pas.
+   */
+  charge: ConfigurationCharge;
 }
 
 export type NiveauResolution =

@@ -38,6 +38,17 @@ export const CAPACITES = [
   "epaules_machine",
   "elevations_machine",
   "preacher",
+  /**
+   * Une structure à laquelle se suspendre : barre de traction, cadre, station.
+   *
+   * Le poids du corps était réputé faisable partout. C'est vrai d'une pompe et
+   * d'un squat sans matériel ; c'est faux d'une traction, qui exige quelque
+   * chose au-dessus de la tête. L'invariant proposait donc des tractions dans
+   * une chambre d'hôtel.
+   */
+  "barre_traction",
+  /** Deux appuis parallèles à hauteur de hanches : station à dips, barres. */
+  "barres_paralleles",
 ] as const;
 
 export type Capacite = (typeof CAPACITES)[number];
@@ -62,6 +73,8 @@ export const LIBELLES_CAPACITE: Record<Capacite, string> = {
   epaules_machine: "Développé épaules machine",
   elevations_machine: "Élévations latérales machine",
   preacher: "Pupitre à biceps",
+  barre_traction: "Barre de traction",
+  barres_paralleles: "Barres parallèles / station à dips",
 };
 
 /**
@@ -98,6 +111,21 @@ export const CAPACITE_PAR_SLUG: Record<string, Capacite> = {
   "leg-extension": "leg_extension",
   "seated-calf-raise": "mollets",
   "standing-calf-raise": "mollets",
+  // Le poids du corps ne dispense pas de structure. Ces mouvements-là ont
+  // besoin de quelque chose à quoi se pendre ou sur quoi s'appuyer ; tout le
+  // reste du poids du corps — pompes, squats, gainage — n'est pas listé ici et
+  // reste faisable partout, ce qui est le comportement voulu.
+  "pull-up": "barre_traction",
+  "chin-up": "barre_traction",
+  "neutral-grip-pull-up": "barre_traction",
+  "weighted-pull-up": "barre_traction",
+  "hanging-leg-raise": "barre_traction",
+  "dip": "barres_paralleles",
+  "chest-dip": "barres_paralleles",
+  "weighted-dip": "barres_paralleles",
+  // Un bench dip ne demande qu'un banc, et un inverted row qu'une barre basse
+  // — la barre fixe d'une cage, que la famille « barre » couvre déjà.
+  "bench-dip": "banc",
 };
 
 /**

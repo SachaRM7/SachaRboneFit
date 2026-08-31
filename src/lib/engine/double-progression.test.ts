@@ -1,11 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { computeNextSets, type ExerciseTarget } from "./double-progression";
+import { CHARGE_INCONNUE } from "./charges";
 
 const cible: ExerciseTarget = {
   fourchetteRepsMin: 6,
   fourchetteRepsMax: 8,
   seriesCibles: 3,
-  incrementsPossibles: [2.5, 5],
+  charge: { ...CHARGE_INCONNUE, incrementsPossibles: [2.5, 5] },
 };
 
 describe("double progression", () => {
@@ -63,12 +64,17 @@ describe("double progression", () => {
     expect(r.charge).toBe(52.5);
   });
 
-  it("sans increment declare, retombe sur 2.5 kg", () => {
+  it("sans increment declare, ne propose aucune charge", () => {
+    // Le module retombait sur 2,5 kg : une machine dont personne n'avait
+    // regardé la pile recevait donc une prescription au chiffre près. La
+    // fourchette est bien complétée, et c'est tout ce qu'on peut affirmer.
     const r = computeNextSets(
       { sets: [{ numero: 1, reps: 8, charge: 40 }, { numero: 2, reps: 8, charge: 40 }, { numero: 3, reps: 8, charge: 40 }] },
-      { ...cible, incrementsPossibles: [] },
+      { ...cible, charge: CHARGE_INCONNUE },
     );
-    expect(r.charge).toBe(42.5);
+    expect(r.charge).toBeNull();
+    expect(r.fourchetteCompletee).toBe(true);
+    expect(r.messageProgression).toMatch(/ne sont pas renseignés/);
   });
 
   it("historique vide : se comporte comme une absence d'historique", () => {

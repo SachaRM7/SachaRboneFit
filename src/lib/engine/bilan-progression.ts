@@ -46,6 +46,11 @@ export const SEUILS = {
 // Entrée
 // ---------------------------------------------------------------------------
 
+/** Une charge qui résiste : la seule sur laquelle un record de charge a un sens. */
+function surUneResistance(s: SerieBilan): boolean {
+  return s.natureCharge !== "assistance";
+}
+
 export interface SerieBilan {
   date: string;
   exerciseInstanceId: string;
@@ -55,6 +60,16 @@ export interface SerieBilan {
   rir: number | null;
   musclesPrincipaux: string[];
   musclesSecondaires: string[];
+  /**
+   * `assistance` : le nombre saisi est une AIDE, pas une résistance.
+   *
+   * Une assistance qui baisse est une progression, mais elle ne se lit avec
+   * aucun des outils prévus pour une charge qui monte : un record de charge
+   * croissante y désignerait la séance la plus assistée, et un maximum estimé
+   * n'y veut rien dire. Elle est donc écartée de ces deux lectures — pas de
+   * l'historique, ni du volume, qu'elle documente normalement.
+   */
+  natureCharge?: string | null;
 }
 
 export interface SeanceBilan {
@@ -302,7 +317,7 @@ function calculerVolume(e: EntreeBilan): TendanceVolume | null {
 function calculerRecords(series: SerieBilan[], depuis: string): RecordRecent[] {
   const recents: RecordRecent[] = [];
 
-  for (const [instanceId, lignes] of parInstance(series)) {
+  for (const [instanceId, lignes] of parInstance(series.filter(surUneResistance))) {
     const nom = lignes[0]!.exerciceNom;
     const realisees = lignes.map(versSerieRealisee).sort((a, b) => a.date.localeCompare(b.date));
     const dates = [...new Set(realisees.map((s) => s.date))].sort();
@@ -348,7 +363,10 @@ function calculerRecords(series: SerieBilan[], depuis: string): RecordRecent[] {
 function calculerProgression(series: SerieBilan[], aujourdhui: string): ExerciceEnProgression[] {
   const resultat: ExerciceEnProgression[] = [];
 
-  for (const [instanceId, lignes] of parInstance(series)) {
+  // Le score pondère un gain de charge : sur une assistance il compterait à
+  // l'envers. Tant qu'il ne comprend pas cette métrique, l'exercice n'y entre
+  // pas plutôt que d'y entrer faux.
+  for (const [instanceId, lignes] of parInstance(series.filter(surUneResistance))) {
     const progression = progressionDeLExercice(
       lignes.map((l) => ({ ...versSerieRealisee(l), date: l.date })),
       aujourdhui,
@@ -405,7 +423,7 @@ function calculerMuscles(series: SerieBilan[]): MuscleTravaille[] {
 function seancesDepuisLeRecord(series: SerieBilan[]): Map<string, number> {
   const compte = new Map<string, number>();
 
-  for (const [id, lignes] of parInstance(series)) {
+  for (const [id, lignes] of parInstance(series.filter(surUneResistance))) {
     const records = recordsDeLExercice(lignes.map(versSerieRealisee));
     const dateRecord = records.meilleur1RM?.date;
     if (!dateRecord) {

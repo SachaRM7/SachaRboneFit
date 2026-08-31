@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
+import { libelleDeLaMesure, type PorteeDeLaMesure } from "@/lib/engine/charges";
 
 interface Record {
   exerciseInstanceId: string;
@@ -10,6 +11,7 @@ interface Record {
   charge: number;
   reps: number;
   estimation1RM: number;
+  portee: PorteeDeLaMesure;
   date: string;
   recent: boolean;
   nature: "baseline" | "record";
@@ -17,10 +19,14 @@ interface Record {
 }
 
 /**
- * Records personnels : meilleur 1RM estimé par machine.
+ * Records personnels : meilleure performance estimée, par entrée.
  *
  * L'application enregistrait les performances depuis toujours sans jamais en
  * extraire de record.
+ *
+ * Le chiffre affiché ne s'appelle « 1RM » que là où le nombre saisi est une
+ * masse. Sur une pile ou un Smith, c'est un indice de cette entrée : le dire
+ * évite de croire qu'on peut le comparer d'un appareil à l'autre.
  */
 export function Records() {
   const [resultat, setResultat] = useState<{ records: Record[] } | null>(null);
@@ -91,6 +97,7 @@ export function Records() {
             <div className="text-right shrink-0">
               <p className="chiffres text-base font-semibold text-encre">{r.estimation1RM} kg</p>
               <p className="chiffres text-[11px] text-encre-3 mt-0.5">{r.charge} × {r.reps}</p>
+              <p className="text-[10px] text-encre-3">{libelleDeLaMesure(r.portee)}</p>
             </div>
           </div>
         );

@@ -3,6 +3,7 @@ import { verdictMemoire } from "./memoire-durable";
 import { positionDuBloc } from "@/services/cycle";
 import { contraintesActives } from "@/services/contraintes";
 import { users, gyms, exercises, exerciseInstances, dailyStates, coachMemoires } from "@/db/schema";
+import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { and, eq, desc, isNull, inArray } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { prochaineSeance } from "@/services/programmes";
@@ -144,7 +145,7 @@ async function equipementSalle(p: Record<string, unknown>, userId: string): Prom
   if (!salle) return echec("Salle introuvable");
 
   const instances = await db.query.exerciseInstances.findMany({
-    where: and(isNull(exerciseInstances.archiveLe), eq(exerciseInstances.gymId, salle.id)),
+    where: and(machinesUtilisablesAujourdhui(), eq(exerciseInstances.gymId, salle.id)),
   });
 
   const idsExercices = [...new Set(instances.map((i) => i.exerciseId))];

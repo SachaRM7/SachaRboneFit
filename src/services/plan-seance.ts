@@ -9,12 +9,14 @@ import { contraintesActives } from "./contraintes";
 import { musclesSousContrainte } from "@/lib/engine/contraintes";
 import { computeVolumeAdjustment } from "@/lib/engine/volume-adjustment";
 import { applyVolumeAdjustment, type ExerciseInTemplateWithDetails } from "@/lib/engine/apply-adjustment";
+import { configurationDe } from "@/lib/engine/charges";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { resoudrePourSalle, type InstanceResolvable } from "@/lib/engine/resolution-salle";
 import { versMuscles } from "@/lib/referentiels/muscles";
 import { expliquerRetours } from "@/services/retours";
 import type { DailyStateInput } from "@/lib/validators/daily-state";
 import type { SessionLog, SessionPlanItem } from "@/db/schema";
+import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 
 /**
  * Construction de la seance du jour.
@@ -85,8 +87,14 @@ async function musclesAMenager(
   };
 }
 
-/** Toutes les instances de l'utilisateur, enrichies de leur exercice. */
-async function chargerParc(userId: string): Promise<InstanceResolvable[]> {
+/**
+ * Toutes les instances utilisables aujourd'hui, enrichies de leur exercice.
+ *
+ * Exportée : c'est la définition du parc du jour, celle que la résolution de
+ * salle consomme. La vérifier depuis l'extérieur est le seul moyen de prouver
+ * qu'une machine hors service en sort — et y revient.
+ */
+export async function chargerParc(userId: string): Promise<InstanceResolvable[]> {
   const lignes = await db
     .select({
       id: exerciseInstances.id,
@@ -100,16 +108,23 @@ async function chargerParc(userId: string): Promise<InstanceResolvable[]> {
       musclesPrincipaux: exercises.musclesPrincipaux,
       equipement: exercises.equipement,
       incrementsPossibles: exerciseInstances.incrementsPossibles,
+      paliersCharges: exerciseInstances.paliersCharges,
+      chargeMinimale: exerciseInstances.chargeMinimale,
+      chargeMax: exerciseInstances.chargeMax,
+      natureCharge: exerciseInstances.natureCharge,
+      etat: exerciseInstances.etat,
     })
     .from(exerciseInstances)
     .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-    .where(isNull(exerciseInstances.archiveLe));
+    // Le parc du JOUR : une machine hors service en est retirée sans que son
+    // historique bouge, et sans qu'on ait eu à l'archiver pour ça.
+    .where(machinesUtilisablesAujourdhui());
 
   return lignes.map((l) => ({
     ...l,
     categorieRole: (l.categorieRole as InstanceResolvable["categorieRole"]) ?? "accessoire",
     musclesPrincipaux: l.musclesPrincipaux ?? [],
-    incrementsPossibles: l.incrementsPossibles ?? [],
+    charge: configurationDe(l),
   }));
 }
 
@@ -239,7 +254,6 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
     rpeCible: r.ligne.rpeCible ?? 8,
     tempo: r.ligne.tempo ?? "",
     reposSecondes: r.ligne.reposSecondes ?? 120,
-    incrementsPossibles: [],
     musclesPrincipaux: r.instance.musclesPrincipaux,
   }));
 
@@ -254,9 +268,9 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
         fourchetteRepsMin: r.ligne.fourchetteRepsMin,
         fourchetteRepsMax: r.ligne.fourchetteRepsMax,
         seriesCibles: seriesParLigne.get(r.ligne.id) ?? r.ligne.seriesCibles,
-        // Les increments viennent de la machine RETENUE, pas de celle prevue :
+        // La configuration vient de la machine RETENUE, pas de celle prevue :
         // une poulie en livres et une pile en kilos ne progressent pas pareil.
-        incrementsPossibles: r.instance.incrementsPossibles,
+        charge: r.instance.charge,
       });
     }),
   );
@@ -359,6 +373,9 @@ export interface ItemPlanEnrichi {
   reposSecondes: number | null;
   incrementsPossibles: number[];
   poidsNonCompte: number | null;
+  /** Ce qu'il faut saisir sur cet appareil, et dans quel sens le lire. */
+  conventionCharge: string;
+  natureCharge: string;
   chargeSuggeree: number | null;
   repsSuggerees: number[] | null;
   messageProgression: string | null;
@@ -395,6 +412,8 @@ export async function lirePlan(userId: string, sessionLogId: string) {
       machineNom: exerciseInstances.machineNom,
       incrementsPossibles: exerciseInstances.incrementsPossibles,
       poidsNonCompte: exerciseInstances.poidsNonCompte,
+      conventionCharge: exerciseInstances.conventionCharge,
+      natureCharge: exerciseInstances.natureCharge,
       nom: exercises.nom,
       slug: exercises.slug,
       categorieRole: exercises.categorieRole,
@@ -429,6 +448,8 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         reposSecondes: l.reposSecondes,
         incrementsPossibles: l.incrementsPossibles ?? [],
         poidsNonCompte: l.poidsNonCompte,
+        conventionCharge: l.conventionCharge,
+        natureCharge: l.natureCharge,
         chargeSuggeree: l.chargeSuggeree,
         repsSuggerees: l.repsSuggerees,
         messageProgression: l.messageProgression,

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms, exerciseInstances, exercises } from "@/db/schema";
+import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { eq, desc, and, inArray, isNull, gte } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
@@ -148,7 +149,7 @@ export async function GET() {
             db.query.exerciseInstances.findMany({
               where: and(
                 eq(exerciseInstances.gymId, salleDuJour.id),
-                isNull(exerciseInstances.archiveLe),
+                machinesUtilisablesAujourdhui(),
               ),
               columns: { id: true, exerciseId: true, machineNom: true, incrementsPossibles: true },
             }),
@@ -171,7 +172,7 @@ export async function GET() {
       ? salleDuJour.equipementsDisponibles !== null ||
         (await db.$count(
           exerciseInstances,
-          and(eq(exerciseInstances.gymId, salleDuJour.id), isNull(exerciseInstances.archiveLe)),
+          and(eq(exerciseInstances.gymId, salleDuJour.id), machinesUtilisablesAujourdhui()),
         )) > 0
       : false;
 

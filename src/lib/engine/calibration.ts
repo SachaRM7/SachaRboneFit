@@ -1,4 +1,5 @@
 import { estimer1RM as estimer1RMReference, REPS_EFFECTIVES_MAXIMALES } from "./records";
+import { chargeAtteignable, type ConfigurationCharge } from "./charges";
 
 /**
  * Calibration d'une reprise.
@@ -29,7 +30,12 @@ export interface CibleTravail {
 export type Confiance = "faible" | "correcte" | "bonne";
 
 export interface EstimationCharge {
-  charge: number;
+  /**
+   * `null` quand l'appareil n'a pas été assez décrit pour qu'une charge soit
+   * atteignable. On ne renvoie pas un chiffre par défaut : une donnée
+   * manquante empêche une prescription précise, elle ne s'invente pas.
+   */
+  charge: number | null;
   confiance: Confiance;
   motif: string;
 }
@@ -67,11 +73,23 @@ function chargePourCible(unRM: number, cible: CibleTravail): number {
   return unRM / (1 + effectives / 30);
 }
 
-/** Arrondi à l'incrément réellement disponible sur la machine. */
-export function arrondirAIncrement(charge: number, increments: number[]): number {
-  const pas = increments.length > 0 ? Math.min(...increments) : 2.5;
-  if (pas <= 0) return Math.round(charge);
-  return Math.round(charge / pas) * pas;
+/**
+ * Arrondi à ce que la machine sait réellement produire.
+ *
+ * Le calcul vivait ici, en `Math.min(...increments)`, quand la double
+ * progression lisait `incrementsPossibles[0]` : deux lectures du même tableau,
+ * deux charges différentes sur la même machine. La résolution est désormais
+ * unique — `chargeAtteignable` — et elle connaît les paliers, le plancher et le
+ * plafond que ce module ignorait.
+ *
+ * Le repli à 2,5 kg disparaît : sans incréments mesurés, on ne propose rien
+ * plutôt qu'un chiffre supposé. L'appelant reçoit `null` et le dit.
+ */
+export function arrondirAIncrement(
+  charge: number,
+  config: ConfigurationCharge,
+): number | null {
+  return chargeAtteignable(config, charge).valeur;
 }
 
 /**
@@ -84,8 +102,8 @@ export function arrondirAIncrement(charge: number, increments: number[]): number
 export function chargeSuivante(
   essai: EssaiCalibration,
   cible: CibleTravail,
-  increments: number[],
-): number {
+  config: ConfigurationCharge,
+): number | null {
   const ecart = essai.rirRapporte - cible.rir;
 
   // Le rapport de charge découle de la différence de répétitions effectives :
@@ -97,7 +115,7 @@ export function chargeSuivante(
   // On borne la progression : au-delà, on quitterait la zone observée pour
   // extrapoler, ce qui est précisément ce qu'une calibration doit éviter.
   const borne = Math.min(Math.max(facteur, 0.8), 1.2);
-  return arrondirAIncrement(essai.charge * borne, increments);
+  return arrondirAIncrement(essai.charge * borne, config);
 }
 
 /**
@@ -110,7 +128,7 @@ export function chargeSuivante(
 export function chargeDeTravail(
   essais: EssaiCalibration[],
   cible: CibleTravail,
-  increments: number[],
+  config: ConfigurationCharge,
 ): EstimationCharge {
   const exploitables = essais.filter(
     (e) => e.charge > 0 && e.reps > 0 && e.rirRapporte <= RIR_PLAFOND_FIABLE,
@@ -124,10 +142,13 @@ export function chargeDeTravail(
     // Tous les essais étaient trop légers pour informer : on repart de la
     // charge la plus lourde vue, franchement majorée.
     const plusLourde = Math.max(...echauffement.map((e) => e.charge));
+    const majoree = arrondirAIncrement(plusLourde * 1.15, config);
     return {
-      charge: arrondirAIncrement(plusLourde * 1.15, increments),
+      charge: majoree,
       confiance: "faible",
-      motif: "toutes les séries étaient loin de l'échec",
+      motif: majoree === null
+        ? "incréments inconnus sur cet appareil : aucune charge à proposer"
+        : "toutes les séries étaient loin de l'échec",
     };
   }
 
@@ -137,7 +158,7 @@ export function chargeDeTravail(
     ? (estimations[milieu - 1]! + estimations[milieu]!) / 2
     : estimations[milieu]!;
 
-  const charge = arrondirAIncrement(chargePourCible(median, cible), increments);
+  const charge = arrondirAIncrement(chargePourCible(median, cible), config);
 
   // La confiance tient au nombre d'essais et à leur accord. Deux estimations
   // qui divergent de 15 % ne fondent pas une certitude.
@@ -155,6 +176,14 @@ export function chargeDeTravail(
     motif = `${exploitables.length} essais, dispersion mesurée`;
   } else if (exploitables.length >= 2) {
     motif = `${exploitables.length} essais divergents`;
+  }
+
+  if (charge === null) {
+    return {
+      charge: null,
+      confiance: "faible",
+      motif: "incréments inconnus sur cet appareil : aucune charge à proposer",
+    };
   }
 
   return { charge, confiance, motif };

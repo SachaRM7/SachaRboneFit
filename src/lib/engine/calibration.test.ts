@@ -9,9 +9,14 @@ import {
   type EssaiCalibration,
   type ExpositionObservee,
 } from "./calibration";
+import { CHARGE_INCONNUE, type ConfigurationCharge } from "./charges";
 
 const CIBLE = { reps: 10, rir: 2 };
-const INCREMENTS = [2.5];
+const INCREMENTS: ConfigurationCharge = { ...CHARGE_INCONNUE, incrementsPossibles: [2.5] };
+const parPas = (pas: number): ConfigurationCharge => ({
+  ...CHARGE_INCONNUE,
+  incrementsPossibles: [pas],
+});
 
 const essai = (charge: number, reps: number, rirRapporte: number): EssaiCalibration => ({
   charge, reps, rirRapporte,
@@ -51,16 +56,16 @@ describe("chargeSuivante", () => {
   it("borne la progression pour ne pas extrapoler hors de la zone observée", () => {
     // Le plafond est de 20 %. Une série très longue et très légère produirait
     // sans lui une extrapolation absurde ; il ne borne que ces cas-là.
-    const sansPlafond = chargeSuivante(essai(60, 15, 5), CIBLE, [1]);
+    const sansPlafond = chargeSuivante(essai(60, 15, 5), CIBLE, parPas(1));
     expect(sansPlafond).toBeLessThanOrEqual(72);
 
     // Ici l'extrapolation partirait beaucoup plus haut : le plafond mord.
-    expect(chargeSuivante(essai(20, 20, 5), CIBLE, [1])).toBe(24);
+    expect(chargeSuivante(essai(20, 20, 5), CIBLE, parPas(1))).toBe(24);
   });
 
   it("respecte l'incrément réel de la machine", () => {
     // Une pile par cinq kilos ne propose pas 67,5.
-    expect(chargeSuivante(essai(60, 10, 5), CIBLE, [5]) % 5).toBe(0);
+    expect(chargeSuivante(essai(60, 10, 5), CIBLE, parPas(5))! % 5).toBe(0);
   });
 });
 
@@ -117,9 +122,9 @@ describe("chargeDeTravail", () => {
 describe("arrondirAIncrement", () => {
   it("retient le plus petit incrément disponible", () => {
     // Le pas de 2,5 est retenu, pas celui de 5 : 66,3 tombe sur 67,5.
-    expect(arrondirAIncrement(66.3, [2.5, 5])).toBe(67.5);
-    expect(arrondirAIncrement(67.4, [5])).toBe(65);
-    expect(arrondirAIncrement(68, [5])).toBe(70);
+    expect(arrondirAIncrement(66.3, { ...CHARGE_INCONNUE, incrementsPossibles: [2.5, 5] })).toBe(67.5);
+    expect(arrondirAIncrement(67.4, parPas(5))).toBe(65);
+    expect(arrondirAIncrement(68, parPas(5))).toBe(70);
   });
 });
 

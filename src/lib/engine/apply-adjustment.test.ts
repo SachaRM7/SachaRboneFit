@@ -17,7 +17,6 @@ const exo = (
   rpeCible: 8,
   tempo: "3010",
   reposSecondes: 120,
-  incrementsPossibles: [2.5],
   musclesPrincipaux: [],
 });
 

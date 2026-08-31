@@ -5,6 +5,7 @@ import { IllustrationExercice } from "@/components/exercises/IllustrationExercic
 import { Check, Plus } from "lucide-react";
 import type { ExercicePrescrit } from "./types";
 import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
+import { consigneDeSaisie } from "@/lib/validators/exercise-instance";
 
 interface Props {
   exercice: ExercicePrescrit;
@@ -44,6 +45,7 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
 
   // Des séries peuvent avoir été ajoutées au-delà de la prescription.
   const [seriesEnPlus, setSeriesEnPlus] = useState(0);
+  const consigne = consigneDeSaisie(exercice.conventionCharge, exercice.natureCharge);
   const nbLignes = Math.max(
     exercice.seriesCibles + seriesEnPlus,
     ...seriesSaisies.map((s) => s.numeroSerie),
@@ -257,9 +259,23 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
           Ajouter une série
         </button>
 
+        {/*
+          Ce qu'il faut saisir, là où on le saisit.
+          La convention vivait en base sans jamais atteindre la séance : devant
+          un hack squat, rien ne disait s'il fallait noter les disques ou le
+          total, et deux séances saisies autrement font une courbe qui bouge
+          sans effort supplémentaire.
+        */}
+        {consigne ? <p className="text-xs text-encre-3 mt-2">{consigne}</p> : null}
+
         {exercice.poidsNonCompte ? (
-          <p className="text-xs text-encre-3 mt-2">
-            Plateforme {exercice.poidsNonCompte} kg non comptée
+          <p className="text-xs text-encre-3 mt-1">
+            {/*
+              La résistance annoncée par le constructeur se lit, elle ne
+              s'ajoute pas : inclinaison, bras de levier et cames font qu'elle
+              n'est pas une masse qu'on additionne à la charge saisie.
+            */}
+            Résistance de l&apos;appareil à vide : {exercice.poidsNonCompte} kg, non comptée dans la saisie
           </p>
         ) : null}
 

@@ -41,6 +41,7 @@ export async function bilanDeProgression(
         rpe: setLogs.rpeEffectif,
         musclesPrincipaux: exercises.musclesPrincipaux,
         musclesSecondaires: exercises.musclesSecondaires,
+        natureCharge: exerciseInstances.natureCharge,
       })
       .from(setLogs)
       .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
@@ -75,6 +76,7 @@ export async function bilanDeProgression(
     rir: reserveDepuisRpe(l.rpe),
     musclesPrincipaux: l.musclesPrincipaux ?? [],
     musclesSecondaires: l.musclesSecondaires ?? [],
+    natureCharge: l.natureCharge,
   }));
 
   return bilanProgression({

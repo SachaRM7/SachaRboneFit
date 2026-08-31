@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { derniereSeriesPour } from "@/services/plan-seance";
 import { computeNextSets } from "@/lib/engine/double-progression";
+import { CHARGE_INCONNUE, configurationDe } from "@/lib/engine/charges";
 import { detailErreur } from "@/lib/erreurs";
 
 export async function GET(
@@ -74,7 +75,7 @@ export async function GET(
           fourchetteRepsMin: eit.fourchetteRepsMin,
           fourchetteRepsMax: eit.fourchetteRepsMax,
           seriesCibles: eit.seriesCibles,
-          incrementsPossibles: inst?.incrementsPossibles ?? [],
+          charge: inst ? configurationDe(inst) : CHARGE_INCONNUE,
         });
 
         return {
@@ -95,7 +96,7 @@ export async function GET(
           categorieRole: inst?.exercise?.categorieRole || "",
           profilTension: inst?.exercise?.profilTension || "",
           musclesPrincipaux: inst?.exercise?.musclesPrincipaux || [],
-          chargeSuggeree: suggestion.charge || null,
+          chargeSuggeree: suggestion.charge,
           repsSuggerees: suggestion.reps,
           messageProgression: suggestion.messageProgression,
           historique: (derniere?.sets ?? []).map((s) => ({ charge: s.charge, reps: s.reps })),
