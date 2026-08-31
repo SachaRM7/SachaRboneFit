@@ -9,6 +9,7 @@ import {
   type Apercu, type LigneProgramme, type Operation,
 } from "@/lib/coach/propositions";
 import { validerSeanceComplete, type SeanceAValider } from "./validation";
+import type { Lecteur } from "@/db/lecteur";
 
 /**
  * Le chemin d'écriture du coach, de bout en bout.
@@ -22,8 +23,6 @@ import { validerSeanceComplete, type SeanceAValider } from "./validation";
  */
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-/** Le client de base, ou la transaction en cours : les lectures acceptent les deux. */
-type Lecteur = typeof db | Transaction;
 
 export class PropositionRefusee extends Error {
   constructor(
@@ -166,6 +165,7 @@ async function controler(
   userId: string,
   gymId: string | null,
   lignes: LigneProgramme[],
+  executeur: Lecteur = db,
 ): Promise<Controle> {
   if (!gymId) return { bloquants: [], avertissements: [] };
 
@@ -181,6 +181,10 @@ async function controler(
     userId,
     gymId,
     exercices: exercicesAValider,
+    // Le même moteur de validation que partout, mais qui lit l'état de la
+    // transaction : appelé avec `db` après une mutation non commitée, il
+    // jugerait la séance d'avant.
+    executeur,
   });
 
   const toutes = [...resultat.seance.anomalies, ...resultat.semaine.anomalies];
@@ -302,13 +306,35 @@ export interface Application {
 }
 
 /**
+ * Point d'injection d'une panne, pour les tests d'atomicité.
+ *
+ * Prouver qu'un rollback a lieu demande de faire échouer l'application à un
+ * moment précis — après la mutation, pendant la validation — et aucun jeu de
+ * données ne provoque ça de l'extérieur. Le crochet est vide en production et
+ * ne coûte qu'un appel de fonction ; il rend vérifiable ce qui ne l'était que
+ * par relecture du code.
+ */
+export const PANNES: {
+  apresMutation: (() => void | Promise<void>) | null;
+  pendantValidation: (() => void | Promise<void>) | null;
+  /** Dernier instant avant le COMMIT : tout est écrit, rien n'est visible. */
+  avantCommit: (() => void | Promise<void>) | null;
+} = { apresMutation: null, pendantValidation: null, avantCommit: null };
+
+/**
  * Applique une proposition confirmée.
  *
- * L'ordre des contrôles compte. On vérifie d'abord que la proposition existe,
- * qu'elle est à cet utilisateur, qu'elle attend encore une décision et qu'elle
- * n'a pas expiré. Puis, dans la transaction et sur l'état verrouillé, que la
- * séance n'a pas changé depuis le calcul : c'est la seule vérification qui
- * ferme la fenêtre entre l'affichage et le clic.
+ * Tout ce qui suit le BEGIN est dans la même transaction : le verrou, la
+ * vérification d'empreinte, le recalcul, l'écriture, la validation complète du
+ * résultat, et le passage de la proposition à « appliquée ». Rien d'invalide
+ * n'est donc commité, même brièvement.
+ *
+ * La version précédente validait après le commit et restaurait ligne à ligne en
+ * cas de refus. Elle laissait exactement la fenêtre que l'atomicité doit
+ * supprimer : un lecteur concurrent pouvait y voir un état que nos propres
+ * validateurs rejettent, une panne entre le commit et la restauration le
+ * figeait, et la restauration elle-même pouvait échouer. Un ROLLBACK fait le
+ * travail sans second mécanisme de sûreté.
  *
  * L'écriture est refaite depuis l'opération, pas recopiée depuis l'après
  * enregistré. Un après recopié appliquerait des identifiants figés à un état
@@ -366,59 +392,63 @@ export async function appliquerProposition(
       if (projection.refus) throw new PropositionRefusee(projection.refus, 422);
 
       await ecrire(tx, proposition.seanceTemplateId, cible.lignes, projection.lignes);
+      await PANNES.apresMutation?.();
 
-      return { cible, projection };
-    });
+      // Relecture de ce qui vient d'être écrit, DANS la transaction : c'est
+      // l'état réel, visible d'ici seulement, et pas la projection. Une
+      // écriture qui produirait autre chose que ce qui a été montré se voit
+      // maintenant, tant qu'il est encore possible de tout annuler.
+      const apres = await lireCible(userId, proposition.seanceTemplateId, tx);
+      if (!apres) throw new PropositionRefusee("Séance illisible après application.", 500);
 
-    // Contrôle après écriture, sur ce qui est réellement en base — pas sur la
-    // projection. Une écriture qui produirait autre chose que ce qui a été
-    // montré doit se voir ici, pas à la séance suivante.
-    const apres = await lireCible(userId, proposition.seanceTemplateId);
-    const controle = apres
-      ? await controler(userId, apres.gymId, apres.lignes)
-      : { bloquants: ["Séance illisible après application"], avertissements: [] };
-
-    const apercu = construireApercu(
-      resultat.cible.lignes,
-      apres?.lignes ?? resultat.projection.lignes,
-      controle.avertissements,
-    );
-
-    if (controle.bloquants.length > 0) {
-      // On ne laisse pas une séance invalide derrière soi : l'état d'avant est
-      // connu ligne à ligne, il est remis tel quel.
-      await restaurer(proposition.seanceTemplateId, resultat.cible.lignes, apres?.lignes ?? []);
-      await marquer(propositionId, "echouee", {
-        raison: "Contrôles refusés après application, séance restaurée",
-        bloquants: controle.bloquants,
-      });
-      throw new PropositionRefusee(
-        `Appliquée puis annulée : ${controle.bloquants.join(" ; ")}`,
-        422,
-      );
-    }
-
-    await marquer(propositionId, "appliquee", {
-      avertissements: controle.avertissements,
-      apercu: apercu as unknown as Record<string, unknown>,
-    });
-
-    return { id: propositionId, apercu, avertissements: controle.avertissements };
-  } catch (erreur) {
-    if (erreur instanceof PropositionRefusee) {
-      if (proposition.statut === "en_attente") {
-        const encore = await db.query.coachPropositions.findFirst({
-          where: eq(coachPropositions.id, propositionId),
-        });
-        if (encore?.statut === "en_attente") {
-          await marquer(propositionId, "echouee", { raison: erreur.raison });
-        }
+      await PANNES.pendantValidation?.();
+      const controle = await controler(userId, apres.gymId, apres.lignes, tx);
+      if (controle.bloquants.length > 0) {
+        // Le throw remonte hors du callback : Drizzle émet ROLLBACK, et rien de
+        // ce qui précède — mutation comprise — n'aura existé pour personne.
+        throw new PropositionRefusee(
+          `Cette modification rendrait la séance invalide : ${controle.bloquants.join(" ; ")}`,
+          422,
+        );
       }
-      throw erreur;
-    }
-    await marquer(propositionId, "echouee", {
-      raison: erreur instanceof Error ? erreur.message : String(erreur),
+
+      const apercu = construireApercu(cible.lignes, apres.lignes, controle.avertissements);
+
+      // Le statut change dans la même transaction que la séance. « Programme
+      // non modifié + proposition appliquée » devient impossible : les deux
+      // écritures partagent le même sort.
+      await tx
+        .update(coachPropositions)
+        .set({
+          statut: "appliquee",
+          decideLe: new Date(),
+          resultat: {
+            avertissements: controle.avertissements,
+            apercu: apercu as unknown as Record<string, unknown>,
+          },
+        })
+        .where(eq(coachPropositions.id, propositionId));
+
+      await PANNES.avantCommit?.();
+      return { apercu, avertissements: controle.avertissements };
     });
+
+    return { id: propositionId, apercu: resultat.apercu, avertissements: resultat.avertissements };
+  } catch (erreur) {
+    // Le rollback a déjà tout défait, proposition comprise : elle est revenue à
+    // « en attente ». On l'écarte ensuite, dans une écriture séparée, pour que
+    // la raison soit conservée — mais ce marquage n'a plus rien à réparer, il
+    // ne fait que dire pourquoi.
+    const raison = erreur instanceof PropositionRefusee
+      ? erreur.raison
+      : erreur instanceof Error ? erreur.message : String(erreur);
+
+    const encore = await db.query.coachPropositions.findFirst({
+      where: eq(coachPropositions.id, propositionId),
+    });
+    if (encore?.statut === "en_attente") {
+      await marquer(propositionId, "echouee", { raison });
+    }
     throw erreur;
   }
 }
@@ -501,47 +531,4 @@ async function ecrire(
       })
       .where(eq(exerciseInTemplate.id, l.id));
   }
-}
-
-/**
- * Remet la séance dans l'état d'avant.
- *
- * Utilisée quand les contrôles refusent le résultat d'une application. Elle ne
- * réécrit pas la séance en bloc : elle défait, ligne par ligne, ce que
- * l'écriture a fait. Une ligne ajoutée est supprimée — elle vient de naître,
- * rien ne la référence encore ; une ligne modifiée retrouve ses valeurs
- * d'origine, avec son identifiant, donc sans casser ce qui pointe dessus.
- */
-async function restaurer(
-  seanceTemplateId: string,
-  avant: LigneProgramme[],
-  actuelles: LigneProgramme[],
-): Promise<void> {
-  const parIdAvant = new Map(avant.map((l) => [l.id, l]));
-
-  await db.transaction(async (tx) => {
-    for (const l of actuelles) {
-      if (!parIdAvant.has(l.id)) {
-        await tx.delete(exerciseInTemplate).where(eq(exerciseInTemplate.id, l.id));
-      }
-    }
-    for (const l of avant) {
-      await tx
-        .update(exerciseInTemplate)
-        .set({
-          ordre: l.ordre,
-          exerciseInstanceId: l.exerciseInstanceId,
-          seriesCibles: l.seriesCibles,
-          fourchetteRepsMin: l.repsMin,
-          fourchetteRepsMax: l.repsMax,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(exerciseInTemplate.id, l.id),
-            eq(exerciseInTemplate.seanceTemplateId, seanceTemplateId),
-          ),
-        );
-    }
-  });
 }

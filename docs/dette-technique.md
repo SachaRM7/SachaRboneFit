@@ -341,12 +341,11 @@ garde-fou (`verdictMemoire`).
 
 ### Ce qui reste à surveiller
 
-- **La restauration après échec des contrôles** défait l'écriture ligne à
-  ligne, sans transaction commune avec l'application elle-même : entre le
-  commit et la restauration, la séance est brièvement dans l'état refusé. Le
-  cas ne se produit qu'avec un contrôle qui passe avant écriture et échoue
-  après — donc une modification concurrente dans cette fenêtre. Acceptable
-  aujourd'hui ; à revoir si les contrôles gagnent des règles dépendant du temps.
+- **Le crochet `PANNES`** est du code de production qui n'existe que pour les
+  tests d'atomicité : trois fonctions nulles, appelées à des points précis de
+  la transaction. Sans lui, « il y a bien un rollback » ne se vérifie que par
+  relecture. Il ne fait rien en production ; il reste une surface exportée et
+  mutable, à surveiller.
 - **Les propositions décidées ne sont jamais purgées.** C'est voulu — elles
   sont la trace — mais la table grandira. Aucune purge tant que le volume ne le
   demande pas.

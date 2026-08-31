@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import type { Lecteur } from "@/db/lecteur";
 import {
   dailyStates, exerciseInTemplate, exerciseInstances, exercises, programmeBlocs,
   seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
@@ -76,21 +77,21 @@ export function positionDuBloc(
  * Le validateur en a besoin autant que l'outil de lecture : la phase décide
  * du seuil de récupération et des règles de décharge.
  */
-export async function mesurerCycle(userId: string) {
-  const bloc = await db.query.programmeBlocs.findFirst({
+export async function mesurerCycle(userId: string, executeur: Lecteur = db) {
+  const bloc = await executeur.query.programmeBlocs.findFirst({
     where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
   });
 
   // Une jointure plutôt qu'une requête par séance : la version précédente
   // interrogeait la base huit fois pour huit séances.
-  const seances = await db.query.sessionLogs.findMany({
+  const seances = await executeur.query.sessionLogs.findMany({
     where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
     orderBy: [desc(sessionLogs.date)],
     limit: 8,
   });
 
   const series = seances.length
-    ? await db
+    ? await executeur
         .select({
           sessionLogId: setLogs.sessionLogId,
           charge: setLogs.charge,
@@ -125,7 +126,7 @@ export async function mesurerCycle(userId: string) {
     };
   });
 
-  const etatsRecents = await db.query.dailyStates.findMany({
+  const etatsRecents = await executeur.query.dailyStates.findMany({
     where: and(eq(dailyStates.userId, userId), gte(dailyStates.date, ilYaJours(7))),
     orderBy: [desc(dailyStates.date)],
   });
@@ -136,7 +137,7 @@ export async function mesurerCycle(userId: string) {
 
   const etat = classerEtatCycle({
     phasePrevue: phaseDepuisTypeCycle(bloc?.typeCycle),
-    semainesSansDecharge: await semainesSansDeload(userId),
+    semainesSansDecharge: await semainesSansDeload(userId, executeur),
     seancesRecentes: entrees,
     signaux: {
       sommeilRecent: etatsRecents.map((e) => e.sommeilHeures ?? 7),

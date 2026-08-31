@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import type { Lecteur } from "@/db/lecteur";
 import { contraintes, exerciseInstances, users } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { validerSeance, type ExercicePropose, type ContrainteMuscle, type ResultatValidation } from "@/lib/engine/validation-seance";
@@ -103,12 +104,21 @@ export async function validerSeanceComplete(entrees: {
    * annoncer une séance effondrée alors qu'elle était complète.
    */
   seriesApres?: number;
+  /**
+   * Avec quoi lire.
+   *
+   * Une validation qui doit juger le résultat d'une mutation non encore
+   * commitée doit lire DANS la transaction qui l'a produite : lire avec `db`
+   * lui montrerait l'état d'avant, et elle validerait alors quelque chose qui
+   * n'existe plus. Les appelants hors transaction ne passent rien.
+   */
+  executeur?: Lecteur;
 }): Promise<ValidationComplete> {
-  const { userId, gymId, exercices } = entrees;
+  const { userId, gymId, exercices, executeur = db } = entrees;
 
   const [profil, instances] = await Promise.all([
-    db.query.users.findFirst({ where: eq(users.id, userId) }),
-    db.query.exerciseInstances.findMany({
+    executeur.query.users.findFirst({ where: eq(users.id, userId) }),
+    executeur.query.exerciseInstances.findMany({
       where: isNull(exerciseInstances.archiveLe),
       with: { exercise: true },
     }),
@@ -138,11 +148,11 @@ export async function validerSeanceComplete(entrees: {
   });
 
   const [activite, activiteSemaine, cycle, courbatures, contraintesActives] = await Promise.all([
-    activiteMusculaire(userId, 21),
-    activiteMusculaire(userId, 7),
-    mesurerCycle(userId),
-    courbaturesDuJour(userId),
-    db.query.contraintes.findMany({
+    activiteMusculaire(userId, 21, executeur),
+    activiteMusculaire(userId, 7, executeur),
+    mesurerCycle(userId, executeur),
+    courbaturesDuJour(userId, executeur),
+    executeur.query.contraintes.findMany({
       where: and(eq(contraintes.userId, userId), isNull(contraintes.dateFin)),
     }),
   ]);

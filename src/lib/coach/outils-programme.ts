@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import type { Lecteur } from "@/db/lecteur";
 import { setLogs, sessionLogs, exercises, exerciseInstances, gyms, users, dailyStates, programmeBlocs } from "@/db/schema";
 import { and, eq, gte, desc, isNull } from "drizzle-orm";
 import { versMuscle, MUSCLES, type Muscle } from "@/lib/referentiels/muscles";
@@ -70,8 +71,8 @@ interface ActiviteMuscle {
  * séries loin de l'échec n'est pas deux jours après vingt séries à RIR 0. On
  * conserve donc le coût de la dernière exposition, pas seulement son moment.
  */
-export async function activiteMusculaire(userId: string, jours: number) {
-  const lignes = await db
+export async function activiteMusculaire(userId: string, jours: number, executeur: Lecteur = db) {
+  const lignes = await executeur
     .select({
       date: sessionLogs.date,
       rpe: setLogs.rpeEffectif,
@@ -137,8 +138,11 @@ export function etatMusclesDepuis(activite: Map<string, ActiviteMuscle>, courbat
 }
 
 /** Courbatures signalées aujourd'hui, par muscle canonique. */
-export async function courbaturesDuJour(userId: string): Promise<Map<string, number>> {
-  const etat = await db.query.dailyStates.findFirst({
+export async function courbaturesDuJour(
+  userId: string,
+  executeur: Lecteur = db,
+): Promise<Map<string, number>> {
+  const etat = await executeur.query.dailyStates.findFirst({
     where: and(eq(dailyStates.userId, userId), eq(dailyStates.date, new Date().toISOString().slice(0, 10))),
   });
   return new Map(

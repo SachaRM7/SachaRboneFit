@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import type { Lecteur } from "@/db/lecteur";
 import {
   exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
@@ -38,13 +39,16 @@ function semainesDepuis(dateISO: string): number {
  * a été fortement réduit (au moins -30 %). À défaut, on compte depuis le début
  * du bloc actif.
  */
-export async function semainesSansDeload(userId: string): Promise<number> {
-  const blocDeload = await db.query.programmeBlocs.findFirst({
+export async function semainesSansDeload(
+  userId: string,
+  executeur: Lecteur = db,
+): Promise<number> {
+  const blocDeload = await executeur.query.programmeBlocs.findFirst({
     where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.typeCycle, "deload")),
     orderBy: [desc(programmeBlocs.dateDebut)],
   });
 
-  const seanceAllegee = await db.query.sessionLogs.findFirst({
+  const seanceAllegee = await executeur.query.sessionLogs.findFirst({
     where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
     orderBy: [desc(sessionLogs.date)],
     columns: { date: true, volumeAjustePct: true },
@@ -57,7 +61,7 @@ export async function semainesSansDeload(userId: string): Promise<number> {
   }
 
   if (candidats.length === 0) {
-    const blocActif = await db.query.programmeBlocs.findFirst({
+    const blocActif = await executeur.query.programmeBlocs.findFirst({
       where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
     });
     return blocActif ? semainesDepuis(blocActif.dateDebut) : 0;
