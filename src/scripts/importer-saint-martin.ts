@@ -55,9 +55,19 @@ const EQUIPEMENTS = [
 const NOTES_SALLE = [
   "Parc intégralement Matrix. Relevé terrain, premier inventaire de référence.",
   "",
-  "Accessoires de poulie observés : poignées, barre longue, prises neutres de",
-  "plusieurs largeurs. Non modélisés — leur absence change la variante d'un",
-  "mouvement, pas sa faisabilité.",
+"POULIES — trois familles à ne pas confondre :",
+  "· 7 poulies RÉGLABLES en hauteur (basse, milieu, haute), réparties sur",
+  "  6 postes : 5 poulies simples, plus 1 station double fournissant 2 câbles",
+  "  indépendants utilisables simultanément. Échelle +10 lbs, plafond 45 kg.",
+  "· Lat Pulldown assis : poste dédié, poulie FIXE, échelle machine +15 lbs.",
+  "  Deux exemplaires.",
+  "· Low Row assis : poste dédié, poulie FIXE, échelle machine +15 lbs.",
+  "",
+  "Accessoires de poulie relevés : poignées, barre longue, prises neutres de",
+  "plusieurs largeurs. Ils ne sont pas modélisés — le moteur n'exprime qu'un",
+  "besoin par exercice, donc « poulie ET corde » est inexprimable — mais ils",
+  "décident ce qui est déclaré : un mouvement dont l'accessoire manque n'entre",
+  "pas dans l'inventaire.",
   "",
   "Cardio (rameurs, tapis, vélos, ClimbMill), plyo boxes, cordes, ballons,",
   "steps : présents, sans effet sur la programmation actuelle.",
@@ -75,7 +85,8 @@ const NOTES_SALLE = [
   "crans n'existent donc pas.",
   "",
   "À CONFIRMER SUR PLACE — rien de tout cela n'est saisi tant que ce n'est pas mesuré :",
-  "· le NOMBRE de plaques de chaque pile — le pas est connu, la hauteur non ;",
+  "· le NOMBRE de plaques de chaque pile MACHINE — le pas est connu, la hauteur",
+  "  non. Les poulies réglables font exception : dix crans, plafond 45 kg, clos ;",
   "· un maximum de 91 kg figure au relevé, et l'échelle commune ne le produit",
   "  pas (elle passe de 86 à 93). Soit la lecture est approximative, soit cet",
   "  appareil-là a des plaques différentes : à revérifier sur place ;",
@@ -85,9 +96,18 @@ const NOTES_SALLE = [
   "· le sens de la Dip/Chin Assist : confirmer que le nombre affiché est bien",
   "  l'assistance et non la charge ;",
   "· l'identification des deux appareils inconnus (station intégrée au rack,",
-  "  tapis incurvé) ;",
-  "· la charge maximale des poulies réglables : 45 kg relevé, reste à savoir",
-  "  si c'est la pile ou la charge en bout de câble ;",
+  "  tapis incurvé). Ils ne sont PAS déclarés : une entrée exige un exercice, et",
+  "  leur en attribuer un serait deviner ce qu'ils permettent de faire ;",
+  "· le rapport de mouflage des poulies réglables : les 45 kg affichés sont-ils",
+  "  la pile ou la charge en bout de câble ? Sans effet sur la progression —",
+  "  l'affiché suffit et reste comparable à lui-même — mais interdit de comparer",
+  "  un écarté poulie à un écarté haltères ;",
+  "· la présence d'une CORDE et d'une SANGLE DE CHEVILLE au râtelier",
+  "  d'accessoires : le relevé nomme poignées, barre longue et prises neutres,",
+  "  pas ces deux-là. Sept exercices faisables sur les poulies réglables en",
+  "  dépendent et attendent donc d'être déclarés — corde : face-pull,",
+  "  rope-tricep-pushdown, rope-hammer-curl, cable-crunch, cable-pull-through,",
+  "  overhead-tricep-extension ; sangle : cable-kickback ;",
   "· l'existence d'une barre préchargée hors de la plage 10–30, et d'un",
   "  éventuel palier à 12,5 ;",
   "· la station de traction : confirmer qu'on peut réellement s'y suspendre,",
@@ -133,6 +153,65 @@ interface Entree {
 const LIVRES_PREMIER_CRAN = 10;
 const LIVRES_PAR_CRAN = 15;
 const KG_PAR_LIVRE = 0.45359237;
+
+/**
+ * Les poulies réglables ne suivent PAS la même échelle que les machines.
+ *
+ * Même départ — 10 lbs — mais +10 lbs par cran au lieu de +15. Converti, cela
+ * donne 4,5 · 9 · 14 · 18 · 23 · 27 · 32 · 36 · 41 · 45, et le dixième cran
+ * tombe exactement sur les 45 kg relevés comme plafond. C'est la seule pile de
+ * la salle dont on connaisse à la fois le pas ET la hauteur : dix plaques,
+ * rien à confirmer.
+ *
+ * La valeur retenue est celle qu'affiche la machine. Le rapport de mouflage
+ * n'est pas vérifié, donc aucune conversion n'est tentée : pour progresser sur
+ * cette entrée, l'affiché suffit, et il reste comparable à lui-même.
+ */
+const LIVRES_PAR_CRAN_POULIE = 10;
+const CRANS_POULIE = 10;
+
+function echelleDUnePoulie(): number[] {
+  return Array.from({ length: CRANS_POULIE }, (_, i) => {
+    const kg = (LIVRES_PREMIER_CRAN + LIVRES_PAR_CRAN_POULIE * i) * KG_PAR_LIVRE;
+    return i === 0 ? 4.5 : Math.round(kg);
+  });
+}
+
+/**
+ * Sept poulies réglables, cinq postes.
+ *
+ * Cinq poulies simples, plus une station double qui en fournit deux
+ * indépendantes utilisables en même temps. Un mouvement à un seul câble peut
+ * donc se faire sur n'importe laquelle des sept ; un mouvement à deux câbles
+ * simultanés n'a qu'un seul poste possible.
+ *
+ * C'est la seule chose que `quantite` sait dire, et elle n'a aucun effet
+ * moteur — pas de notion d'occupation en temps réel. Elle documente ce qui
+ * est occupable, rien de plus.
+ */
+const POULIES_SIMPLES_DISPONIBLES = 7;
+const STATIONS_DOUBLES_DISPONIBLES = 1;
+
+/** Une entrée de poulie réglable : même appareil, même échelle, même plafond. */
+function poulieReglable(
+  slug: string,
+  precisions: { double?: boolean; notes: string },
+): Entree {
+  return {
+    slug,
+    machineNom: precisions.double ? "Station double à poulies" : "Poulie réglable",
+    conventionCharge: "pile_affichee",
+    typePoulie: precisions.double ? "double" : "simple",
+    paliersCharges: echelleDUnePoulie(),
+    chargeMinimale: 4.5,
+    chargeMax: 45,
+    quantite: precisions.double ? STATIONS_DOUBLES_DISPONIBLES : POULIES_SIMPLES_DISPONIBLES,
+    notesMachine:
+      `${precisions.notes} Réglable en hauteur (basse, milieu, haute). `
+      + "Valeur saisie = charge affichée sur la pile ; le rapport de mouflage "
+      + "n'est pas vérifié, donc aucune conversion n'est appliquée.",
+  };
+}
 
 /**
  * Vingt crans, soit 134 kg.
@@ -252,26 +331,113 @@ const RELEVE: Entree[] = [
   },
 
   /**
-   * Les deux lat pulldown identiques : UNE entrée, quantité 2.
+   * Le Lat Pulldown assis : un poste dédié, pas une poulie réglable.
    *
-   * Deux entrées dédoubleraient l'historique sans rien apporter. La quantité
-   * est une note d'inventaire — aucun module ne s'en sert, et il n'existe pas
-   * de notion d'occupation en temps réel.
+   * La distinction compte. Sa poulie est FIXE, en hauteur, et sa pile suit
+   * l'échelle machine (+15 lbs), pas celle des poulies réglables (+10). Le
+   * confondre avec les sept poulies lui donnerait une mauvaise grille de
+   * charges et un plafond de 45 kg qui n'est pas le sien.
+   *
+   * Deux exemplaires identiques, une seule entrée par prise : dédoubler
+   * scinderait l'historique sans rien apporter. Les trois prises sont bien
+   * trois exercices du catalogue — le travail diffère — mais elles partagent
+   * l'appareil, donc l'échelle et le plafond.
+   */
+  ...["lat-pulldown", "close-grip-lat-pulldown", "wide-grip-lat-pulldown"].map(
+    (slug): Entree => ({
+      slug,
+      machineNom: "Lat Pulldown assis",
+      conventionCharge: "pile_affichee",
+      typePoulie: "simple",
+      quantite: 2,
+      paliersCharges: pileJusqua(),
+      chargeMinimale: 4.5,
+      notesMachine:
+        "Poste assis dédié, poulie FIXE — à ne pas confondre avec les sept "
+        + "poulies réglables. Deux exemplaires identiques. Échelle machine "
+        + "(+15 lbs par cran) ; le nombre de plaques de cette pile n'a pas été "
+        + "compté, l'échelle va donc jusqu'au plafond de la plus lourde pile de "
+        + "la salle, ce qui la dépasse peut-être.",
+    }),
+  ),
+
+  /**
+   * Le Low Row assis : l'autre poste dédié à poulie fixe.
+   *
+   * Il portait jusqu'ici le nom « station intégrée au rack — à identifier »,
+   * qui était une hypothèse de travail, pas une observation. Le relevé le
+   * nomme : c'est un rowing assis, et l'appareil non identifié du rack reste
+   * non identifié — donc non déclaré, plutôt que rattaché à un exercice
+   * choisi au jugé.
    */
   {
-    slug: "lat-pulldown",
-    machineNom: "Lat pulldown",
+    slug: "seated-row",
+    machineNom: "Low Row assis",
     conventionCharge: "pile_affichee",
     typePoulie: "simple",
-    quantite: 2,
     paliersCharges: pileJusqua(),
     chargeMinimale: 4.5,
     notesMachine:
-      "Deux exemplaires identiques. Pile graduée en livres — 10 lbs au premier "
-      + "cran, +15 lbs ensuite — affichée en kilogrammes. Le nombre de plaques "
-      + "de CETTE pile n'a pas été compté : l'échelle va donc jusqu'au plafond "
-      + "de la plus lourde pile de la salle, ce qui la dépasse peut-être.",
+      "Poste assis dédié, poulie FIXE — à ne pas confondre avec les sept "
+      + "poulies réglables. Échelle machine (+15 lbs par cran) ; hauteur de "
+      + "pile non comptée.",
   },
+
+  // -------------------------------------------------------------------------
+  // Les sept poulies réglables
+  // -------------------------------------------------------------------------
+  //
+  // Un exercice n'entre ici que s'il est faisable avec les accessoires
+  // RELEVÉS : poignées, barre longue, prises neutres de plusieurs largeurs.
+  // Les mouvements qui exigent une corde ou une sangle de cheville attendent
+  // que la présence de ces deux accessoires soit tranchée — ils sont listés
+  // dans les notes de la salle, pas devinés ici.
+  //
+  // Aucun n'est retenu ni écarté selon qu'il est pratiqué aujourd'hui :
+  // l'inventaire décrit ce que la salle permet, et c'est ce qui donne au
+  // moteur de quoi proposer un remplacement le jour où un poste est pris.
+
+  poulieReglable("single-arm-cable-row", {
+    notes: "Poulie à hauteur de torse, poignée simple.",
+  }),
+  poulieReglable("straight-arm-pulldown", {
+    notes: "Poulie haute, barre longue.",
+  }),
+  poulieReglable("cable-curl", {
+    notes: "Poulie basse, barre longue ou poignée.",
+  }),
+  poulieReglable("tricep-pushdown", {
+    notes: "Poulie haute, barre longue.",
+  }),
+  poulieReglable("cable-woodchop", {
+    notes: "Poulie haute ou basse selon le sens, poignée simple.",
+  }),
+  poulieReglable("pallof-press", {
+    notes: "Poulie à hauteur de poitrine, poignée simple.",
+  }),
+  poulieReglable("half-kneeling-pallof-press", {
+    notes: "Poulie à hauteur de poitrine à genoux, poignée simple.",
+  }),
+  poulieReglable("cable-lateral-raise", {
+    notes: "Poulie basse, poignée simple.",
+  }),
+  poulieReglable("cable-front-raise", {
+    notes: "Poulie basse, poignée ou barre.",
+  }),
+
+  // Deux câbles simultanés : la station double est le seul poste possible.
+  poulieReglable("cable-fly", {
+    double: true,
+    notes: "Deux câbles simultanés, poulies hautes, deux poignées.",
+  }),
+  poulieReglable("cable-rear-delt-fly", {
+    double: true,
+    notes: "Deux câbles croisés, poulies hautes, deux poignées.",
+  }),
+  poulieReglable("incline-cable-fly", {
+    double: true,
+    notes: "Deux câbles simultanés, poulies basses, deux poignées, banc inclinable.",
+  }),
 
   /**
    * La Dip/Chin Assist : la charge AIDE.
@@ -315,22 +481,13 @@ const RELEVE: Entree[] = [
   },
 
   /**
-   * Les deux appareils non identifiés.
+   * Les deux appareils non identifiés ne sont PAS déclarés.
    *
-   * Ils portent un nom qui dit ce qu'on en sait, et rien de plus. Leur donner
-   * un modèle Matrix au jugé les rendrait indiscernables d'un appareil
-   * réellement identifié.
+   * Une entrée exige un exercice du catalogue. Leur en attribuer un serait
+   * choisir au jugé ce qu'ils permettent de faire — exactement la fabrication
+   * que cet inventaire refuse. Ils restent dans la liste « à identifier » des
+   * notes de la salle, où ils attendent d'être reconnus.
    */
-  {
-    slug: "seated-row",
-    machineNom: "Station intégrée au rack — à identifier",
-    conventionCharge: "pile_affichee",
-    paliersCharges: pileJusqua(),
-    chargeMinimale: 4.5,
-    notesMachine:
-      "Appareil non identifié lors du relevé. Nom, convention et crans à confirmer "
-      + "sur place. L'exercice rattaché est une hypothèse de travail.",
-  },
 ];
 
 /** Ce qui n'est pas dans le relevé n'est pas écrit. */
