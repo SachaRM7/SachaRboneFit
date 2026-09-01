@@ -64,6 +64,22 @@ export function consigneDeSaisie(
   return CONSIGNE_DE_SAISIE[cle] ?? null;
 }
 
+/**
+ * Valeur persistée pour le champ SQL non nullable `set_logs.charge`.
+ *
+ * Une convention sans charge externe se note zéro : zéro kilogramme AJOUTÉ,
+ * jamais le poids du corps. L'écran reste vide pour ne pas demander ce zéro à
+ * l'utilisateur. Toute autre convention conserve la saisie telle quelle.
+ */
+export function chargeAEnregistrer(
+  saisie: string,
+  conventionCharge: string | null | undefined,
+): number | null {
+  if (conventionCharge === "sans_charge") return 0;
+  const valeur = Number.parseFloat(saisie.replace(",", "."));
+  return Number.isFinite(valeur) ? valeur : null;
+}
+
 export const LIBELLES_POULIE: Record<(typeof TYPES_POULIE)[number], string> = {
   na: "Sans poulie",
   simple: "Poulie simple",

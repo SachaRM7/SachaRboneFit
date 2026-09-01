@@ -5,7 +5,7 @@ import { IllustrationExercice } from "@/components/exercises/IllustrationExercic
 import { Check, Plus } from "lucide-react";
 import type { ExercicePrescrit } from "./types";
 import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
-import { consigneDeSaisie } from "@/lib/validators/exercise-instance";
+import { chargeAEnregistrer, consigneDeSaisie } from "@/lib/validators/exercise-instance";
 
 interface Props {
   exercice: ExercicePrescrit;
@@ -88,13 +88,13 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
     }
 
     const v = valeurs(numero);
-    const charge = Number.parseFloat(v.charge.replace(",", "."));
+    const charge = chargeAEnregistrer(v.charge, exercice.conventionCharge);
     const reps = Number.parseInt(v.reps, 10);
 
     upsertSet({
       exerciseInstanceId: exercice.id,
       numeroSerie: numero,
-      charge: Number.isFinite(charge) ? charge : null,
+      charge,
       repsEffectuees: Number.isFinite(reps) ? reps : null,
       rpeEffectif: Number.parseFloat(v.rpe.replace(",", ".")) || null,
       validatedAt: Date.now(),

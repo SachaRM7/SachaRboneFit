@@ -3,11 +3,14 @@ import {
   APPAREILS_NON_IMPORTES,
   GYM_CIBLE,
   INVENTAIRE,
+  refusHistoriqueImport,
 } from "./importer-saint-martin";
 import { MATRICE_COUVERTURE } from "./audit-couverture-saint-martin";
 import { CATALOGUE } from "@/lib/referentiels/catalogue";
 import { besoinDe } from "@/lib/referentiels/capacites";
 import { porteeDeLaMesure } from "@/lib/engine/charges";
+import { getTableConfig } from "drizzle-orm/pg-core";
+import { exerciseInstances } from "@/db/schema";
 
 describe("inventaire Saint-Martin", () => {
   it("cible exclusivement la salle de production existante", () => {
@@ -90,6 +93,27 @@ describe("inventaire Saint-Martin", () => {
       machineNom: "Banc plat",
       conventionCharge: "sans_charge",
     });
+  });
+
+  it("refuse de réinterpréter une instance ayant un historique actif", () => {
+    const item = INVENTAIRE.find((entry) => entry.slug === "preacher-curl")!;
+    const active = {
+      convention_charge: "pile_affichee",
+      nature_charge: "resistance",
+      paliers_charges: null,
+      charge_minimale: 4.5,
+      historique_actif: true,
+    };
+    expect(refusHistoriqueImport(active, item)).toMatch(/changerait le sens/);
+    expect(refusHistoriqueImport({ ...active, historique_actif: false }, item)).toBeNull();
+  });
+
+  it("impose l'unicité de l'identité logique des instances actives", () => {
+    const index = getTableConfig(exerciseInstances).indexes.find(
+      (candidate) => candidate.config.name === "exercise_instances_active_identity_unique",
+    );
+    expect(index?.config.unique).toBe(true);
+    expect(index?.config.where).toBeDefined();
   });
 
   it("porte correctement la topologie des poulies et le sens de l'assistance", () => {

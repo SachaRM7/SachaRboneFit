@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   champsMachineSchema,
+  chargeAEnregistrer,
   consigneDeSaisie,
   LIBELLES_CONVENTION,
 } from "./exercise-instance";
@@ -25,5 +26,8 @@ describe("conventions de charge", () => {
   it("laisse vide la charge d'un mouvement sans charge externe", () => {
     expect(consigneDeSaisie("sans_charge", "resistance"))
       .toBe("Laisse la charge vide : seules les répétitions sont enregistrées.");
+    expect(chargeAEnregistrer("", "sans_charge")).toBe(0);
+    expect(chargeAEnregistrer("72,5", "poids_total")).toBe(72.5);
+    expect(chargeAEnregistrer("", "poids_total")).toBeNull();
   });
 });

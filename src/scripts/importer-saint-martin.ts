@@ -1,6 +1,10 @@
 import { config } from "dotenv";
 import path from "path";
 import postgres from "postgres";
+import {
+  proprietesFigeesModifiees,
+  refusDeModification,
+} from "@/lib/engine/charges";
 
 /**
  * Inventaire terrain de Basic-Fit St-Martin-Du-Touch.
@@ -226,7 +230,7 @@ export const INVENTAIRE: EntreeInventaire[] = [
   {
     slug: "bench-dip", machineNom: "Banc plat", conventionCharge: "sans_charge",
     quantite: 7, confiance: "haute",
-    notes: "Le banc est uniquement un support. Aucune charge externe n’est saisie; le poids du corps n’entre jamais dans le champ charge.",
+    notes: "Le banc est uniquement un support. L’UX laisse la charge vide et persiste 0 kg de charge externe; le poids du corps n’entre jamais dans le champ charge.",
   },
   {
     slug: "weighted-crunch", machineNom: "Disques libres", conventionCharge: "poids_total",
@@ -272,6 +276,37 @@ function valeurOuNull<T>(value: T | undefined): T | null {
   return value === undefined ? null : value;
 }
 
+interface InstanceExistanteFigee {
+  convention_charge: string;
+  nature_charge: string;
+  paliers_charges: number[] | null;
+  charge_minimale: number | null;
+  historique_actif: boolean;
+}
+
+/** Même garde sémantique que le PATCH des exercise instances. */
+export function refusHistoriqueImport(
+  active: InstanceExistanteFigee,
+  item: EntreeInventaire,
+): string | null {
+  if (!active.historique_actif) return null;
+  const figees = proprietesFigeesModifiees(
+    {
+      conventionCharge: active.convention_charge,
+      natureCharge: active.nature_charge,
+      paliersCharges: active.paliers_charges,
+      chargeMinimale: active.charge_minimale,
+    },
+    {
+      conventionCharge: item.conventionCharge,
+      natureCharge: item.natureCharge ?? "resistance",
+      paliersCharges: item.paliersCharges ?? null,
+      chargeMinimale: item.chargeMinimale ?? null,
+    },
+  );
+  return figees.length > 0 ? refusDeModification(figees) : null;
+}
+
 async function appliquer(userId: string) {
   const projectRoot = path.resolve(__dirname, "../..");
   config({ path: path.join(projectRoot, ".env.local") });
@@ -307,18 +342,60 @@ async function appliquer(userId: string) {
           quantite: item.quantite,
           notes_machine: `${item.notes ?? ""} Confiance mapping : ${item.confiance}.`.trim(),
         };
-        const [active] = await tx<{ id: string }[]>`
-          SELECT id FROM exercise_instances
-          WHERE gym_id = ${GYM_CIBLE.id}
-            AND exercise_id = ${exercise.id}
-            AND machine_nom = ${item.machineNom}
-            AND archive_le IS NULL
-          LIMIT 1
+        const actives = await tx<{
+          id: string;
+          convention_charge: string;
+          nature_charge: string;
+          paliers_charges: number[] | null;
+          charge_minimale: number | null;
+          historique_actif: boolean;
+        }[]>`
+          SELECT i.id, i.convention_charge, i.nature_charge,
+                 i.paliers_charges, i.charge_minimale,
+                 EXISTS (
+                   SELECT 1 FROM set_logs s
+                   INNER JOIN session_logs l ON l.id = s.session_log_id
+                   WHERE s.exercise_instance_id = i.id
+                     AND l.archive_le IS NULL
+                 ) AS historique_actif
+          FROM exercise_instances i
+          WHERE i.gym_id = ${GYM_CIBLE.id}
+            AND i.exercise_id = ${exercise.id}
+            AND i.machine_nom = ${item.machineNom}
+            AND i.archive_le IS NULL
         `;
+        if (actives.length > 1) {
+          throw new Error(
+            `Doublons actifs pour ${item.slug} / ${item.machineNom}; import annulé, correction manuelle requise.`,
+          );
+        }
+        const active = actives[0];
         if (active) {
+          const refus = refusHistoriqueImport(active, item);
+          if (refus) {
+            throw new Error(
+              `${item.slug} / ${item.machineNom} : ${refus}`,
+            );
+          }
           await tx`UPDATE exercise_instances SET ${tx(values)}, updated_at = now() WHERE id = ${active.id}`;
         } else {
-          await tx`INSERT INTO exercise_instances ${tx({ user_id: userId, gym_id: GYM_CIBLE.id, exercise_id: exercise.id, ...values })}`;
+          const inserees = await tx<{ id: string }[]>`
+            INSERT INTO exercise_instances ${tx({
+              user_id: userId,
+              gym_id: GYM_CIBLE.id,
+              exercise_id: exercise.id,
+              ...values,
+            })}
+            ON CONFLICT (gym_id, exercise_id, machine_nom)
+              WHERE archive_le IS NULL
+            DO NOTHING
+            RETURNING id
+          `;
+          if (inserees.length !== 1) {
+            throw new Error(
+              `Conflit concurrent pour ${item.slug} / ${item.machineNom}; import annulé.`,
+            );
+          }
         }
       }
       // inventaire_statut reste volontairement inchangé jusqu'à validation finale.

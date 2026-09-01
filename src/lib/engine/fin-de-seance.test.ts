@@ -5,6 +5,7 @@ import {
   couvertureReserve,
   recapDeLaSeance,
   DUREE_PLAUSIBLE_MAX_MINUTES,
+  serieRenseignee,
   type SerieBrute,
 } from "./fin-de-seance";
 
@@ -18,6 +19,12 @@ const serie = (p: Partial<SerieBrute> = {}): SerieBrute => ({
   charge: 60,
   rpeEffectif: 8,
   ...p,
+});
+
+describe("série sans charge externe", () => {
+  it("considère zéro kilogramme ajouté comme une série renseignée", () => {
+    expect(serieRenseignee(serie({ charge: 0, repsEffectuees: 12 }))).toBe(true);
+  });
 });
 
 describe("durée de la séance", () => {

@@ -102,7 +102,7 @@
 | overhead-press | Barre olympique 20 kg + rack/platform + disques | 1 | poids_total | NULL | 20 | NULL | resistance | disponible | NULL | haute | Charge totale déplacée, barre de 20 kg comprise. Disques observés : 1,25 / 2,5 / 5 / 10 / 20 kg; aucun incrément bilatéral déduit. |
 | push-press | Barre olympique 20 kg + rack/platform + disques | 1 | poids_total | NULL | 20 | NULL | resistance | disponible | NULL | haute | Charge totale déplacée, barre de 20 kg comprise. Disques observés : 1,25 / 2,5 / 5 / 10 / 20 kg; aucun incrément bilatéral déduit. |
 | close-grip-bench-press | Poste développé couché olympique | 2 | poids_total | NULL | 20 | NULL | resistance | disponible | NULL | haute | Charge totale déplacée, barre de 20 kg comprise; aucun incrément bilatéral déduit. |
-| bench-dip | Banc plat | 7 | sans_charge | NULL | NULL | NULL | resistance | disponible | NULL | haute | Le banc est uniquement un support. Aucune charge externe n’est saisie; le poids du corps n’entre jamais dans le champ charge. |
+| bench-dip | Banc plat | 7 | sans_charge | NULL | NULL | NULL | resistance | disponible | NULL | haute | Le banc est uniquement un support. L’UX laisse la charge vide et persiste 0 kg de charge externe; le poids du corps n’entre jamais dans le champ charge. |
 | weighted-crunch | Disques libres | 1 | poids_total | NULL | NULL | NULL | resistance | disponible | NULL | haute | Valeur saisie = poids du disque tenu; disques observés : 1,25 / 2,5 / 5 / 10 / 20 kg. |
 | preacher-curl | Pupitre preacher + barres fixes | 1 | poids_total | 10, 15, 20, 25, 30 | 10 | 30 | resistance | disponible | NULL | haute | Poids total de la barre fixe saisie; pupitre et paliers 10/15/20/25/30 kg observés. |
 

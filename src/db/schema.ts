@@ -1,5 +1,5 @@
-import { pgTable, uuid, text, boolean, timestamp, real, integer, jsonb, date, unique, index } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { pgTable, uuid, text, boolean, timestamp, real, integer, jsonb, date, unique, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { relations, sql } from "drizzle-orm";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -182,7 +182,8 @@ export const exerciseInstances = pgTable("exercise_instances", {
    * d'une pile lorsque deux côtés sont réglés pareil. `disques_ajoutes` : ce
    * qu'on a ajouté, hors chariot. `poids_total` : tout ce qui se déplace, barre
    * comprise. `poids_par_main` : le nombre marqué sur un haltère, jamais ×2.
-   * `sans_charge` : aucune charge externe; le champ charge reste vide.
+   * `sans_charge` : aucune charge externe; l'UX reste vide et la persistance
+   * enregistre zéro kilogramme ajouté (jamais le poids du corps).
    *
    * La convention ne rend pas les nombres comparables entre appareils : deux
    * Smith machines à contrepoids différents affichent la même convention et
@@ -263,7 +264,11 @@ export const exerciseInstances = pgTable("exercise_instances", {
   archiveLe: timestamp("archive_le"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  activeIdentityUnique: uniqueIndex("exercise_instances_active_identity_unique")
+    .on(table.gymId, table.exerciseId, table.machineNom)
+    .where(sql`${table.archiveLe} IS NULL`),
+}));
 
 export const programmeBlocs = pgTable("programme_blocs", {
   id: uuid("id").defaultRandom().primaryKey(),
