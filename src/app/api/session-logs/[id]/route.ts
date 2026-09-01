@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { terminerSeance, SeanceIntrouvable } from "@/services/seances";
+import { terminerSeance, SeanceIntrouvable, SeanceSansSerie } from "@/services/seances";
 
 const serieSchema = z.object({
   exerciseInstanceId: z.string().uuid(),
@@ -48,6 +48,15 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof SeanceIntrouvable) {
       return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    /**
+     * 422 plutôt que 400 : la requête est bien formée, c'est la SÉANCE qui ne
+     * peut pas être close. La distinction compte pour le client, qui doit
+     * afficher « valide au moins une série » et non « données invalides » —
+     * et laisser la séance ouverte, donc reprenable.
+     */
+    if (error instanceof SeanceSansSerie) {
+      return NextResponse.json({ error: error.message }, { status: 422 });
     }
     console.error("[session-logs PATCH] error:", error);
     return NextResponse.json({ error: "Echec de la cloture" }, { status: 500 });

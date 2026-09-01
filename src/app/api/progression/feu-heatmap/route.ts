@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { seancesRealisees } from "@/db/archivage";
 import { db } from "@/db/client";
 import { sessionLogs } from "@/db/schema";
 import { eq, desc, gte, and } from "drizzle-orm";
@@ -18,8 +19,7 @@ export async function GET(request: Request) {
   // Une reprise après interruption archive l'ancien historique : la carte des
   // feux était le seul écran de Progression à continuer de l'afficher.
   const sessions = await db.query.sessionLogs.findMany({
-    where: (sl, { eq, and, gte, isNull }) =>
-      and(eq(sl.userId, userId), isNull(sl.archiveLe), gte(sl.date, cutoffStr)),
+    where: and(seancesRealisees(userId), gte(sessionLogs.date, cutoffStr)),
     orderBy: [desc(sessionLogs.date)],
   });
 

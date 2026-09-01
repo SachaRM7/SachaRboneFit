@@ -21,6 +21,56 @@ export function seancesActives(userId: string): SQL | undefined {
 }
 
 /**
+ * Une séance a-t-elle réellement eu lieu ?
+ *
+ * La ligne `session_logs` naît au DÉMARRAGE, pas à la fin. C'est délibéré : elle
+ * porte le contexte du jour — feu biologique, ajustement de volume, état — et
+ * elle permet de reprendre une séance après un rafraîchissement, une navigation
+ * ou une reconnexion. Elle existe donc bien avant que quoi que ce soit ait été
+ * soulevé.
+ *
+ * Le défaut tenait à ce que la moitié de l'application lisait cette ligne comme
+ * la preuve d'une séance faite. Ouvrir l'écran de séance puis refermer le
+ * téléphone suffisait : le tableau de bord annonçait « c'est fait pour
+ * aujourd'hui », la semaine comptait une séance de plus, la rotation avançait
+ * d'une lettre, la calibration croyait avoir de la matière. L'écran Progression,
+ * lui, restait vide — parce qu'il partait des `set_logs`. Deux moitiés de
+ * l'application ne racontaient pas le même entraînement.
+ *
+ * Le signal durable est la SÉRIE. Dans le runtime actuel, un `set_log` n'existe
+ * qu'après une validation explicite : c'est la seule trace qui prouve que
+ * quelque chose a été soulevé.
+ *
+ * `duree_minutes` ne convient pas comme preuve, malgré l'apparence. Elle dit que
+ * la clôture a été demandée, pas qu'un effort a eu lieu — et la clôture pouvait
+ * jusqu'ici être demandée sans une seule série.
+ *
+ *     réalisée <=> non archivée ET il existe au moins une série
+ *
+ * Ce prédicat ne remplace pas `seancesActives` : une séance ouverte et vide
+ * reste ACTIVE — c'est ce qui permet de la reprendre — mais elle n'est pas
+ * RÉALISÉE. Les deux notions sont distinctes et le restent.
+ */
+export function estUneSeanceRealisee(): SQL {
+  return sql`${sessionLogs.archiveLe} is null and exists (
+    select 1 from ${sql.identifier(getTableName(setLogs))} ${SERIE}
+    where ${SERIE}.${colonne(setLogs.sessionLogId)} = ${sessionLogs.id}
+  )`;
+}
+
+/**
+ * Les séances d'un utilisateur qui comptent comme faites.
+ *
+ * L'isolation par compte s'ajoute au prédicat plutôt que d'être laissée à
+ * l'appelant : c'est le couple des deux qui répond à « qu'est-ce que CETTE
+ * personne a réellement fait », et les séparer, c'est offrir la possibilité de
+ * n'en écrire qu'une moitié.
+ */
+export function seancesRealisees(userId: string): SQL {
+  return sql`${sessionLogs.userId} = ${userId} and ${estUneSeanceRealisee()}`;
+}
+
+/**
  * Salles encore fréquentées.
  *
  * Une salle décrit un lieu, pas une personne : elle est commune à tous les
@@ -113,6 +163,8 @@ export function blocsActifs(userId: string): SQL | undefined {
  * `schema.ts` continue de se propager ici.
  */
 const SEANCE = sql.identifier("seance_de_la_serie");
+/** Même précaution d'alias, dans l'autre sens : la série vue depuis la séance. */
+const SERIE = sql.identifier("serie_de_la_seance");
 const colonne = (c: { name: string }) => sql.identifier(c.name);
 
 function seanceDeLaSerie(): SQL {

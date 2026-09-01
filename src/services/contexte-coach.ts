@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { seancesRealisees } from "@/db/archivage";
 import {
   exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs,
 } from "@/db/schema";
@@ -140,7 +141,7 @@ export async function resoudreContexte(
       // La séance en cours est celle enregistrée aujourd'hui, sinon la
       // dernière : c'est ce que l'écran montre au moment de l'ouverture.
       const derniere = await db.query.sessionLogs.findFirst({
-        where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+        where: seancesRealisees(userId),
         orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
       });
       if (!derniere) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms, exerciseInstances, exercises } from "@/db/schema";
-import { machinesUtilisablesAujourdhui } from "@/db/archivage";
+import { machinesUtilisablesAujourdhui, seancesRealisees } from "@/db/archivage";
 import { eq, desc, and, inArray, isNull, gte } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
@@ -65,7 +65,7 @@ export async function GET() {
         where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
       }),
       db.query.sessionLogs.findFirst({
-        where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+        where: seancesRealisees(userId),
         orderBy: [desc(sessionLogs.createdAt)],
       }),
       // La rotation était dupliquée ici, avec le même défaut qu'ailleurs :
@@ -94,15 +94,14 @@ export async function GET() {
         where: and(eq(weeklyDebriefs.userId, userId), eq(weeklyDebriefs.weekStart, lastWeekStartStr)),
       }),
       db.query.sessionLogs.findMany({
-        where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+        where: seancesRealisees(userId),
         orderBy: [desc(sessionLogs.createdAt)],
         limit: 5,
       }),
       db.query.sessionLogs.findMany({
         columns: { date: true },
         where: and(
-          eq(sessionLogs.userId, userId),
-          isNull(sessionLogs.archiveLe),
+          seancesRealisees(userId),
           gte(sessionLogs.date, weekStartStr),
         ),
       }),

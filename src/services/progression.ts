@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { seancesRealisees, seancesActives } from "@/db/archivage";
 import type { Lecteur } from "@/db/lecteur";
 import {
   exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
@@ -50,7 +51,7 @@ export async function semainesSansDeload(
   });
 
   const seanceAllegee = await executeur.query.sessionLogs.findFirst({
-    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+    where: seancesRealisees(userId),
     orderBy: [desc(sessionLogs.date)],
     columns: { date: true, volumeAjustePct: true },
   });
@@ -121,7 +122,13 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
     })
     .from(sessionPlanItems)
     .innerJoin(sessionLogs, eq(sessionLogs.id, sessionPlanItems.sessionLogId))
-    .where(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)));
+    // Ici, et seulement ici, on reste sur les séances ACTIVES et non
+    // RÉALISÉES. Un empêchement ne dit pas ce qui a été soulevé, il dit ce que
+    // le lieu n'offrait pas — un déplacement où l'on constate qu'une machine
+    // manque reste une observation valable même si rien n'a été fait ensuite.
+    // Et l'exiger réalisée serait circulaire : cette lecture existe justement
+    // pour éviter qu'un exercice empêché soit lu comme une stagnation.
+    .where(seancesActives(userId));
 
   const datesEmpechees = new Map<string, string[]>();
   for (const e of empechements) {
@@ -194,7 +201,7 @@ export async function stagnations(userId: string, seuilSemaines = 2): Promise<St
 /** Exercices dont la fourchette a été complétée à la dernière séance. */
 export async function fourchettesCompletees(userId: string) {
   const derniere = await db.query.sessionLogs.findFirst({
-    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+    where: seancesRealisees(userId),
     orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
   });
   if (!derniere) return [];
@@ -268,7 +275,7 @@ export async function fourchettesCompletees(userId: string) {
  */
 export async function feuDeTendance(userId: string): Promise<FeuBiologique | null> {
   const dernieres = await db.query.sessionLogs.findMany({
-    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+    where: seancesRealisees(userId),
     orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
     limit: 3,
   });

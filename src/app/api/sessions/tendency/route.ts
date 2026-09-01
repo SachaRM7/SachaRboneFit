@@ -3,7 +3,7 @@ import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
 import { and, eq, desc } from "drizzle-orm";
-import { seancesActives } from "@/db/archivage";
+import { seancesActives, seancesRealisees } from "@/db/archivage";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import type { SessionPilierPerf } from "@/lib/engine/feu-biologique";
 
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
    * sortir, celui de l'archivage parce qu'il manquait.
    */
   const sessions = await db.query.sessionLogs.findMany({
-    where: and(seancesActives(userId), eq(sessionLogs.seanceTemplateId, seanceTemplateId)),
+    where: and(seancesRealisees(userId), eq(sessionLogs.seanceTemplateId, seanceTemplateId)),
     orderBy: [desc(sessionLogs.createdAt)],
   });
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { seancesRealisees } from "@/db/archivage";
 import { db } from "@/db/client";
 import { users, sessionLogs, precalcSessions, seanceTemplates, dailyStates, programmeBlocs } from "@/db/schema";
 import { eq, desc, and, isNull } from "drizzle-orm";
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
 
         // Find the last session to determine next seance letter
         const lastSession = await db.query.sessionLogs.findFirst({
-          where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+          where: seancesRealisees(userId),
           orderBy: [desc(sessionLogs.date)],
         });
 
