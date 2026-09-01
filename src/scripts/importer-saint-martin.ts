@@ -55,13 +55,21 @@ const EQUIPEMENTS = [
 const NOTES_SALLE = [
   "Parc intégralement Matrix. Relevé terrain, premier inventaire de référence.",
   "",
-"POULIES — trois familles à ne pas confondre :",
-  "· 7 poulies RÉGLABLES en hauteur (basse, milieu, haute), réparties sur",
-  "  6 postes : 5 poulies simples, plus 1 station double fournissant 2 câbles",
-  "  indépendants utilisables simultanément. Échelle +10 lbs, plafond 45 kg.",
-  "· Lat Pulldown assis : poste dédié, poulie FIXE, échelle machine +15 lbs.",
-  "  Deux exemplaires.",
-  "· Low Row assis : poste dédié, poulie FIXE, échelle machine +15 lbs.",
+"POULIES — deux familles, et une topologie à ne pas simplifier :",
+  "",
+  "1. POULIES RÉGLABLES en hauteur (basse, milieu, haute). Un seul type",
+  "   d'appareil. Échelle +10 lbs, plafond 45 kg.",
+  "   Topologie : 7 sorties de câble réparties sur 6 postes — 5 poulies",
+  "   seules, plus 1 poste qui en couple 2. Les deux câbles couplés sont des",
+  "   poulies réglables ordinaires : utilisables séparément comme les cinq",
+  "   autres, et EN PLUS ensemble. Le poste couplé n'est donc pas un second",
+  "   parc, c'est une capacité supplémentaire de deux des sept.",
+  "   Conséquence : un mouvement à un câble dispose de 7 sorties ; un",
+  "   mouvement à deux câbles simultanés d'un seul poste.",
+  "",
+  "2. POSTES ASSIS DÉDIÉS, à poulie FIXE, échelle machine +15 lbs :",
+  "   Lat Pulldown assis (2 exemplaires) et Low Row assis. Ils ne font pas",
+  "   partie des 7 et n'ont ni la même grille de charges ni le même plafond.",
   "",
   "Accessoires de poulie relevés : poignées, barre longue, prises neutres de",
   "plusieurs largeurs. Ils ne sont pas modélisés — le moteur n'exprime qu'un",
@@ -178,36 +186,55 @@ function echelleDUnePoulie(): number[] {
 }
 
 /**
- * Sept poulies réglables, cinq postes.
+ * Sept sorties de câble, six postes, UN SEUL type d'appareil.
  *
- * Cinq poulies simples, plus une station double qui en fournit deux
- * indépendantes utilisables en même temps. Un mouvement à un seul câble peut
- * donc se faire sur n'importe laquelle des sept ; un mouvement à deux câbles
- * simultanés n'a qu'un seul poste possible.
+ * La topologie : cinq poulies réglables seules, plus une station qui en couple
+ * deux. Sept câbles au total. Les deux câbles couplés ne sont pas d'une autre
+ * nature — ce sont des poulies réglables ordinaires, utilisables séparément
+ * comme les cinq autres, et qui ont EN PLUS la possibilité de servir ensemble.
  *
- * C'est la seule chose que `quantite` sait dire, et elle n'a aucun effet
- * moteur — pas de notion d'occupation en temps réel. Elle documente ce qui
- * est occupable, rien de plus.
+ * L'inventaire l'a d'abord mal dit. Deux noms d'appareil — « Poulie
+ * réglable » et « Station double à poulies » — donnaient à lire deux parcs
+ * disjoints, comme si la station n'appartenait pas aux sept. Les comptes
+ * étaient justes, la lecture était fausse.
+ *
+ * Un seul `machineNom`, donc, pour les douze entrées. Ce qui distingue les
+ * trois mouvements à deux câbles n'est pas l'appareil mais leur EXIGENCE :
+ * `typePoulie` la porte — c'est précisément ce que ce champ décrit, la
+ * géométrie du poste. `quantite` compte alors combien de postes peuvent
+ * l'accueillir : sept câbles pour un mouvement à un câble, un seul poste
+ * couplé pour un mouvement à deux.
  */
-const POULIES_SIMPLES_DISPONIBLES = 7;
-const STATIONS_DOUBLES_DISPONIBLES = 1;
+const CABLES_REGLABLES = 7;
+const POSTES_COUPLES = 1;
 
-/** Une entrée de poulie réglable : même appareil, même échelle, même plafond. */
+/**
+ * Une entrée de poulie réglable.
+ *
+ * Même appareil, même échelle, même plafond pour les douze. `deuxCables`
+ * n'ouvre pas une seconde famille de matériel : il dit que CE mouvement-là
+ * réclame les deux câbles ensemble, et restreint donc les postes possibles.
+ */
 function poulieReglable(
   slug: string,
-  precisions: { double?: boolean; notes: string },
+  precisions: { deuxCables?: boolean; notes: string },
 ): Entree {
   return {
     slug,
-    machineNom: precisions.double ? "Station double à poulies" : "Poulie réglable",
+    machineNom: "Poulie réglable",
     conventionCharge: "pile_affichee",
-    typePoulie: precisions.double ? "double" : "simple",
+    typePoulie: precisions.deuxCables ? "double" : "simple",
     paliersCharges: echelleDUnePoulie(),
     chargeMinimale: 4.5,
     chargeMax: 45,
-    quantite: precisions.double ? STATIONS_DOUBLES_DISPONIBLES : POULIES_SIMPLES_DISPONIBLES,
+    quantite: precisions.deuxCables ? POSTES_COUPLES : CABLES_REGLABLES,
     notesMachine:
       `${precisions.notes} Réglable en hauteur (basse, milieu, haute). `
+      + (precisions.deuxCables
+        ? "Exige les DEUX câbles simultanément : seul le poste couplé convient "
+          + "(1 des 6 postes). "
+        : "Réalisable sur n'importe laquelle des 7 sorties de câble, y compris "
+          + "l'un des deux côtés du poste couplé pris isolément. ")
       + "Valeur saisie = charge affichée sur la pile ; le rapport de mouflage "
       + "n'est pas vérifié, donc aucune conversion n'est appliquée.",
   };
@@ -425,17 +452,19 @@ const RELEVE: Entree[] = [
     notes: "Poulie basse, poignée ou barre.",
   }),
 
-  // Deux câbles simultanés : la station double est le seul poste possible.
+  // Les trois mouvements qui réclament les deux câbles EN MÊME TEMPS. Même
+  // appareil que les neuf précédents, même échelle : seule change l'exigence,
+  // qui réduit les postes utilisables de sept câbles à un poste couplé.
   poulieReglable("cable-fly", {
-    double: true,
+    deuxCables: true,
     notes: "Deux câbles simultanés, poulies hautes, deux poignées.",
   }),
   poulieReglable("cable-rear-delt-fly", {
-    double: true,
+    deuxCables: true,
     notes: "Deux câbles croisés, poulies hautes, deux poignées.",
   }),
   poulieReglable("incline-cable-fly", {
-    double: true,
+    deuxCables: true,
     notes: "Deux câbles simultanés, poulies basses, deux poignées, banc inclinable.",
   }),
 
