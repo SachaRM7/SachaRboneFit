@@ -71,11 +71,17 @@ const NOTES_SALLE = [
   "   Lat Pulldown assis (2 exemplaires) et Low Row assis. Ils ne font pas",
   "   partie des 7 et n'ont ni la même grille de charges ni le même plafond.",
   "",
-  "Accessoires de poulie relevés : poignées, barre longue, prises neutres de",
-  "plusieurs largeurs. Ils ne sont pas modélisés — le moteur n'exprime qu'un",
-  "besoin par exercice, donc « poulie ET corde » est inexprimable — mais ils",
-  "décident ce qui est déclaré : un mouvement dont l'accessoire manque n'entre",
-  "pas dans l'inventaire.",
+  "Accessoires de poulie confirmés : poignées, barre longue, prises neutres de",
+  "plusieurs largeurs, CORDES. Ils ne sont pas modélisés — le moteur n'exprime",
+  "qu'un besoin par exercice, donc « poulie ET corde » est inexprimable — mais",
+  "ils décident ce qui est déclaré : un mouvement dont l'accessoire manque",
+  "n'entre pas dans l'inventaire.",
+  "",
+  "SANGLE DE CHEVILLE : à confirmer sur place / auprès de l'accueil. Non vue au",
+  "râtelier, mais ce type d'accessoire peut être prêté à la demande. Un seul",
+  "exercice en dépend — cable-kickback — et il est déclaré à titre provisoire.",
+  "Si la salle n'en possède aucune, retirer cette seule entrée : rien d'autre",
+  "ne repose sur cette supposition.",
   "",
   "Cardio (rameurs, tapis, vélos, ClimbMill), plyo boxes, cordes, ballons,",
   "steps : présents, sans effet sur la programmation actuelle.",
@@ -110,12 +116,8 @@ const NOTES_SALLE = [
   "  la pile ou la charge en bout de câble ? Sans effet sur la progression —",
   "  l'affiché suffit et reste comparable à lui-même — mais interdit de comparer",
   "  un écarté poulie à un écarté haltères ;",
-  "· la présence d'une CORDE et d'une SANGLE DE CHEVILLE au râtelier",
-  "  d'accessoires : le relevé nomme poignées, barre longue et prises neutres,",
-  "  pas ces deux-là. Sept exercices faisables sur les poulies réglables en",
-  "  dépendent et attendent donc d'être déclarés — corde : face-pull,",
-  "  rope-tricep-pushdown, rope-hammer-curl, cable-crunch, cable-pull-through,",
-  "  overhead-tricep-extension ; sangle : cable-kickback ;",
+  "· la SANGLE DE CHEVILLE, à confirmer sur place ou auprès de l'accueil.",
+  "  Seul cable-kickback en dépend, déclaré provisoirement (voir ci-dessus) ;",
   "· l'existence d'une barre préchargée hors de la plage 10–30, et d'un",
   "  éventuel palier à 12,5 ;",
   "· la station de traction : confirmer qu'on peut réellement s'y suspendre,",
@@ -450,6 +452,47 @@ const RELEVE: Entree[] = [
   }),
   poulieReglable("cable-front-raise", {
     notes: "Poulie basse, poignée ou barre.",
+  }),
+
+  // Les six mouvements à la corde. Même appareil, même échelle, un seul câble :
+  // ce qui les distinguait n'était pas la poulie mais l'accessoire, et la
+  // présence de cordes dans la salle est confirmée.
+  poulieReglable("face-pull", {
+    notes: "Poulie haute, à hauteur de visage, corde.",
+  }),
+  poulieReglable("rope-tricep-pushdown", {
+    notes: "Poulie haute, corde.",
+  }),
+  poulieReglable("rope-hammer-curl", {
+    notes: "Poulie basse, corde.",
+  }),
+  poulieReglable("cable-crunch", {
+    notes: "Poulie haute, à genoux, corde.",
+  }),
+  poulieReglable("cable-pull-through", {
+    notes: "Poulie basse, corde, dos à la poulie.",
+  }),
+  poulieReglable("overhead-tricep-extension", {
+    notes: "Poulie basse, dos à la poulie, corde.",
+  }),
+
+  /**
+   * Le kickback : déclaré, mais sur un accessoire non vu.
+   *
+   * La sangle de cheville n'a pas été observée au râtelier ; elle peut être
+   * disponible à l'accueil sur demande. La faisabilité est donc retenue
+   * PROVISOIREMENT, et l'entrée le dit — parce que le jour où la vérification
+   * tombe, on doit savoir laquelle retirer sans relire tout l'inventaire.
+   *
+   * C'est le seul endroit de ce fichier où quelque chose est déclaré sans
+   * avoir été vu. Le marquer vaut mieux que l'omettre ou que le taire.
+   */
+  poulieReglable("cable-kickback", {
+    notes:
+      "Poulie basse, SANGLE DE CHEVILLE — accessoire non vu au râtelier, "
+      + "peut-être disponible à l'accueil sur demande. Faisabilité retenue à "
+      + "titre provisoire : si la salle n'en possède aucune, retirer cette "
+      + "seule entrée.",
   }),
 
   // Les trois mouvements qui réclament les deux câbles EN MÊME TEMPS. Même
