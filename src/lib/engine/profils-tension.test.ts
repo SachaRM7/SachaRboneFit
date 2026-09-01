@@ -68,12 +68,18 @@ describe("mi_range : le comportement retenu", () => {
 });
 
 describe("les deux natures de mouvement", () => {
-  it("se définissent par l'organisation du mouvement, pas par le ciblage", () => {
-    expect(DEFINITIONS_TYPE.isolation).toMatch(/une seule articulation/i);
+  it("se définissent par l'organisation du mouvement", () => {
+    expect(DEFINITIONS_TYPE.isolation).toMatch(/une seule articulation motrice/i);
     expect(DEFINITIONS_TYPE.polyarticulaire).toMatch(/plusieurs articulations|segments/i);
-    // « Isolation » ne veut pas dire « ça cible bien tel muscle » : sinon un
-    // curl incliné et une traction supination tomberaient dans la même case.
-    expect(DEFINITIONS_TYPE.isolation).not.toMatch(/cibl/i);
+  });
+
+  it("nomment la stabilisation, pour que le champ ne se relise pas en comptant les articulations", () => {
+    // Le risque : qu'un futur développeur lise « polyarticulaire » comme
+    // « plusieurs articulations bougent ». Un pallof press, un woodchop, un
+    // ab-wheel sont globaux par la coordination et la stabilisation qu'ils
+    // exigent, pas par leur amplitude articulaire.
+    expect(DEFINITIONS_TYPE.polyarticulaire).toMatch(/stabilisation/i);
+    expect(DEFINITIONS_TYPE.polyarticulaire).toMatch(/amplitude/i);
   });
 
   it("ne se déduisent d'aucun rôle", () => {

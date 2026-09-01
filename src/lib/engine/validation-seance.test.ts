@@ -276,6 +276,56 @@ describe("redondance : ce que le type sépare", () => {
     expect(codes(r)).toContain("redondance_biomecanique");
   });
 
+  /**
+   * Jusqu'où l'inclusion des muscles est-elle légitime ?
+   *
+   * Vérifié sur le catalogue entier : l'heuristique regroupe vingt-et-un
+   * ensembles. La quasi-totalité sont de vraies familles — les variantes de
+   * squat, de curl, de soulevé de terre roumain. Deux ne le sont pas, et pour
+   * la même raison : le vocabulaire musculaire est plus grossier que le
+   * mouvement.
+   *
+   *   `[epaules]` couvre l'élévation frontale ET l'élévation latérale, qui
+   *   sollicitent des faisceaux différents — alors que le deltoïde postérieur,
+   *   lui, a son propre terme.
+   *
+   *   `[core]` couvre la rotation (woodchop) ET l'anti-rotation (pallof press),
+   *   qui sont des demandes opposées.
+   *
+   * L'avertissement est donc faux dans ces cas-là. Il reste un avertissement —
+   * non bloquant, et l'athlète tranche. Le corriger demanderait soit un
+   * vocabulaire musculaire plus fin, soit un attribut de plus sur l'exercice :
+   * deux façons de complexifier le moteur pour deux familles. Le défaut est
+   * documenté ici plutôt que masqué, et ce test le rendra visible le jour où
+   * on décidera de le traiter.
+   */
+  it("regroupe à tort deux élévations d'épaule que le vocabulaire ne sépare pas", () => {
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", nom: "Élévation frontale", profilTension: "contract", type: "isolation", musclesPrincipaux: ["epaules"] }),
+      exercice({ exerciseInstanceId: "b", nom: "Élévation latérale", profilTension: "contract", type: "isolation", musclesPrincipaux: ["epaules"] }),
+    ], contexte({
+      machinesDisponibles: [machine("a", "epaules", "contract", "isolation"), machine("b", "epaules", "contract", "isolation")],
+    }));
+    // Limite connue : deux faisceaux différents, une seule étiquette.
+    expect(codes(r)).toContain("redondance_biomecanique");
+    // Elle ne bloque rien, et c'est ce qui rend la limite acceptable.
+    expect(r.valide).toBe(true);
+  });
+
+  it("laisse passer deux mouvements que le vocabulaire sépare correctement", () => {
+    // Le deltoïde postérieur a son propre terme : un reverse pec deck et une
+    // élévation latérale ne se confondent pas, alors qu'ils partagent pilier,
+    // profil et nature. C'est la condition sur les muscles qui discrimine, et
+    // elle fonctionne dès que le vocabulaire est assez fin.
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", nom: "Élévation latérale", profilTension: "contract", type: "isolation", musclesPrincipaux: ["epaules"] }),
+      exercice({ exerciseInstanceId: "b", nom: "Reverse pec deck", profilTension: "contract", type: "isolation", musclesPrincipaux: ["deltoide_posterieur"] }),
+    ], contexte({
+      machinesDisponibles: [machine("a", "epaules", "contract", "isolation"), machine("b", "deltoide_posterieur", "contract", "isolation")],
+    }));
+    expect(codes(r)).not.toContain("redondance_biomecanique");
+  });
+
   it("ne rapproche pas deux exercices sans muscle commun", () => {
     const r = validerSeance([
       exercice({ exerciseInstanceId: "a", profilTension: "stretch", musclesPrincipaux: ["pectoraux"] }),

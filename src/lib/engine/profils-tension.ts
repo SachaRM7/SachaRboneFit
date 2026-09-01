@@ -82,33 +82,52 @@ export function profilCompatible(
 // ---------------------------------------------------------------------------
 
 /**
- * Deux natures d'exercice, définies par l'organisation du mouvement.
+ * Deux natures d'exercice. La définition est FONCTIONNELLE, pas anatomique.
  *
- * `isolation` : mouvement local, principalement organisé autour d'UNE SEULE
- * articulation motrice. Un curl, une extension de genou, un écarté.
+ * `isolation` : mouvement LOCAL, principalement organisé autour d'une seule
+ * articulation motrice — un geste ciblé, dont la demande tient à un segment.
+ * Un curl, une extension de genou, un écarté, une élévation latérale.
  *
- * `polyarticulaire` : mouvement global exigeant la coordination de plusieurs
- * articulations ou segments — y compris quand une articulation ou un muscle
- * domine nettement. Un hip thrust, un pull-through, un ab-wheel.
+ * `polyarticulaire` : mouvement GLOBAL, qui exige la coordination de plusieurs
+ * articulations ou segments, OU des stabilisations importantes. Un squat, une
+ * traction, un hip thrust, un pull-through, un pallof press, un ab-wheel.
  *
- * La distinction porte sur l'ORGANISATION du mouvement, pas sur le fait qu'un
- * muscle soit particulièrement ciblé : « isolation » ne veut pas dire « ça
- * cible bien les biceps », sinon un curl incliné et une traction supination
- * tomberaient dans la même case.
+ * ─────────────────────────────────────────────────────────────────────────
+ * CE QUE CE CHAMP N'EST PAS — trois relectures à ne pas faire.
  *
- * Elle est INDÉPENDANTE de `categorieRole`. Un programme peut placer une
- * isolation en pilier, et rien ici ne l'en empêche : le type décrit le
- * mouvement, le rôle décrit la décision.
+ * 1. Ce n'est PAS « combien d'articulations bougent ».
+ *    Un pallof press, un woodchop, un hanging leg raise, un ab-wheel sont
+ *    polyarticulaires alors que peu d'articulations parcourent une grande
+ *    amplitude : ce qui les classe, c'est la coordination et la stabilisation
+ *    qu'ils exigent du corps entier. Compter les degrés de liberté mobilisés
+ *    donnerait un résultat différent, et faux au regard de ce champ.
+ *
+ * 2. Ce n'est PAS « ce muscle est-il bien ciblé ».
+ *    Sinon un curl incliné et une traction supination tomberaient dans la
+ *    même case, ce que ni l'un ni l'autre ne mérite.
+ *
+ * 3. Ce n'est PAS le rôle dans la séance.
+ *    `categorieRole` — pilier, substitut, accessoire — dit ce que le PROGRAMME
+ *    a décidé ; `type` dit ce qu'est le MOUVEMENT. Une isolation peut ouvrir
+ *    une séance en pilier, un polyarticulaire finir en accessoire, et rien
+ *    dans ce module ne s'y oppose. Ne dérive jamais l'un de l'autre.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
+ * La frontière tient à l'ORGANISATION du geste. Un crunch fléchit le rachis
+ * et rien d'autre : isolation. Un ab-wheel engage la chaîne antérieure entière
+ * pour résister à l'extension : polyarticulaire, malgré une amplitude
+ * articulaire modeste.
  */
 export const TYPES_MOUVEMENT = ["polyarticulaire", "isolation"] as const;
 export type TypeMouvement = (typeof TYPES_MOUVEMENT)[number];
 
 export const DEFINITIONS_TYPE: Record<TypeMouvement, string> = {
   polyarticulaire:
-    "Mouvement global, coordination de plusieurs articulations ou segments, "
-    + "même lorsqu'une articulation domine",
+    "Mouvement global : coordination de plusieurs articulations ou segments, ou "
+    + "stabilisations importantes — y compris quand l'amplitude articulaire reste modeste",
   isolation:
-    "Mouvement local, principalement organisé autour d'une seule articulation motrice",
+    "Mouvement local, geste ciblé principalement organisé autour d'une seule "
+    + "articulation motrice",
 };
 
 export function estUnType(valeur: string | null | undefined): valeur is TypeMouvement {

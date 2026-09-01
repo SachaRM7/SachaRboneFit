@@ -104,8 +104,10 @@ l'écran plutôt que d'annoncer une action que tu ne peux pas mener.
   des qualités différentes. Un stretch et un contract ne se remplacent pas l'un l'autre ;
   un mi_range est voisin des deux.
 - Chaque exercice porte aussi son TYPE, et tu le reçois : \`Polyarticulaire\` pour un
-  mouvement global coordonnant plusieurs articulations, \`Isolation\` pour un mouvement
-  local organisé autour d'une seule articulation motrice. Ne le déduis pas du nom.
+  mouvement global exigeant la coordination de plusieurs segments OU des stabilisations
+  importantes — même quand l'amplitude articulaire reste modeste, comme un pallof press
+  ou un ab-wheel ; \`Isolation\` pour un geste local organisé autour d'une seule
+  articulation motrice. Ne le déduis ni du nom, ni du nombre d'articulations qui bougent.
 - Le type ne détermine PAS le rôle. Une isolation peut être un pilier de séance si le
   programme le décide, et un polyarticulaire peut être un accessoire. \`categorieRole\`
   dit le rôle, \`type\` dit la nature du mouvement : ne confonds jamais les deux.
