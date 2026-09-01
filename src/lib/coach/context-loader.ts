@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { seancesRealisees } from "@/db/archivage";
 import { positionDuBloc } from "@/services/cycle";
 import { libelleCycle } from "@/lib/referentiels/cycle";
 import { users, programmeBlocs, sessionLogs, dailyStates, bodyWeights, seanceTemplates } from "@/db/schema";
@@ -55,7 +56,7 @@ export async function loadCoachContext(userId: string): Promise<CoachContext> {
   });
 
   const last5Sessions = await db.query.sessionLogs.findMany({
-    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+    where: seancesRealisees(userId),
     orderBy: [desc(sessionLogs.createdAt)],
     limit: 5,
   });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { seancesRealisees } from "@/db/archivage";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
 import { and, eq, desc, isNull } from "drizzle-orm";
@@ -25,8 +26,7 @@ export async function GET(request: Request) {
       .where(
         and(
           eq(setLogs.exerciseInstanceId, exerciseInstanceId),
-          eq(sessionLogs.userId, userId),
-          isNull(sessionLogs.archiveLe),
+          seancesRealisees(userId),
         ),
       )
       .orderBy(desc(sessionLogs.date), desc(setLogs.createdAt))

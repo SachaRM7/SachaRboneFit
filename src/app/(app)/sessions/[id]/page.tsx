@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { seancesRealisees } from "@/db/archivage";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, gyms, seanceTemplates } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -17,7 +18,7 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
   // La requete n'etait pas scopee : n'importe quel compte authentifie pouvait
   // consulter la seance d'un autre en connaissant son identifiant.
   const session = await db.query.sessionLogs.findFirst({
-    where: and(eq(sessionLogs.id, id), eq(sessionLogs.userId, userId)),
+    where: and(eq(sessionLogs.id, id), seancesRealisees(userId)),
   });
 
   if (!session) notFound();

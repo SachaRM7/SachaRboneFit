@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { seancesRealisees } from "@/db/archivage";
 import { exerciseInTemplate, programmeBlocs, seanceTemplates, sessionLogs } from "@/db/schema";
 import { and, asc, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import type { SeanceTemplate } from "@/db/schema";
@@ -53,7 +54,7 @@ export async function prochaineSeance(userId: string): Promise<ProchaineSeance |
     .innerJoin(seanceTemplates, eq(seanceTemplates.id, sessionLogs.seanceTemplateId))
     .where(
       and(
-        and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+        seancesRealisees(userId),
         and(eq(seanceTemplates.blocId, bloc.id), isNotNull(sessionLogs.dureeMinutes)),
       ),
     )

@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { seancesRealisees } from "@/db/archivage";
 import type { Lecteur } from "@/db/lecteur";
 import {
   dailyStates, exerciseInTemplate, exerciseInstances, exercises, programmeBlocs,
@@ -85,7 +86,7 @@ export async function mesurerCycle(userId: string, executeur: Lecteur = db) {
   // Une jointure plutôt qu'une requête par séance : la version précédente
   // interrogeait la base huit fois pour huit séances.
   const seances = await executeur.query.sessionLogs.findMany({
-    where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+    where: seancesRealisees(userId),
     orderBy: [desc(sessionLogs.date)],
     limit: 8,
   });
@@ -267,8 +268,7 @@ export async function vueDuProgramme(
     .from(sessionLogs)
     .where(
       and(
-        eq(sessionLogs.userId, userId),
-        isNull(sessionLogs.archiveLe),
+        seancesRealisees(userId),
         gte(sessionLogs.date, bloc.dateDebut),
       ),
     )

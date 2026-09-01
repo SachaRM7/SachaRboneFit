@@ -2,6 +2,7 @@ import { db } from "@/db/client";
 import { sessionLogs, setLogs } from "@/db/schema";
 import { and, desc, eq, gte, isNull } from "drizzle-orm";
 import type { SessionLog } from "@/db/schema";
+import { estUneSeanceRealisee } from "@/db/archivage";
 import { feuDeTendance } from "./progression";
 
 /**
@@ -114,7 +115,7 @@ export async function creerSeance(donnees: CreationSeance): Promise<SessionLog> 
  */
 export async function utilisateursActifsDepuis(depuisISO: string): Promise<string[]> {
   const seances = await db.query.sessionLogs.findMany({
-    where: and(gte(sessionLogs.date, depuisISO), isNull(sessionLogs.archiveLe)),
+    where: and(gte(sessionLogs.date, depuisISO), estUneSeanceRealisee()),
     columns: { userId: true },
   });
   return [...new Set(seances.map((s) => s.userId))];
@@ -171,15 +172,41 @@ export class SeanceIntrouvable extends Error {
   }
 }
 
+/**
+ * Erreur métier : clôturer une séance dont aucune série n'a été validée.
+ *
+ * La clôture écrivait alors `duree_minutes` sur une ligne sans la moindre
+ * série, et cette durée passait pour une preuve d'entraînement dans la moitié
+ * de l'application. Refuser est plus honnête que d'enregistrer une séance dont
+ * personne ne saurait dire ce qu'elle contient : la ligne reste ouverte, donc
+ * reprenable, et l'athlète peut soit valider une série, soit l'abandonner.
+ */
+export class SeanceSansSerie extends Error {
+  constructor() {
+    super("Une séance ne peut être terminée sans série validée");
+    this.name = "SeanceSansSerie";
+  }
+}
+
 export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog> {
   const existante = await db.query.sessionLogs.findFirst({
-    where: and(eq(sessionLogs.id, donnees.sessionLogId), eq(sessionLogs.userId, donnees.userId)),
+    where: and(
+      eq(sessionLogs.id, donnees.sessionLogId),
+      eq(sessionLogs.userId, donnees.userId),
+      // Une séance retirée du calcul ne se re-clôture pas : la rouvrir en
+      // écriture reviendrait à la faire réapparaître par une autre porte.
+      isNull(sessionLogs.archiveLe),
+    ),
   });
   if (!existante) throw new SeanceIntrouvable();
 
   const series = donnees.series.filter(
     (s) => s.repsEffectuees !== null && s.charge !== null && s.exerciseInstanceId,
   );
+
+  // Le seul signal durable d'un entraînement est la série. Sans elle, il n'y a
+  // rien à clore — et surtout rien qui doive compter comme une séance faite.
+  if (series.length === 0) throw new SeanceSansSerie();
 
   // Transaction : sans elle, un echec sur l'insertion des series laissait une
   // seance close mais vide en base.

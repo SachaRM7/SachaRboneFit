@@ -1,8 +1,8 @@
 import { db } from "@/db/client";
 import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { setLogs, sessionLogs, exercises, exerciseInstances, sessionIncidents } from "@/db/schema";
-import { and, eq, desc, isNull } from "drizzle-orm";
-import { seancesActives, seriesActives } from "@/db/archivage";
+import { and, eq, desc, gte, lte, isNull } from "drizzle-orm";
+import { seancesActives, seriesActives, seancesRealisees } from "@/db/archivage";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { libelleProfilTension, libelleTypeMouvement } from "@/lib/referentiels/libelles";
@@ -137,8 +137,7 @@ export async function getWeeklySummary(
   // tableau de bord. Le coach était le seul à les compter : il annonçait un
   // volume hebdomadaire que l'écran Progression contredisait.
   const sessions = await db.query.sessionLogs.findMany({
-    where: (sl, { eq, and, gte, lte, isNull }) =>
-      and(eq(sl.userId, userId), isNull(sl.archiveLe), gte(sl.date, startStr), lte(sl.date, endStr)),
+    where: and(seancesRealisees(userId), gte(sessionLogs.date, startStr), lte(sessionLogs.date, endStr)),
   });
 
   if (sessions.length === 0) {

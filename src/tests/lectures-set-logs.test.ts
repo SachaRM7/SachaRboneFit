@@ -58,8 +58,15 @@ function code(fichier: string): string {
 /** Les appels qui LISENT `set_logs`. Les écritures ne posent pas la question. */
 const LECTURE = /\.from\(setLogs\)|query\.setLogs\.find|[a-zA-Z]+Join\(setLogs\b/g;
 
-/** Ce qui prouve, dans une requête, que les séances archivées sont écartées. */
-const PORTE_LA_REGLE = /seriesActives|seriesNonArchivees|seancesActives|sessionLogs\.archiveLe/;
+/**
+ * Ce qui prouve, dans une requête, que les séances archivées sont écartées.
+ *
+ * `seancesRealisees` et `estUneSeanceRealisee` y figurent parce qu'elles
+ * contiennent `archive_le IS NULL` : elles sont strictement plus exigeantes que
+ * `seancesActives`, jamais moins.
+ */
+const PORTE_LA_REGLE =
+  /seriesActives|seriesNonArchivees|seancesActives|seancesRealisees|estUneSeanceRealisee|sessionLogs\.archiveLe/;
 
 function compter(texte: string, motif: RegExp): number {
   return texte.match(new RegExp(motif.source, "g"))?.length ?? 0;
@@ -112,12 +119,12 @@ const LECTEURS: Record<string, { lectures: number; pourquoi: Justification; note
     note: "l'export rend tout ce qui a eu lieu — le filtrer reviendrait à effacer",
   },
   "app/(app)/historique/page.tsx": {
-    lectures: 1, pourquoi: "archive-assumee",
-    note: "l'historique montre l'archive : c'est la moitié « ceci a eu lieu »",
+    lectures: 1, pourquoi: "bornee-par-des-seances",
+    note: "les séances viennent de `seancesRealisees` : ni archivées, ni vides",
   },
   "app/(app)/sessions/[id]/page.tsx": {
-    lectures: 1, pourquoi: "archive-assumee",
-    note: "consultation d'une séance nommée par son identifiant",
+    lectures: 1, pourquoi: "bornee-par-des-seances",
+    note: "la séance est relue avec `seancesRealisees` avant ses séries",
   },
 };
 
@@ -198,16 +205,14 @@ describe("l'inventaire des lecteurs de set_logs", () => {
     }
   });
 
-  it("n'accepte l'archive assumée que sur des chemins d'histoire", () => {
-    // Un calcul sportif ne peut pas se déclarer « archive assumée » : ces trois
-    // chemins-là rendent ce qui a eu lieu, ils ne décident de rien.
+  it("n'accepte l'archive assumée que sur le seul chemin qui doit tout rendre", () => {
+    // Un calcul sportif ne peut pas se déclarer « archive assumée ». L'export
+    // est désormais le seul chemin de ce genre : l'historique et la fiche d'une
+    // séance ont rejoint `seancesRealisees` — une séance ouverte et vide n'a
+    // rien à montrer, et une séance archivée est sortie du calcul.
     const assumes = Object.entries(LECTEURS)
       .filter(([, d]) => d.pourquoi === "archive-assumee")
       .map(([f]) => f);
-    expect(assumes.sort()).toEqual([
-      "app/(app)/historique/page.tsx",
-      "app/(app)/sessions/[id]/page.tsx",
-      "app/api/export/route.ts",
-    ]);
+    expect(assumes.sort()).toEqual(["app/api/export/route.ts"]);
   });
 });

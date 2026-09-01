@@ -207,18 +207,31 @@ describe("deux comptes dans la même salle", () => {
   });
 
   it("les séances de A restent invisibles à B", async () => {
-    await db.insert(schema.sessionLogs).values({
+    // Une séance faite se prouve par une série, pas par la ligne : depuis que
+    // l'invariant est posé, un `session_logs` nu ne vaut plus « entraîné ».
+    const [sA] = await db.insert(schema.sessionLogs).values({
       userId: A,
       date: new Date().toISOString().slice(0, 10),
       gymId: salleId,
       dureeMinutes: 50,
+    }).returning();
+    const [inst] = await db.insert(schema.exerciseInstances).values({
+      userId: A, exerciseId: idsExercices[0]!, gymId: salleId,
+      machineNom: `Banc temoin ${A.slice(0, 8)}`,
+      conventionCharge: "poids_total", incrementsPossibles: [2.5],
+    }).returning();
+    await db.insert(schema.setLogs).values({
+      sessionLogId: sA!.id, exerciseInstanceId: inst!.id,
+      numeroSerie: 1, repsEffectuees: 8, charge: 60,
     });
 
     // A s'est entraîné aujourd'hui, B non : chacun son compte.
     expect((await etat(A)).etat).toBe("deja_entraine");
     expect((await etat(B)).etat).not.toBe("deja_entraine");
 
+    await db.delete(schema.setLogs).where(eq(schema.setLogs.sessionLogId, sA!.id));
     await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.userId, A));
+    await db.delete(schema.exerciseInstances).where(eq(schema.exerciseInstances.id, inst!.id));
   });
 
   it("A remet son compte à zéro sans toucher à celui de B", async () => {

@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { seancesRealisees } from "@/db/archivage";
 import { reserveDepuisRpe } from "@/lib/engine/records";
 import {
   exerciseInstances, exercises, sessionLogs, setLogs, users,
@@ -28,7 +29,9 @@ export async function bilanDeProgression(
     db
       .select({ date: sessionLogs.date, dureeMinutes: sessionLogs.dureeMinutes })
       .from(sessionLogs)
-      .where(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)))
+      // Fréquence et adhérence se mesurent en séances faites, pas en séances
+      // ouvertes : une seule ligne vide gonflait la semaine d'une unité.
+      .where(seancesRealisees(userId))
       .orderBy(asc(sessionLogs.date)),
 
     db

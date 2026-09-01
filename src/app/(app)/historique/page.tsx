@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { seancesRealisees } from "@/db/archivage";
 import { libelleFeu } from "@/lib/referentiels/libelles";
 import Link from "next/link";
 import { db } from "@/db/client";
@@ -31,7 +32,7 @@ export default async function HistoriquePage() {
   if (!userId) redirect("/login");
 
   const seances = await db.query.sessionLogs.findMany({
-    where: eq(sessionLogs.userId, userId),
+    where: seancesRealisees(userId),
     orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
     limit: 60,
   });
