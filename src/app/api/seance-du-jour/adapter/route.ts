@@ -10,6 +10,7 @@ import {
   sessionLogs,
   sessionPlanItems,
 } from "@/db/schema";
+import { deductionPermise, statutInventaire } from "@/lib/engine/disponibilite";
 import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { detailErreur } from "@/lib/erreurs";
@@ -171,6 +172,7 @@ export async function POST(request: Request) {
         slug: e.slug,
       })),
       equipementsDuLieu: salle.equipementsDisponibles ?? [],
+      statut: statutInventaire(salle.inventaireStatut),
       equipementsApportes: materielApporte,
       instances: instancesDuLieu.map((i) => ({
         id: i.id,
@@ -264,6 +266,18 @@ export async function POST(request: Request) {
           if (deja) {
             instanceId = deja;
           } else {
+            /**
+             * Même garde-fou que la calibration : sur un inventaire complet,
+             * l'adaptation à un autre lieu ne fabrique aucun appareil. Une
+             * séance réduite est préférable à une séance qui suppose du
+             * matériel.
+             */
+            if (!deductionPermise(statutInventaire(salle.inventaireStatut))) {
+              throw new Error(
+                "Inventaire complet : aucun appareil ne peut être déduit du matériel coché.",
+              );
+            }
+
             const fiche = ficheParExercice.get(x.exerciceId);
             const [creee] = await tx
               .insert(exerciseInstances)

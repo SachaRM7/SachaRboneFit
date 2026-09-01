@@ -11,7 +11,7 @@ import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
 import { ArrowLeft } from "lucide-react";
 import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
 import { MaterielDuLieu } from "@/components/gyms/MaterielDuLieu";
-import { apportDeChaqueEquipement, exercicesRealisables } from "@/lib/engine/disponibilite";
+import { apportDeChaqueEquipement, exercicesRealisables, statutInventaire } from "@/lib/engine/disponibilite";
 
 /**
  * Les exercices qu'une salle permet de faire.
@@ -86,6 +86,7 @@ export default async function MaterielSallePage({ params }: { params: Promise<{ 
   const realisables = exercicesRealisables({
     catalogue: pourMoteur,
     equipementsDuLieu,
+    statut: statutInventaire(salle.inventaireStatut),
     instances: instances.map((i) => ({
       id: i.id,
       exerciseId: i.exerciseId,

@@ -10,7 +10,7 @@ import { prochaineSeance } from "@/services/programmes";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { detailErreur } from "@/lib/erreurs";
 import { etatDuJour } from "@/lib/engine/etat-du-jour";
-import { exercicesRealisables } from "@/lib/engine/disponibilite";
+import { exercicesRealisables, statutInventaire } from "@/lib/engine/disponibilite";
 
 export async function GET() {
   // Mesure du chemin critique, en en-tête de réponse.
@@ -209,6 +209,7 @@ export async function GET() {
             ...e, nom: "", pilier: "", categorieRole: "", musclesPrincipaux: [],
           })),
           equipementsDuLieu: salleDuJour.equipementsDisponibles ?? [],
+          statut: statutInventaire(salleDuJour.inventaireStatut),
           // Le matériel emporté aujourd'hui compte comme présent, sans être
           // inscrit au lieu : des élastiques dans un sac ne sont pas ceux de
           // la salle.

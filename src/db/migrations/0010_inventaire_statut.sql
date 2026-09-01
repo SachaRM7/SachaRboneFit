@@ -1,0 +1,15 @@
+-- Ce qu'on sait d'une salle, déclaré plutôt que deviné.
+--
+-- Cocher une famille de matériel rendait faisables tous les exercices du
+-- catalogue qui s'en contentent, et la calibration matérialisait ensuite ces
+-- exercices déduits en vraies lignes `exercise_instances`. Une salle
+-- inventoriée appareil par appareil se voyait donc compléter par des machines
+-- que personne n'avait vues.
+--
+-- Ce champ dit à partir de quand la déduction cesse d'être permise. Il n'est
+-- pas calculé : un seuil sur le nombre d'instances serait arbitraire, et
+-- « dès qu'une instance existe » punirait la première saisie.
+--
+-- `inconnu` par défaut, y compris sur les lignes existantes : aucune salle ne
+-- change de comportement tant que quelqu'un ne s'est pas prononcé sur elle.
+ALTER TABLE "gyms" ADD COLUMN IF NOT EXISTS "inventaire_statut" text DEFAULT 'inconnu' NOT NULL;

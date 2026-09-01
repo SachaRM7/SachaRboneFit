@@ -11,6 +11,7 @@ import {
   users,
   contraintes,
 } from "@/db/schema";
+import { deductionPermise, statutInventaire } from "@/lib/engine/disponibilite";
 import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { contraintesActives } from "@/services/contraintes";
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
         slug: e.slug,
       })),
       equipementsDuLieu: salle.equipementsDisponibles ?? [],
+      statut: statutInventaire(salle.inventaireStatut),
       instances: instancesDuLieu.map((i) => ({
         id: i.id,
         exerciseId: i.exerciseId,
@@ -177,6 +179,23 @@ export async function POST(request: Request) {
       const materialisees = new Map<string, string>();
       const instancePour = async (reference: string): Promise<string> => {
         if (!reference.startsWith("a-creer:")) return reference;
+
+        /**
+         * Sur un inventaire complet, on ne fabrique plus d'appareil.
+         *
+         * Ce chemin matérialisait tout exercice déduit du matériel coché en
+         * une vraie ligne `exercise_instances`. Dans une salle dont chaque
+         * appareil a été relevé, cela inventait des machines. Le garde-fou est
+         * ici, au dernier moment, plutôt qu'en amont seulement : la liste des
+         * exercices réalisables ne devrait déjà plus en contenir, et si elle
+         * en contient encore, c'est un défaut qu'on veut voir.
+         */
+        if (!deductionPermise(statutInventaire(salle.inventaireStatut))) {
+          throw new Error(
+            "Inventaire complet : aucun appareil ne peut être déduit du matériel coché.",
+          );
+        }
+
         const exerciceId = reference.slice("a-creer:".length);
         const deja = materialisees.get(exerciceId);
         if (deja) return deja;

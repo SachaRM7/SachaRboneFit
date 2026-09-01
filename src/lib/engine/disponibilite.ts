@@ -34,6 +34,74 @@ import { besoinDe } from "@/lib/referentiels/capacites";
 /** Matériel qu'on transporte : il s'ajoute à celui du lieu. */
 export const EQUIPEMENTS_PORTABLES: Equipement[] = ["poids_du_corps"];
 
+/**
+ * Ce qu'on sait d'un lieu, et ce que cette connaissance autorise.
+ *
+ * Les deux voies vers la faisabilité — un appareil décrit, une famille de
+ * matériel cochée — étaient alternatives et de rang égal. Cocher « Poulie »
+ * suffisait donc à rendre faisables les vingt-trois exercices à la poulie du
+ * catalogue, y compris dans une salle dont chaque appareil avait été relevé un
+ * par un. L'inventaire précis était complété par de la déduction, sans que
+ * rien ne le signale.
+ *
+ * Ce statut n'est jamais calculé. Un seuil sur le nombre d'instances serait
+ * arbitraire ; « dès qu'une instance existe » punirait la première saisie.
+ * Quelqu'un déclare, ou personne ne déclare rien.
+ */
+export const STATUTS_INVENTAIRE = ["inconnu", "partiel", "complet"] as const;
+export type StatutInventaire = (typeof STATUTS_INVENTAIRE)[number];
+
+export const LIBELLES_STATUT_INVENTAIRE: Record<StatutInventaire, string> = {
+  inconnu: "Inventaire non renseigné",
+  partiel: "Inventaire incomplet",
+  complet: "Inventaire complet",
+};
+
+export const EXPLICATIONS_STATUT_INVENTAIRE: Record<StatutInventaire, string> = {
+  inconnu:
+    "Rien de fiable n'est encore su de ce lieu. Le matériel coché suffit à "
+    + "rendre des exercices proposables.",
+  partiel:
+    "Certains appareils sont décrits. Ils priment, et le matériel coché "
+    + "complète encore — des exercices peuvent donc être proposés sur du "
+    + "matériel supposé.",
+  complet:
+    "L'inventaire a été validé. Un exercice qui demande un appareil n'est "
+    + "proposé que si cet appareil est décrit ici : plus rien n'est déduit.",
+};
+
+export function estUnStatutInventaire(v: string | null | undefined): v is StatutInventaire {
+  return v === "inconnu" || v === "partiel" || v === "complet";
+}
+
+/** Ce que porte la base : `null` et valeur inconnue valent `inconnu`. */
+export function statutInventaire(v: string | null | undefined): StatutInventaire {
+  return estUnStatutInventaire(v) ? v : "inconnu";
+}
+
+/**
+ * Une famille de matériel peut-elle, à elle seule, rendre un exercice faisable ?
+ *
+ * Non sur un inventaire complet : c'est tout l'objet du statut. Le lieu a été
+ * parcouru, ce qui n'y est pas décrit n'y est pas.
+ */
+export function deductionPermise(statut: StatutInventaire): boolean {
+  return statut !== "complet";
+}
+
+/**
+ * Cet exercice a-t-il besoin d'un APPAREIL, au sens de ce statut ?
+ *
+ * Un mouvement sans besoin déclaré, ou qui ne demande que le poids du corps,
+ * ne dépend d'aucun appareil : une pompe reste faisable dans une salle
+ * complète comme ailleurs. Ce sont les autres — barre, haltères, poulie, et
+ * chaque capacité nommée, barre de traction comprise — dont l'absence de
+ * l'inventaire devient une absence tout court.
+ */
+export function exigeUnAppareil(besoin: string | null): boolean {
+  return besoin !== null && besoin !== "poids_du_corps";
+}
+
 export interface ExerciceDuCatalogue {
   id: string;
   nom: string;
@@ -113,6 +181,11 @@ export interface EntreeDisponibilite {
   instances: InstanceDeclaree[];
   /** Matériel personnel apporté aujourd'hui, ajouté à celui du lieu. */
   equipementsApportes?: readonly string[];
+  /**
+   * Ce qu'on sait de ce lieu. Absent vaut `inconnu` — donc le comportement
+   * historique, pour tout appelant qui ne s'est pas encore prononcé.
+   */
+  statut?: StatutInventaire;
 }
 
 /**
@@ -125,6 +198,7 @@ export interface EntreeDisponibilite {
  */
 export function exercicesRealisables(e: EntreeDisponibilite): ExerciceRealisable[] {
   const dispo = new Set<string>([...e.equipementsDuLieu, ...(e.equipementsApportes ?? [])]);
+  const statut = e.statut ?? "inconnu";
   const parExercice = new Map<string, InstanceDeclaree>();
   for (const i of e.instances) {
     if (!parExercice.has(i.exerciseId)) parExercice.set(i.exerciseId, i);
@@ -137,8 +211,16 @@ export function exercicesRealisables(e: EntreeDisponibilite): ExerciceRealisable
     // rendu faisable un leg curl absent parce qu'on a vu une presse. Quand
     // l'appareil précis est connu, c'est lui qui est exigé.
     const besoin = besoinDe(ex.slug, ex.equipement);
+
     // Un appareil décrit vaut déclaration de présence : il est là, on l'a vu.
-    if (!instance && !besoinCouvert(besoin, [...dispo])) continue;
+    // C'est la voie qui ne dépend d'aucun statut.
+    if (!instance) {
+      // Sur un inventaire complet, la famille cochée ne supplée plus l'appareil
+      // absent. Le poids du corps et les exercices sans besoin déclaré ne sont
+      // pas concernés : rien à décrire, donc rien à ne pas trouver.
+      if (!deductionPermise(statut) && exigeUnAppareil(besoin)) continue;
+      if (!besoinCouvert(besoin, [...dispo])) continue;
+    }
 
     realisables.push({
       exerciceId: ex.id,

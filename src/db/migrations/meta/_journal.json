@@ -71,6 +71,13 @@
       "when": 1788263000000,
       "tag": "0009_rattrapage_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788350000000,
+      "tag": "0010_inventaire_statut",
+      "breakpoints": true
     }
   ]
 }

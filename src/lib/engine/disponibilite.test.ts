@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   exercicesRealisables,
   besoinCouvert,
+  deductionPermise,
+  exigeUnAppareil,
+  statutInventaire,
   incrementsParDefaut,
   apportDeChaqueEquipement,
   type ExerciceDuCatalogue,
@@ -213,5 +216,140 @@ describe("apportDeChaqueEquipement", () => {
     expect(apport.map((a) => a.equipement)).not.toContain("halteres");
     // Le poids du corps ne se coche pas : il est toujours là.
     expect(apport.map((a) => a.equipement)).not.toContain("poids_du_corps");
+  });
+});
+
+
+/**
+ * Ce qu'un lieu déclare savoir de lui-même.
+ *
+ * Cocher « Poulie » rendait faisables les vingt-trois exercices à la poulie du
+ * catalogue, y compris dans une salle dont chaque appareil avait été relevé un
+ * par un — puis la calibration matérialisait ces exercices déduits en vraies
+ * lignes d'inventaire. Ces tests fixent où la déduction s'arrête.
+ */
+describe("statut d'inventaire", () => {
+  const catalogue = [
+    {
+      id: "e-poulie", nom: "Tirage poulie", pilier: "P2_tirage",
+      categorieRole: "accessoire", musclesPrincipaux: ["dorsaux"],
+      equipement: "poulie", slug: "straight-arm-pulldown",
+    },
+    {
+      id: "e-presse", nom: "Presse à cuisses", pilier: "P3_squat",
+      categorieRole: "pilier", musclesPrincipaux: ["quadriceps"],
+      equipement: "machine", slug: "leg-press",
+    },
+    {
+      id: "e-pompe", nom: "Pompes", pilier: "P1_poussee",
+      categorieRole: "accessoire", musclesPrincipaux: ["pectoraux"],
+      equipement: "poids_du_corps", slug: "push-up",
+    },
+  ];
+
+  /** Une seule machine réellement décrite : la presse. */
+  const presseDecrite = [{
+    id: "i-presse", exerciseId: "e-presse", machineNom: "Leg Press 45°",
+    incrementsPossibles: [5],
+  }];
+
+  const faisables = (statut: "inconnu" | "partiel" | "complet" | undefined, instances = presseDecrite) =>
+    exercicesRealisables({
+      catalogue,
+      // La poulie est COCHÉE, mais aucune poulie n'est décrite.
+      equipementsDuLieu: ["poulie", "leg_press"],
+      instances,
+      statut,
+    });
+
+  describe("inconnu — le comportement historique", () => {
+    it("laisse la famille cochée rendre un exercice faisable", () => {
+      const ids = faisables("inconnu").map((r) => r.exerciceId);
+      expect(ids).toContain("e-poulie");
+      expect(ids).toContain("e-presse");
+      expect(ids).toContain("e-pompe");
+    });
+
+    it("est ce qu'on obtient sans se prononcer", () => {
+      // Aucune salle existante ne change de comportement tant que personne
+      // n'a déclaré quoi que ce soit.
+      expect(faisables(undefined).map((r) => r.exerciceId))
+        .toEqual(faisables("inconnu").map((r) => r.exerciceId));
+    });
+
+    it("marque l'origine de chaque exercice", () => {
+      const parId = new Map(faisables("inconnu").map((r) => [r.exerciceId, r]));
+      expect(parId.get("e-presse")?.origine).toBe("instance");
+      expect(parId.get("e-poulie")?.origine).toBe("materiel");
+    });
+  });
+
+  describe("partiel — les instances priment, la famille complète encore", () => {
+    it("garde l'appareil décrit comme appareil décrit", () => {
+      const presse = faisables("partiel").find((r) => r.exerciceId === "e-presse");
+      expect(presse?.origine).toBe("instance");
+      // Ses incréments sont mesurés, pas déduits du type de matériel.
+      expect(presse?.incrementsPossibles).toEqual([5]);
+    });
+
+    it("autorise encore la famille cochée à compléter", () => {
+      // C'est ce qui distingue « partiel » de « complet », et ce que l'écran
+      // doit signaler : des exercices reposent sur du matériel supposé.
+      const poulie = faisables("partiel").find((r) => r.exerciceId === "e-poulie");
+      expect(poulie).toBeDefined();
+      expect(poulie?.origine).toBe("materiel");
+    });
+  });
+
+  describe("complet — plus rien n'est déduit", () => {
+    it("écarte l'exercice dont l'appareil n'est pas décrit", () => {
+      // La poulie est cochée. Aucune poulie n'a été vue. Le lieu a été
+      // parcouru : ce qui n'y est pas décrit n'y est pas.
+      expect(faisables("complet").map((r) => r.exerciceId)).not.toContain("e-poulie");
+    });
+
+    it("garde l'exercice dont l'appareil est décrit", () => {
+      const presse = faisables("complet").find((r) => r.exerciceId === "e-presse");
+      expect(presse?.origine).toBe("instance");
+    });
+
+    it("ne touche pas au poids du corps", () => {
+      // Une pompe ne demande aucun appareil : il n'y a rien à ne pas trouver.
+      expect(faisables("complet").map((r) => r.exerciceId)).toContain("e-pompe");
+    });
+
+    it("n'a plus aucun exercice d'origine « materiel » exigeant un appareil", () => {
+      // L'invariant, dit d'un seul trait : dans une salle complète, tout
+      // exercice qui demande une machine vient d'une instance réelle.
+      for (const r of faisables("complet")) {
+        if (r.equipement && r.equipement !== "poids_du_corps") {
+          expect(r.origine, r.nom).toBe("instance");
+        }
+      }
+    });
+  });
+
+  describe("la règle de déduction, isolée", () => {
+    it("n'est refusée que sur un inventaire complet", () => {
+      expect(deductionPermise("inconnu")).toBe(true);
+      expect(deductionPermise("partiel")).toBe(true);
+      expect(deductionPermise("complet")).toBe(false);
+    });
+
+    it("ne considère pas le poids du corps comme un appareil", () => {
+      expect(exigeUnAppareil("poids_du_corps")).toBe(false);
+      expect(exigeUnAppareil(null)).toBe(false);
+      expect(exigeUnAppareil("poulie")).toBe(true);
+      // Une barre de traction est un appareil : son absence de l'inventaire
+      // d'une salle complète est une absence tout court.
+      expect(exigeUnAppareil("barre_traction")).toBe(true);
+    });
+
+    it("lit une valeur absente ou inconnue comme « inconnu »", () => {
+      expect(statutInventaire(null)).toBe("inconnu");
+      expect(statutInventaire(undefined)).toBe("inconnu");
+      expect(statutInventaire("n'importe quoi")).toBe("inconnu");
+      expect(statutInventaire("complet")).toBe("complet");
+    });
   });
 });

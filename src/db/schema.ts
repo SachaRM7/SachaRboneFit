@@ -90,6 +90,34 @@ export const gyms = pgTable("gyms", {
    * de pompes au lieu qu'on demande ce qu'elle contient.
    */
   equipementsDisponibles: jsonb("equipements_disponibles").$type<string[]>(),
+  /**
+   * `inconnu` | `partiel` | `complet` — ce qu'on sait de ce lieu, déclaré.
+   *
+   * Le matériel coché et les appareils décrits sont deux voies indépendantes
+   * vers la faisabilité : cocher « Poulie » rendait faisables les vingt-trois
+   * exercices à la poulie du catalogue, sans qu'aucune poulie n'ait été vue.
+   * Pire, la calibration matérialisait ensuite ces exercices déduits en vraies
+   * lignes `exercise_instances`, et des appareils inexistants entraient dans
+   * l'inventaire.
+   *
+   * Ce champ dit à partir de quand la déduction cesse d'être permise. Il n'est
+   * jamais calculé : un seuil sur le nombre d'instances serait arbitraire, et
+   * « dès qu'une instance existe » punirait la première saisie. C'est une
+   * DÉCLARATION.
+   *
+   *   inconnu   rien de fiable n'est su du lieu. Les familles génériques
+   *             rendent des exercices faisables. Comportement historique.
+   *   partiel   des appareils sont connus. Les instances réelles priment,
+   *             les familles complètent encore, et l'écran doit dire que
+   *             l'inventaire est incomplet.
+   *   complet   inventaire validé. Un exercice exigeant un appareil n'est
+   *             faisable QUE par une instance active de cette salle, et
+   *             aucune capacité générique ne matérialise plus rien.
+   *
+   * `inconnu` par défaut : aucune salle existante ne change de comportement
+   * tant que quelqu'un ne s'est pas prononcé.
+   */
+  inventaireStatut: text("inventaire_statut").default("inconnu").notNull(),
   horairesOuverture: text("horaires_ouverture"),
   est24h: boolean("est_24h").default(false),
   notes: text("notes"),
