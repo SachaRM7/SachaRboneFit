@@ -1,0 +1,117 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import {
+  contexteExecution, ecrireNote, enregistrerReglages,
+  InstanceIntrouvable, ReglageRefuse,
+} from "@/services/execution";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * Ce qu'il faut savoir devant la machine, et ce qu'on y modifie.
+ *
+ * L'identifiant du compte vient TOUJOURS du cookie vérifié, jamais du corps de
+ * la requête : les réglages personnels et la note sont, par construction, ceux
+ * de la personne authentifiée. Aucun paramètre ne permet d'en désigner une
+ * autre.
+ */
+
+const majSchema = z.object({
+  /** Clé → valeur. Une chaîne vide efface le réglage. */
+  reglages: z.record(z.string(), z.string()).optional(),
+  note: z.string().max(280).optional(),
+  /** Pour les exercices sans appareil, la note se range sur le mouvement. */
+  exerciseId: z.string().uuid().optional(),
+});
+
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ instanceId: string }> },
+) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { instanceId } = await params;
+  const url = new URL(request.url);
+  const exerciseId = url.searchParams.get("exerciseId");
+  if (!exerciseId) {
+    return NextResponse.json({ error: "exerciseId requis" }, { status: 400 });
+  }
+
+  try {
+    const contexte = await contexteExecution({
+      userId,
+      exerciseId,
+      // `sans-appareil` désigne explicitement le cas des pompes : un exercice
+      // sans instance. Le mot est dans l'URL plutôt qu'un identifiant vide,
+      // pour qu'un appel malformé ne passe pas pour ce cas-là.
+      exerciseInstanceId: instanceId === "sans-appareil" ? null : instanceId,
+      tempoSeance: url.searchParams.get("tempoSeance"),
+      tempoProgramme: url.searchParams.get("tempoProgramme"),
+    });
+    return NextResponse.json(contexte);
+  } catch (error) {
+    console.error("[execution GET] error:", error);
+    return NextResponse.json({ error: "Lecture impossible" }, { status: 500 });
+  }
+}
+
+/**
+ * Enregistre réglages et note, à la modification.
+ *
+ * Séparé de la clôture de séance, délibérément : changer le siège puis fermer
+ * l'onglet ne doit rien perdre. Un réglage n'est pas une donnée de séance,
+ * c'est un souvenir d'appareil.
+ */
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ instanceId: string }> },
+) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { instanceId } = await params;
+  const parsed = majSchema.safeParse(await request.json());
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Données invalides", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const sansAppareil = instanceId === "sans-appareil";
+
+  try {
+    let reglages = undefined;
+    if (parsed.data.reglages && !sansAppareil) {
+      reglages = await enregistrerReglages({
+        userId, exerciseInstanceId: instanceId, valeurs: parsed.data.reglages,
+      });
+    }
+
+    let note = undefined;
+    if (parsed.data.note !== undefined) {
+      note = await ecrireNote({
+        userId,
+        exerciseInstanceId: sansAppareil ? null : instanceId,
+        exerciseId: parsed.data.exerciseId ?? null,
+        texte: parsed.data.note,
+      });
+    }
+
+    return NextResponse.json({ reglages, note });
+  } catch (error) {
+    // 422 : la requête est bien formée, c'est la VALEUR que la machine
+    // n'accepte pas. Le client doit dire « entre 1 et 10 », pas « erreur ».
+    if (error instanceof ReglageRefuse) {
+      return NextResponse.json({ error: error.message, cle: error.cle }, { status: 422 });
+    }
+    if (error instanceof InstanceIntrouvable) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    console.error("[execution PATCH] error:", error);
+    return NextResponse.json({ error: "Enregistrement impossible" }, { status: 500 });
+  }
+}

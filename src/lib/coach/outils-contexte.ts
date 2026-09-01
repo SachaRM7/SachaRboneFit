@@ -16,7 +16,7 @@ import {
 } from "@/services/progression";
 import { libelleMuscle, libelleEquipement, libelleProfilTension, libelleTypeMouvement } from "@/lib/referentiels/libelles";
 import { versMuscle } from "@/lib/referentiels/muscles";
-import type { CoachTool, ToolExecutor, ToolExecutionResult } from "./tools";
+import type { CoachTool, RefsContexteOutil, ToolExecutor, ToolExecutionResult } from "./tools";
 
 /**
  * Outils de contexte du coach.
@@ -361,7 +361,103 @@ async function rappeler(p: Record<string, unknown>, userId: string): Promise<Too
 
 // ---------------------------------------------------------------------------
 
+
+/**
+ * Ce que l'athlète a retenu sur un appareil, et ce qu'il n'a pas retenu.
+ *
+ * Trois états à ne jamais confondre, et c'est tout l'objet de cet outil :
+ *
+ *   « le siège se règle de 1 à 10, tu mets 6 »   -> connu
+ *   « le siège se règle de 1 à 10, tu n'as
+ *     rien noté »                                 -> disponible, non renseigné
+ *   « cette machine ne décrit aucun réglage »     -> inconnu
+ *
+ * Le modèle a le droit de dire les trois. Il n'a pas le droit de combler le
+ * deuxième ou le troisième : un cran inventé serait suivi, et une machine mal
+ * réglée blesse. La sortie nomme donc explicitement l'absence plutôt que de
+ * l'omettre — un champ manquant s'interprète, une phrase ne s'interprète pas.
+ */
+async function reglagesDeLAppareil(
+  params: Record<string, unknown>,
+  userId: string,
+  contexte?: RefsContexteOutil,
+): Promise<ToolExecutionResult> {
+  const instanceId = typeof params.exerciseInstanceId === "string"
+    ? params.exerciseInstanceId
+    : contexte?.exerciseInstanceId;
+  if (!instanceId) {
+    return { success: false, output: "Aucun appareil désigné à l'écran." };
+  }
+
+  const instance = await db.query.exerciseInstances.findFirst({
+    where: and(eq(exerciseInstances.id, instanceId), isNull(exerciseInstances.archiveLe)),
+    with: { exercise: true },
+  });
+  if (!instance) return { success: false, output: "Appareil introuvable." };
+
+  const { contexteExecution } = await import("@/services/execution");
+  const c = await contexteExecution({
+    userId,
+    exerciseId: instance.exerciseId,
+    exerciseInstanceId: instanceId,
+  });
+
+  const lignes: string[] = [`Appareil : ${instance.machineNom}`];
+
+  if (c.reglages.length === 0) {
+    lignes.push(
+      "Aucun réglage n'est décrit pour cette machine. On ignore ce qu'elle propose :",
+      "ne suppose ni siège, ni dossier, ni cran.",
+    );
+  } else {
+    for (const r of c.reglages) {
+      const plage = r.definition.type === "choix"
+        ? `au choix : ${(r.definition.options ?? []).join(", ")}`
+        : [r.definition.min, r.definition.max].every((v) => v != null)
+          ? `de ${r.definition.min} à ${r.definition.max}`
+          : "plage non précisée";
+      lignes.push(
+        r.valeur !== null
+          ? `${r.libelle} : ${r.valeur}${r.unite ?? ""} (réglage retenu par l'athlète ; ${plage})`
+          : `${r.libelle} : NON RENSEIGNÉ par l'athlète (${plage}) — ne propose aucune valeur`,
+      );
+    }
+  }
+
+  lignes.push(
+    c.tempo
+      ? `Tempo : ${c.tempo.brut} (${c.tempo.origine})`
+      : "Tempo : aucun n'est prescrit pour cet exercice — n'en invente pas.",
+  );
+  if (c.note) lignes.push(`Note de l'athlète : « ${c.note} »`);
+  if (c.fiche?.pointsCles?.length) {
+    lignes.push(`Points clés : ${c.fiche.pointsCles.join(" ; ")}`);
+  }
+  if (c.fiche?.erreursFrequentes?.length) {
+    lignes.push(`Erreurs fréquentes : ${c.fiche.erreursFrequentes.join(" ; ")}`);
+  }
+  if (!c.fiche) {
+    lignes.push("Aucune fiche technique n'existe pour ce mouvement dans l'application.");
+  }
+
+  return { success: true, output: lignes.join("\n") };
+}
+
 export const DEFINITIONS_CONTEXTE: CoachTool[] = [
+  {
+    name: "get_machine_settings",
+    description:
+      "Réglages d'un appareil : ceux que la machine propose, et ceux que l'athlète a lui-même mémorisés. "
+      + "Distingue explicitement « valeur retenue », « non renseigné » et « machine sans réglage décrit ». "
+      + "N'invente JAMAIS un cran, un angle ou un tempo absent de cette réponse : une machine mal réglée blesse. "
+      + "Sans exerciseInstanceId, utilise l'appareil affiché à l'écran.",
+    input_schema: {
+      type: "object",
+      properties: {
+        exerciseInstanceId: { type: "string", description: "Identifiant de l'appareil" },
+      },
+    },
+  },
   {
     name: "get_user_profile",
     description:
@@ -467,4 +563,5 @@ export const EXECUTEURS_CONTEXTE: Record<string, ToolExecutor> = {
   get_volume_by_muscle: volume,
   create_coach_memory: memoriser,
   search_coach_memory: rappeler,
+  get_machine_settings: reglagesDeLAppareil,
 };

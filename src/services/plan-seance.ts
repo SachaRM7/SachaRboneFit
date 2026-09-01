@@ -411,6 +411,7 @@ export async function lirePlan(userId: string, sessionLogId: string) {
       messageProgression: sessionPlanItems.messageProgression,
       raisonSubstitution: sessionPlanItems.raisonSubstitution,
       machineNom: exerciseInstances.machineNom,
+      exerciseId: exerciseInstances.exerciseId,
       incrementsPossibles: exerciseInstances.incrementsPossibles,
       poidsNonCompte: exerciseInstances.poidsNonCompte,
       conventionCharge: exerciseInstances.conventionCharge,
@@ -432,6 +433,7 @@ export async function lirePlan(userId: string, sessionLogId: string) {
       const derniere = await derniereSeriesPour(userId, l.exerciseInstanceId);
       return {
         id: l.exerciseInstanceId,
+        exerciseId: l.exerciseId,
         planItemId: l.planItemId,
         ordre: l.ordre,
         nom: l.nom,
