@@ -19,9 +19,11 @@ import postgres from "postgres";
  * Matrix : le catalogue commercial du constructeur ne fait pas partie de ce que
  * l'application a besoin de savoir.
  *
- *   DATABASE_URL=… npx tsx src/scripts/importer-saint-martin.ts <userId>
+ *   DATABASE_URL=… npx tsx src/scripts/importer-saint-martin.ts <userId> [--gym=<id>] [--creer]
  *
  * Le script est idempotent : relancé, il met à jour ce qu'il a déjà écrit.
+ * Il ne crée JAMAIS de salle sans `--creer`, et refuse d'écrire quand
+ * plusieurs salles pourraient correspondre.
  */
 
 const projectRoot = path.resolve(__dirname, "../..");
@@ -582,30 +584,104 @@ async function main() {
     process.exit(1);
   }
 
-  const [existante] = await db<{ id: string }[]>`
-    SELECT id FROM gyms WHERE nom = ${NOM_SALLE} AND archive_le IS NULL LIMIT 1
-  `;
+  /**
+   * Retrouver la salle, sans se fier au nom exact.
+   *
+   * Le rapprochement se faisait par `WHERE nom = 'Basic-Fit Saint-Martin-du-Touch'`.
+   * La salle réelle s'appelle « St-Martin-Du-Touch » : aucune correspondance,
+   * donc création d'une SECONDE salle vide, pendant que la vraie restait sans
+   * inventaire. Le défaut ne se voyait pas en test — les bases jetables
+   * n'avaient aucune salle préexistante — et il s'est vu sur le téléphone.
+   *
+   * Trois règles remplacent l'égalité stricte :
+   *
+   *   1. un identifiant passé en argument fait autorité, toujours ;
+   *   2. sinon on cherche par MOTS-CLÉS normalisés, accents et ponctuation
+   *      ignorés — « martin » et « touch » désignent la même salle qu'elle
+   *      s'appelle « Basic-Fit Saint-Martin-du-Touch » ou « St-Martin-Du-Touch » ;
+   *   3. zéro résultat ou plusieurs : le script REFUSE et n'écrit rien.
+   *
+   * Créer une salle est devenu un acte explicite, jamais un repli silencieux.
+   */
+  const gymDemande = process.argv.find((a) => a.startsWith("--gym="))?.slice("--gym=".length);
+  const creationAutorisee = process.argv.includes("--creer");
 
   let gymId: string;
-  if (existante) {
-    gymId = existante.id;
-    await db`
-      UPDATE gyms
-      SET equipements_disponibles = ${db.json(EQUIPEMENTS)},
-          notes = ${NOTES_SALLE},
-          updated_at = now()
-      WHERE id = ${gymId}
+
+  if (gymDemande) {
+    const [visee] = await db<{ id: string; nom: string }[]>`
+      SELECT id, nom FROM gyms WHERE id = ${gymDemande} AND archive_le IS NULL
     `;
-    console.log(`Salle mise à jour : ${NOM_SALLE}`);
+    if (!visee) {
+      console.error(`Salle ${gymDemande} introuvable ou archivée.`);
+      process.exit(1);
+    }
+    gymId = visee.id;
+    console.log(`Salle visée explicitement : « ${visee.nom} » (${gymId})`);
   } else {
-    const [creee] = await db<{ id: string }[]>`
-      INSERT INTO gyms (user_id, nom, equipements_disponibles, notes)
-      VALUES (${userId}, ${NOM_SALLE}, ${db.json(EQUIPEMENTS)}, ${NOTES_SALLE})
-      RETURNING id
-    `;
-    gymId = creee!.id;
-    console.log(`Salle créée : ${NOM_SALLE}`);
+    // Les deux mots qui identifient ce lieu quelle que soit l'écriture du nom.
+    const candidates = await db<{ id: string; nom: string; instances: number }[]>`
+      SELECT g.id, g.nom,
+             (SELECT count(*) FROM exercise_instances i
+               WHERE i.gym_id = g.id AND i.archive_le IS NULL)::int AS instances
+      FROM gyms g
+      WHERE g.archive_le IS NULL
+        AND unaccent(lower(g.nom)) LIKE '%martin%'
+        AND unaccent(lower(g.nom)) LIKE '%touch%'
+      ORDER BY g.created_at
+    `.catch(async () => db<{ id: string; nom: string; instances: number }[]>`
+      SELECT g.id, g.nom,
+             (SELECT count(*) FROM exercise_instances i
+               WHERE i.gym_id = g.id AND i.archive_le IS NULL)::int AS instances
+      FROM gyms g
+      WHERE g.archive_le IS NULL
+        AND lower(g.nom) LIKE '%martin%'
+        AND lower(g.nom) LIKE '%touch%'
+      ORDER BY g.created_at
+    `);
+
+    if (candidates.length > 1) {
+      console.error(
+        "AMBIGU : plusieurs salles correspondent. Le script n'écrit rien — "
+        + "choisis-en une avec --gym=<id> :\n"
+        + candidates.map((c) => `  ${c.id}  « ${c.nom} »  ${c.instances} instance(s)`).join("\n"),
+      );
+      await db.end();
+      process.exit(1);
+    }
+
+    if (candidates.length === 0) {
+      if (!creationAutorisee) {
+        console.error(
+          "Aucune salle ne correspond, et créer une salle n'est pas un repli "
+          + "silencieux : c'est ainsi qu'un doublon est né. Relance avec --creer "
+          + "pour la créer, ou avec --gym=<id> pour viser une salle existante.",
+        );
+        await db.end();
+        process.exit(1);
+      }
+      const [creee] = await db<{ id: string }[]>`
+        INSERT INTO gyms (user_id, nom, equipements_disponibles, notes)
+        VALUES (${userId}, ${NOM_SALLE}, ${db.json(EQUIPEMENTS)}, ${NOTES_SALLE})
+        RETURNING id
+      `;
+      gymId = creee!.id;
+      console.log(`Salle créée sur demande explicite : ${NOM_SALLE} (${gymId})`);
+    } else {
+      gymId = candidates[0]!.id;
+      console.log(`Salle reconnue : « ${candidates[0]!.nom} » (${gymId})`);
+    }
   }
+
+  // Le nom existant n'est jamais écrasé : c'est celui que l'athlète a choisi,
+  // et le script n'a pas à le renommer pour se reconnaître lui-même.
+  await db`
+    UPDATE gyms
+    SET equipements_disponibles = ${db.json(EQUIPEMENTS)},
+        notes = ${NOTES_SALLE},
+        updated_at = now()
+    WHERE id = ${gymId}
+  `;
 
   let ecrites = 0;
   const absents: string[] = [];

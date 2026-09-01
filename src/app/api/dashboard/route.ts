@@ -13,40 +13,108 @@ import { etatDuJour } from "@/lib/engine/etat-du-jour";
 import { exercicesRealisables } from "@/lib/engine/disponibilite";
 
 export async function GET() {
+  // Mesure du chemin critique, en en-tête de réponse.
+  //
+  // Les cinq à six secondes observées sur téléphone se partageaient entre le
+  // serveur et la cascade du navigateur, et rien ne permettait de dire dans
+  // quelles proportions. `Server-Timing` est lisible dans l'onglet réseau de
+  // n'importe quel navigateur, sans outil ni dépendance.
+  const depart = Date.now();
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const user = await db.query.users.findFirst({
-      where: (users, { eq }) => eq(users.id, userId),
-    });
+    const todayStr = new Date().toISOString().slice(0, 10);
 
-    const lastWeight = await db.query.bodyWeights.findFirst({
-      where: eq(bodyWeights.userId, userId),
-      orderBy: [desc(bodyWeights.date)],
-    });
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    // `- getDay() + 1` plaçait le dimanche (getDay() === 0) au lundi SUIVANT :
+    // le début de semaine tombait dans le futur, et le décompte des séances
+    // valait zéro tous les dimanches.
+    startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
+    const weekStartStr = startOfWeek.toISOString().slice(0, 10);
 
-    const blocActif = await db.query.programmeBlocs.findFirst({
-      where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
-    });
+    const lastWeekStart = new Date(startOfWeek);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const lastWeekStartStr = lastWeekStart.toISOString().slice(0, 10);
 
-    const lastSession = await db.query.sessionLogs.findFirst({
-      where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
-      orderBy: [desc(sessionLogs.createdAt)],
-    });
+    /**
+     * Tout ce qui ne dépend que de `userId`, d'un coup.
+     *
+     * Ces lectures étaient écrites l'une après l'autre, chacune précédée d'un
+     * `await`. Aucune n'attendait la précédente : elles ne partageaient que
+     * l'identifiant de l'utilisateur, connu dès la première ligne. La base
+     * vivant dans une autre région que la fonction, chaque aller-retour coûte
+     * quelques dizaines de millisecondes — et le fait de les enchaîner les
+     * additionnait toutes au lieu de les superposer.
+     *
+     * Les trois services appelés ici gardent leur propre séquentialité
+     * interne ; ce qui change, c'est qu'ils ne s'attendent plus entre eux.
+     */
+    const [
+      user, lastWeight, blocActif, lastSession, suite, dailyStateToday,
+      poids30jours, precalcSession, weeklyDebrief, debriefSemainePrecedente,
+      recentSessions, seancesDeLaSemaine, vueProgramme, alertesPreSeance,
+    ] = await Promise.all([
+      db.query.users.findFirst({ where: (users, { eq }) => eq(users.id, userId) }),
+      db.query.bodyWeights.findFirst({
+        where: eq(bodyWeights.userId, userId),
+        orderBy: [desc(bodyWeights.date)],
+      }),
+      db.query.programmeBlocs.findFirst({
+        where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
+      }),
+      db.query.sessionLogs.findFirst({
+        where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+        orderBy: [desc(sessionLogs.createdAt)],
+      }),
+      // La rotation était dupliquée ici, avec le même défaut qu'ailleurs :
+      // lettres A/B/C en dur, cycle figé à trois séances. Elle passe par le
+      // service, qui s'appuie sur `ordreDansSemaine` et le nombre réel de
+      // séances du bloc.
+      prochaineSeance(userId),
+      db.query.dailyStates.findFirst({
+        where: and(eq(dailyStates.userId, userId), eq(dailyStates.date, todayStr)),
+      }),
+      db.query.bodyWeights.findMany({
+        where: eq(bodyWeights.userId, userId),
+        orderBy: [desc(bodyWeights.date)],
+      }),
+      db.query.precalcSessions.findFirst({
+        where: and(eq(precalcSessions.userId, userId), eq(precalcSessions.targetDate, todayStr)),
+      }),
+      db.query.weeklyDebriefs.findFirst({
+        where: and(eq(weeklyDebriefs.userId, userId), eq(weeklyDebriefs.weekStart, weekStartStr)),
+      }),
+      // Le débrief de la semaine passée n'était lu qu'en l'absence de celui de
+      // la semaine en cours. Le lire toujours coûte une requête menée en
+      // parallèle plutôt qu'un aller-retour supplémentaire mis bout à bout —
+      // et le choix entre les deux se fait ensuite, en mémoire.
+      db.query.weeklyDebriefs.findFirst({
+        where: and(eq(weeklyDebriefs.userId, userId), eq(weeklyDebriefs.weekStart, lastWeekStartStr)),
+      }),
+      db.query.sessionLogs.findMany({
+        where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+        orderBy: [desc(sessionLogs.createdAt)],
+        limit: 5,
+      }),
+      db.query.sessionLogs.findMany({
+        columns: { date: true },
+        where: and(
+          eq(sessionLogs.userId, userId),
+          isNull(sessionLogs.archiveLe),
+          gte(sessionLogs.date, weekStartStr),
+        ),
+      }),
+      vueDuProgramme(userId),
+      alertes(userId),
+    ]);
 
-    // La rotation était dupliquée ici, avec le même défaut qu'ailleurs : lettres
-    // A/B/C en dur, cycle figé à trois séances. Elle passe par le service, qui
-    // s'appuie sur `ordreDansSemaine` et le nombre réel de séances du bloc.
-    const suite = await prochaineSeance(userId);
     const seanceSuivante = suite
       ? { lettre: suite.template.lettre, templateId: suite.template.id, templateNom: suite.template.nom }
       : { lettre: "", templateId: "", templateNom: "Aucune séance programmée" };
 
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const dailyStateToday = await db.query.dailyStates.findFirst({
-      where: and(eq(dailyStates.userId, userId), eq(dailyStates.date, todayStr)),
-    });
+    const lastWeekDebrief = weeklyDebrief ? null : debriefSemainePrecedente;
 
     let feuJour: "vert" | "orange" | "rouge" | null = null;
     if (dailyStateToday) {
@@ -62,41 +130,6 @@ export async function GET() {
         feuTendance = f;
       }
     }
-
-    const poids30jours = await db.query.bodyWeights.findMany({
-      where: eq(bodyWeights.userId, userId),
-      orderBy: [desc(bodyWeights.date)],
-    });
-
-    const precalcSession = await db.query.precalcSessions.findFirst({
-      where: and(eq(precalcSessions.userId, userId), eq(precalcSessions.targetDate, todayStr)),
-    });
-
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    // `- getDay() + 1` plaçait le dimanche (getDay() === 0) au lundi SUIVANT :
-    // le début de semaine tombait dans le futur, et le décompte des séances
-    // valait zéro tous les dimanches.
-    startOfWeek.setDate(now.getDate() - ((now.getDay() + 6) % 7));
-    const weekStartStr = startOfWeek.toISOString().slice(0, 10);
-
-    const weeklyDebrief = await db.query.weeklyDebriefs.findFirst({
-      where: and(eq(weeklyDebriefs.userId, userId), eq(weeklyDebriefs.weekStart, weekStartStr)),
-    });
-
-    const lastWeekStart = new Date(startOfWeek);
-    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
-    const lastWeekStartStr = lastWeekStart.toISOString().slice(0, 10);
-
-    const lastWeekDebrief = !weeklyDebrief ? await db.query.weeklyDebriefs.findFirst({
-      where: and(eq(weeklyDebriefs.userId, userId), eq(weeklyDebriefs.weekStart, lastWeekStartStr)),
-    }) : null;
-
-    const recentSessions = await db.query.sessionLogs.findMany({
-      where: and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
-      orderBy: [desc(sessionLogs.createdAt)],
-      limit: 5,
-    });
 
     // Une requete par seance et par jointure : jusqu'a dix appels concurrents
     // pour cinq lignes, la ou deux lectures groupees suffisent. Les salles et
@@ -140,50 +173,57 @@ export async function GET() {
     // Compter les appareils décrits sous-estimait ce qu'un lieu permet : une
     // salle dont le matériel est coché, ou une maison où l'on fait des pompes,
     // s'affichait « vide » et renvoyait l'utilisateur saisir du matériel.
-    const exercicesRealisablesIci = salleDuJour
-      ? await (async () => {
-          const [catalogue, instancesDuLieu] = await Promise.all([
-            db.query.exercises.findMany({
-              columns: { id: true, nom: true, pilier: true, categorieRole: true, musclesPrincipaux: true, equipement: true, slug: true },
-            }),
-            db.query.exerciseInstances.findMany({
-              where: and(
-                eq(exerciseInstances.gymId, salleDuJour.id),
-                machinesUtilisablesAujourdhui(),
-              ),
-              columns: { id: true, exerciseId: true, machineNom: true, incrementsPossibles: true },
-            }),
-          ]);
-          return exercicesRealisables({
-            catalogue: catalogue.map((e) => ({ ...e, musclesPrincipaux: e.musclesPrincipaux ?? [] })),
-            equipementsDuLieu: salleDuJour.equipementsDisponibles ?? [],
-            // Le matériel emporté aujourd'hui compte comme présent, sans être
-            // inscrit au lieu : des élastiques dans un sac ne sont pas ceux de
-            // la salle.
-            equipementsApportes: dailyStateToday?.materielApporte ?? [],
-            instances: instancesDuLieu.map((i) => ({ ...i, incrementsPossibles: i.incrementsPossibles ?? [] })),
-          }).length;
-        })()
+    /**
+     * Combien d'exercices ce lieu permet, et a-t-on dit quoi que ce soit de lui.
+     *
+     * Deux corrections de coût ici, sans aucun changement de résultat.
+     *
+     * Le catalogue était lu avec sept colonnes — dont `muscles_principaux`, un
+     * tableau JSON — pour les cent vingt exercices, alors que seul le NOMBRE
+     * d'exercices faisables est renvoyé. Les quatre colonnes servant à décrire
+     * les entrées rendues étaient chargées puis jetées. Trois suffisent à
+     * compter : l'identifiant, la famille de matériel et le slug.
+     *
+     * Et l'appareil décrit était compté une seconde fois par un `$count` dont
+     * le filtre était le même, au mot près, que la lecture des instances qui
+     * venait de se faire. Un aller-retour pour une information déjà en main.
+     */
+    const inventaireDuJour = salleDuJour
+      ? await Promise.all([
+          db.query.exercises.findMany({
+            columns: { id: true, equipement: true, slug: true },
+          }),
+          db.query.exerciseInstances.findMany({
+            where: and(
+              eq(exerciseInstances.gymId, salleDuJour.id),
+              machinesUtilisablesAujourdhui(),
+            ),
+            columns: { id: true, exerciseId: true, machineNom: true, incrementsPossibles: true },
+          }),
+        ])
+      : null;
+
+    const exercicesRealisablesIci = salleDuJour && inventaireDuJour
+      ? exercicesRealisables({
+          catalogue: inventaireDuJour[0].map((e) => ({
+            ...e, nom: "", pilier: "", categorieRole: "", musclesPrincipaux: [],
+          })),
+          equipementsDuLieu: salleDuJour.equipementsDisponibles ?? [],
+          // Le matériel emporté aujourd'hui compte comme présent, sans être
+          // inscrit au lieu : des élastiques dans un sac ne sont pas ceux de
+          // la salle.
+          equipementsApportes: dailyStateToday?.materielApporte ?? [],
+          instances: inventaireDuJour[1].map((i) => ({
+            ...i, incrementsPossibles: i.incrementsPossibles ?? [],
+          })),
+        }).length
       : 0;
 
     // Décrit veut dire : quelqu'un s'est prononcé sur ce lieu — en cochant du
     // matériel, fût-ce aucun, ou en décrivant un appareil.
     const lieuRenseigne = salleDuJour
-      ? salleDuJour.equipementsDisponibles !== null ||
-        (await db.$count(
-          exerciseInstances,
-          and(eq(exerciseInstances.gymId, salleDuJour.id), machinesUtilisablesAujourdhui()),
-        )) > 0
+      ? salleDuJour.equipementsDisponibles !== null || (inventaireDuJour?.[1].length ?? 0) > 0
       : false;
-
-    const seancesDeLaSemaine = await db.query.sessionLogs.findMany({
-      columns: { date: true },
-      where: and(
-        eq(sessionLogs.userId, userId),
-        isNull(sessionLogs.archiveLe),
-        gte(sessionLogs.date, weekStartStr),
-      ),
-    });
 
     const etat = etatDuJour({
       salle: salleDuJour ? { id: salleDuJour.id, nom: salleDuJour.nom } : null,
@@ -197,8 +237,6 @@ export async function GET() {
       seancesCetteSemaine: seancesDeLaSemaine.length,
       frequenceMaxParSemaine: user?.frequenceMaxParSemaine ?? null,
     });
-
-    const vueProgramme = await vueDuProgramme(userId);
 
     return NextResponse.json({
       etat,
@@ -225,7 +263,7 @@ export async function GET() {
       feuTendance,
       // Renvoyait un tableau vide en dur : le moteur d'alertes tournait dans le
       // vide, ses agrégats n'étant calculés nulle part.
-      alertesPreSeance: await alertes(userId),
+      alertesPreSeance,
       poids30jours: poids30jours.slice(0, 30).map((bw) => ({
         date: bw.date,
         poids: bw.poids,
@@ -235,6 +273,8 @@ export async function GET() {
         ? { contenu: weeklyDebrief.contenu, weekStart: weeklyDebrief.weekStart }
         : (lastWeekDebrief ? { contenu: lastWeekDebrief.contenu, weekStart: lastWeekDebrief.weekStart } : null),
       recentSessions: recentSessionsWithData,
+    }, {
+      headers: { "Server-Timing": `total;dur=${Date.now() - depart}` },
     });
   } catch (error) {
     // Le message etait constant : toute panne — colonne absente, service en
