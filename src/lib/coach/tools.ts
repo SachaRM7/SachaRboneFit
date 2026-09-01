@@ -4,6 +4,7 @@ import { setLogs, sessionLogs, exercises, exerciseInstances, sessionIncidents } 
 import { eq, desc, isNull } from "drizzle-orm";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
+import { libelleProfilTension, libelleTypeMouvement } from "@/lib/referentiels/libelles";
 import { configurationDe } from "@/lib/engine/charges";
 import { DEFINITIONS_CONTEXTE, EXECUTEURS_CONTEXTE } from "./outils-contexte";
 import { DEFINITIONS_PROGRAMME, EXECUTEURS_PROGRAMME } from "./outils-programme";
@@ -196,6 +197,7 @@ export async function getAvailableSubstitutes(
   const targetExercise = targetInstance.exercise as {
     pilier: string;
     profilTension: string;
+    type?: string;
     nom?: string;
     categorieRole?: string;
     musclesPrincipaux?: string[];
@@ -206,7 +208,7 @@ export async function getAvailableSubstitutes(
   }
 
   const instancesWithNom: ExerciseInstanceWithExercise[] = allInstances.map(i => {
-    const ex = i.exercise as { pilier?: string; nom?: string; categorieRole?: string; profilTension?: string; musclesPrincipaux?: string[] } | null;
+    const ex = i.exercise as { pilier?: string; nom?: string; categorieRole?: string; profilTension?: string; type?: string; musclesPrincipaux?: string[] } | null;
     return {
       id: i.id,
       gymId: i.gymId,
@@ -215,6 +217,7 @@ export async function getAvailableSubstitutes(
       machineNom: i.machineNom,
       categorieRole: (ex?.categorieRole as "pilier" | "substitut" | "accessoire") || "accessoire",
       profilTension: ex?.profilTension || "",
+      type: ex?.type || "",
       musclesPrincipaux: ex?.musclesPrincipaux || [],
       pilier: ex?.pilier || "",
     };
@@ -223,6 +226,8 @@ export async function getAvailableSubstitutes(
   const criteria: SubstitutionCriteria = {
     pilier: targetExercise.pilier,
     profilTension: targetExercise.profilTension,
+    // À profil égal, un substitut de même nature est plus fidèle.
+    type: targetExercise.type,
     gymId,
     excludeExerciseIds: [exerciseInstanceId],
   };
@@ -235,7 +240,10 @@ export async function getAvailableSubstitutes(
 
   return {
     success: true,
-    output: substitutes.map(s => `- ${s.exerciseName} (${s.machineName}) - ${s.categorieRole} [${s.profilTension}]`).join("\n"),
+    output: substitutes
+      .map((s) => `- ${s.exerciseName} (${s.machineName}) - ${s.categorieRole} `
+        + `[${libelleProfilTension(s.profilTension)}, ${libelleTypeMouvement(s.type)}]`)
+      .join("\n"),
   };
 }
 

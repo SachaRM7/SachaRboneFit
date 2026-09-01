@@ -18,6 +18,7 @@ const exercice = (p: Partial<ExercicePropose> = {}): ExercicePropose => ({
   pilier: "P1_poussee",
   profilTension: "mi_range",
   categorieRole: "pilier",
+  type: "polyarticulaire",
   rirCible: 2,
   ...p,
 });
@@ -219,5 +220,173 @@ describe("durée", () => {
 
   it("refuse une séance plus longue que le temps disponible", () => {
     expect(bloquants(validerSeance([exercice()], contexte({ dureeDisponibleMinutes: 5 })))).toContain("duree_depassee");
+  });
+});
+
+
+/**
+ * La composition d'une séance, une fois écartée la question de sa faisabilité.
+ *
+ * Trois attributs déjà présents — pilier, profil de tension, nature du
+ * mouvement — lus ensemble plutôt qu'à moitié. Rien ici n'exige qu'un muscle
+ * voie les trois profils : on signale une concentration manifeste ou un
+ * doublon, jamais une composition « non conforme ».
+ */
+
+/** Une machine du parc, telle que la salle la propose. */
+const machine = (
+  id: string,
+  muscle: string,
+  profilTension: string,
+  type = "polyarticulaire",
+) => ({ exerciseInstanceId: id, nom: id, profilTension, type, musclesPrincipaux: [muscle] });
+
+describe("redondance : ce que le type sépare", () => {
+  it("ne confond plus un développé et un écarté", () => {
+    // Même pilier, même profil, même muscle : l'empreinte précédente les
+    // déclarait jumeaux. L'un est global, l'autre local.
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", nom: "Développé couché", profilTension: "stretch", type: "polyarticulaire" }),
+      exercice({ exerciseInstanceId: "b", nom: "Écarté poulie", profilTension: "stretch", type: "isolation", categorieRole: "accessoire" }),
+    ], contexte({
+      machinesDisponibles: [machine("a", "pectoraux", "stretch"), machine("b", "pectoraux", "stretch", "isolation")],
+    }));
+    expect(codes(r)).not.toContain("redondance_biomecanique");
+  });
+
+  it("repère deux variantes réellement jumelles", () => {
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", nom: "Écarté poulie", profilTension: "stretch", type: "isolation" }),
+      exercice({ exerciseInstanceId: "b", nom: "Écarté haltères", profilTension: "stretch", type: "isolation" }),
+    ], contexte({
+      machinesDisponibles: [machine("a", "pectoraux", "stretch", "isolation"), machine("b", "pectoraux", "stretch", "isolation")],
+    }));
+    expect(codes(r)).toContain("redondance_biomecanique");
+  });
+
+  it("voit deux jumeaux dont les muscles ne sont pas listés à l'identique", () => {
+    // Faux négatif de l'empreinte à égalité stricte : [pectoraux] et
+    // [pectoraux, triceps] ne se rencontraient jamais.
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", profilTension: "stretch", musclesPrincipaux: ["pectoraux"] }),
+      exercice({ exerciseInstanceId: "b", profilTension: "stretch", musclesPrincipaux: ["pectoraux", "triceps"] }),
+    ], contexte({
+      machinesDisponibles: [machine("a", "pectoraux", "stretch"), machine("b", "pectoraux", "stretch")],
+    }));
+    expect(codes(r)).toContain("redondance_biomecanique");
+  });
+
+  it("ne rapproche pas deux exercices sans muscle commun", () => {
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", profilTension: "stretch", musclesPrincipaux: ["pectoraux"] }),
+      exercice({ exerciseInstanceId: "b", profilTension: "stretch", musclesPrincipaux: ["quadriceps"] }),
+    ], contexte({
+      machinesDisponibles: [machine("a", "pectoraux", "stretch"), machine("b", "quadriceps", "stretch")],
+    }));
+    expect(codes(r)).not.toContain("redondance_biomecanique");
+  });
+});
+
+describe("monotonie de profil", () => {
+  const troisMemeProfil = [
+    exercice({ exerciseInstanceId: "a", nom: "A", profilTension: "stretch", type: "polyarticulaire" }),
+    exercice({ exerciseInstanceId: "b", nom: "B", profilTension: "stretch", type: "isolation", categorieRole: "accessoire" }),
+    exercice({ exerciseInstanceId: "c", nom: "C", profilTension: "stretch", type: "isolation", musclesPrincipaux: ["pectoraux", "triceps"], categorieRole: "accessoire" }),
+  ];
+
+  it("signale trois exercices d'un muscle tous sur le même profil", () => {
+    const r = validerSeance(troisMemeProfil, contexte({
+      machinesDisponibles: [
+        machine("a", "pectoraux", "stretch"),
+        machine("b", "pectoraux", "stretch", "isolation"),
+        machine("c", "pectoraux", "stretch", "isolation"),
+        // La salle propose autre chose : c'est ce qui rend l'avertissement juste.
+        machine("d", "pectoraux", "contract", "isolation"),
+      ],
+    }));
+    expect(codes(r)).toContain("monotonie_profil");
+    expect(r.valide).toBe(true);
+  });
+
+  it("se tait quand la salle ne permet pas mieux", () => {
+    // Reprocher une monotonie à un parc qui n'offre qu'un profil serait faux.
+    const r = validerSeance(troisMemeProfil, contexte({
+      machinesDisponibles: [
+        machine("a", "pectoraux", "stretch"),
+        machine("b", "pectoraux", "stretch", "isolation"),
+        machine("c", "pectoraux", "stretch", "isolation"),
+      ],
+    }));
+    expect(codes(r)).not.toContain("monotonie_profil");
+  });
+
+  it("se tait sur des profils complémentaires", () => {
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", nom: "A", profilTension: "stretch" }),
+      exercice({ exerciseInstanceId: "b", nom: "B", profilTension: "mi_range", type: "isolation", categorieRole: "accessoire" }),
+      exercice({ exerciseInstanceId: "c", nom: "C", profilTension: "contract", type: "isolation", categorieRole: "accessoire" }),
+    ], contexte({
+      machinesDisponibles: [
+        machine("a", "pectoraux", "stretch"),
+        machine("b", "pectoraux", "mi_range", "isolation"),
+        machine("c", "pectoraux", "contract", "isolation"),
+      ],
+    }));
+    expect(codes(r)).not.toContain("monotonie_profil");
+    expect(codes(r)).not.toContain("redondance_biomecanique");
+    expect(r.qualiteComposition).toBe("correcte");
+  });
+
+  it("ne se déclenche pas à deux exercices", () => {
+    // Deux exercices d'un même profil sur un muscle est banal, souvent voulu.
+    // Avertir ici produirait du bruit sur presque chaque séance.
+    const r = validerSeance(troisMemeProfil.slice(0, 2), contexte({
+      machinesDisponibles: [
+        machine("a", "pectoraux", "stretch"),
+        machine("b", "pectoraux", "stretch", "isolation"),
+        machine("d", "pectoraux", "contract", "isolation"),
+      ],
+    }));
+    expect(codes(r)).not.toContain("monotonie_profil");
+  });
+});
+
+describe("le type ne décide pas du rôle", () => {
+  it("accepte une isolation en pilier sans rien lui reprocher", () => {
+    // Un programme peut décider qu'une isolation ouvre la séance. Le type
+    // décrit le mouvement, le rôle décrit la décision.
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", nom: "Leg extension", type: "isolation", categorieRole: "pilier", musclesPrincipaux: ["quadriceps"] }),
+    ], contexte({ machinesDisponibles: [machine("a", "quadriceps", "mi_range", "isolation")] }));
+    expect(r.valide).toBe(true);
+    expect(r.anomalies).toHaveLength(0);
+  });
+
+  it("accepte un polyarticulaire en accessoire", () => {
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", nom: "Squat", type: "polyarticulaire", categorieRole: "pilier", musclesPrincipaux: ["quadriceps"] }),
+      exercice({ exerciseInstanceId: "b", nom: "Fentes", type: "polyarticulaire", categorieRole: "accessoire", profilTension: "contract", musclesPrincipaux: ["quadriceps"] }),
+    ], contexte({
+      machinesDisponibles: [machine("a", "quadriceps", "mi_range"), machine("b", "quadriceps", "contract")],
+    }));
+    expect(r.valide).toBe(true);
+    expect(codes(r)).not.toContain("ordre_defavorable");
+  });
+});
+
+describe("niveau de qualité de composition", () => {
+  it("est un niveau, pas un score inventé", () => {
+    const r = validerSeance([exercice()], contexte());
+    expect(["correcte", "perfectible", "pauvre"]).toContain(r.qualiteComposition);
+  });
+
+  it("descend à perfectible sur un seul signal", () => {
+    const r = validerSeance([
+      exercice({ exerciseInstanceId: "a", profilTension: "stretch", type: "isolation" }),
+      exercice({ exerciseInstanceId: "b", profilTension: "stretch", type: "isolation" }),
+    ], contexte({
+      machinesDisponibles: [machine("a", "pectoraux", "stretch", "isolation"), machine("b", "pectoraux", "stretch", "isolation")],
+    }));
+    expect(r.qualiteComposition).toBe("perfectible");
   });
 });

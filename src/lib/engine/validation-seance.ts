@@ -40,6 +40,14 @@ export interface ExercicePropose {
   profilTension?: string;
   /** pilier | substitut | accessoire. Décide de l'ordre attendu. */
   categorieRole?: string;
+  /**
+   * polyarticulaire | isolation.
+   *
+   * Nature du mouvement, INDÉPENDANTE du rôle : une isolation peut être un
+   * pilier si le programme le décide, et rien ici ne le lui reproche. Le type
+   * sert à distinguer deux exercices que le pilier et le profil confondaient.
+   */
+  type?: string;
   /** RIR visé. Une décharge qui reste à RIR 1 ne décharge rien. */
   rirCible?: number | null;
 }
@@ -47,6 +55,17 @@ export interface ExercicePropose {
 export interface MachineDisponible {
   exerciseInstanceId: string;
   nom: string;
+  /**
+   * Ce que la machine permet de travailler, et comment.
+   *
+   * Sans ces trois champs, on ne peut pas dire « tout le volume de ce muscle
+   * est sur un seul profil ALORS QU'UN AUTRE EXISTE ICI » — et sans cette
+   * seconde moitié, l'avertissement reprocherait à l'athlète une salle qui ne
+   * permet pas mieux.
+   */
+  profilTension?: string;
+  type?: string;
+  musclesPrincipaux?: string[];
 }
 
 export interface ContrainteMuscle {
@@ -90,6 +109,53 @@ export interface ContexteValidation {
  */
 const SEVERITE_ECARTEMENT = SEVERITE.ecartement;
 
+/**
+ * Ce qu'il faut d'un exercice pour juger s'il en double un autre.
+ */
+interface SignatureExercice {
+  index: number;
+  pilier: string;
+  profil?: string;
+  type?: string;
+  muscles: Muscle[];
+}
+
+/** L'un des deux ensembles contient-il l'autre, sans être vide ? */
+function sEmboitent(a: Muscle[], b: Muscle[]): boolean {
+  if (a.length === 0 || b.length === 0) return false;
+  const [petit, grand] = a.length <= b.length ? [a, b] : [b, a];
+  return petit.every((m) => grand.includes(m));
+}
+
+/**
+ * Deux exercices sont-ils deux façons de faire la même chose ?
+ *
+ * Quatre conditions, toutes nécessaires : même patron de mouvement, même
+ * moment de tension, même nature, et des muscles principaux qui s'emboîtent.
+ * Aucune n'est un modèle biomécanique — ce sont les quatre attributs déjà
+ * présents, lus ensemble plutôt qu'à moitié.
+ */
+function sontQuasiIdentiques(
+  a: Omit<SignatureExercice, "index">,
+  b: Omit<SignatureExercice, "index">,
+): boolean {
+  return a.pilier === b.pilier
+    && a.profil === b.profil
+    && a.type === b.type
+    && sEmboitent(a.muscles, b.muscles);
+}
+
+/**
+ * Nombre d'exercices sur un même muscle et un même profil à partir duquel la
+ * concentration mérite d'être signalée.
+ *
+ * Trois, et pas deux. Deux exercices d'un même profil sur un muscle est banal
+ * et souvent voulu — un lourd et un plus léger. Avertir à deux produirait du
+ * bruit sur presque chaque séance, et un avertissement bruyant est un
+ * avertissement ignoré.
+ */
+const EXERCICES_AVANT_MONOTONIE = 3;
+
 /** Durée d'une série, temps sous tension inclus, hors repos. */
 const SECONDES_PAR_SERIE = 45;
 
@@ -116,7 +182,18 @@ export interface ResultatValidation {
   /** Volume pondéré par la proximité de l'échec : la durée seule ne dit rien de l'effort. */
   chargeEstimee: number;
   scoresRecuperation: Record<string, number>;
+  /**
+   * Ce que vaut la COMPOSITION, une fois écartée la question de savoir si elle
+   * est réalisable.
+   *
+   * Un niveau, pas un score sur cent : rien ne fonde une graduation fine ici,
+   * et un nombre inventerait une précision que les trois signaux disponibles
+   * — redondance, monotonie de profil, variété — ne portent pas.
+   */
+  qualiteComposition: QualiteComposition;
 }
+
+export type QualiteComposition = "correcte" | "perfectible" | "pauvre";
 
 /**
  * Durée estimée d'une séance.
@@ -171,6 +248,8 @@ export function validerSeance(
     return {
       valide: false, anomalies, dureeEstimeeMinutes: 0,
       seriesTotales: 0, chargeEstimee: 0, scoresRecuperation,
+      // Une séance vide n'a pas de composition à juger.
+      qualiteComposition: "correcte",
     };
   }
 
@@ -183,7 +262,7 @@ export function validerSeance(
   );
 
   const vues = new Map<string, number>();
-  const empreintes = new Map<string, number>();
+  const profils: SignatureExercice[] = [];
   const seriesParMuscle = new Map<Muscle, number>();
 
   exercices.forEach((e, index) => {
@@ -205,20 +284,29 @@ export function validerSeance(
     }
 
     // --- Redondance biomécanique ---
-    // Trois identifiants distincts peuvent désigner trois variantes du même
-    // mouvement : même pilier, même profil de tension, mêmes muscles. Les
-    // enchaîner n'apporte pas de stimulus supplémentaire.
+    //
+    // Deux identifiants distincts peuvent désigner deux variantes du même
+    // mouvement. L'empreinte précédente — pilier, profil, muscles EXACTEMENT
+    // égaux — se trompait dans les deux sens.
+    //
+    // Faux positif : un développé et un écarté partagent pilier, profil et
+    // « pectoraux », et étaient déclarés redondants alors que l'un est global
+    // et l'autre local. Le type les sépare.
+    //
+    // Faux négatif : deux variantes réellement jumelles dont l'une déclare
+    // [pectoraux] et l'autre [pectoraux, triceps] ne se voyaient pas.
+    // L'inclusion les rapproche là où l'égalité stricte les manquait.
     const muscles = e.musclesPrincipaux.map(versMuscle).filter((m): m is Muscle => m !== null);
-    const empreinte = `${e.pilier}|${e.profilTension ?? ""}|${[...muscles].sort().join(",")}`;
-    const jumeau = empreintes.get(empreinte);
-    if (jumeau !== undefined && e.pilier) {
+    const jumeau = e.pilier
+      ? profils.find((p) => sontQuasiIdentiques(p, { pilier: e.pilier, profil: e.profilTension, type: e.type, muscles }))
+      : undefined;
+    if (jumeau) {
       anomalies.push({
         code: "redondance_biomecanique", gravite: "avertissement", index,
-        message: `« ${e.nom} » reprend le même schéma que l'exercice en position ${jumeau + 1}.`,
+        message: `« ${e.nom} » reprend le même schéma que l'exercice en position ${jumeau.index + 1}.`,
       });
-    } else {
-      empreintes.set(empreinte, index);
     }
+    profils.push({ index, pilier: e.pilier, profil: e.profilTension, type: e.type, muscles });
 
     if (e.series < 1) {
       anomalies.push({
@@ -347,6 +435,49 @@ export function validerSeance(
     }
   }
 
+  // --- Monotonie de profil ---
+  //
+  // Tout le travail d'un muscle concentré sur un seul moment de tension, alors
+  // que la salle permet autre chose. Trois conditions, toutes nécessaires :
+  // sans la dernière, on reprocherait à l'athlète un parc qui ne permet pas
+  // mieux, et l'avertissement serait faux.
+  //
+  // Ce n'est pas une règle de composition : rien n'exige qu'un muscle voie les
+  // trois profils. On signale une concentration manifeste, rien de plus.
+  const parMuscle = new Map<Muscle, SignatureExercice[]>();
+  for (const p of profils) {
+    for (const m of p.muscles) parMuscle.set(m, [...(parMuscle.get(m) ?? []), p]);
+  }
+
+  for (const [muscle, liste] of parMuscle) {
+    if (liste.length < EXERCICES_AVANT_MONOTONIE) continue;
+    const profilsVus = new Set(liste.map((p) => p.profil).filter(Boolean));
+    if (profilsVus.size !== 1) continue;
+
+    const seul = [...profilsVus][0]!;
+    const autreExiste = contexte.machinesDisponibles.some(
+      (m) =>
+        m.profilTension
+        && m.profilTension !== seul
+        && (m.musclesPrincipaux ?? []).map(versMuscle).includes(muscle),
+    );
+    if (!autreExiste) continue;
+
+    anomalies.push({
+      code: "monotonie_profil", gravite: "avertissement",
+      message:
+        `${liste.length} exercices de ${muscle} tous en tension « ${seul} », `
+        + "alors que cette salle en propose un autre profil.",
+    });
+  }
+
+  const redondances = anomalies.filter((a) => a.code === "redondance_biomecanique").length;
+  const monotonies = anomalies.filter((a) => a.code === "monotonie_profil").length;
+  const qualiteComposition: QualiteComposition =
+    redondances + monotonies === 0 ? "correcte"
+      : redondances >= 2 || (redondances >= 1 && monotonies >= 1) ? "pauvre"
+        : "perfectible";
+
   return {
     // Un avertissement se discute, un bloquant se corrige : seuls les seconds
     // empêchent l'affichage.
@@ -356,5 +487,6 @@ export function validerSeance(
     seriesTotales,
     chargeEstimee: charge,
     scoresRecuperation,
+    qualiteComposition,
   };
 }

@@ -104,6 +104,7 @@ export async function chargerParc(userId: string): Promise<InstanceResolvable[]>
       exerciceNom: exercises.nom,
       pilier: exercises.pilier,
       profilTension: exercises.profilTension,
+      type: exercises.type,
       categorieRole: exercises.categorieRole,
       musclesPrincipaux: exercises.musclesPrincipaux,
       equipement: exercises.equipement,

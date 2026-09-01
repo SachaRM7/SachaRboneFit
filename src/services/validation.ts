@@ -131,7 +131,7 @@ export async function validerSeanceComplete(entrees: {
   const proposes: ExercicePropose[] = exercices.map((e) => {
     const instance = parId.get(e.exerciseInstanceId);
     const fiche = instance?.exercise as
-      | { nom?: string; pilier?: string; profilTension?: string; categorieRole?: string; musclesPrincipaux?: string[] }
+      | { nom?: string; pilier?: string; profilTension?: string; categorieRole?: string; type?: string; musclesPrincipaux?: string[] }
       | null;
     return {
       exerciseInstanceId: e.exerciseInstanceId,
@@ -144,6 +144,7 @@ export async function validerSeanceComplete(entrees: {
       pilier: fiche?.pilier ?? "",
       profilTension: fiche?.profilTension,
       categorieRole: fiche?.categorieRole,
+      type: fiche?.type,
       rirCible: e.rirCible ?? null,
     };
   });
@@ -169,10 +170,22 @@ export async function validerSeanceComplete(entrees: {
   const cibles = ciblesHebdo(profil?.objectifMusclesPrioritaires ?? []);
 
   const seance = validerSeance(proposes, {
-    machinesDisponibles: duSite.map((i) => ({
-      exerciseInstanceId: i.id,
-      nom: (i.exercise as { nom?: string } | null)?.nom ?? i.machineNom,
-    })),
+    // Le parc ne portait que des identifiants. Sans ce que chaque machine
+    // permet de travailler, impossible de dire « tout le volume de ce muscle
+    // est sur un seul profil ALORS QU'UN AUTRE EXISTE ICI » — et sans cette
+    // seconde moitié, l'avertissement serait faux.
+    machinesDisponibles: duSite.map((i) => {
+      const f = i.exercise as
+        | { nom?: string; profilTension?: string; type?: string; musclesPrincipaux?: string[] }
+        | null;
+      return {
+        exerciseInstanceId: i.id,
+        nom: f?.nom ?? i.machineNom,
+        profilTension: f?.profilTension,
+        type: f?.type,
+        musclesPrincipaux: f?.musclesPrincipaux ?? [],
+      };
+    }),
     etatMuscles: etatMusclesDepuis(activite, courbatures),
     contraintes: contraintesMuscle,
     dureeDisponibleMinutes:

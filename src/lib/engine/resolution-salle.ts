@@ -26,6 +26,8 @@ export interface InstanceResolvable {
   pilier: string;
   profilTension: string;
   categorieRole: "pilier" | "substitut" | "accessoire";
+  /** polyarticulaire | isolation. Départage deux candidats à profil égal. */
+  type?: string;
   musclesPrincipaux: string[];
   equipement: string | null;
   /**
@@ -126,9 +128,13 @@ export function resoudrePourSalle(
     ({ pilier: 0, substitut: 1, accessoire: 2 })[a.categorieRole] -
     ({ pilier: 0, substitut: 1, accessoire: 2 })[b.categorieRole];
 
+  // À pilier et profil égaux, un mouvement de même nature est plus fidèle :
+  // remplacer un développé par un écarté garde le profil mais change ce qu'on
+  // demande à l'athlète.
   const memeProfil = compatibles
     .filter((i) => i.pilier === prevu.pilier && i.profilTension === prevu.profilTension)
-    .sort(parRole)[0];
+    .sort((a, b) =>
+      (a.type === prevu.type ? 0 : 1) - (b.type === prevu.type ? 0 : 1) || parRole(a, b))[0];
   if (memeProfil) {
     return {
       niveau: "profil_identique",

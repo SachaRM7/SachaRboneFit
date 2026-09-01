@@ -14,7 +14,7 @@ import {
   fourchettesCompletees,
   semainesSansDeload,
 } from "@/services/progression";
-import { libelleMuscle, libelleEquipement, libelleProfilTension } from "@/lib/referentiels/libelles";
+import { libelleMuscle, libelleEquipement, libelleProfilTension, libelleTypeMouvement } from "@/lib/referentiels/libelles";
 import { versMuscle } from "@/lib/referentiels/muscles";
 import type { CoachTool, ToolExecutor, ToolExecutionResult } from "./tools";
 
@@ -165,6 +165,9 @@ async function equipementSalle(p: Record<string, unknown>, userId: string): Prom
         machine: i.machineNom,
         pilier: e?.pilier,
         profilTension: libelleProfilTension(e?.profilTension),
+        // Sans ce champ, le modèle déduisait la nature du mouvement depuis le
+        // NOM de l'exercice. La donnée existe, elle est complète, elle part.
+        type: libelleTypeMouvement(e?.type),
         muscles: (e?.musclesPrincipaux ?? []).map(libelleMuscle),
         incrementsKg: i.incrementsPossibles,
       };
@@ -214,6 +217,7 @@ async function chercherExercices(p: Record<string, unknown>, userId: string): Pr
       nom: e.nom,
       pilier: e.pilier,
       profilTension: libelleProfilTension(e.profilTension),
+      type: libelleTypeMouvement(e.type),
       equipement: libelleEquipement(e.equipement),
       muscles: (e.musclesPrincipaux ?? []).map(libelleMuscle),
       // Un exercice non équipé n'est pas programmable en l'état : le dire évite

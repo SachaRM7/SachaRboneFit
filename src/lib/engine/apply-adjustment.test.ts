@@ -87,3 +87,50 @@ describe("application de l'ajustement de volume", () => {
     expect(r.map((e) => e.seriesAjustees)).toEqual([1, 1]);
   });
 });
+
+
+/**
+ * La fatigue et la nature du mouvement.
+ *
+ * Un accessoire polyarticulaire coûte plus cher qu'une isolation légère, et
+ * l'ordre de coupe ne le sait pas : à rôle égal, les deux sont retirés de la
+ * même façon. Ce test CARACTÉRISE ce comportement plutôt qu'il ne le corrige.
+ *
+ * La règle « à rôle égal, couper un polyarticulaire d'abord » a été
+ * délibérément écartée : le type est un indice de coût potentiel, pas une
+ * mesure du coût réel. Une isolation menée près de l'échec peut coûter plus
+ * qu'un polyarticulaire stable et bien maîtrisé. Graver l'inverse ferait de
+ * poly/iso un proxy automatique de fatigue, ce qui est faux.
+ *
+ * Le jour où une métrique de coût mieux fondée existera — RPE observé,
+ * courbatures rapportées, chute de performance — elle remplacera ce tri. En
+ * attendant, ce test dit ce que le module fait, pour que le jour où il
+ * changera, ce soit visible.
+ */
+describe("coût et nature du mouvement", () => {
+  it("traite pour l'instant un accessoire polyarticulaire comme une isolation, à rôle égal", () => {
+    const seance = [
+      exo("pilier", "pilier", 4),
+      exo("poly", "accessoire", 3),
+      exo("iso", "accessoire", 3),
+    ];
+    const r = applyVolumeAdjustment(seance, ajustement(-20));
+    const par = Object.fromEntries(r.map((e) => [e.exerciseInTemplateId, e.seriesAjustees]));
+
+    // Volume 10 → cible 8 : deux séries retirées, une sur chaque accessoire.
+    expect(par.pilier).toBe(4);
+    expect(par.poly).toBe(2);
+    expect(par.iso).toBe(2);
+  });
+
+  it("protège toujours les piliers d'abord", () => {
+    const seance = [
+      exo("pilier", "pilier", 4),
+      exo("acc", "accessoire", 4),
+    ];
+    const r = applyVolumeAdjustment(seance, ajustement(-25));
+    const par = Object.fromEntries(r.map((e) => [e.exerciseInTemplateId, e.seriesAjustees]));
+    expect(par.pilier).toBe(4);
+    expect(par.acc).toBe(2);
+  });
+});

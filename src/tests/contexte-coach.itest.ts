@@ -20,6 +20,13 @@ const { eq } = await import("drizzle-orm");
 const { resoudreContexte } = await import("@/services/contexte-coach");
 const { createCoachTools } = await import("@/lib/coach/tools");
 const { contexteValide } = await import("@/lib/coach/contexte-ecran");
+const { EXECUTEURS_CONTEXTE } = await import("@/lib/coach/outils-contexte");
+
+/** Aucun écran désigné : ces deux outils-là n'en ont pas besoin. */
+const SANS_ECRAN = {
+  ecran: "", blocId: null, seanceTemplateId: null,
+  exerciseInstanceId: null, sessionLogId: null,
+};
 const { lundiDe, decalerDe } = await import("@/lib/semaines");
 
 let blocMien = "";
@@ -175,6 +182,37 @@ describe("résolution du contexte d'écran", () => {
     // Arguments VIDES : tout vient du contexte résolu côté serveur.
     const res = await outils.executors.get_exercise_history!({}, U, refs!);
     expect(res.success).toBe(true);
+  });
+
+  /**
+   * Ce que le modèle reçoit réellement.
+   *
+   * La nature du mouvement était stockée, validée, affichée sur une fiche — et
+   * absente de tout ce qui part vers le modèle. Il la déduisait donc du NOM de
+   * l'exercice, c'est-à-dire de son pré-entraînement, pas de nos données.
+   */
+  it("transmet la nature du mouvement avec le parc de la salle", async () => {
+    const res = await EXECUTEURS_CONTEXTE.get_gym_equipment!({ gymId: salle }, U, SANS_ECRAN);
+    expect(res.success).toBe(true);
+    const parc = JSON.parse(res.output);
+    const banc = parc.machines.find((m: { machine: string }) => m.machine === "Banc");
+    expect(banc).toBeDefined();
+    expect(banc.type).toBe("Polyarticulaire");
+    // Le profil part toujours, en libellé lisible.
+    expect(banc.profilTension).toBe("Mi-course");
+  });
+
+  it("transmet la nature du mouvement dans la recherche d'exercices", async () => {
+    const res = await EXECUTEURS_CONTEXTE.search_exercises!({ muscle: "pectoraux" }, U, SANS_ECRAN);
+    expect(res.success).toBe(true);
+    // La base de test porte les fixtures de toutes les suites : on n'exige pas
+    // de retrouver CET exercice dans une liste tronquée, mais que chaque
+    // exercice rendu porte sa nature, en libellé lisible.
+    const trouves = JSON.parse(res.output).exercices as Array<{ nom: string; type: string }>;
+    expect(trouves.length).toBeGreaterThan(0);
+    for (const e of trouves) {
+      expect(["Polyarticulaire", "Isolation"], e.nom).toContain(e.type);
+    }
   });
 
   it("refuse l'appel quand aucun exercice n'est désigné, ni par le modèle ni par l'écran", async () => {

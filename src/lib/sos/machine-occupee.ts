@@ -1,3 +1,4 @@
+import { profilCompatible } from "@/lib/engine/profils-tension";
 import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engine/substitutions";
 import { memeMuscle } from "@/lib/referentiels/muscles";
 
@@ -45,7 +46,9 @@ export async function machineOccupee(
     if (inst.gymId !== input.gym_id) return false;
     if (templateExerciseIds.includes(inst.id)) return false;
     if (inst.pilier !== basePilier) return false;
-    if (inst.profilTension !== baseProfilTension && inst.profilTension !== "mi_range") return false;
+    // Même définition que la recherche de substituts : la règle était recopiée
+    // ici, et les deux copies auraient fini par diverger.
+    if (!profilCompatible(baseProfilTension, inst.profilTension)) return false;
     if (musclesAvecCourbatures.length > 0 && inst.musclesPrincipaux.some((m) => muscleMatches(m, musclesAvecCourbatures))) return false;
     return true;
   });
