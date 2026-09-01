@@ -1,5 +1,5 @@
-import { and, eq, isNull, type SQL } from "drizzle-orm";
-import { gyms, exerciseInstances, programmeBlocs, sessionLogs } from "./schema";
+import { and, eq, getTableName, isNull, sql, type SQL } from "drizzle-orm";
+import { gyms, exerciseInstances, programmeBlocs, sessionLogs, setLogs } from "./schema";
 
 /**
  * Filtres d'archivage.
@@ -64,4 +64,79 @@ export function machinesUtilisablesAujourdhui(): SQL | undefined {
 /** Blocs de programme encore en vigueur. */
 export function blocsActifs(userId: string): SQL | undefined {
   return and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe));
+}
+
+/**
+ * Séries qui comptent encore, quand la lecture PART des séries.
+ *
+ * `set_logs` n'a pas d'archivage à lui, et c'est volontaire : une série n'existe
+ * pas hors de sa séance, alors elle suit le sort de sa séance. La règle est
+ * donc :
+ *
+ *     une série est active <=> sa séance existe, appartient au bon compte,
+ *                              et n'est pas archivée
+ *
+ * Tant qu'on lit dans le sens naturel — les séances, puis leurs séries — la
+ * règle s'applique toute seule : `seancesActives` filtre en amont. Le piège est
+ * la lecture inverse, celle qui part d'une INSTANCE pour retrouver son
+ * historique : là, `set_logs` est la table de tête, la séance n'est plus dans la
+ * requête, et il n'y a rien pour rappeler qu'elle devrait y être.
+ *
+ * C'est exactement par là que la séance de test a fui. Trois lectures partaient
+ * de `set_logs` sans jamais nommer `session_logs` : l'historique servi au Coach,
+ * la proposition de charge suivante, et la garde d'immutabilité des instances.
+ * Aucune n'avait « oublié un filtre » au sens habituel — la table à filtrer
+ * n'était pas là.
+ *
+ * D'où cette forme, un EXISTS plutôt qu'une jointure : elle se pose dans le
+ * `where` d'une requête sur `set_logs` seule, sans rien changer aux colonnes
+ * lues ni à la forme du résultat, et elle fonctionne aussi bien dans l'API
+ * relationnelle (`db.query.setLogs.findMany`) que dans le constructeur de
+ * `select`. Une jointure obligerait chaque appelant à la réécrire — c'est-à-dire
+ * à pouvoir l'oublier.
+ *
+ * Quand la requête a DÉJÀ `session_logs` dans ses jointures — parce qu'elle a
+ * besoin de la date, du feu, ou qu'elle part des séances —, on ne s'en sert pas :
+ * `seancesActives(userId)` dans le `where` dit la même chose sans sous-requête.
+ */
+/**
+ * La sous-requête corrélée, montée à la main plutôt qu'avec `${table}`.
+ *
+ * Drizzle réécrit les références de colonnes d'un fragment `sql` selon l'alias
+ * de la requête qui l'accueille : dans `db.query.setLogs.findMany`, la table de
+ * tête s'appelle `"setLogs"`, et `${sessionLogs.userId}` en ressortait comme
+ * `"setLogs"."user_id"` — une colonne qui n'existe pas. La sous-requête porte
+ * donc son propre alias, écrit explicitement, et seule la corrélation vers la
+ * table de tête passe par une référence que Drizzle a le droit de résoudre.
+ *
+ * Les noms viennent du schéma et non de littéraux : renommer une colonne dans
+ * `schema.ts` continue de se propager ici.
+ */
+const SEANCE = sql.identifier("seance_de_la_serie");
+const colonne = (c: { name: string }) => sql.identifier(c.name);
+
+function seanceDeLaSerie(): SQL {
+  return sql`select 1 from ${sql.identifier(getTableName(sessionLogs))} ${SEANCE}
+    where ${SEANCE}.${colonne(sessionLogs.id)} = ${setLogs.sessionLogId}
+      and ${SEANCE}.${colonne(sessionLogs.archiveLe)} is null`;
+}
+
+export function seriesActives(userId: string): SQL {
+  return sql`exists (${seanceDeLaSerie()} and ${SEANCE}.${colonne(sessionLogs.userId)} = ${userId})`;
+}
+
+/**
+ * Séries encore vivantes, quel que soit le compte à qui elles appartiennent.
+ *
+ * Une seule question a besoin de cette variante : « des nombres ont-ils déjà été
+ * enregistrés sur cet appareil ? ». Le parc est partagé entre les comptes d'un
+ * même lieu, donc les séries d'un autre utilisateur figent la sémantique de
+ * l'instance tout autant que les nôtres — relire une pile affichée comme un
+ * poids total fausserait sa courbe à lui aussi.
+ *
+ * Partout ailleurs, cette fonction est le mauvais choix : un calcul sportif qui
+ * ne borne pas le compte lit l'entraînement de quelqu'un d'autre.
+ */
+export function seriesNonArchivees(): SQL {
+  return sql`exists (${seanceDeLaSerie()})`;
 }

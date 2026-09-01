@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { sessionLogs, setLogs } from "@/db/schema";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gte, isNull } from "drizzle-orm";
 import type { SessionLog } from "@/db/schema";
 import { feuDeTendance } from "./progression";
 
@@ -99,6 +99,27 @@ export async function creerSeance(donnees: CreationSeance): Promise<SessionLog> 
  * une inférence assumée — la clôture est le seul moment qui l'écrit. Une
  * colonne explicite serait plus honnête ; elle est notée en dette.
  */
+/**
+ * Qui s'est réellement entraîné depuis cette date.
+ *
+ * Le précalcul de la séance du jour lisait `session_logs` sans filtre pour
+ * décider qui traiter : une séance archivée suffisait à rendre quelqu'un
+ * « actif » pendant quatorze jours, et donc à lui faire calculer chaque nuit
+ * une séance qu'il n'a pas demandée. Le tort est mince — du travail inutile,
+ * pas un chiffre faux —, mais la règle est la même partout : une séance retirée
+ * du calcul ne décide plus de rien.
+ *
+ * Extraite de la route pour être vérifiable seule : le reste du cron appelle un
+ * modèle, ce qui n'a pas sa place dans un test de cette propriété.
+ */
+export async function utilisateursActifsDepuis(depuisISO: string): Promise<string[]> {
+  const seances = await db.query.sessionLogs.findMany({
+    where: and(gte(sessionLogs.date, depuisISO), isNull(sessionLogs.archiveLe)),
+    columns: { userId: true },
+  });
+  return [...new Set(seances.map((s) => s.userId))];
+}
+
 export function estTerminee(seance: { dureeMinutes: number | null }): boolean {
   return seance.dureeMinutes !== null;
 }

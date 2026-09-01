@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { exerciseInstances, exerciseInTemplate, setLogs } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { seriesNonArchivees } from "@/db/archivage";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { majMachineSchema } from "@/lib/validators/exercise-instance";
 import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
@@ -109,13 +110,23 @@ export async function PATCH(
      * a une, la correction s'appelle « c'est un autre appareil » : on archive
      * celui-ci et on en déclare un nouveau. L'historique n'est ni dupliqué ni
      * réécrit, il reste attaché à ce qu'il mesurait.
+     *
+     * Ce que compte cette garde, ce sont les séries encore vivantes. Une séance
+     * archivée ne mesure plus rien — la retirer du calcul et continuer de la
+     * laisser figer la sémantique de l'appareil serait se donner le pire des
+     * deux : une donnée qui ne compte plus, mais qui interdit encore. Une
+     * instance dont tout l'historique a été archivé redevient donc corrigeable.
+     *
+     * Le compte du propriétaire, lui, ne borne rien ici : le parc est partagé,
+     * et les séries d'un autre utilisateur mesurent cet appareil-là tout autant
+     * que les nôtres.
      */
     const figees = proprietesFigeesModifiees(entree, parsed.data);
     if (figees.length > 0) {
       const [serie] = await db
         .select({ id: setLogs.id })
         .from(setLogs)
-        .where(eq(setLogs.exerciseInstanceId, id))
+        .where(and(eq(setLogs.exerciseInstanceId, id), seriesNonArchivees()))
         .limit(1);
       if (serie) {
         return NextResponse.json(

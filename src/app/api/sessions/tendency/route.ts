@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { db } from "@/db/client";
 import { sessionLogs, setLogs, exerciseInstances, exercises } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc } from "drizzle-orm";
+import { seancesActives } from "@/db/archivage";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import type { SessionPilierPerf } from "@/lib/engine/feu-biologique";
 
@@ -18,18 +19,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "seanceTemplateId required" }, { status: 400 });
   }
 
-  // Get sessions for this template
+  /**
+   * Les séances de ce gabarit qui comptent encore.
+   *
+   * Le tri par utilisateur se faisait en mémoire, après coup, et l'archivage ne
+   * se faisait nulle part : une séance retirée du calcul continuait de peser sur
+   * la tendance du feu biologique de ce gabarit. Les deux critères descendent
+   * dans la requête — celui du compte parce qu'il n'a jamais eu de raison d'en
+   * sortir, celui de l'archivage parce qu'il manquait.
+   */
   const sessions = await db.query.sessionLogs.findMany({
-    where: eq(sessionLogs.seanceTemplateId, seanceTemplateId),
+    where: and(seancesActives(userId), eq(sessionLogs.seanceTemplateId, seanceTemplateId)),
     orderBy: [desc(sessionLogs.createdAt)],
   });
 
   const result = [];
 
   for (const session of sessions) {
-    // Only include sessions belonging to the authenticated user
-    if (session.userId !== userId) continue;
-
     // Get set logs for this session with exercise instance info
     const sets = await db.query.setLogs.findMany({
       where: eq(setLogs.sessionLogId, session.id),

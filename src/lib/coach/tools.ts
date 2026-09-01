@@ -1,7 +1,8 @@
 import { db } from "@/db/client";
 import { estimer1RMDepuisRpe } from "@/lib/engine/records";
 import { setLogs, sessionLogs, exercises, exerciseInstances, sessionIncidents } from "@/db/schema";
-import { eq, desc, isNull } from "drizzle-orm";
+import { and, eq, desc, isNull } from "drizzle-orm";
+import { seancesActives, seriesActives } from "@/db/archivage";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { libelleProfilTension, libelleTypeMouvement } from "@/lib/referentiels/libelles";
@@ -65,32 +66,42 @@ export async function getExerciseHistory(
   limit: number = 10,
   userId: string
 ): Promise<ToolExecutionResult> {
-  const sets = await db.query.setLogs.findMany({
-    where: eq(setLogs.exerciseInstanceId, exerciseInstanceId),
-    orderBy: [desc(setLogs.createdAt)],
-    limit: limit * 2, // Overfetch, we'll filter by session
-  });
+  /**
+   * La séance était relue série par série, uniquement pour vérifier le
+   * propriétaire — jamais l'archivage. Une séance retirée du calcul continuait
+   * donc d'apparaître dans l'historique servi au Coach, et chaque série coûtait
+   * une requête de plus.
+   *
+   * La jointure répond aux deux : elle rend la date qu'on allait chercher, et
+   * elle met `session_logs` dans la requête, donc `seancesActives` s'y applique.
+   */
+  const sets = await db
+    .select({
+      sessionLogId: setLogs.sessionLogId,
+      date: sessionLogs.date,
+      charge: setLogs.charge,
+      reps: setLogs.repsEffectuees,
+      rpe: setLogs.rpeEffectif,
+    })
+    .from(setLogs)
+    .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+    .where(and(eq(setLogs.exerciseInstanceId, exerciseInstanceId), seancesActives(userId)))
+    .orderBy(desc(setLogs.createdAt));
 
   const results: Array<{ date: string; charge: number; reps: number; estimated1RM: number }> = [];
   const seenSessions = new Set<string>();
 
   for (const set of sets) {
     if (seenSessions.has(set.sessionLogId)) continue;
-
-    const session = await db.query.sessionLogs.findFirst({
-      where: eq(sessionLogs.id, set.sessionLogId),
-    });
-
-    if (!session || session.userId !== userId) continue;
-
     seenSessions.add(set.sessionLogId);
+
     // Arrondi à l'affichage seulement : le calcul, lui, passe par la référence.
-    const estimated1RM = Math.round(estimer1RMDepuisRpe(set.charge, set.repsEffectuees, set.rpeEffectif));
+    const estimated1RM = Math.round(estimer1RMDepuisRpe(set.charge, set.reps, set.rpe));
 
     results.push({
-      date: session.date,
+      date: set.date,
       charge: set.charge,
-      reps: set.repsEffectuees,
+      reps: set.reps,
       estimated1RM,
     });
 
@@ -261,9 +272,20 @@ export async function suggestNextSetsTool(
     return { success: false, output: "Exercice non trouvé" };
   }
 
-  // Get last session sets for this instance
+  /**
+   * Les séries sur lesquelles se fonde la charge proposée.
+   *
+   * Cette lecture partait de `set_logs` seule : ni l'archivage ni même le
+   * propriétaire n'étaient vérifiés. Le parc étant partagé entre les comptes
+   * d'un même lieu, la charge suivante pouvait être calculée sur l'entraînement
+   * de quelqu'un d'autre — et une séance de test archivée continuait de servir
+   * de point de départ.
+   *
+   * Une instance dont tout l'historique est archivé redevient donc, ici, une
+   * instance sans historique : c'est le sens même de l'archivage.
+   */
   const lastSets = await db.query.setLogs.findMany({
-    where: eq(setLogs.exerciseInstanceId, exerciseInstanceId),
+    where: and(eq(setLogs.exerciseInstanceId, exerciseInstanceId), seriesActives(userId)),
     orderBy: [desc(setLogs.createdAt)],
   });
 

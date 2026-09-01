@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { users, sessionLogs, precalcSessions, seanceTemplates, dailyStates, programmeBlocs } from "@/db/schema";
-import { eq, desc, and, gte, isNull } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { loadCoachContext } from "@/lib/coach/context-loader";
+import { utilisateursActifsDepuis } from "@/services/seances";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
@@ -33,11 +34,9 @@ export async function GET(request: NextRequest) {
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
     const fourteenDaysAgoStr = fourteenDaysAgo.toISOString().slice(0, 10);
 
-    const recentUsers = await db.query.sessionLogs.findMany({
-      where: gte(sessionLogs.date, fourteenDaysAgoStr),
-    });
-
-    const userIds = [...new Set(recentUsers.map(s => s.userId))];
+    // Une séance archivée ne rend personne actif : elle a été retirée du
+    // calcul, elle ne peut pas décider qu'il faut en précalculer un autre.
+    const userIds = await utilisateursActifsDepuis(fourteenDaysAgoStr);
     const results = { processed: 0, errors: [] as string[] };
 
     for (const userId of userIds) {
