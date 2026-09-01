@@ -3,754 +3,344 @@ import path from "path";
 import postgres from "postgres";
 
 /**
- * Basic-Fit Saint-Martin-du-Touch, premier inventaire de référence.
+ * Inventaire terrain de Basic-Fit St-Martin-Du-Touch.
  *
- * Ce script transcrit un relevé de terrain, et rien d'autre. Sa règle
- * gouvernante tient en une phrase : ce qui n'a pas été mesuré reste `null`.
- *
- * C'est la raison d'être du modèle qui vient d'être posé. Il sait dire
- * « inconnu » — une pile dont personne n'a compté le cran reste sans
- * incréments, et l'application se taira sur les charges au lieu d'en inventer.
- * Remplir ces trous avec des valeurs plausibles rendrait ce fichier inutile :
- * on ne saurait plus ce qui a été vu de ce qui a été supposé.
- *
- * Les appareils non identifiés portent un nom qui le dit. Aucun modèle Matrix
- * ne leur est attribué au jugé, même si le parc observé est intégralement
- * Matrix : le catalogue commercial du constructeur ne fait pas partie de ce que
- * l'application a besoin de savoir.
- *
- *   DATABASE_URL=… npx tsx src/scripts/importer-saint-martin.ts <userId> [--gym=<id>] [--creer]
- *
- * Le script est idempotent : relancé, il met à jour ce qu'il a déjà écrit.
- * Il ne crée JAMAIS de salle sans `--creer`, et refuse d'écrire quand
- * plusieurs salles pourraient correspondre.
+ * Garde-fous : ce script ne crée jamais de salle, ne réactive jamais une
+ * instance archivée et n'écrit rien sans le drapeau explicite `--appliquer`.
+ * Les valeurs inconnues restent `null`; en particulier, un maximum observé ne
+ * permet jamais de reconstruire les paliers qui le précèdent.
  */
+export const GYM_CIBLE = {
+  id: "a29c5180-3393-48a1-94f9-25f69d29b3f8",
+  nom: "St-Martin-Du-Touch",
+} as const;
 
-const projectRoot = path.resolve(__dirname, "../..");
-config({ path: path.join(projectRoot, ".env.local") });
+export type ConfianceMapping = "haute" | "moyenne";
 
-const db = postgres(process.env.DATABASE_URL!, { prepare: false });
-
-const NOM_SALLE = "Basic-Fit Saint-Martin-du-Touch";
-
-/**
- * Ce que le lieu possède.
- *
- * `barre_traction` vient de la station double en configuration traction : le
- * relevé la mentionne, donc son absence ailleurs doit compter. `smith`,
- * `hack_squat`, `banc`, `banc_incline` viennent des postes observés.
- *
- * Les barres parallèles ne sont PAS déclarées : le relevé ne mentionne aucune
- * station à dips, et cocher la case « au cas où » reviendrait à programmer un
- * exercice qu'on n'a pas vu.
- */
-const EQUIPEMENTS = [
-  "barre", "halteres", "poulie", "disque", "kettlebell",
-  "banc", "banc_incline", "smith", "hack_squat",
-  "chest_press", "pec_deck", "rowing_assis", "tirage_vertical",
-  "leg_press", "leg_extension", "leg_curl", "mollets",
-  "abduction_adduction", "kickback_fessiers", "epaules_machine",
-  "elevations_machine", "preacher",
-  "barre_traction",
-];
-
-const NOTES_SALLE = [
-  "Parc intégralement Matrix. Relevé terrain, premier inventaire de référence.",
-  "",
-"POULIES — deux familles, et une topologie à ne pas simplifier :",
-  "",
-  "1. POULIES RÉGLABLES en hauteur (basse, milieu, haute). Un seul type",
-  "   d'appareil. Échelle +10 lbs, plafond 45 kg.",
-  "   Topologie : 7 sorties de câble réparties sur 6 postes — 5 poulies",
-  "   seules, plus 1 poste qui en couple 2. Les deux câbles couplés sont des",
-  "   poulies réglables ordinaires : utilisables séparément comme les cinq",
-  "   autres, et EN PLUS ensemble. Le poste couplé n'est donc pas un second",
-  "   parc, c'est une capacité supplémentaire de deux des sept.",
-  "   Conséquence : un mouvement à un câble dispose de 7 sorties ; un",
-  "   mouvement à deux câbles simultanés d'un seul poste.",
-  "",
-  "2. POSTES ASSIS DÉDIÉS, à poulie FIXE, échelle machine +15 lbs :",
-  "   Lat Pulldown assis (2 exemplaires) et Low Row assis. Ils ne font pas",
-  "   partie des 7 et n'ont ni la même grille de charges ni le même plafond.",
-  "",
-  "Accessoires de poulie confirmés : poignées, barre longue, prises neutres de",
-  "plusieurs largeurs, CORDES. Ils ne sont pas modélisés — le moteur n'exprime",
-  "qu'un besoin par exercice, donc « poulie ET corde » est inexprimable — mais",
-  "ils décident ce qui est déclaré : un mouvement dont l'accessoire manque",
-  "n'entre pas dans l'inventaire.",
-  "",
-  "SANGLE DE CHEVILLE : à confirmer sur place / auprès de l'accueil. Non vue au",
-  "râtelier, mais ce type d'accessoire peut être prêté à la demande. Un seul",
-  "exercice en dépend — cable-kickback — et il est déclaré à titre provisoire.",
-  "Si la salle n'en possède aucune, retirer cette seule entrée : rien d'autre",
-  "ne repose sur cette supposition.",
-  "",
-  "Cardio (rameurs, tapis, vélos, ClimbMill), plyo boxes, cordes, ballons,",
-  "steps : présents, sans effet sur la programmation actuelle.",
-  "",
-  "Râtelier d'haltères : 2 à 50 kg, de 2 en 2 sur toute la plage. Deux paires",
-  "par charge jusqu'à 28 kg, une seule paire de 30 à 50 kg.",
-  "",
-  "Piles sélectorisées : graduées en livres, 10 lbs au premier cran puis",
-  "+15 lbs, affichées en kilogrammes. L'échelle est donc irrégulière une fois",
-  "convertie — 4,5 · 11 · 18 · 25 · 32 · 39 · 45 · 52 · 59 · 66 · 73 · 79 ·",
-  "86 · 93 · 100 · 107 · 113 · 120 · 127 · 134 — et commune à tous les",
-  "appareils. Seul le NOMBRE de plaques change d'une machine à l'autre, et il",
-  "n'a pas été compté : chaque pile reçoit l'échelle complète, plafonnée à la",
-  "plus lourde vue dans la salle. Sur une machine plus légère, les derniers",
-  "crans n'existent donc pas.",
-  "",
-  "À CONFIRMER SUR PLACE — rien de tout cela n'est saisi tant que ce n'est pas mesuré :",
-  "· le NOMBRE de plaques de chaque pile MACHINE — le pas est connu, la hauteur",
-  "  non. Les poulies réglables font exception : dix crans, plafond 45 kg, clos ;",
-  "· un maximum de 91 kg figure au relevé, et l'échelle commune ne le produit",
-  "  pas (elle passe de 86 à 93). Soit la lecture est approximative, soit cet",
-  "  appareil-là a des plaques différentes : à revérifier sur place ;",
-  "· la résistance des Smith machines (contrepoids ou non, et combien) ;",
-  "· la résistance initiale du chariot des plate-loaded non relevées",
-  "  (bench press, rack) ;",
-  "· le sens de la Dip/Chin Assist : confirmer que le nombre affiché est bien",
-  "  l'assistance et non la charge ;",
-  "· l'identification des deux appareils inconnus (station intégrée au rack,",
-  "  tapis incurvé). Ils ne sont PAS déclarés : une entrée exige un exercice, et",
-  "  leur en attribuer un serait deviner ce qu'ils permettent de faire ;",
-  "· le rapport de mouflage des poulies réglables : les 45 kg affichés sont-ils",
-  "  la pile ou la charge en bout de câble ? Sans effet sur la progression —",
-  "  l'affiché suffit et reste comparable à lui-même — mais interdit de comparer",
-  "  un écarté poulie à un écarté haltères ;",
-  "· la SANGLE DE CHEVILLE, à confirmer sur place ou auprès de l'accueil.",
-  "  Seul cable-kickback en dépend, déclaré provisoirement (voir ci-dessus) ;",
-  "· l'existence d'une barre préchargée hors de la plage 10–30, et d'un",
-  "  éventuel palier à 12,5 ;",
-  "· la station de traction : confirmer qu'on peut réellement s'y suspendre,",
-  "  et si d'autres points de traction existent.",
-].join("\n");
-
-/**
- * Une entrée d'inventaire.
- *
- * `slug` désigne l'exercice du catalogue. Tout le reste décrit l'appareil tel
- * qu'on l'a vu — et `null` veut dire qu'on ne l'a pas vu, jamais qu'on prend
- * la valeur habituelle.
- */
-interface Entree {
+export interface EntreeInventaire {
   slug: string;
   machineNom: string;
-  conventionCharge: "pile_affichee" | "disques_ajoutes" | "poids_total";
-  typePoulie?: "na" | "simple" | "double" | "corde";
-  incrementsPossibles?: number[] | null;
+  conventionCharge:
+    | "pile_affichee"
+    | "pile_par_cote"
+    | "disques_ajoutes"
+    | "poids_total"
+    | "poids_par_main"
+    | "sans_charge";
+  typePoulie?: "na" | "simple" | "double";
   paliersCharges?: number[] | null;
   chargeMinimale?: number | null;
   chargeMax?: number | null;
   poidsNonCompte?: number | null;
   natureCharge?: "resistance" | "assistance";
   etat?: "disponible" | "temporairement_indisponible";
-  quantite?: number | null;
-  notesMachine?: string | null;
+  quantite: number;
+  confiance: ConfianceMapping;
+  notes?: string;
 }
 
-/**
- * L'échelle d'une pile sélectorisée, chez Matrix.
- *
- * Les plaques sont graduées en livres — premier cran à 10 lbs, puis 15 lbs de
- * plus à chaque fois — et l'appareil affiche la conversion en kilogrammes. Ce
- * n'est donc pas une grille à pas constant une fois convertie : les écarts
- * réels alternent entre 6 et 7 kg (4,5 · 11 · 18 · 25 · 32 · 39 · 45 …). Un
- * incrément unique aurait produit des charges qui n'existent sur aucune
- * machine ; c'est exactement ce que la collection de paliers sait dire.
- *
- * Le premier cran garde sa demi-unité : c'est ainsi qu'il est marqué sur les
- * piles, et le relevé le confirme.
- */
-const LIVRES_PREMIER_CRAN = 10;
-const LIVRES_PAR_CRAN = 15;
-const KG_PAR_LIVRE = 0.45359237;
+const PALIERS_POULIE_REGLABLE = [4.5, 9, 14, 18, 23, 27, 32, 36, 41, 45];
+const PALIERS_POULIE_FIXE = [4.5, 11, 18, 25, 32, 39, 45, 52, 59, 66, 73, 79, 86, 93, 100, 107, 113, 120, 127, 134];
 
-/**
- * Les poulies réglables ne suivent PAS la même échelle que les machines.
- *
- * Même départ — 10 lbs — mais +10 lbs par cran au lieu de +15. Converti, cela
- * donne 4,5 · 9 · 14 · 18 · 23 · 27 · 32 · 36 · 41 · 45, et le dixième cran
- * tombe exactement sur les 45 kg relevés comme plafond. C'est la seule pile de
- * la salle dont on connaisse à la fois le pas ET la hauteur : dix plaques,
- * rien à confirmer.
- *
- * La valeur retenue est celle qu'affiche la machine. Le rapport de mouflage
- * n'est pas vérifié, donc aucune conversion n'est tentée : pour progresser sur
- * cette entrée, l'affiché suffit, et il reste comparable à lui-même.
- */
-const LIVRES_PAR_CRAN_POULIE = 10;
-const CRANS_POULIE = 10;
-
-function echelleDUnePoulie(): number[] {
-  return Array.from({ length: CRANS_POULIE }, (_, i) => {
-    const kg = (LIVRES_PREMIER_CRAN + LIVRES_PAR_CRAN_POULIE * i) * KG_PAR_LIVRE;
-    return i === 0 ? 4.5 : Math.round(kg);
-  });
-}
-
-/**
- * Sept sorties de câble, six postes, UN SEUL type d'appareil.
- *
- * La topologie : cinq poulies réglables seules, plus une station qui en couple
- * deux. Sept câbles au total. Les deux câbles couplés ne sont pas d'une autre
- * nature — ce sont des poulies réglables ordinaires, utilisables séparément
- * comme les cinq autres, et qui ont EN PLUS la possibilité de servir ensemble.
- *
- * L'inventaire l'a d'abord mal dit. Deux noms d'appareil — « Poulie
- * réglable » et « Station double à poulies » — donnaient à lire deux parcs
- * disjoints, comme si la station n'appartenait pas aux sept. Les comptes
- * étaient justes, la lecture était fausse.
- *
- * Un seul `machineNom`, donc, pour les douze entrées. Ce qui distingue les
- * trois mouvements à deux câbles n'est pas l'appareil mais leur EXIGENCE :
- * `typePoulie` la porte — c'est précisément ce que ce champ décrit, la
- * géométrie du poste. `quantite` compte alors combien de postes peuvent
- * l'accueillir : sept câbles pour un mouvement à un câble, un seul poste
- * couplé pour un mouvement à deux.
- */
-const CABLES_REGLABLES = 7;
-const POSTES_COUPLES = 1;
-
-/**
- * Une entrée de poulie réglable.
- *
- * Même appareil, même échelle, même plafond pour les douze. `deuxCables`
- * n'ouvre pas une seconde famille de matériel : il dit que CE mouvement-là
- * réclame les deux câbles ensemble, et restreint donc les postes possibles.
- */
-function poulieReglable(
+function entree(
   slug: string,
-  precisions: { deuxCables?: boolean; notes: string },
-): Entree {
+  machineNom: string,
+  quantite: number,
+  chargeMax: number,
+  confiance: ConfianceMapping = "haute",
+  notes?: string,
+): EntreeInventaire {
   return {
-    slug,
-    machineNom: "Poulie réglable",
+    slug, machineNom, quantite, confiance,
+    notes: [
+      notes,
+      "Paliers intermédiaires inconnus; microcharges +1,1/+2,3 observées mais non modélisées comme incréments.",
+    ].filter(Boolean).join(" "),
     conventionCharge: "pile_affichee",
-    typePoulie: precisions.deuxCables ? "double" : "simple",
-    paliersCharges: echelleDUnePoulie(),
     chargeMinimale: 4.5,
-    chargeMax: 45,
-    quantite: precisions.deuxCables ? POSTES_COUPLES : CABLES_REGLABLES,
-    notesMachine:
-      `${precisions.notes} Réglable en hauteur (basse, milieu, haute). `
-      + (precisions.deuxCables
-        ? "Exige les DEUX câbles simultanément : seul le poste couplé convient "
-          + "(1 des 6 postes). "
-        : "Réalisable sur n'importe laquelle des 7 sorties de câble, y compris "
-          + "l'un des deux côtés du poste couplé pris isolément. ")
-      + "Valeur saisie = charge affichée sur la pile ; le rapport de mouflage "
-      + "n'est pas vérifié, donc aucune conversion n'est appliquée.",
+    chargeMax,
+    paliersCharges: null,
   };
 }
 
-/**
- * Vingt crans, soit 134 kg.
- *
- * Ce n'est pas la hauteur de CETTE pile — le nombre de plaques n'a pas été
- * compté machine par machine — mais celle de la plus lourde vue dans la salle.
- * Aucune pile d'ici ne monte plus haut, donc aucune charge inventée au-delà du
- * parc réel. En revanche, sur une machine plus légère, l'échelle dépasse son
- * vrai plafond : c'est une approximation assumée, écrite dans les notes et
- * portée par la liste « à confirmer ». Elle ne se voit qu'au dernier cran, et
- * elle vaut mieux qu'un appareil muet.
- */
-const CRANS_OBSERVES = 20;
-
-function echelleDUnePile(crans = CRANS_OBSERVES): number[] {
-  return Array.from({ length: crans }, (_, i) => {
-    const kg = (LIVRES_PREMIER_CRAN + LIVRES_PAR_CRAN * i) * KG_PAR_LIVRE;
-    return i === 0 ? 4.5 : Math.round(kg);
-  });
+function poulieReglable(slug: string, double = false, notes?: string): EntreeInventaire {
+  return {
+    slug,
+    machineNom: double ? "Station double à poulies réglables" : "Sortie de poulie réglable",
+    conventionCharge: double ? "pile_par_cote" : "pile_affichee",
+    typePoulie: double ? "double" : "simple",
+    paliersCharges: PALIERS_POULIE_REGLABLE,
+    chargeMinimale: 4.5,
+    chargeMax: 45,
+    quantite: double ? 1 : 7,
+    confiance: "haute",
+    notes: `${notes ?? ""} ${double
+      ? "Les deux piles doivent être réglées pareil; si chacune affiche 18 kg, la charge stockée est 18 kg (par côté), jamais 36 kg."
+      : "Valeur saisie = valeur affichée; aucune conversion de ratio."}`.trim(),
+  };
 }
 
-/** Ce que la pile affiche, tronqué au plafond de la machine quand il est connu. */
-function pileJusqua(chargeMax?: number): number[] {
-  const echelle = echelleDUnePile();
-  return chargeMax === undefined ? echelle : echelle.filter((v) => v <= chargeMax);
-}
+const CABLES_SIMPLES = [
+  "single-arm-cable-row", "straight-arm-pulldown", "cable-pull-through",
+  "cable-curl", "rope-hammer-curl", "tricep-pushdown",
+  "rope-tricep-pushdown", "overhead-tricep-extension", "cable-crunch",
+  "cable-woodchop", "pallof-press", "half-kneeling-pallof-press",
+  "cable-lateral-raise", "cable-front-raise", "face-pull",
+] as const;
+const CABLES_DOUBLES = ["cable-fly", "cable-rear-delt-fly", "incline-cable-fly"] as const;
 
-const RELEVE: Entree[] = [
-  /**
-   * Les haltères : UNE entrée par exercice, jamais une par haltère.
-   *
-   * Cinquante instances pour un râtelier scinderaient l'historique du curl en
-   * cinquante courbes sans lien.
-   *
-   * Le pas est de 2 kg sur toute la plage, sans exception. Ce qui change à
-   * 30 kg n'est pas la charge disponible mais le nombre d'exemplaires : deux
-   * paires jusqu'à 28, une seule au-delà. C'est une question de disponibilité
-   * à l'instant où l'on veut la barre, pas de charge atteignable — la
-   * progression est identique dans les deux moitiés du râtelier.
-   */
-  {
-    slug: "dumbbell-bench-press",
-    machineNom: "Haltères — râtelier",
-    conventionCharge: "poids_total",
-    paliersCharges: [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50],
+const EXERCICES_HALTERES = [
+  "dumbbell-bench-press", "dumbbell-fly", "incline-dumbbell-press",
+  "dumbbell-bent-over-row", "dumbbell-shrug", "one-arm-dumbbell-row",
+  "bulgarian-split-squat", "front-foot-elevated-split-squat", "goblet-squat",
+  "heel-elevated-goblet-squat", "reverse-lunge", "split-squat", "walking-lunge",
+  "dumbbell-hip-thrust", "dumbbell-romanian-deadlift",
+  "single-leg-romanian-deadlift", "bicep-curl", "concentration-curl",
+  "hammer-curl", "incline-dumbbell-curl", "spider-curl",
+  "dumbbell-overhead-tricep-extension", "tricep-kickback",
+  "dumbbell-skull-crusher", "arnold-press", "seated-dumbbell-press",
+  "front-raise", "lateral-raise", "rear-delt-fly", "standing-dumbbell-press",
+] as const;
+
+const EXERCICES_BARRE_RACK = [
+  "barbell-row", "shrug", "pendlay-row", "front-squat", "squat",
+  "barbell-glute-bridge", "deadlift", "good-morning", "romanian-deadlift",
+  "sumo-deadlift", "skull-crusher",
+  "overhead-press", "push-press",
+] as const;
+
+function halteres(slug: string): EntreeInventaire {
+  return {
+    slug,
+    machineNom: "Haltères + banc si nécessaire",
+    conventionCharge: "poids_par_main",
+    paliersCharges: null,
     chargeMinimale: 2,
     chargeMax: 50,
-    notesMachine:
-      "Râtelier 2–50 kg, de 2 en 2 sur toute la plage. "
-      + "Deux paires par charge jusqu'à 28 kg, une seule paire de 30 à 50 kg. "
-      + "La quantité n'est pas portée par le champ prévu pour ça : il vaut pour "
-      + "toute l'entrée, alors qu'elle change ici selon la charge. Elle reste "
-      + "une note, sans effet sur la programmation — il n'y a pas de notion "
-      + "d'occupation en temps réel.",
-  },
+    quantite: 1,
+    confiance: "haute",
+    notes: "Valeur saisie = poids d’un haltère / charge par main, jamais ×2. Deux paires de 2 à 28 kg et une paire de 30 à 50 kg; valeurs exactes au-dessus de 28 non documentées; saisie manuelle autorisée.",
+  };
+}
 
-  /**
-   * Le râtelier de barres préchargées : une entrée, cinq barres.
-   *
-   * Ici la barre EST la charge. Rien à ajouter, rien à charger — et la
-   * progression consiste à aller chercher la barre suivante, ce que la
-   * collection de paliers dit exactement.
-   */
-  {
-    slug: "bicep-curl",
-    machineNom: "Barres préchargées — râtelier",
+function barreRack(slug: string): EntreeInventaire {
+  return {
+    slug,
+    machineNom: "Barre olympique 20 kg + rack/platform + disques",
     conventionCharge: "poids_total",
-    paliersCharges: [10, 15, 20, 25, 30],
-    chargeMinimale: 10,
-    chargeMax: 30,
-    notesMachine:
-      "Cinq barres observées : 10, 15, 20, 25, 30 kg. Une seule entrée pour le "
-      + "râtelier — cinq entrées scinderaient l'historique du curl en cinq courbes.",
-  },
-
-  /**
-   * La barre olympique : la charge saisie est le TOTAL déplacé, barre comprise.
-   *
-   * La barre de 20 kg appartient à la description de l'appareil : elle sert à
-   * résoudre les charges atteignables, et n'a pas à être ressaisie à chaque
-   * série. Les disques observés donnent la grille.
-   */
-  {
-    slug: "bench-press",
-    machineNom: "Barre olympique 20 kg + disques",
-    conventionCharge: "poids_total",
-    incrementsPossibles: [1.25, 2.5, 5, 10, 15, 20],
     chargeMinimale: 20,
-    notesMachine:
-      "Charge saisie = poids total déplacé, barre de 20 kg comprise. "
-      + "Disques observés de 1,25 à 20 kg ; le plancher est la barre à vide.",
+    quantite: 1,
+    confiance: "haute",
+    notes: "Charge totale déplacée, barre de 20 kg comprise. Disques observés : 1,25 / 2,5 / 5 / 10 / 20 kg; aucun incrément bilatéral déduit.",
+  };
+}
+
+export const INVENTAIRE: EntreeInventaire[] = [
+  ...CABLES_SIMPLES.map((slug) => poulieReglable(slug)),
+  poulieReglable("cable-kickback", false, "PROVISOIRE : sangle de cheville non confirmée."),
+  ...CABLES_DOUBLES.map((slug) => poulieReglable(slug, true)),
+
+  ...["lat-pulldown", "close-grip-lat-pulldown", "wide-grip-lat-pulldown"].map((slug): EntreeInventaire => ({
+    slug, machineNom: "Lat Pulldown dédié", conventionCharge: "pile_affichee",
+    typePoulie: "simple", paliersCharges: PALIERS_POULIE_FIXE,
+    chargeMinimale: 4.5, chargeMax: 134, quantite: 1, confiance: "haute",
+    notes: "Poste assis dédié; échelle observée uniquement sur cette station.",
+  })),
+  {
+    slug: "seated-row", machineNom: "Low Row dédié", conventionCharge: "pile_affichee",
+    typePoulie: "simple", paliersCharges: PALIERS_POULIE_FIXE,
+    chargeMinimale: 4.5, chargeMax: 134, quantite: 1, confiance: "haute",
+    notes: "Poste assis dédié; échelle observée uniquement sur cette station.",
   },
 
-  /**
-   * Les deux plate-loaded dont la résistance à vide a été mesurée.
-   *
-   * Cette résistance se lit, elle ne s'additionne pas : sur une machine à cames
-   * ou à bras de levier, ce n'est pas une masse qu'on ajoute à la charge saisie.
-   * Elle sert à reconnaître l'appareil et à expliquer un écart d'une salle à
-   * l'autre.
-   */
-  {
-    slug: "hack-squat",
-    machineNom: "Hack squat plate-loaded",
-    conventionCharge: "disques_ajoutes",
-    incrementsPossibles: [1.25, 2.5, 5, 10, 15, 20],
-    poidsNonCompte: 47.6,
-    notesMachine: "Résistance du chariot à vide mesurée à 47,6 kg. Métadonnée : non comptée dans la saisie.",
-  },
-  {
-    slug: "belt-squat",
-    machineNom: "Perfect Squat plate-loaded",
-    conventionCharge: "disques_ajoutes",
-    incrementsPossibles: [1.25, 2.5, 5, 10, 15, 20],
-    poidsNonCompte: 30.4,
-    notesMachine: "Résistance du chariot à vide mesurée à 30,4 kg. Métadonnée : non comptée dans la saisie.",
-  },
+  entree("pec-deck", "Rear Delt / Pec Fly", 2, 134),
+  entree("reverse-pec-deck", "Rear Delt / Pec Fly", 2, 134),
+  entree("lat-pulldown", "Lat Pulldown à pile", 2, 134),
+  entree("machine-row", "Seated Row à pile", 1, 134),
+  entree("chest-supported-row", "Diverging Seated Row", 1, 113, "moyenne", "Mapping biomécanique à valider."),
+  ...["chin-up", "pull-up", "dip"].map((slug): EntreeInventaire => ({
+    ...entree(slug, "Dip/Chin Assist", 1, 68), natureCharge: "assistance",
+    notes: "La valeur saisie est l'assistance affichée; une diminution est une progression; pas d'e1RM standard.",
+  })),
+  entree("machine-chest-press", "Chest Press", 1, 113),
+  entree("machine-chest-press", "Converging Chest Press", 1, 113),
+  entree("machine-shoulder-press", "Shoulder Press", 1, 91),
+  entree("machine-shoulder-press", "Converging Shoulder Press", 1, 91),
+  entree("seated-leg-curl", "Seated Leg Curl", 1, 113),
+  entree("lying-leg-curl", "Prone Leg Curl", 1, 91),
+  entree("leg-curl", "Prone Leg Curl", 1, 91),
+  entree("leg-extension", "Leg Extension", 2, 113),
+  entree("hip-abduction-machine", "Hip Abduction extérieur", 1, 100),
+  entree("hip-adduction-machine", "Hip Abduction intérieur", 1, 100, "moyenne", "À confirmer : le mouvement doit bien être une adduction."),
+  entree("leg-press", "Leg Press à pile", 1, 175),
+  entree("leg-press-calf-raise", "Leg Press à pile", 1, 175),
 
-  /**
-   * Le Lat Pulldown assis : un poste dédié, pas une poulie réglable.
-   *
-   * La distinction compte. Sa poulie est FIXE, en hauteur, et sa pile suit
-   * l'échelle machine (+15 lbs), pas celle des poulies réglables (+10). Le
-   * confondre avec les sept poulies lui donnerait une mauvaise grille de
-   * charges et un plafond de 45 kg qui n'est pas le sien.
-   *
-   * Deux exemplaires identiques, une seule entrée par prise : dédoubler
-   * scinderait l'historique sans rien apporter. Les trois prises sont bien
-   * trois exercices du catalogue — le travail diffère — mais elles partagent
-   * l'appareil, donc l'échelle et le plafond.
-   */
-  ...["lat-pulldown", "close-grip-lat-pulldown", "wide-grip-lat-pulldown"].map(
-    (slug): Entree => ({
+  ...["smith-machine-bench-press", "smith-machine-squat", "smith-machine-romanian-deadlift"]
+    .map((slug): EntreeInventaire => ({
       slug,
-      machineNom: "Lat Pulldown assis",
-      conventionCharge: "pile_affichee",
-      typePoulie: "simple",
+      machineNom: "Smith machine",
+      conventionCharge: "disques_ajoutes",
       quantite: 2,
-      paliersCharges: pileJusqua(),
-      chargeMinimale: 4.5,
-      notesMachine:
-        "Poste assis dédié, poulie FIXE — à ne pas confondre avec les sept "
-        + "poulies réglables. Deux exemplaires identiques. Échelle machine "
-        + "(+15 lbs par cran) ; le nombre de plaques de cette pile n'a pas été "
-        + "compté, l'échelle va donc jusqu'au plafond de la plus lourde pile de "
-        + "la salle, ce qui la dépasse peut-être.",
-    }),
-  ),
+      confiance: "haute",
+      notes: "Valeur saisie = disques ajoutés uniquement. Contrepoids et résistance effective inconnus; aucune résistance de barre n’est inventée.",
+    })),
 
-  /**
-   * Le Low Row assis : l'autre poste dédié à poulie fixe.
-   *
-   * Il portait jusqu'ici le nom « station intégrée au rack — à identifier »,
-   * qui était une hypothèse de travail, pas une observation. Le relevé le
-   * nomme : c'est un rowing assis, et l'appareil non identifié du rack reste
-   * non identifié — donc non déclaré, plutôt que rattaché à un exercice
-   * choisi au jugé.
-   */
   {
-    slug: "seated-row",
-    machineNom: "Low Row assis",
-    conventionCharge: "pile_affichee",
-    typePoulie: "simple",
-    paliersCharges: pileJusqua(),
-    chargeMinimale: 4.5,
-    notesMachine:
-      "Poste assis dédié, poulie FIXE — à ne pas confondre avec les sept "
-      + "poulies réglables. Échelle machine (+15 lbs par cran) ; hauteur de "
-      + "pile non comptée.",
+    slug: "hack-squat", machineNom: "Hack Squat", conventionCharge: "disques_ajoutes",
+    poidsNonCompte: 47.6, quantite: 1, confiance: "haute",
+    notes: "Résistance intrinsèque constructeur, métadonnée uniquement; jamais ajoutée aux performances/e1RM.",
+  },
+  {
+    slug: "leg-press", machineNom: "Leg Press plate-loaded", conventionCharge: "disques_ajoutes",
+    poidsNonCompte: 75.7, quantite: 1, confiance: "haute",
+    notes: "Résistance intrinsèque constructeur, métadonnée uniquement; jamais ajoutée aux performances/e1RM.",
+  },
+  {
+    slug: "leg-press-calf-raise", machineNom: "Leg Press plate-loaded", conventionCharge: "disques_ajoutes",
+    poidsNonCompte: 75.7, quantite: 1, confiance: "haute",
+    notes: "Variante mollets compatible catalogue; résistance intrinsèque en métadonnée uniquement.",
+  },
+  {
+    slug: "machine-glute-kickback", machineNom: "Glute Trainer", conventionCharge: "disques_ajoutes",
+    poidsNonCompte: 22.7, etat: "temporairement_indisponible", quantite: 1,
+    confiance: "moyenne", notes: "Mapping à valider; appareil temporairement indisponible; résistance intrinsèque non comptée.",
   },
 
-  // -------------------------------------------------------------------------
-  // Les sept poulies réglables
-  // -------------------------------------------------------------------------
-  //
-  // Un exercice n'entre ici que s'il est faisable avec les accessoires
-  // RELEVÉS : poignées, barre longue, prises neutres de plusieurs largeurs.
-  // Les mouvements qui exigent une corde ou une sangle de cheville attendent
-  // que la présence de ces deux accessoires soit tranchée — ils sont listés
-  // dans les notes de la salle, pas devinés ici.
-  //
-  // Aucun n'est retenu ni écarté selon qu'il est pratiqué aujourd'hui :
-  // l'inventaire décrit ce que la salle permet, et c'est ce qui donne au
-  // moteur de quoi proposer un remplacement le jour où un poste est pris.
-
-  poulieReglable("single-arm-cable-row", {
-    notes: "Poulie à hauteur de torse, poignée simple.",
-  }),
-  poulieReglable("straight-arm-pulldown", {
-    notes: "Poulie haute, barre longue.",
-  }),
-  poulieReglable("cable-curl", {
-    notes: "Poulie basse, barre longue ou poignée.",
-  }),
-  poulieReglable("tricep-pushdown", {
-    notes: "Poulie haute, barre longue.",
-  }),
-  poulieReglable("cable-woodchop", {
-    notes: "Poulie haute ou basse selon le sens, poignée simple.",
-  }),
-  poulieReglable("pallof-press", {
-    notes: "Poulie à hauteur de poitrine, poignée simple.",
-  }),
-  poulieReglable("half-kneeling-pallof-press", {
-    notes: "Poulie à hauteur de poitrine à genoux, poignée simple.",
-  }),
-  poulieReglable("cable-lateral-raise", {
-    notes: "Poulie basse, poignée simple.",
-  }),
-  poulieReglable("cable-front-raise", {
-    notes: "Poulie basse, poignée ou barre.",
-  }),
-
-  // Les six mouvements à la corde. Même appareil, même échelle, un seul câble :
-  // ce qui les distinguait n'était pas la poulie mais l'accessoire, et la
-  // présence de cordes dans la salle est confirmée.
-  poulieReglable("face-pull", {
-    notes: "Poulie haute, à hauteur de visage, corde.",
-  }),
-  poulieReglable("rope-tricep-pushdown", {
-    notes: "Poulie haute, corde.",
-  }),
-  poulieReglable("rope-hammer-curl", {
-    notes: "Poulie basse, corde.",
-  }),
-  poulieReglable("cable-crunch", {
-    notes: "Poulie haute, à genoux, corde.",
-  }),
-  poulieReglable("cable-pull-through", {
-    notes: "Poulie basse, corde, dos à la poulie.",
-  }),
-  poulieReglable("overhead-tricep-extension", {
-    notes: "Poulie basse, dos à la poulie, corde.",
-  }),
-
-  /**
-   * Le kickback : déclaré, mais sur un accessoire non vu.
-   *
-   * La sangle de cheville n'a pas été observée au râtelier ; elle peut être
-   * disponible à l'accueil sur demande. La faisabilité est donc retenue
-   * PROVISOIREMENT, et l'entrée le dit — parce que le jour où la vérification
-   * tombe, on doit savoir laquelle retirer sans relire tout l'inventaire.
-   *
-   * C'est le seul endroit de ce fichier où quelque chose est déclaré sans
-   * avoir été vu. Le marquer vaut mieux que l'omettre ou que le taire.
-   */
-  poulieReglable("cable-kickback", {
-    notes:
-      "Poulie basse, SANGLE DE CHEVILLE — accessoire non vu au râtelier, "
-      + "peut-être disponible à l'accueil sur demande. Faisabilité retenue à "
-      + "titre provisoire : si la salle n'en possède aucune, retirer cette "
-      + "seule entrée.",
-  }),
-
-  // Les trois mouvements qui réclament les deux câbles EN MÊME TEMPS. Même
-  // appareil que les neuf précédents, même échelle : seule change l'exigence,
-  // qui réduit les postes utilisables de sept câbles à un poste couplé.
-  poulieReglable("cable-fly", {
-    deuxCables: true,
-    notes: "Deux câbles simultanés, poulies hautes, deux poignées.",
-  }),
-  poulieReglable("cable-rear-delt-fly", {
-    deuxCables: true,
-    notes: "Deux câbles croisés, poulies hautes, deux poignées.",
-  }),
-  poulieReglable("incline-cable-fly", {
-    deuxCables: true,
-    notes: "Deux câbles simultanés, poulies basses, deux poignées, banc inclinable.",
-  }),
-
-  /**
-   * La Dip/Chin Assist : la charge AIDE.
-   *
-   * Le sens du nombre reste à confirmer sur place. Le déclarer `assistance`
-   * est le choix prudent : au pire l'appareil ne recevra pas de suggestion de
-   * charge, au mieux il évite que le moteur félicite un recul. L'inverse —
-   * déclarer une résistance — produirait une progression fausse, silencieuse.
-   */
   {
-    slug: "chin-up",
-    machineNom: "Dip/Chin Assist",
-    conventionCharge: "pile_affichee",
-    natureCharge: "assistance",
-    paliersCharges: pileJusqua(),
-    notesMachine:
-      "Sens à confirmer : le nombre affiché doit être l'assistance, pas la charge. "
-      + "Déclarée assistance par prudence — l'erreur inverse ferait lire un recul "
-      + "comme une progression. Même échelle de pile que les autres appareils. "
-      + "Pas de plancher à zéro : le premier cran est 4,5 kg, et « aucune "
-      + "assistance » veut dire faire le mouvement sans la machine.",
+    slug: "bench-press", machineNom: "Poste développé couché olympique",
+    conventionCharge: "poids_total", chargeMinimale: 20, quantite: 2, confiance: "haute",
+    notes: "Charge totale déplacée, barre de 20 kg comprise. Disques vus : 1,25 / 2,5 / 5 / 10 / 20 kg; aucun incrément bilatéral déduit.",
   },
-
-  /**
-   * Le Glute Trainer : hors service, pas archivé.
-   *
-   * Le cas de référence. Il reste dans l'inventaire, avec son historique, et
-   * il sort seulement du parc du jour. Le remettre en service ne demandera
-   * rien d'autre que de changer son état.
-   */
   {
-    slug: "machine-glute-kickback",
-    machineNom: "Glute Trainer",
-    conventionCharge: "pile_affichee",
-    paliersCharges: pileJusqua(),
-    chargeMinimale: 4.5,
-    etat: "temporairement_indisponible",
-    notesMachine:
-      "Hors service au moment du relevé. À réactiver quand elle repart. "
-      + "Échelle de pile commune, plafond propre non compté.",
+    slug: "incline-bench-press", machineNom: "Poste développé incliné olympique",
+    conventionCharge: "poids_total", chargeMinimale: 20, quantite: 1, confiance: "haute",
+    notes: "Charge totale déplacée, barre de 20 kg comprise. Aucun incrément bilatéral déduit.",
   },
-
-  /**
-   * Les deux appareils non identifiés ne sont PAS déclarés.
-   *
-   * Une entrée exige un exercice du catalogue. Leur en attribuer un serait
-   * choisir au jugé ce qu'ils permettent de faire — exactement la fabrication
-   * que cet inventaire refuse. Ils restent dans la liste « à identifier » des
-   * notes de la salle, où ils attendent d'être reconnus.
-   */
+  ...EXERCICES_HALTERES.map(halteres),
+  ...EXERCICES_BARRE_RACK.map(barreRack),
+  {
+    slug: "close-grip-bench-press", machineNom: "Poste développé couché olympique",
+    conventionCharge: "poids_total", chargeMinimale: 20, quantite: 2, confiance: "haute",
+    notes: "Charge totale déplacée, barre de 20 kg comprise; aucun incrément bilatéral déduit.",
+  },
+  {
+    slug: "bench-dip", machineNom: "Banc plat", conventionCharge: "sans_charge",
+    quantite: 7, confiance: "haute",
+    notes: "Le banc est uniquement un support. Aucune charge externe n’est saisie; le poids du corps n’entre jamais dans le champ charge.",
+  },
+  {
+    slug: "weighted-crunch", machineNom: "Disques libres", conventionCharge: "poids_total",
+    quantite: 1, confiance: "haute",
+    notes: "Valeur saisie = poids du disque tenu; disques observés : 1,25 / 2,5 / 5 / 10 / 20 kg.",
+  },
+  {
+    slug: "preacher-curl", machineNom: "Pupitre preacher + barres fixes",
+    conventionCharge: "poids_total", paliersCharges: [10, 15, 20, 25, 30],
+    chargeMinimale: 10, chargeMax: 30, quantite: 1, confiance: "haute",
+    notes: "Poids total de la barre fixe saisie; pupitre et paliers 10/15/20/25/30 kg observés.",
+  },
 ];
 
-/** Ce qui n'est pas dans le relevé n'est pas écrit. */
-function valeurOuNull<T>(v: T | undefined): T | null {
-  return v === undefined ? null : v;
+export const APPAREILS_NON_IMPORTES = [
+  "Diverging Lat Pulldown ×2 — mapping non fidèle à confirmer",
+  "Arm Curl ×1 — trou de catalogue",
+  "Seated Triceps Press ×1 — trou de catalogue",
+  "Abdominal Crunch ×2 — trou de catalogue",
+  "Rotary Torso ×1 — trou de catalogue",
+  "Back Extension stack ×1 — trou de catalogue; back-extension bodyweight infidèle",
+  "Abdominal ×1 — trou de catalogue",
+  "Perfect Squat ×1 — trou de catalogue; belt-squat interdit",
+  "Station intégrée au rack ×1 — appareil non identifié",
+] as const;
+
+export const INCERTITUDES = [
+  "Sangle de cheville pour cable-kickback non confirmée.",
+  "Diverging Seated Row → chest-supported-row : confiance moyenne.",
+  "Hip Abduction intérieur → hip-adduction-machine : mouvement à confirmer.",
+  "Glute Trainer → machine-glute-kickback : confiance moyenne; appareil indisponible.",
+  "Valeurs exactes des haltères au-dessus de 28 kg non documentées.",
+  "Paliers intermédiaires de toutes les machines à pile hors poulies dédiées non observés.",
+  "Microcharges +1,1/+2,3 : observées mais non modélisées comme incréments.",
+  "Contrepoids/résistance effective des Smith machines inconnue.",
+  "Step-Up : aucun support de hauteur sûre n'a été validé; un banc n'est pas assimilé à une box.",
+  "Hip Thrust barre/Smith : matériel plausible, mais installation et calage du banc non validés.",
+  "Chest Dip : usage assisté ou non assisté sur la Dip/Chin Assist non documenté; aucun sens de charge n'est choisi au hasard.",
+  "Inverted Row : présence d'un rack et de Smith machines, mais installation basse adaptée non validée.",
+] as const;
+
+function valeurOuNull<T>(value: T | undefined): T | null {
+  return value === undefined ? null : value;
+}
+
+async function appliquer(userId: string) {
+  const projectRoot = path.resolve(__dirname, "../..");
+  config({ path: path.join(projectRoot, ".env.local") });
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL absent.");
+  const db = postgres(process.env.DATABASE_URL, { prepare: false });
+
+  try {
+    await db.begin(async (tx) => {
+      const [gym] = await tx<{ id: string; nom: string; user_id: string }[]>`
+        SELECT id, nom, user_id FROM gyms
+        WHERE id = ${GYM_CIBLE.id} AND archive_le IS NULL
+        FOR UPDATE
+      `;
+      if (!gym || gym.nom !== GYM_CIBLE.nom) {
+        throw new Error(`Salle cible absente, archivée ou renommée; aucune salle ne sera créée.`);
+      }
+      if (gym.user_id !== userId) throw new Error("Le compte fourni ne possède pas la salle cible.");
+
+      for (const item of INVENTAIRE) {
+        const [exercise] = await tx<{ id: string }[]>`SELECT id FROM exercises WHERE slug = ${item.slug} LIMIT 1`;
+        if (!exercise) throw new Error(`Slug catalogue absent : ${item.slug}`);
+        const values = {
+          machine_nom: item.machineNom,
+          type_poulie: item.typePoulie ?? "na",
+          convention_charge: item.conventionCharge,
+          increments_possibles: null,
+          paliers_charges: item.paliersCharges ? tx.json(item.paliersCharges) : null,
+          charge_minimale: valeurOuNull(item.chargeMinimale),
+          charge_max: valeurOuNull(item.chargeMax),
+          poids_non_compte: valeurOuNull(item.poidsNonCompte),
+          nature_charge: item.natureCharge ?? "resistance",
+          etat: item.etat ?? "disponible",
+          quantite: item.quantite,
+          notes_machine: `${item.notes ?? ""} Confiance mapping : ${item.confiance}.`.trim(),
+        };
+        const [active] = await tx<{ id: string }[]>`
+          SELECT id FROM exercise_instances
+          WHERE gym_id = ${GYM_CIBLE.id}
+            AND exercise_id = ${exercise.id}
+            AND machine_nom = ${item.machineNom}
+            AND archive_le IS NULL
+          LIMIT 1
+        `;
+        if (active) {
+          await tx`UPDATE exercise_instances SET ${tx(values)}, updated_at = now() WHERE id = ${active.id}`;
+        } else {
+          await tx`INSERT INTO exercise_instances ${tx({ user_id: userId, gym_id: GYM_CIBLE.id, exercise_id: exercise.id, ...values })}`;
+        }
+      }
+      // inventaire_statut reste volontairement inchangé jusqu'à validation finale.
+    });
+  } finally {
+    await db.end();
+  }
 }
 
 async function main() {
   const userId = process.argv[2];
-  if (!userId) {
-    console.error("Usage : npx tsx src/scripts/importer-saint-martin.ts <userId>");
-    process.exit(1);
+  if (!userId || !process.argv.includes("--appliquer")) {
+    console.error("Aucune écriture. Usage explicite : npx tsx src/scripts/importer-saint-martin.ts <userId> --appliquer");
+    process.exitCode = 1;
+    return;
   }
-
-  const [compte] = await db<{ id: string }[]>`
-    SELECT id FROM users WHERE id = ${userId}
-  `;
-  if (!compte) {
-    console.error(`Compte ${userId} introuvable.`);
-    process.exit(1);
-  }
-
-  /**
-   * Retrouver la salle, sans se fier au nom exact.
-   *
-   * Le rapprochement se faisait par `WHERE nom = 'Basic-Fit Saint-Martin-du-Touch'`.
-   * La salle réelle s'appelle « St-Martin-Du-Touch » : aucune correspondance,
-   * donc création d'une SECONDE salle vide, pendant que la vraie restait sans
-   * inventaire. Le défaut ne se voyait pas en test — les bases jetables
-   * n'avaient aucune salle préexistante — et il s'est vu sur le téléphone.
-   *
-   * Trois règles remplacent l'égalité stricte :
-   *
-   *   1. un identifiant passé en argument fait autorité, toujours ;
-   *   2. sinon on cherche par MOTS-CLÉS normalisés, accents et ponctuation
-   *      ignorés — « martin » et « touch » désignent la même salle qu'elle
-   *      s'appelle « Basic-Fit Saint-Martin-du-Touch » ou « St-Martin-Du-Touch » ;
-   *   3. zéro résultat ou plusieurs : le script REFUSE et n'écrit rien.
-   *
-   * Créer une salle est devenu un acte explicite, jamais un repli silencieux.
-   */
-  const gymDemande = process.argv.find((a) => a.startsWith("--gym="))?.slice("--gym=".length);
-  const creationAutorisee = process.argv.includes("--creer");
-
-  let gymId: string;
-
-  if (gymDemande) {
-    const [visee] = await db<{ id: string; nom: string }[]>`
-      SELECT id, nom FROM gyms WHERE id = ${gymDemande} AND archive_le IS NULL
-    `;
-    if (!visee) {
-      console.error(`Salle ${gymDemande} introuvable ou archivée.`);
-      process.exit(1);
-    }
-    gymId = visee.id;
-    console.log(`Salle visée explicitement : « ${visee.nom} » (${gymId})`);
-  } else {
-    // Les deux mots qui identifient ce lieu quelle que soit l'écriture du nom.
-    const candidates = await db<{ id: string; nom: string; instances: number }[]>`
-      SELECT g.id, g.nom,
-             (SELECT count(*) FROM exercise_instances i
-               WHERE i.gym_id = g.id AND i.archive_le IS NULL)::int AS instances
-      FROM gyms g
-      WHERE g.archive_le IS NULL
-        AND unaccent(lower(g.nom)) LIKE '%martin%'
-        AND unaccent(lower(g.nom)) LIKE '%touch%'
-      ORDER BY g.created_at
-    `.catch(async () => db<{ id: string; nom: string; instances: number }[]>`
-      SELECT g.id, g.nom,
-             (SELECT count(*) FROM exercise_instances i
-               WHERE i.gym_id = g.id AND i.archive_le IS NULL)::int AS instances
-      FROM gyms g
-      WHERE g.archive_le IS NULL
-        AND lower(g.nom) LIKE '%martin%'
-        AND lower(g.nom) LIKE '%touch%'
-      ORDER BY g.created_at
-    `);
-
-    if (candidates.length > 1) {
-      console.error(
-        "AMBIGU : plusieurs salles correspondent. Le script n'écrit rien — "
-        + "choisis-en une avec --gym=<id> :\n"
-        + candidates.map((c) => `  ${c.id}  « ${c.nom} »  ${c.instances} instance(s)`).join("\n"),
-      );
-      await db.end();
-      process.exit(1);
-    }
-
-    if (candidates.length === 0) {
-      if (!creationAutorisee) {
-        console.error(
-          "Aucune salle ne correspond, et créer une salle n'est pas un repli "
-          + "silencieux : c'est ainsi qu'un doublon est né. Relance avec --creer "
-          + "pour la créer, ou avec --gym=<id> pour viser une salle existante.",
-        );
-        await db.end();
-        process.exit(1);
-      }
-      const [creee] = await db<{ id: string }[]>`
-        INSERT INTO gyms (user_id, nom, equipements_disponibles, notes)
-        VALUES (${userId}, ${NOM_SALLE}, ${db.json(EQUIPEMENTS)}, ${NOTES_SALLE})
-        RETURNING id
-      `;
-      gymId = creee!.id;
-      console.log(`Salle créée sur demande explicite : ${NOM_SALLE} (${gymId})`);
-    } else {
-      gymId = candidates[0]!.id;
-      console.log(`Salle reconnue : « ${candidates[0]!.nom} » (${gymId})`);
-    }
-  }
-
-  // Le nom existant n'est jamais écrasé : c'est celui que l'athlète a choisi,
-  // et le script n'a pas à le renommer pour se reconnaître lui-même.
-  await db`
-    UPDATE gyms
-    SET equipements_disponibles = ${db.json(EQUIPEMENTS)},
-        notes = ${NOTES_SALLE},
-        updated_at = now()
-    WHERE id = ${gymId}
-  `;
-
-  let ecrites = 0;
-  const absents: string[] = [];
-
-  for (const e of RELEVE) {
-    const [exercice] = await db<{ id: string }[]>`
-      SELECT id FROM exercises WHERE slug = ${e.slug} LIMIT 1
-    `;
-    if (!exercice) {
-      absents.push(e.slug);
-      continue;
-    }
-
-    const valeurs = {
-      machine_nom: e.machineNom,
-      type_poulie: e.typePoulie ?? "na",
-      convention_charge: e.conventionCharge,
-      increments_possibles: e.incrementsPossibles ? db.json(e.incrementsPossibles) : null,
-      paliers_charges: e.paliersCharges ? db.json(e.paliersCharges) : null,
-      charge_minimale: valeurOuNull(e.chargeMinimale),
-      charge_max: valeurOuNull(e.chargeMax),
-      poids_non_compte: valeurOuNull(e.poidsNonCompte),
-      nature_charge: e.natureCharge ?? "resistance",
-      etat: e.etat ?? "disponible",
-      quantite: valeurOuNull(e.quantite),
-      notes_machine: valeurOuNull(e.notesMachine),
-    };
-
-    const [deja] = await db<{ id: string }[]>`
-      SELECT id FROM exercise_instances
-      WHERE gym_id = ${gymId} AND exercise_id = ${exercice.id} AND archive_le IS NULL
-      LIMIT 1
-    `;
-
-    if (deja) {
-      // Relancer le script ne doit pas dupliquer le parc. Les propriétés qui
-      // figent le sens de l'historique sont réécrites ici en connaissance de
-      // cause : ce script est le relevé lui-même, et il n'est censé tourner
-      // que sur un inventaire qu'on est en train de constituer.
-      await db`UPDATE exercise_instances SET ${db(valeurs)}, updated_at = now() WHERE id = ${deja.id}`;
-    } else {
-      await db`
-        INSERT INTO exercise_instances ${db({
-          user_id: userId,
-          exercise_id: exercice.id,
-          gym_id: gymId,
-          ...valeurs,
-        })}
-      `;
-    }
-    ecrites += 1;
-  }
-
-  console.log(`${ecrites} entrées d'inventaire écrites.`);
-  if (absents.length > 0) {
-    console.log(
-      `Slugs absents du catalogue, non importés : ${absents.join(", ")}`,
-    );
-  }
-  console.log(
-    "Aucune valeur non mesurée n'a été inventée. La liste de ce qui reste à "
-    + "relever est dans les notes de la salle.",
-  );
-
-  await db.end();
+  await appliquer(userId);
 }
 
-main().catch(async (e) => {
-  console.error(e);
-  await db.end();
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

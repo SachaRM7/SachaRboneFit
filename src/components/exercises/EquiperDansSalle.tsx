@@ -24,8 +24,11 @@ interface Props {
 /** Incréments les plus courants, par convention de charge. */
 const INCREMENTS_PAR_DEFAUT: Record<string, number[]> = {
   pile_affichee: [5],
+  pile_par_cote: [5],
   disques_ajoutes: [2.5],
   poids_total: [2.5],
+  poids_par_main: [2],
+  sans_charge: [],
 };
 
 /**
@@ -85,7 +88,9 @@ export function EquiperDansSalle({ exerciseId, exerciceNom, sallesDejaEquipees }
           machineNom: machineNom.trim() || exerciceNom,
           typePoulie: "na",
           conventionCharge: convention,
-          incrementsPossibles: INCREMENTS_PAR_DEFAUT[convention] ?? [2.5],
+          incrementsPossibles: (INCREMENTS_PAR_DEFAUT[convention] ?? [2.5]).length
+            ? (INCREMENTS_PAR_DEFAUT[convention] ?? [2.5])
+            : null,
         }),
       });
       const corps = await reponse.json().catch(() => null);

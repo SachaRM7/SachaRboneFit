@@ -117,7 +117,7 @@ export interface InstanceDeclaree {
   id: string;
   exerciseId: string;
   machineNom: string;
-  incrementsPossibles: number[];
+  incrementsPossibles: number[] | null;
 }
 
 export interface ExerciceRealisable {
@@ -231,8 +231,11 @@ export function exercicesRealisables(e: EntreeDisponibilite): ExerciceRealisable
       equipement: ex.equipement,
       origine: instance ? "instance" : "materiel",
       instanceId: instance?.id ?? null,
-      incrementsPossibles: instance?.incrementsPossibles?.length
-        ? instance.incrementsPossibles
+      // Une instance précise avec des incréments inconnus doit rester muette :
+      // le repli générique ne vaut que pour une déduction de matériel. Sinon
+      // déclarer honnêtement `NULL` recréerait aussitôt un pas inventé.
+      incrementsPossibles: instance
+        ? (instance.incrementsPossibles?.length ? instance.incrementsPossibles : [])
         : incrementsParDefaut(ex.equipement),
     });
   }

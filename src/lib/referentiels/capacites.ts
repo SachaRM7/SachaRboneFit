@@ -49,6 +49,12 @@ export const CAPACITES = [
   "barre_traction",
   /** Deux appuis parallèles à hauteur de hanches : station à dips, barres. */
   "barres_paralleles",
+  /** Barre réglée assez bas, sangles ou support équivalent pour rowing inversé. */
+  "barre_basse",
+  /** Banc à lombaires/hyperextension, distinct d'une machine à pile. */
+  "banc_lombaires",
+  "roue_abdominale",
+  "ancrage_nordic",
 ] as const;
 
 export type Capacite = (typeof CAPACITES)[number];
@@ -75,6 +81,10 @@ export const LIBELLES_CAPACITE: Record<Capacite, string> = {
   preacher: "Pupitre à biceps",
   barre_traction: "Barre de traction",
   barres_paralleles: "Barres parallèles / station à dips",
+  barre_basse: "Barre basse / support d'inverted row",
+  banc_lombaires: "Banc à lombaires",
+  roue_abdominale: "Roue abdominale",
+  ancrage_nordic: "Ancrage pour Nordic curl",
 };
 
 /**
@@ -123,9 +133,14 @@ export const CAPACITE_PAR_SLUG: Record<string, Capacite> = {
   "dip": "barres_paralleles",
   "chest-dip": "barres_paralleles",
   "weighted-dip": "barres_paralleles",
-  // Un bench dip ne demande qu'un banc, et un inverted row qu'une barre basse
-  // — la barre fixe d'une cage, que la famille « barre » couvre déjà.
+  // Un bench dip ne demande qu'un banc; les autres supports restent nommés
+  // séparément pour ne jamais confondre « poids du corps » et « sans matériel ».
   "bench-dip": "banc",
+  "inverted-row": "barre_basse",
+  "back-extension": "banc_lombaires",
+  "glute-focused-back-extension": "banc_lombaires",
+  "ab-wheel": "roue_abdominale",
+  "nordic-hamstring-curl": "ancrage_nordic",
 };
 
 /**

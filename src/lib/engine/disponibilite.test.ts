@@ -5,7 +5,6 @@ import {
   deductionPermise,
   exigeUnAppareil,
   statutInventaire,
-  incrementsParDefaut,
   apportDeChaqueEquipement,
   type ExerciceDuCatalogue,
 } from "./disponibilite";
@@ -121,16 +120,16 @@ describe("exercicesRealisables", () => {
     expect(r.filter((x) => x.exerciceId === "presse")).toHaveLength(1);
   });
 
-  it("se rabat sur des incréments par défaut quand l'appareil n'en donne aucun", () => {
+  it("n'invente aucun incrément quand l'appareil précis n'en donne aucun", () => {
     const r = exercicesRealisables({
       catalogue: CATALOGUE,
       equipementsDuLieu: ["barre"],
       instances: [
-        { id: "i-1", exerciseId: "developpe-barre", machineNom: "Barre", incrementsPossibles: [] },
+        { id: "i-1", exerciseId: "developpe-barre", machineNom: "Barre", incrementsPossibles: null },
       ],
     });
     expect(r.find((x) => x.exerciceId === "developpe-barre")!.incrementsPossibles)
-      .toEqual(incrementsParDefaut("barre"));
+      .toEqual([]);
   });
 
   it("donne des incréments plausibles à un exercice seulement déduit", () => {

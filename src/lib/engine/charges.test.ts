@@ -158,19 +158,32 @@ describe("l'assistance progresse vers le bas", () => {
 
 describe("ce que le nombre mesure", () => {
   it("est une masse sur une charge libre", () => {
-    const p = porteeDeLaMesure({ natureCharge: "resistance", conventionCharge: "poids_total" });
-    expect(p).toBe("kilos");
-    expect(libelleDeLaMesure(p)).toBe("1RM estimé");
+    for (const convention of ["poids_total", "poids_par_main"]) {
+      const p = porteeDeLaMesure({ natureCharge: "resistance", conventionCharge: convention });
+      expect(p).toBe("kilos");
+      expect(libelleDeLaMesure(p)).toBe("1RM estimé");
+    }
   });
 
   it("est un indice local sur une pile ou un chargement à disques", () => {
     // Deux marques affichant 40 ne déplacent pas la même chose. Le nombre
     // reste lisible face à lui-même ; il ne traverse pas les appareils.
-    for (const convention of ["pile_affichee", "disques_ajoutes"]) {
+    for (const convention of ["pile_affichee", "pile_par_cote", "disques_ajoutes"]) {
       const p = porteeDeLaMesure({ natureCharge: "resistance", conventionCharge: convention });
       expect(p).toBe("indice_local");
       expect(libelleDeLaMesure(p)).not.toMatch(/1RM/);
     }
+  });
+
+  it("classe une Smith aux résistances inconnues comme indice local", () => {
+    const smith = {
+      machineNom: "Smith machine",
+      natureCharge: "resistance",
+      conventionCharge: "disques_ajoutes",
+      poidsNonCompte: null,
+    };
+    expect(porteeDeLaMesure(smith)).toBe("indice_local");
+    expect(libelleDeLaMesure(porteeDeLaMesure(smith))).toBe("Indice de performance estimé");
   });
 
   it("est une assistance quand la charge aide", () => {

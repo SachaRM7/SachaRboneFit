@@ -315,9 +315,13 @@ export function porteeDeLaMesure(entree: {
   conventionCharge: string | null | undefined;
 }): PorteeDeLaMesure {
   if (entree.natureCharge === "assistance") return "assistance";
-  // `poids_total` : tout ce qui se déplace est compté, barre incluse. C'est la
-  // seule convention où le nombre est une masse.
-  return entree.conventionCharge === "poids_total" ? "kilos" : "indice_local";
+  // Une masse totale et une masse par main sont toutes deux de vrais kilos,
+  // mais ne deviennent pas comparables entre elles pour autant : la portée ne
+  // sert qu'à choisir la métrique, et l'instance/convention borne l'historique.
+  return entree.conventionCharge === "poids_total"
+    || entree.conventionCharge === "poids_par_main"
+    ? "kilos"
+    : "indice_local";
 }
 
 /**

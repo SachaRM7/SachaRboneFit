@@ -19,7 +19,10 @@ export const exerciseInstanceSchema = z.object({
   gymId: z.string().uuid(),
   machineNom: z.string().min(1),
   typePoulie: z.enum(["simple","double","na"]).default("na"),
-  conventionCharge: z.enum(["disques_ajoutes","pile_affichee","poids_total"]),
+  conventionCharge: z.enum([
+    "disques_ajoutes", "pile_affichee", "pile_par_cote", "poids_total", "poids_par_main",
+    "sans_charge",
+  ]),
   incrementsPossibles: z.array(z.number().positive()).min(1),
   poidsNonCompte: z.number().nullable().optional(),
   notesMachine: z.string().optional(),

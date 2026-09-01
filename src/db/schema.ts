@@ -178,9 +178,11 @@ export const exerciseInstances = pgTable("exercise_instances", {
   /**
    * Ce que signifie le nombre saisi en séance, sur CET appareil.
    *
-   * `pile_affichee` : la valeur lue sur la pile. `disques_ajoutes` : ce qu'on a
-   * ajouté, hors chariot. `poids_total` : tout ce qui se déplace, barre
-   * comprise.
+   * `pile_affichee` : la valeur lue sur la pile. `pile_par_cote` : la valeur
+   * d'une pile lorsque deux côtés sont réglés pareil. `disques_ajoutes` : ce
+   * qu'on a ajouté, hors chariot. `poids_total` : tout ce qui se déplace, barre
+   * comprise. `poids_par_main` : le nombre marqué sur un haltère, jamais ×2.
+   * `sans_charge` : aucune charge externe; le champ charge reste vide.
    *
    * La convention ne rend pas les nombres comparables entre appareils : deux
    * Smith machines à contrepoids différents affichent la même convention et

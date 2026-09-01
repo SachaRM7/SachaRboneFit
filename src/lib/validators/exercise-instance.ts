@@ -11,13 +11,23 @@ export const LIBELLES_ETAT: Record<(typeof ETATS_INSTANCE)[number], string> = {
   temporairement_indisponible: "Hors service pour le moment",
 };
 
-export const CONVENTIONS_CHARGE = ["pile_affichee", "disques_ajoutes", "poids_total"] as const;
+export const CONVENTIONS_CHARGE = [
+  "pile_affichee",
+  "pile_par_cote",
+  "disques_ajoutes",
+  "poids_total",
+  "poids_par_main",
+  "sans_charge",
+] as const;
 export const TYPES_POULIE = ["na", "simple", "double", "corde"] as const;
 
 export const LIBELLES_CONVENTION: Record<(typeof CONVENTIONS_CHARGE)[number], string> = {
   pile_affichee: "Pile affichée",
+  pile_par_cote: "Pile affichée par côté",
   disques_ajoutes: "Disques ajoutés",
   poids_total: "Poids total",
+  poids_par_main: "Poids par main",
+  sans_charge: "Aucune charge externe",
 };
 
 /**
@@ -35,8 +45,11 @@ export const LIBELLES_CONVENTION: Record<(typeof CONVENTIONS_CHARGE)[number], st
  */
 export const CONSIGNE_DE_SAISIE: Record<(typeof CONVENTIONS_CHARGE)[number], string> = {
   pile_affichee: "Note le nombre lu sur la pile.",
+  pile_par_cote: "Note la valeur affichée sur un côté, avec les deux côtés réglés pareil.",
   disques_ajoutes: "Note les disques ajoutés, sans le chariot.",
   poids_total: "Note le poids total déplacé, barre comprise.",
+  poids_par_main: "Note le poids d’un haltère, sans multiplier par deux.",
+  sans_charge: "Laisse la charge vide : seules les répétitions sont enregistrées.",
 };
 
 /** La même phrase, quand l'appareil aide au lieu de résister. */
