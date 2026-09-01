@@ -60,6 +60,40 @@ const creerExercice = async (
   return e!;
 };
 
+/**
+ * Une possibilité physique = UNE entrée active dans la salle.
+ *
+ * Ces décors recréaient l'appareil à chaque usage : deux tests de suite
+ * fabriquaient deux « Poulie haute » dans la même salle, et trois séances
+ * passées trois « Pompes » à la maison. C'était faux avant — on ne fait pas
+ * apparaître un banc chaque fois qu'on s'en sert — et l'index partiel de la
+ * migration 0011 le refuse désormais.
+ *
+ * Retrouver puis créer, plutôt que créer : le décor reste juste, et il survit
+ * au `beforeEach` qui efface les entrées d'une salle entre deux tests.
+ */
+const instanceActive = async (
+  gymId: string,
+  exerciseId: string,
+  machineNom: string,
+  champs: { conventionCharge: string; incrementsPossibles: number[] },
+) => {
+  const existante = await db.query.exerciseInstances.findFirst({
+    where: (i, { and, eq, isNull }) =>
+      and(
+        eq(i.gymId, gymId),
+        eq(i.exerciseId, exerciseId),
+        eq(i.machineNom, machineNom),
+        isNull(i.archiveLe),
+      ),
+  });
+  if (existante) return existante;
+  const [creee] = await db.insert(schema.exerciseInstances).values({
+    userId: U, exerciseId, gymId, machineNom, ...champs,
+  }).returning();
+  return creee!;
+};
+
 const ids: { exercices: string[]; salles: string[] } = { exercices: [], salles: [] };
 let salle = "";
 let maison = "";
@@ -250,12 +284,11 @@ describe("4. matériel apporté qui débloque mieux", () => {
   it("choisit un remplaçant plus fidèle grâce au sac", async () => {
     // Une séance de tirage : sans élastiques, la maison n'offre rien.
     await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, sessionLogId));
-    const [instTirage] = await db.insert(schema.exerciseInstances).values({
-      userId: U, exerciseId: tirageElastique, gymId: salle,
-      machineNom: "Poulie haute", conventionCharge: "pile_affichee", incrementsPossibles: [5],
-    }).returning();
+    const instTirage = await instanceActive(salle, tirageElastique, "Poulie haute", {
+      conventionCharge: "pile_affichee", incrementsPossibles: [5],
+    });
     await db.insert(schema.sessionPlanItems).values({
-      sessionLogId, ordre: 1, exerciseInstanceId: instTirage!.id, seriesCibles: 3,
+      sessionLogId, ordre: 1, exerciseInstanceId: instTirage.id, seriesCibles: 3,
       seriesPrevuesAvantAjustement: 3, fourchetteRepsMin: 10, fourchetteRepsMax: 12,
       rpeCible: 8, reposSecondes: 90, statut: "prevu",
     });
@@ -271,12 +304,11 @@ describe("4. matériel apporté qui débloque mieux", () => {
 
   it("matérialise l'entrée manquante seulement au moment de l'appliquer", async () => {
     await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, sessionLogId));
-    const [instTirage] = await db.insert(schema.exerciseInstances).values({
-      userId: U, exerciseId: tirageElastique, gymId: salle,
-      machineNom: "Poulie haute", conventionCharge: "pile_affichee", incrementsPossibles: [5],
-    }).returning();
+    const instTirage = await instanceActive(salle, tirageElastique, "Poulie haute", {
+      conventionCharge: "pile_affichee", incrementsPossibles: [5],
+    });
     await db.insert(schema.sessionPlanItems).values({
-      sessionLogId, ordre: 1, exerciseInstanceId: instTirage!.id, seriesCibles: 3,
+      sessionLogId, ordre: 1, exerciseInstanceId: instTirage.id, seriesCibles: 3,
       seriesPrevuesAvantAjustement: 3, fourchetteRepsMin: 10, fourchetteRepsMax: 12,
       rpeCible: 8, reposSecondes: 90, statut: "prevu",
     });
@@ -422,18 +454,28 @@ describe("8. niveaux d'adaptation explicites", () => {
 
 describe("9. la mémoire des empêchements nourrit le planificateur", () => {
 
+  /**
+   * Les pompes à la maison : UNE possibilité physique, donc UNE entrée.
+   *
+   * Chaque séance en recréait une, si bien que trois séances laissaient trois
+   * lignes actives de même identité dans la même salle. Le décor était faux —
+   * on ne fait pas apparaître un banc à chaque fois qu'on s'en sert — et
+   * l'index partiel de la migration 0011 le refuse désormais. L'entrée est
+   * donc créée une fois et réutilisée, comme dans la vraie vie.
+   */
+  const pompesDeLaMaison = async () =>
+    (await instanceActive(maison, pompes, "Pompes", {
+      conventionCharge: "poids_total", incrementsPossibles: [1],
+    })).id;
+
   /** Enregistre une séance passée où l'exercice prévu a été empêché. */
   const seancePassee = async (date: string, type = "changement_lieu") => {
     const [s] = await db.insert(schema.sessionLogs).values({
       userId: U, date, gymId: maison, dureeMinutes: 55,
     }).returning();
-    const [instPompes] = await db.insert(schema.exerciseInstances).values({
-      userId: U, exerciseId: pompes, gymId: maison,
-      machineNom: "Pompes", conventionCharge: "poids_total", incrementsPossibles: [1],
-    }).returning();
     await db.insert(schema.sessionPlanItems).values({
       sessionLogId: s!.id, ordre: 1,
-      exerciseInstanceId: instPompes!.id,
+      exerciseInstanceId: await pompesDeLaMaison(),
       exerciseInstancePrevuId: instDeveloppe,
       raisonSubstitution: "Developpe couche indisponible a Maison",
       contexteAdaptation: {
