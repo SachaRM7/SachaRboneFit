@@ -1,5 +1,6 @@
-import { pgTable, uuid, text, boolean, timestamp, real, integer, jsonb, date, unique, uniqueIndex, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, timestamp, real, integer, bigint, jsonb, date, unique, uniqueIndex, index, check } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
+import type { FicheTechnique, TypeReglage } from "@/lib/engine/execution";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -159,6 +160,26 @@ export const exercises = pgTable("exercises", {
   equipement: text("equipement"),
   // Identifiant dans la bibliotheque workout-guide : sert aussi de cle des illustrations.
   slug: text("slug"),
+  /**
+   * Ce qu'on peut dire du MOUVEMENT, indépendamment du lieu et de la personne.
+   *
+   * Un document plutôt qu'une colonne par section : les cent vingt exercices ne
+   * seront pas renseignés le même jour, et chaque section ajoutée demanderait
+   * sinon sa migration. Le contenu est validé par `ficheTechniqueSchema` à
+   * l'écriture — il est structuré, pas opaque.
+   *
+   * Nul partout au départ, et c'est voulu : une section absente disparaît de
+   * l'écran plutôt que d'afficher un texte générique.
+   */
+  ficheTechnique: jsonb("fiche_technique").$type<FicheTechnique>(),
+  /**
+   * Le tempo propre au mouvement — le plus général des trois niveaux.
+   *
+   * Reste nul tant que personne ne l'a prescrit. Poser un `3-1-1-0` universel
+   * ferait passer un remplissage automatique pour une consigne réfléchie, et
+   * l'athlète n'aurait aucun moyen de faire la différence.
+   */
+  tempoParDefaut: text("tempo_par_defaut"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -706,6 +727,127 @@ export const coachPropositions = pgTable("coach_propositions", {
   index("coach_propositions_en_attente_idx").on(t.userId, t.statut, t.createdAt),
 ]);
 
+
+// ---------------------------------------------------------------------------
+// Exécution : ce qu'il faut savoir devant la machine
+// ---------------------------------------------------------------------------
+
+/**
+ * Ce que CETTE machine propose comme réglages.
+ *
+ * Une ligne par possibilité physique — « il y a un siège, il a dix crans ».
+ * Surtout pas une colonne par type de réglage sur `exercise_instances` : le
+ * rack a des safety bars que la Leg Extension n'a pas, le banc une inclinaison
+ * que la poulie n'a pas, et la table finirait creuse à quatre-vingt pour cent.
+ *
+ * Cette définition décrit l'OBJET, pas la personne. Elle est donc commune à
+ * tous les comptes du lieu, exactement comme l'instance qui la porte.
+ */
+export const instanceReglages = pgTable("instance_reglages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  exerciseInstanceId: uuid("exercise_instance_id")
+    .references(() => exerciseInstances.id).notNull(),
+  /**
+   * Stable, en snake_case : c'est elle qui relie une valeur personnelle à sa
+   * définition. La renommer orpheline les valeurs déjà mémorisées.
+   */
+  cle: text("cle").notNull(),
+  libelle: text("libelle").notNull(),
+  /** `cran` | `degres` | `choix` | `texte` — voir `TYPES_REGLAGE`. */
+  typeValeur: text("type_valeur").$type<TypeReglage>().notNull(),
+  min: real("min"),
+  max: real("max"),
+  options: jsonb("options").$type<string[]>(),
+  unite: text("unite"),
+  ordre: integer("ordre").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("instance_reglages_cle_unique").on(t.exerciseInstanceId, t.cle),
+]);
+
+/**
+ * Les valeurs d'une personne sur un appareil précis.
+ *
+ * La machine propose des crans de 1 à 10 ; Sacha met le siège au 6, Maria au 3.
+ * Ces valeurs n'appartiennent ni au mouvement ni à l'appareil mais au couple —
+ * et elles ne se recopient JAMAIS d'une machine à l'autre au motif que c'est le
+ * même exercice. Deux Leg Extension de marques différentes ne numérotent pas
+ * leurs crans pareil.
+ */
+export const reglagesPersonnels = pgTable("reglages_personnels", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  exerciseInstanceId: uuid("exercise_instance_id")
+    .references(() => exerciseInstances.id).notNull(),
+  cle: text("cle").notNull(),
+  /**
+   * En texte quelle que soit la nature du réglage : la validation contre la
+   * définition a lieu à l'écriture, et un cran comme un choix se réaffichent
+   * tels qu'ils ont été saisis.
+   */
+  valeur: text("valeur").notNull(),
+  /**
+   * L'instant où l'utilisateur a formé cette intention — pas celui où la
+   * requête est arrivée. Voir `notesExercice.intention`.
+   */
+  intention: bigint("intention", { mode: "number" }).default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  uniqueIndex("reglages_personnels_unique").on(t.userId, t.exerciseInstanceId, t.cle),
+]);
+
+/**
+ * La note qu'on se laisse à soi-même.
+ *
+ * « siège 6 parfait », « 36 kg trop facile », « légère gêne épaule ». Du
+ * contexte, jamais une métrique : rien de ce qui est écrit ici n'entre dans la
+ * progression, les records ou le feu biologique. Le moteur ne la lit pas.
+ *
+ * Deux portées, parce que tout exercice n'a pas d'appareil : la note d'un
+ * développé couché se range sur SON banc, celle des pompes sur l'exercice.
+ * Exactement une des deux références est renseignée — la base le vérifie.
+ */
+export const notesExercice = pgTable("notes_exercice", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  exerciseInstanceId: uuid("exercise_instance_id").references(() => exerciseInstances.id),
+  exerciseId: uuid("exercise_id").references(() => exercises.id),
+  /**
+   * La chaîne vide est le vide : elle SE STOCKE au lieu de se supprimer.
+   *
+   * Effacer par DELETE emporterait le repère d'intention avec la ligne, et une
+   * requête ancienne arrivée après coup réinsérerait la note qu'on vient de
+   * vider. Les lectures traduisent cette chaîne vide en `null` ; l'écran ne
+   * voit pas la différence, l'ordre des écritures si.
+   */
+  texte: text("texte").notNull(),
+  /**
+   * L'instant où l'utilisateur a formé cette intention, horodaté chez lui.
+   *
+   * Une écriture ne l'emporte que si son intention est plus récente que celle
+   * déjà en base. C'est ce qui distingue « la plus récente gagne » de « la
+   * dernière arrivée gagne » — deux choses différentes dès que deux requêtes
+   * sont en vol en même temps.
+   */
+  intention: bigint("intention", { mode: "number" }).default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => [
+  check(
+    "notes_exercice_une_seule_portee",
+    sql`(${t.exerciseInstanceId} is not null and ${t.exerciseId} is null)
+        or (${t.exerciseInstanceId} is null and ${t.exerciseId} is not null)`,
+  ),
+  // Deux index partiels plutôt qu'un composite : `NULL` n'entre pas dans une
+  // contrainte d'unicité, et sans eux la même personne empilerait dix notes
+  // sur le même banc.
+  uniqueIndex("notes_exercice_par_instance_unique")
+    .on(t.userId, t.exerciseInstanceId).where(sql`${t.exerciseInstanceId} is not null`),
+  uniqueIndex("notes_exercice_par_exercice_unique")
+    .on(t.userId, t.exerciseId).where(sql`${t.exerciseId} is not null`),
+]);
 
 // ---------------------------------------------------------------------------
 // Relations

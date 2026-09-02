@@ -10,6 +10,14 @@ export interface ExercicePrescrit {
   id: string;
   planItemId?: string;
   nom: string;
+  /**
+   * Le MOUVEMENT, distinct de `id` qui désigne l'appareil.
+   *
+   * La fiche technique et le tempo par défaut appartiennent à l'exercice ;
+   * les réglages et la note, au couple personne × appareil. Sans cet
+   * identifiant, l'écran ne saurait pas où chercher la première moitié.
+   */
+  exerciseId?: string | null;
   machineNom: string;
   slug?: string | null;
   seriesCibles: number;

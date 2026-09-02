@@ -3,6 +3,9 @@ import { useMemo, useState } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { Check, Plus } from "lucide-react";
+import { DemonstrationMouvement } from "./DemonstrationMouvement";
+import { FicheExecution } from "./FicheExecution";
+import { useContexteExecution } from "./useContexteExecution";
 import type { ExercicePrescrit } from "./types";
 import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
 import { chargeAEnregistrer, consigneDeSaisie } from "@/lib/validators/exercise-instance";
@@ -64,6 +67,17 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
 
   const [brouillons, setBrouillons] = useState<Record<number, Brouillon>>({});
 
+  /**
+   * Ce qu'il faut savoir devant la machine : tempo, réglages retenus, note.
+   *
+   * Chargé après le rendu, jamais avant : l'objectif « application ouverte →
+   * première série » ne doit pas attendre une requête de plus. Tant qu'il n'est
+   * pas là, la carte s'affiche sans ces lignes plutôt qu'avec des trous.
+   */
+  const { contexte, remplacer } = useContexteExecution(exercice);
+  const [demonstration, setDemonstration] = useState(false);
+  const [fiche, setFiche] = useState(false);
+
   const valeurs = (numero: number): Brouillon => {
     if (brouillons[numero]) return brouillons[numero]!;
     const saisie = seriesSaisies.find((s) => s.numeroSerie === numero);
@@ -118,12 +132,22 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
     <section className="border border-filet rounded-xl bg-carte overflow-hidden">
       <header className="flex items-start gap-3 p-3.5 border-b border-filet-doux">
         {exercice.slug && (
-          <IllustrationExercice
-            slug={exercice.slug}
-            nom={exercice.nom}
-            anime
-            className="w-12 h-12 shrink-0 text-encre-3"
-          />
+          /* L'illustration devient la porte d'entrée de la démonstration : la
+             cible est déjà là, elle mesure 56 px, et personne n'a besoin d'un
+             bouton « voir le mouvement » à côté d'une image du mouvement. */
+          <button
+            type="button"
+            onClick={() => setDemonstration(true)}
+            aria-label={`Voir la démonstration : ${exercice.nom}`}
+            className="shrink-0 rounded-lg -m-1 p-1 active:bg-papier-2"
+          >
+            <IllustrationExercice
+              slug={exercice.slug}
+              nom={exercice.nom}
+              anime
+              className="w-14 h-14 text-encre-3"
+            />
+          </button>
         )}
         <div className="min-w-0 flex-1">
           <h2 className="font-semibold text-encre leading-tight">{exercice.nom}</h2>
@@ -141,6 +165,32 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
           {validees}/{exercice.seriesCibles}
         </span>
       </header>
+
+      {/* Le strict nécessaire pour agir, sur une ligne. Le détail — technique,
+          erreurs, respiration, réglages complets — s'ouvre d'un geste. Rien ne
+          s'affiche pour dire qu'une information manque : ce qui est absent est
+          absent, et se renseigne dans la fiche. */}
+      {contexte && (contexte.tempo || contexte.resumeReglages || contexte.note) && (
+        <button
+          type="button"
+          onClick={() => setFiche(true)}
+          className="w-full text-left px-3.5 py-2 border-b border-filet-doux active:bg-papier-2"
+        >
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+            {contexte.tempo && (
+              <span className="text-encre-2">
+                Tempo <span className="chiffres tabular-nums">{contexte.tempo.brut}</span>
+              </span>
+            )}
+            {contexte.resumeReglages && (
+              <span className="text-encre-2">{contexte.resumeReglages}</span>
+            )}
+            {contexte.note && (
+              <span className="text-encre-3 italic truncate max-w-full">{contexte.note}</span>
+            )}
+          </span>
+        </button>
+      )}
 
       {modeReserve && (
         <p className="px-3.5 py-2 text-xs text-encre-2 border-b border-filet-doux">
@@ -286,6 +336,34 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
             </p>
           )}
       </div>
+
+      {/* Ouvrir le détail reste possible même sans aucune donnée : c'est là
+          qu'on renseigne un réglage pour la première fois. */}
+      {contexte && (
+        <button
+          type="button"
+          onClick={() => setFiche(true)}
+          className="w-full px-3.5 pb-3 text-left text-xs text-encre-3 underline underline-offset-4"
+        >
+          {contexte.reglages.length > 0 ? "Réglages et technique" : "Technique et note"}
+        </button>
+      )}
+
+      {demonstration && exercice.slug && (
+        <DemonstrationMouvement
+          slug={exercice.slug}
+          nom={exercice.nom}
+          onFermer={() => setDemonstration(false)}
+        />
+      )}
+      {fiche && contexte && (
+        <FicheExecution
+          contexte={contexte}
+          nom={exercice.nom}
+          onFermer={() => setFiche(false)}
+          onEnregistre={remplacer}
+        />
+      )}
     </section>
   );
 }

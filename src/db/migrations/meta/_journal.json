@@ -85,6 +85,20 @@
       "when": 1788351000000,
       "tag": "0011_identite_instances_actives",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0012_execution_et_memoire_machine",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1788401000000,
+      "tag": "0013_intention_utilisateur",
+      "breakpoints": true
     }
   ]
 }
