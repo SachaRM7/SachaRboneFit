@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, vi } from "vitest";
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 
 /**
@@ -298,6 +298,149 @@ describe("la note personnelle", () => {
         await db.$count(schema.setLogs, eq(schema.setLogs.exerciseInstanceId, i.id)),
       ).toBe(0);
     }
+  });
+});
+
+/**
+ * La plus RÉCENTE gagne — dans la base, pas seulement dans React.
+ *
+ * L'écran enregistre sans bouton : deux modifications rapprochées mettent deux
+ * requêtes en vol en même temps. Avant correction, mesuré sur cette base :
+ *
+ *   deux premières écritures simultanées   20/20 en violation d'unicité -> 500
+ *   B (récente) puis A (ancienne)          la base finissait sur A
+ *   siège 6 puis siège 8 périmé            la base finissait sur 8
+ *
+ * La cause n'était pas le réseau mais le code : `ecrireNote` LISAIT puis
+ * ÉCRIVAIT, laissant les deux requêtes passer entre les deux, et l'écriture ne
+ * connaissait aucun ordre d'intention — seulement son ordre d'arrivée.
+ *
+ * Ces scénarios s'écrivent en appelant le service dans l'ordre où PostgreSQL
+ * appliquerait les requêtes, avec des intentions explicites : c'est ce que le
+ * serveur voit réellement, et cela ne dépend d'aucun aléa d'ordonnancement.
+ */
+describe("une intention ancienne n'écrase jamais une plus récente", () => {
+  const noteDe = async (texte: string, intention: number) => ecrireNote({
+    userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte, intention,
+  });
+  const enBase = async () => (await lire(SACHA, matrixA)).note;
+
+  beforeEach(async () => {
+    await db.delete(schema.notesExercice)
+      .where(and(
+        eq(schema.notesExercice.userId, SACHA),
+        eq(schema.notesExercice.exerciseInstanceId, matrixA),
+      ));
+  });
+
+  it("1. B appliquée avant A : la base garde B", async () => {
+    await noteDe("B", 2_000);
+    await noteDe("A", 1_000); // arrivée en dernier, mais formée en premier
+    expect(await enBase()).toBe("B");
+  });
+
+  it("2. A appliquée avant B : la base garde B", async () => {
+    await noteDe("A", 1_000);
+    await noteDe("B", 2_000);
+    expect(await enBase()).toBe("B");
+  });
+
+  it("3. une requête très tardive après confirmation de B ne la défait pas", async () => {
+    await noteDe("A", 1_000);
+    await noteDe("B", 2_000);
+    // Le filet de sortie de l'ancienne saisie finit par arriver, longtemps
+    // après. Il porte son intention d'origine : il ne doit rien changer.
+    expect(await noteDe("A", 1_000)).toBe("B");
+    expect(await enBase()).toBe("B");
+  });
+
+  it("4. à la fermeture, le filet de sortie porte l'intention la plus récente et gagne", async () => {
+    // Fermeture aussitôt après la frappe : l'envoi du blur est encore en vol
+    // quand le filet `keepalive` part. Le filet est postérieur, donc plus
+    // récent — c'est lui qui porte la dernière valeur tapée.
+    await noteDe("tapé au blur", 3_000);
+    await noteDe("tapé puis fermé", 4_000);
+    expect(await enBase()).toBe("tapé puis fermé");
+    // Et l'envoi du blur, s'il arrive après, ne fait pas revenir l'ancienne.
+    await noteDe("tapé au blur", 3_000);
+    expect(await enBase()).toBe("tapé puis fermé");
+  });
+
+  it("effacer puis recevoir une écriture périmée ne ressuscite pas la note", async () => {
+    // C'est ce que le DELETE rendait impossible à garantir : la ligne partie,
+    // plus rien ne retenait l'intention la plus récente.
+    await noteDe("légère gêne épaule", 1_000);
+    await noteDe("", 2_000);
+    expect(await enBase()).toBeNull();
+    await noteDe("légère gêne épaule", 1_000);
+    expect(await enBase()).toBeNull();
+  });
+
+  it("deux premières écritures simultanées n'échouent plus", async () => {
+    // Le cas qui produisait 20/20 erreurs : aucune ligne n'existe, les deux
+    // requêtes lisaient « rien » et inséraient toutes les deux.
+    await Promise.all([noteDe("A", 1_000), noteDe("B", 2_000)]);
+    expect(await enBase()).toBe("B");
+    const lignes = await db.query.notesExercice.findMany({
+      where: and(
+        eq(schema.notesExercice.userId, SACHA),
+        eq(schema.notesExercice.exerciseInstanceId, matrixA),
+      ),
+    });
+    expect(lignes).toHaveLength(1);
+  });
+
+  it("le même ordre protège un réglage personnel", async () => {
+    // Les blocs précédents ont écrit ce cran avec l'horloge réelle. On repart
+    // d'une ligne absente pour raisonner sur des intentions lisibles plutôt que
+    // sur des époques à treize chiffres.
+    await db.delete(schema.reglagesPersonnels).where(and(
+      eq(schema.reglagesPersonnels.userId, SACHA),
+      eq(schema.reglagesPersonnels.exerciseInstanceId, matrixA),
+      eq(schema.reglagesPersonnels.cle, "siege"),
+    ));
+    // Deux corrections rapides du même cran : même course, même garantie.
+    const siege = async (valeur: string, intention: number) => enregistrerReglages({
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension,
+      valeurs: { siege: valeur }, intention,
+    });
+    await siege("6", 2_000);
+    await siege("8", 1_000);
+    const r = await lire(SACHA, matrixA);
+    expect(r.reglages.find((x) => x.cle === "siege")?.valeur).toBe("6");
+    // Effacer suit la même règle : un « 8 » périmé ne revient pas.
+    await siege("", 3_000);
+    await siege("8", 1_000);
+    const apres = await lire(SACHA, matrixA);
+    expect(apres.reglages.find((x) => x.cle === "siege")?.valeur).toBeNull();
+  });
+
+  it("sans intention, on retombe sur l'ancien comportement : la dernière écrit", async () => {
+    // Un script ou un outil du coach n'a jamais deux écritures en vol. Il ne
+    // doit pas avoir à connaître ce mécanisme pour écrire.
+    await noteDe("ancienne", 1_000);
+    await ecrireNote({
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte: "sans intention",
+    });
+    expect(await enBase()).toBe("sans intention");
+  });
+
+  // Ce bloc malmène délibérément la note et le siège de matrixA ; la suite les
+  // suppose intacts. On les repose donc tels que les blocs précédents les ont
+  // laissés. Les lignes sont d'abord retirées : sans quoi l'intention de
+  // remise en état, plus ancienne que celle du dernier test, perdrait — ce qui
+  // est précisément la garantie qu'on vient de vérifier.
+  afterAll(async () => {
+    const chez = (t: typeof schema.notesExercice | typeof schema.reglagesPersonnels) => and(
+      eq(t.userId, SACHA), eq(t.exerciseInstanceId, matrixA),
+    );
+    await db.delete(schema.notesExercice).where(chez(schema.notesExercice));
+    await db.delete(schema.reglagesPersonnels).where(chez(schema.reglagesPersonnels));
+    await noteDe("siège 6 parfait", 9_000);
+    await enregistrerReglages({
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension,
+      valeurs: { siege: "7", rouleau: "3" }, intention: 9_000,
+    });
   });
 });
 

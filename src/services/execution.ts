@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import {
   exerciseInstances, exercises, instanceReglages, notesExercice, reglagesPersonnels,
 } from "@/db/schema";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql, type Column, type SQL } from "drizzle-orm";
 import {
   ficheRenseignee, messageDeRefus, reglagesAAfficher, resumeDesReglages, tempoEffectif,
   validerReglage,
@@ -84,6 +84,44 @@ async function appareilDeLExercice(exerciseInstanceId: string, exerciseId: strin
   return instance;
 }
 
+/**
+ * Le vide stocké redevient le vide affiché.
+ *
+ * Effacer une note ou un réglage écrit désormais la chaîne vide au lieu de
+ * supprimer la ligne — c'est ce qui garde le repère d'intention et empêche une
+ * requête ancienne de ressusciter ce qu'on vient d'effacer. La contrepartie est
+ * ici : toute lecture retraduit cette chaîne vide en « pas de valeur », pour que
+ * la distinction reste invisible partout ailleurs.
+ */
+function valeurOuRien(brute: string | null | undefined): string | null {
+  return brute == null || brute === "" ? null : brute;
+}
+
+/**
+ * L'écriture ne l'emporte que si elle est plus récente que ce qui est en base.
+ *
+ * Comparaison faite par PostgreSQL, dans la même instruction que l'écriture :
+ * c'est le seul endroit où l'ordre est garanti. Un jeton gardé en mémoire de
+ * l'onglet ne protège pas la base, et un verrou qui ignore l'intention se
+ * contenterait de sérialiser proprement les écritures dans le mauvais ordre.
+ *
+ * Quand la condition est fausse, l'instruction ne touche aucune ligne. C'est le
+ * comportement voulu : une requête périmée devient une écriture sans effet,
+ * silencieusement — l'utilisateur n'a rien à savoir d'une intention qu'il a
+ * lui-même remplacée.
+ */
+function plusRecenteQue(colonne: Column, intention: number): SQL {
+  return sql`${colonne} < ${intention}`;
+}
+
+/** Les réglages effectivement renseignés : les vides ne sont pas des valeurs. */
+function valeursRenseignees(lignes: typeof reglagesPersonnels.$inferSelect[]) {
+  return lignes.flatMap((p) => {
+    const valeur = valeurOuRien(p.valeur);
+    return valeur === null ? [] : [{ cle: p.cle, valeur }];
+  });
+}
+
 function definitionsDe(lignes: typeof instanceReglages.$inferSelect[]): DefinitionReglage[] {
   return lignes.map((r) => ({
     cle: r.cle,
@@ -142,7 +180,7 @@ export async function contexteExecution(entrees: {
     });
     return {
       exerciseInstanceId: null, exerciseId, fiche, tempo,
-      reglages: [], resumeReglages: null, note: note?.texte ?? null,
+      reglages: [], resumeReglages: null, note: valeurOuRien(note?.texte),
     };
   }
 
@@ -166,16 +204,13 @@ export async function contexteExecution(entrees: {
     }),
   ]);
 
-  const affiches = reglagesAAfficher(
-    definitionsDe(definitions),
-    personnels.map((p) => ({ cle: p.cle, valeur: p.valeur })),
-  );
+  const affiches = reglagesAAfficher(definitionsDe(definitions), valeursRenseignees(personnels));
 
   return {
     exerciseInstanceId, exerciseId, fiche, tempo,
     reglages: affiches,
     resumeReglages: resumeDesReglages(affiches),
-    note: note?.texte ?? null,
+    note: valeurOuRien(note?.texte),
   };
 }
 
@@ -193,7 +228,12 @@ export async function contexteExecution(entrees: {
  * été retenu et ce qui a été rejeté.
  *
  * Une valeur vide EFFACE le réglage : c'est ainsi qu'on revient à « non
- * renseigné » sans avoir à inventer une valeur de sortie.
+ * renseigné » sans avoir à inventer une valeur de sortie. Elle s'écrit comme
+ * une valeur — la chaîne vide — au lieu de supprimer la ligne : voir
+ * `valeurOuRien`.
+ *
+ * `intention` porte l'ordre voulu par l'utilisateur ; une valeur plus ancienne
+ * n'écrase jamais une plus récente, quel que soit l'ordre d'arrivée.
  */
 export async function enregistrerReglages(entrees: {
   userId: string;
@@ -205,8 +245,17 @@ export async function enregistrerReglages(entrees: {
    */
   exerciseId: string;
   valeurs: Record<string, string>;
+  /**
+   * Quand l'utilisateur a formé cette intention, en millisecondes.
+   *
+   * Absent, on retombe sur l'instant de réception : c'est exactement l'ancien
+   * comportement, correct pour un appelant qui n'a pas deux écritures en vol —
+   * un outil du coach, un script. Les écrans, eux, le fournissent.
+   */
+  intention?: number;
 }): Promise<ReglageAffiche[]> {
   const { userId, exerciseInstanceId, exerciseId, valeurs } = entrees;
+  const intention = entrees.intention ?? Date.now();
 
   await appareilDeLExercice(exerciseInstanceId, exerciseId);
 
@@ -216,14 +265,15 @@ export async function enregistrerReglages(entrees: {
   const parCle = new Map(definitionsDe(definitions).map((d) => [d.cle, d]));
 
   const aEcrire: Array<{ cle: string; valeur: string }> = [];
-  const aEffacer: string[] = [];
 
   for (const [cle, brute] of Object.entries(valeurs)) {
     const definition = parCle.get(cle);
     if (!definition) throw new ReglageRefuse(cle, messageDeRefus({ motif: "cle_inconnue" }));
 
     if (brute.trim() === "") {
-      aEffacer.push(cle);
+      // Effacer est une écriture ordonnée comme les autres, pas une
+      // suppression : la ligne garde son repère d'intention.
+      aEcrire.push({ cle, valeur: "" });
       continue;
     }
     const verdict = validerReglage(definition, brute);
@@ -234,23 +284,17 @@ export async function enregistrerReglages(entrees: {
   }
 
   await db.transaction(async (tx) => {
-    if (aEffacer.length > 0) {
-      await tx.delete(reglagesPersonnels).where(and(
-        eq(reglagesPersonnels.userId, userId),
-        eq(reglagesPersonnels.exerciseInstanceId, exerciseInstanceId),
-        inArray(reglagesPersonnels.cle, aEffacer),
-      ));
-    }
     for (const { cle, valeur } of aEcrire) {
       await tx.insert(reglagesPersonnels)
-        .values({ userId, exerciseInstanceId, cle, valeur })
+        .values({ userId, exerciseInstanceId, cle, valeur, intention })
         .onConflictDoUpdate({
           target: [
             reglagesPersonnels.userId,
             reglagesPersonnels.exerciseInstanceId,
             reglagesPersonnels.cle,
           ],
-          set: { valeur, updatedAt: new Date() },
+          set: { valeur, intention, updatedAt: new Date() },
+          setWhere: plusRecenteQue(reglagesPersonnels.intention, intention),
         });
     }
   });
@@ -266,10 +310,11 @@ export async function enregistrerReglages(entrees: {
       ),
     }),
   ]);
-  return reglagesAAfficher(
-    definitionsDe(defs),
-    apres.map((p) => ({ cle: p.cle, valeur: p.valeur })),
-  );
+  // Ce qui est renvoyé est ce que la base CONTIENT, pas ce qu'on lui a proposé.
+  // Quand une intention plus récente a déjà gagné, l'écran doit voir la valeur
+  // gagnante — sinon il afficherait comme enregistrée une valeur que la base a
+  // écartée.
+  return reglagesAAfficher(definitionsDe(defs), valeursRenseignees(apres));
 }
 
 /**
@@ -278,6 +323,17 @@ export async function enregistrerReglages(entrees: {
  * Une note par personne et par objet, remplacée quand on la réécrit : ce n'est
  * pas un journal, c'est un post-it. En empiler l'historique obligerait à
  * choisir laquelle montrer, et la réponse serait toujours « la dernière ».
+ *
+ * Encore faut-il savoir laquelle est la dernière. L'écran enregistre sans
+ * bouton : deux modifications rapprochées mettent deux requêtes en vol, et
+ * l'ordre d'ARRIVÉE n'est pas l'ordre d'INTENTION. D'où `intention`, et d'où
+ * l'écriture en une seule instruction — lire puis écrire laissait passer les
+ * deux requêtes entre les deux, ce qui produisait soit un doublon soit, l'index
+ * unique aidant, une erreur 500 en pleine séance.
+ *
+ * Renvoie ce que la base CONTIENT après coup, qui n'est pas toujours ce qu'on
+ * vient de proposer : quand une intention plus récente a déjà gagné, c'est elle
+ * qui revient.
  */
 export async function ecrireNote(entrees: {
   userId: string;
@@ -285,8 +341,11 @@ export async function ecrireNote(entrees: {
   /** Toujours transmis : il sert de portée sans appareil, ET de contrôle avec. */
   exerciseId?: string | null;
   texte: string;
+  /** Voir `enregistrerReglages`. Absent, on retombe sur l'instant de réception. */
+  intention?: number;
 }): Promise<string | null> {
   const { userId, texte } = entrees;
+  const intention = entrees.intention ?? Date.now();
   const instanceId = entrees.exerciseInstanceId ?? null;
   const exerciceId = instanceId ? null : (entrees.exerciseId ?? null);
   if (!instanceId && !exerciceId) throw new InstanceIntrouvable();
@@ -303,21 +362,35 @@ export async function ecrireNote(entrees: {
     : eq(notesExercice.exerciseId, exerciceId!);
   const ou = and(eq(notesExercice.userId, userId), portee);
 
+  // Effacer écrit la chaîne vide au lieu de supprimer la ligne : le repère
+  // d'intention doit survivre à l'effacement, sans quoi une requête ancienne
+  // arrivée après coup réinsérerait la note qu'on vient de vider.
   const propre = texte.trim();
-  if (propre === "") {
-    await db.delete(notesExercice).where(ou);
-    return null;
-  }
 
-  const existante = await db.query.notesExercice.findFirst({ where: ou });
-  if (existante) {
-    await db.update(notesExercice)
-      .set({ texte: propre, updatedAt: new Date() })
-      .where(eq(notesExercice.id, existante.id));
-  } else {
-    await db.insert(notesExercice).values({
-      userId, exerciseInstanceId: instanceId, exerciseId: exerciceId, texte: propre,
+  // Deux index partiels, donc deux cibles de conflit : `NULL` n'entre pas dans
+  // une contrainte d'unicité composite, et c'est la portée qui dit laquelle des
+  // deux s'applique.
+  const cible = instanceId
+    ? {
+      target: [notesExercice.userId, notesExercice.exerciseInstanceId],
+      targetWhere: sql`${notesExercice.exerciseInstanceId} is not null`,
+    }
+    : {
+      target: [notesExercice.userId, notesExercice.exerciseId],
+      targetWhere: sql`${notesExercice.exerciseId} is not null`,
+    };
+
+  await db.insert(notesExercice)
+    .values({
+      userId, exerciseInstanceId: instanceId, exerciseId: exerciceId,
+      texte: propre, intention,
+    })
+    .onConflictDoUpdate({
+      ...cible,
+      set: { texte: propre, intention, updatedAt: new Date() },
+      setWhere: plusRecenteQue(notesExercice.intention, intention),
     });
-  }
-  return propre;
+
+  const apres = await db.query.notesExercice.findFirst({ where: ou });
+  return valeurOuRien(apres?.texte);
 }

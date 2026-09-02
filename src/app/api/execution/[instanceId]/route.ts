@@ -28,6 +28,15 @@ const majSchema = z.object({
    * sur parole.
    */
   exerciseId: z.string().uuid(),
+  /**
+   * L'instant où l'utilisateur a formé cette intention, horodaté chez lui.
+   *
+   * C'est LUI qui tranche entre deux requêtes en vol, et non l'ordre d'arrivée
+   * — voir `lib/engine/intention`. Facultatif : un appelant qui n'a jamais deux
+   * écritures simultanées (un script, un outil du coach) n'a rien à en dire, et
+   * le serveur retombe alors sur l'instant de réception.
+   */
+  intention: z.number().int().nonnegative().optional(),
 });
 
 export async function GET(
@@ -100,6 +109,7 @@ export async function PATCH(
         userId, exerciseInstanceId: instanceId,
         exerciseId: parsed.data.exerciseId,
         valeurs: parsed.data.reglages,
+        intention: parsed.data.intention,
       });
     }
 
@@ -110,6 +120,7 @@ export async function PATCH(
         exerciseInstanceId: sansAppareil ? null : instanceId,
         exerciseId: parsed.data.exerciseId,
         texte: parsed.data.note,
+        intention: parsed.data.intention,
       });
     }
 

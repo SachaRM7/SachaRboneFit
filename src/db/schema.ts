@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp, real, integer, jsonb, date, unique, uniqueIndex, index, check } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, boolean, timestamp, real, integer, bigint, jsonb, date, unique, uniqueIndex, index, check } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type { FicheTechnique, TypeReglage } from "@/lib/engine/execution";
 
@@ -787,6 +787,11 @@ export const reglagesPersonnels = pgTable("reglages_personnels", {
    * tels qu'ils ont été saisis.
    */
   valeur: text("valeur").notNull(),
+  /**
+   * L'instant où l'utilisateur a formé cette intention — pas celui où la
+   * requête est arrivée. Voir `notesExercice.intention`.
+   */
+  intention: bigint("intention", { mode: "number" }).default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (t) => [
@@ -809,7 +814,24 @@ export const notesExercice = pgTable("notes_exercice", {
   userId: uuid("user_id").references(() => users.id).notNull(),
   exerciseInstanceId: uuid("exercise_instance_id").references(() => exerciseInstances.id),
   exerciseId: uuid("exercise_id").references(() => exercises.id),
+  /**
+   * La chaîne vide est le vide : elle SE STOCKE au lieu de se supprimer.
+   *
+   * Effacer par DELETE emporterait le repère d'intention avec la ligne, et une
+   * requête ancienne arrivée après coup réinsérerait la note qu'on vient de
+   * vider. Les lectures traduisent cette chaîne vide en `null` ; l'écran ne
+   * voit pas la différence, l'ordre des écritures si.
+   */
   texte: text("texte").notNull(),
+  /**
+   * L'instant où l'utilisateur a formé cette intention, horodaté chez lui.
+   *
+   * Une écriture ne l'emporte que si son intention est plus récente que celle
+   * déjà en base. C'est ce qui distingue « la plus récente gagne » de « la
+   * dernière arrivée gagne » — deux choses différentes dès que deux requêtes
+   * sont en vol en même temps.
+   */
+  intention: bigint("intention", { mode: "number" }).default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (t) => [

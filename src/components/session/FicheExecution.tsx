@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { MemoireDeSaisie } from "@/lib/engine/memoire-de-saisie";
+import { prochaineIntention } from "@/lib/engine/intention";
 import {
   messageDeRefus, PHASES_TEMPO, validerReglage,
   type ContexteExecutionClient,
@@ -99,6 +100,11 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
     // Le jeton est pris AVANT la requête : c'est lui qui permettra d'écarter
     // une réponse ancienne arrivée après une plus récente.
     const jeton = corps.note !== undefined ? memoire.current.commencer() : 0;
+    // L'intention est horodatée ICI, au moment de la décision, et voyage avec
+    // la requête : c'est elle qui départage deux écritures en vol DANS LA BASE.
+    // Le jeton ci-dessus, lui, ne range que les réponses côté React — il ne
+    // protège pas PostgreSQL.
+    const intention = prochaineIntention();
     setEnCours(true);
     setErreur(null);
     try {
@@ -106,7 +112,7 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
       const res = await fetch(`/api/execution/${cible}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...corps, exerciseId: contexte.exerciseId }),
+        body: JSON.stringify({ ...corps, exerciseId: contexte.exerciseId, intention }),
       });
       const reponse = await res.json();
       if (!res.ok) {
@@ -233,7 +239,14 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
         method: "PATCH",
         keepalive: true,
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ note: noteRef.current, exerciseId: contexte.exerciseId }),
+        body: JSON.stringify({
+          note: noteRef.current,
+          exerciseId: contexte.exerciseId,
+          // Le filet part en dernier, donc son intention est la plus récente :
+          // il gagne sur tout ce qui serait encore en vol. C'est exactement ce
+          // qu'on veut — il porte la dernière valeur que la personne a tapée.
+          intention: prochaineIntention(),
+        }),
       }).catch(() => {});
     }
   }, [contexte.exerciseInstanceId, contexte.exerciseId]);
