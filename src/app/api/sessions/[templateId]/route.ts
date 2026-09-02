@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { derniereSeriesPour } from "@/services/plan-seance";
 import { computeNextSets } from "@/lib/engine/double-progression";
+import { REPOS_PAR_DEFAUT_SECONDES } from "@/services/plan-seance";
 import { CHARGE_INCONNUE, configurationDe } from "@/lib/engine/charges";
 import { detailErreur } from "@/lib/erreurs";
 
@@ -91,7 +92,9 @@ export async function GET(
           tempo: eit.tempo,
           incrementsPossibles: inst?.incrementsPossibles || [],
           poidsNonCompte: inst?.poidsNonCompte || null,
-          reposSecondes: eit.reposSecondes,
+          // Même défaut que le plan calculé : sans lui, le chronomètre ne
+          // démarre pas et l'intervalle entre séries n'est jamais mesuré.
+          reposSecondes: eit.reposSecondes ?? REPOS_PAR_DEFAUT_SECONDES,
           ordre: eit.ordre,
           categorieRole: inst?.exercise?.categorieRole || "",
           profilTension: inst?.exercise?.profilTension || "",

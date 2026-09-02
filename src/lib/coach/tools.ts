@@ -1,10 +1,11 @@
 import { db } from "@/db/client";
 import { estimer1RMDepuisRpe } from "@/lib/engine/records";
-import { setLogs, sessionLogs, exercises, exerciseInstances, sessionIncidents } from "@/db/schema";
-import { and, eq, desc, gte, lte, isNull } from "drizzle-orm";
+import { setLogs, sessionLogs, exercises, exerciseInstances, sessionIncidents, sessionPlanItems } from "@/db/schema";
+import { and, asc, eq, desc, gte, lte, isNull } from "drizzle-orm";
 import { seancesActives, seriesActives, seancesRealisees } from "@/db/archivage";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstitutionCriteria } from "@/lib/engine/substitutions";
 import { computeNextSets } from "@/lib/engine/double-progression";
+import { executionReelle, type ExecutionReelle } from "@/lib/engine/execution-reelle";
 import { libelleProfilTension, libelleTypeMouvement } from "@/lib/referentiels/libelles";
 import { configurationDe } from "@/lib/engine/charges";
 import { DEFINITIONS_CONTEXTE, EXECUTEURS_CONTEXTE } from "./outils-contexte";
@@ -61,6 +62,57 @@ export interface CoachToolSet {
   executors: Record<string, ToolExecutor>;
 }
 
+/**
+ * Ce que le modèle a le droit de dire des faits d'exécution, et ce qu'il n'a
+ * pas le droit d'en faire.
+ *
+ * La consigne est jointe à la RÉPONSE et pas seulement à la description de
+ * l'outil : une instruction lue à l'appel se dilue, une phrase collée à la
+ * donnée reste sous les yeux au moment de l'interpréter. Même principe que
+ * `get_machine_settings`, qui nomme l'absence plutôt que d'omettre le champ.
+ */
+const AVERTISSEMENT_EXECUTION =
+  "Ces écarts sont MESURÉS : ne les recalcule pas, ne les arrondis pas autrement. "
+  + "« inconnu » veut dire que la donnée n'existe pas — jamais que la consigne a été "
+  + "respectée, et jamais une valeur à deviner. Un écart de RPE n'est pas un verdict : "
+  + "aucun seuil ne dit à partir de quand une consigne est trahie, et ces faits ne "
+  + "changent aucune décision de progression.";
+
+/** Les quatre faits en une phrase, l'inconnu nommé plutôt qu'omis. */
+function raconterExecution(f: ExecutionReelle): string {
+  const morceaux: string[] = [];
+
+  morceaux.push(
+    f.volume.etat === "inconnu"
+      ? "volume prescrit inconnu"
+      : `${f.volume.realisees}/${f.volume.attendues} séries prescrites`,
+  );
+
+  morceaux.push(
+    f.effort.ecartRpe === null
+      ? "écart d'effort inconnu"
+      : `RPE ${f.effort.rpeReel} pour ${f.effort.rpeCible} visé `
+        + `(${f.effort.ecartRpe > 0 ? "+" : ""}${f.effort.ecartRpe})`,
+  );
+
+  if (f.tempo.prescrit) {
+    morceaux.push(
+      f.tempo.respecte === false ? `tempo ${f.tempo.prescrit} signalé NON tenu`
+        : f.tempo.respecte === true ? `tempo ${f.tempo.prescrit} tenu`
+        : `tempo ${f.tempo.prescrit} prescrit, respect inconnu`,
+    );
+  }
+
+  morceaux.push(
+    f.repos.ecartSecondes === null
+      ? "repos inconnu"
+      : `repos ${f.repos.observeSecondes}s pour ${f.repos.prescritSecondes}s `
+        + `(${f.repos.ecartSecondes > 0 ? "+" : ""}${f.repos.ecartPourcent}%)`,
+  );
+
+  return morceaux.join(", ");
+}
+
 export async function getExerciseHistory(
   exerciseInstanceId: string,
   limit: number = 10,
@@ -82,36 +134,73 @@ export async function getExerciseHistory(
       charge: setLogs.charge,
       reps: setLogs.repsEffectuees,
       rpe: setLogs.rpeEffectif,
+      tempoRespecte: setLogs.tempoRespecte,
+      reposReelSecondes: setLogs.reposReelSecondes,
     })
     .from(setLogs)
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
     .where(and(eq(setLogs.exerciseInstanceId, exerciseInstanceId), seancesActives(userId)))
     .orderBy(desc(setLogs.createdAt));
 
-  const results: Array<{ date: string; charge: number; reps: number; estimated1RM: number }> = [];
-  const seenSessions = new Set<string>();
+  // Ce qui avait été PRESCRIT ce jour-là, pour le comparer à ce qui a été fait.
+  //
+  // Requête SÉPARÉE, jamais jointe aux séries : le couple (séance, machine)
+  // n'est pas unique dans `session_plan_items`, et une jointure dupliquerait
+  // chaque série — faussant le comptage de volume que ces faits rapportent.
+  // La jointure ci-dessous ne porte que sur `session_logs`, pour l'archivage.
+  const plans = await db
+    .select({
+      sessionLogId: sessionPlanItems.sessionLogId,
+      seriesCibles: sessionPlanItems.seriesCibles,
+      rpeCible: sessionPlanItems.rpeCible,
+      tempo: sessionPlanItems.tempo,
+      reposSecondes: sessionPlanItems.reposSecondes,
+    })
+    .from(sessionPlanItems)
+    .innerJoin(sessionLogs, eq(sessionLogs.id, sessionPlanItems.sessionLogId))
+    .where(and(
+      eq(sessionPlanItems.exerciseInstanceId, exerciseInstanceId),
+      seancesActives(userId),
+    ))
+    .orderBy(asc(sessionPlanItems.ordre));
+  // La PREMIÈRE ligne par `ordre`, comme le fait `derniereSeriesPour`. Un
+  // `new Map(...)` naïf garderait la dernière, et deux lectures de la même
+  // donnée finiraient par diverger.
+  const planParSeance = new Map<string, (typeof plans)[number]>();
+  for (const p of plans) if (!planParSeance.has(p.sessionLogId)) planParSeance.set(p.sessionLogId, p);
 
-  for (const set of sets) {
-    if (seenSessions.has(set.sessionLogId)) continue;
-    seenSessions.add(set.sessionLogId);
+  const parSeance = new Map<string, typeof sets>();
+  for (const s of sets) parSeance.set(s.sessionLogId, [...(parSeance.get(s.sessionLogId) ?? []), s]);
+
+  const lignes: string[] = [];
+  for (const [sessionLogId, series] of parSeance) {
+    if (lignes.length >= limit) break;
+    const premiere = series[0]!;
+    const plan = planParSeance.get(sessionLogId);
 
     // Arrondi à l'affichage seulement : le calcul, lui, passe par la référence.
-    const estimated1RM = Math.round(estimer1RMDepuisRpe(set.charge, set.reps, set.rpe));
+    const estimated1RM = Math.round(
+      estimer1RMDepuisRpe(premiere.charge, premiere.reps, premiere.rpe),
+    );
 
-    results.push({
-      date: set.date,
-      charge: set.charge,
-      reps: set.reps,
-      estimated1RM,
+    const faits = executionReelle({
+      seriesAttendues: plan?.seriesCibles,
+      rpeCible: plan?.rpeCible,
+      tempoPrescrit: plan?.tempo,
+      reposPrescritSecondes: plan?.reposSecondes,
+      series,
     });
 
-    if (results.length >= limit) break;
+    lignes.push(
+      `${premiere.date}: ${premiere.charge}kg x ${premiere.reps} reps `
+      + `(est. 1RM: ${estimated1RM}kg) — ${raconterExecution(faits)}`,
+    );
   }
 
   return {
     success: true,
-    output: results.length > 0
-      ? results.map(r => `${r.date}: ${r.charge}kg x ${r.reps} reps (est. 1RM: ${r.estimated1RM}kg)`).join("\n")
+    output: lignes.length > 0
+      ? lignes.join("\n") + "\n\n" + AVERTISSEMENT_EXECUTION
       : "Aucune historique trouvé pour cet exercice.",
   };
 }

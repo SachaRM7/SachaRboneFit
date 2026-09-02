@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { MemoireDeSaisie } from "@/lib/engine/memoire-de-saisie";
 import { prochaineIntention } from "@/lib/engine/intention";
+import { useSessionStore } from "@/stores/sessionStore";
 import {
   messageDeRefus, PHASES_TEMPO, validerReglage,
   type ContexteExecutionClient,
@@ -68,6 +69,11 @@ interface Props {
  * renseigner, c'est-à-dire dans les réglages.
  */
 export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props) {
+  // Le signalement porte sur l'exercice et vit dans la séance en cours : il
+  // s'applique aussi aux séries validées après coup.
+  const { active, signalerTempo } = useSessionStore();
+  const instanceId = contexte.exerciseInstanceId ?? contexte.exerciseId;
+  const tempoSignale = active?.tempoParExercice?.[instanceId] === false;
   const [brouillon, setBrouillon] = useState<Record<string, string>>(
     Object.fromEntries(contexte.reglages.map((r) => [r.cle, r.valeur ?? ""])),
   );
@@ -308,6 +314,24 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
                   </li>
                 </ul>
               )}
+
+              {/* Signalement, pas confirmation.
+                  Demander « as-tu respecté ? » à chaque série produirait des
+                  clics réflexes, c'est-à-dire de la donnée fausse. On offre
+                  seulement de dire que ça n'a PAS tenu — l'absence de réponse
+                  reste « inconnu », jamais « respecté ». */}
+              <button
+                type="button"
+                aria-pressed={tempoSignale}
+                onClick={() => signalerTempo(instanceId, tempoSignale ? null : false)}
+                className={`mt-3 h-10 px-3 rounded-lg border text-sm ${
+                  tempoSignale
+                    ? "border-perte bg-perte-fond text-perte font-medium"
+                    : "border-filet bg-carte text-encre-2"
+                }`}
+              >
+                {tempoSignale ? "Tempo non tenu — signalé" : "Je n'ai pas tenu ce tempo"}
+              </button>
             </section>
           )}
 

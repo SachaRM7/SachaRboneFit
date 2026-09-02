@@ -108,6 +108,10 @@ export default function FinishSessionPage() {
             charge: s.charge,
             rpeEffectif: s.rpeEffectif ?? rattrapage[s.exerciseInstanceId] ?? null,
             reposReelSecondes: s.reposReelSecondes ?? null,
+            // Le signalement vit au niveau de l'exercice ; il retombe ici sur
+            // chacune de ses séries, quel que soit l'ordre des gestes. Absent,
+            // la valeur reste `null` — jamais `true` par défaut.
+            tempoRespecte: active?.tempoParExercice?.[s.exerciseInstanceId] ?? null,
             notes: s.notes ?? null,
           })),
         }),
