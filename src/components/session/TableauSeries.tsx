@@ -9,6 +9,8 @@ import { useContexteExecution } from "./useContexteExecution";
 import type { ExercicePrescrit } from "./types";
 import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
 import { classeDuMotif } from "./motif-progression";
+import { champEffortPropose, effortSaisi } from "./effort-propose";
+import { libelleCibleEffort } from "@/components/programme/cible-effort";
 import { chargeAEnregistrer, consigneDeSaisie } from "@/lib/validators/exercise-instance";
 
 interface Props {
@@ -56,14 +58,16 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
     1,
   );
 
-  const rpeParDefaut = Math.max(6, (exercice.rpeCible ?? 8) - rpeReduction);
+  // Vide quand aucun effort n'est prescrit : le champ pré-rempli à 8 partait
+  // en base à la validation, sans que personne l'ait ressenti ni saisi.
+  const rpeParDefaut = champEffortPropose(exercice.rpeCible, rpeReduction);
   const chargeParDefaut = exercice.chargeSuggeree ?? exercice.historique?.[0]?.charge ?? null;
 
   /** Valeurs proposées pour une ligne, avant toute saisie de l'utilisateur. */
   const proposition = (numero: number): Brouillon => ({
     charge: chargeParDefaut != null ? String(chargeParDefaut) : "",
     reps: String(exercice.repsSuggerees?.[numero - 1] ?? exercice.fourchetteRepsMin),
-    rpe: String(rpeParDefaut),
+    rpe: rpeParDefaut,
   });
 
   const [brouillons, setBrouillons] = useState<Record<number, Brouillon>>({});
@@ -114,6 +118,10 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
     const depart = active?.restStartTimestamp;
     if (!depart) return null;
     if (active?.restExerciseIndex !== active?.currentExerciseIndex) return null;
+    // L'heure est lue au clic sur la coche — `basculer` est le seul appelant —,
+    // jamais pendant le rendu. Le compilateur ne peut pas le prouver depuis
+    // ici, et l'instant d'une validation est justement ce qu'on ne mémoïse pas.
+    // eslint-disable-next-line react-hooks/purity
     return Math.floor((Date.now() - depart) / 1000);
   };
 
@@ -133,7 +141,9 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
       numeroSerie: numero,
       charge,
       repsEffectuees: Number.isFinite(reps) ? reps : null,
-      rpeEffectif: Number.parseFloat(v.rpe.replace(",", ".")) || null,
+      rpeEffectif: effortSaisi(v.rpe),
+      // Même raison : `basculer` est le gestionnaire du clic de validation.
+      // eslint-disable-next-line react-hooks/purity
       validatedAt: Date.now(),
       reposReelSecondes: intervalleDepuisLaSeriePrecedente(),
     });
@@ -181,6 +191,10 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
             {exercice.seriesCibles} × {exercice.fourchetteRepsMin}-{exercice.fourchetteRepsMax}
             {exercice.reposSecondes ? ` · repos ${exercice.reposSecondes} s` : ""}
           </p>
+          {/* Dit dans la même ligne discrète que le reste : la colonne RPE
+              pouvait être vide sans qu'on sache si c'était un oubli de
+              l'application ou l'absence de consigne. */}
+          <p className="text-encre-3 text-xs">{libelleCibleEffort(exercice.rpeCible)}</p>
         </div>
         <span className="chiffres text-xs text-encre-3 shrink-0 tabular-nums">
           {validees}/{exercice.seriesCibles}
@@ -283,13 +297,21 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
                   <td className="py-1.5 px-1">
                     {modeReserve ? (
                       <select
-                        value={String(rpeVersReserve(Number.parseFloat(v.rpe.replace(",", "."))) ?? 2)}
+                        /* Rien de sélectionné quand rien n'est saisi : le
+                           menu se posait sur « 2 » et cette réserve, que
+                           personne n'avait choisie, devenait un RPE 8. */
+                        value={String(rpeVersReserve(effortSaisi(v.rpe)) ?? "")}
                         onChange={(e) =>
-                          ecrire(numero, "rpe", String(reserveVersRpe(Number(e.target.value))))
+                          ecrire(
+                            numero,
+                            "rpe",
+                            e.target.value === "" ? "" : String(reserveVersRpe(Number(e.target.value))),
+                          )
                         }
                         aria-label={`Répétitions encore possibles, série ${numero}`}
                         className={champ}
                       >
+                        <option value="">—</option>
                         {CHOIX_RESERVE.map((r) => (
                           <option key={r} value={r}>
                             {r === 5 ? "5+" : r}

@@ -290,7 +290,7 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
     seriesCibles: r.ligne.seriesCibles,
     fourchetteRepsMin: r.ligne.fourchetteRepsMin,
     fourchetteRepsMax: r.ligne.fourchetteRepsMax,
-    rpeCible: r.ligne.rpeCible ?? 8,
+    rpeCible: r.ligne.rpeCible,
     tempo: r.ligne.tempo ?? "",
     reposSecondes: r.ligne.reposSecondes ?? REPOS_PAR_DEFAUT_SECONDES,
     musclesPrincipaux: r.instance.musclesPrincipaux,
