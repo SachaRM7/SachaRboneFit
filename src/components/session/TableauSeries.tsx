@@ -94,6 +94,28 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
   const ecrire = (numero: number, champ: keyof Brouillon, valeur: string) =>
     setBrouillons((b) => ({ ...b, [numero]: { ...valeurs(numero), [champ]: valeur } }));
 
+  /**
+   * Le temps écoulé depuis la validation de la série précédente.
+   *
+   * C'est un INTERVALLE ENTRE SÉRIES : il contient le repos et l'exécution de
+   * la série. La colonne s'appelle `repos_reel_secondes` pour des raisons
+   * historiques ; ce qu'elle mesure est décrit ici et dans
+   * `engine/execution-reelle.ts`, plutôt que supposé.
+   *
+   * Deux cas rendent `null`, et aucun ne doit devenir zéro :
+   *
+   *   première série       rien ne la précède, il n'y a pas d'intervalle ;
+   *   exercice différent   le chronomètre a démarré ailleurs. Attribuer cette
+   *                        durée à l'exercice courant fabriquerait une mesure
+   *                        fausse — mieux vaut ne rien savoir.
+   */
+  const intervalleDepuisLaSeriePrecedente = (): number | null => {
+    const depart = active?.restStartTimestamp;
+    if (!depart) return null;
+    if (active?.restExerciseIndex !== active?.currentExerciseIndex) return null;
+    return Math.floor((Date.now() - depart) / 1000);
+  };
+
   const basculer = (numero: number) => {
     const dejaValidee = seriesSaisies.some((s) => s.numeroSerie === numero);
     if (dejaValidee) {
@@ -112,9 +134,7 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
       repsEffectuees: Number.isFinite(reps) ? reps : null,
       rpeEffectif: Number.parseFloat(v.rpe.replace(",", ".")) || null,
       validatedAt: Date.now(),
-      reposReelSecondes: active?.restStartTimestamp
-        ? Math.floor((Date.now() - active.restStartTimestamp) / 1000)
-        : null,
+      reposReelSecondes: intervalleDepuisLaSeriePrecedente(),
     });
 
     onSerieValidee(exercice.reposSecondes ?? null);

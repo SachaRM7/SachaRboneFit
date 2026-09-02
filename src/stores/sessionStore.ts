@@ -10,6 +10,11 @@ export type DraftSet = {
   notes?: string;
   validatedAt?: number;
   reposReelSecondes?: number | null;
+  /**
+   * `false` seulement si l'athlète a signalé que le tempo prescrit n'a pas été
+   * tenu. Jamais `true` par défaut : un tempo non commenté reste inconnu.
+   */
+  tempoRespecte?: boolean | null;
 };
 
 export type ActiveSession = {
@@ -32,6 +37,11 @@ export type ActiveSession = {
   skippedExerciseIds: string[];
   // RPE reductions (exerciseInstanceId -> rpe reduction amount)
   rpeReductions: Record<string, number>;
+  /**
+   * Tempo signalé par exercice. Absent = rien n'a été dit, et c'est le cas
+   * courant : on ne demande pas confirmation, on offre de signaler un écart.
+   */
+  tempoParExercice: Record<string, boolean>;
   // Already shown proactive alerts
   shownProactiveAlerts: string[];
 };
@@ -43,7 +53,7 @@ type SessionStore = {
    * Le store generait auparavant un UUID local, decorrele de la base : tout
    * appel utilisant cet id (enregistrement d'incident, cloture) echouait en 403.
    */
-  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "shownProactiveAlerts">) => void;
+  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "tempoParExercice" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
   removeSet: (exerciseInstanceId: string, numeroSerie: number) => void;
   setCurrentExerciseIndex: (i: number) => void;
@@ -56,6 +66,8 @@ type SessionStore = {
   complete: () => void;
   clear: () => void;
   // SOS actions
+  /** Propage un signalement de tempo à toutes les séries déjà saisies d'un exercice. */
+  signalerTempo: (exerciseInstanceId: string, respecte: boolean | null) => void;
   skipExercises: (ids: string[]) => void;
   allegerExercises: (ids: string[]) => void;
   updateLastAction: () => void;
@@ -80,6 +92,7 @@ export const useSessionStore = create<SessionStore>()(
           lastActionTimestamp: Date.now(),
           skippedExerciseIds: [],
           rpeReductions: {},
+          tempoParExercice: {},
           shownProactiveAlerts: [],
         },
       }),
@@ -118,14 +131,16 @@ export const useSessionStore = create<SessionStore>()(
           }
         } : state
       ),
+      // Masquer le compte à rebours n'est pas cesser de mesurer.
+      //
+      // Cette action effaçait `restStartTimestamp`, et la série suivante
+      // enregistrait donc `null` alors que le repos avait bien eu lieu : fermer
+      // le minuteur détruisait la mesure. Seule la durée cible s'efface — c'est
+      // elle qui pilote l'affichage. L'instant de départ, lui, sert à mesurer
+      // et survit à la fermeture.
       clearRest: () => set((state) =>
         state.active ? {
-          active: {
-            ...state.active,
-            restStartTimestamp: null,
-            restDurationSeconds: null,
-            restExerciseIndex: null,
-          }
+          active: { ...state.active, restDurationSeconds: null },
         } : state
       ),
       extendRest: (extraSeconds) => set((state) => {
@@ -141,6 +156,18 @@ export const useSessionStore = create<SessionStore>()(
         state.active ? { active: { ...state.active, completedAt: Date.now() } } : state
       ),
       clear: () => set({ active: null }),
+      // Le signalement porte sur l'EXERCICE, pas sur la série : personne ne juge
+      // un tempo série par série. Il est donc rangé à part et appliqué à la
+      // clôture — muter les séries déjà saisies laisserait sans valeur celles
+      // validées APRÈS le signalement, et l'ordre des gestes déciderait du
+      // résultat.
+      signalerTempo: (exerciseInstanceId, respecte) => set((state) => {
+        if (!state.active) return state;
+        const carte = { ...(state.active.tempoParExercice ?? {}) };
+        if (respecte === null) delete carte[exerciseInstanceId];
+        else carte[exerciseInstanceId] = respecte;
+        return { active: { ...state.active, tempoParExercice: carte, lastActionTimestamp: Date.now() } };
+      }),
       // SOS actions
       skipExercises: (ids) => set((state) =>
         state.active ? {

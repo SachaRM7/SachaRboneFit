@@ -130,6 +130,15 @@ export async function chargerParc(userId: string): Promise<InstanceResolvable[]>
 }
 
 /**
+ * Repos retenu quand le gabarit n'en prescrit aucun.
+ *
+ * Ce n'est pas une recommandation d'entraînement : c'est ce qui permet au
+ * chronomètre de démarrer, donc à l'intervalle entre séries d'être mesuré. Sans
+ * lui, `lancerRepos` sort immédiatement et la colonne reste vide.
+ */
+export const REPOS_PAR_DEFAUT_SECONDES = 120;
+
+/**
  * Combien de séries la séance de référence demandait pour CETTE machine.
  *
  * Sous-requête scalaire, et non jointure : rien ne garantit l'unicité du couple
@@ -283,7 +292,7 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
     fourchetteRepsMax: r.ligne.fourchetteRepsMax,
     rpeCible: r.ligne.rpeCible ?? 8,
     tempo: r.ligne.tempo ?? "",
-    reposSecondes: r.ligne.reposSecondes ?? 120,
+    reposSecondes: r.ligne.reposSecondes ?? REPOS_PAR_DEFAUT_SECONDES,
     musclesPrincipaux: r.instance.musclesPrincipaux,
   }));
 
@@ -361,7 +370,13 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
                 fourchetteRepsMax: r.ligne.fourchetteRepsMax,
                 rpeCible: r.ligne.rpeCible,
                 tempo: r.ligne.tempo,
-                reposSecondes: r.ligne.reposSecondes,
+                // Même défaut que l'ajustement de volume plus haut. La valeur
+                // était écrite brute ici : un gabarit sans repos renseigné
+                // produisait `null`, et `lancerRepos` sortait alors sans
+                // démarrer le chronomètre — donc AUCUN `repos_reel_secondes`
+                // pour la séance entière. La même donnée ne peut pas avoir deux
+                // défauts à 78 lignes d'écart.
+                reposSecondes: r.ligne.reposSecondes ?? REPOS_PAR_DEFAUT_SECONDES,
                 chargeSuggeree: suggestion.charge || null,
                 repsSuggerees: suggestion.reps,
                 messageProgression: suggestion.messageProgression,
