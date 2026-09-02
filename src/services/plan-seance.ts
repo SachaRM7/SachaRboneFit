@@ -10,7 +10,7 @@ import { musclesSousContrainte } from "@/lib/engine/contraintes";
 import { computeVolumeAdjustment } from "@/lib/engine/volume-adjustment";
 import { applyVolumeAdjustment, type ExerciseInTemplateWithDetails } from "@/lib/engine/apply-adjustment";
 import { configurationDe } from "@/lib/engine/charges";
-import { computeNextSets } from "@/lib/engine/double-progression";
+import { computeNextSets, type MotifProgression } from "@/lib/engine/double-progression";
 import { resoudrePourSalle, type InstanceResolvable } from "@/lib/engine/resolution-salle";
 import { versMuscles } from "@/lib/referentiels/muscles";
 import { expliquerRetours } from "@/services/retours";
@@ -398,8 +398,52 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
   });
 }
 
+/**
+ * La nature de la décision persistée, retrouvée sans la stocker.
+ *
+ * `session_plan_items` garde la PHRASE (`message_progression`) mais pas sa
+ * nature, et ce chantier n'ouvre aucune migration. Le motif est donc recalculé
+ * à la lecture — puis, et c'est l'essentiel, **confronté au message persisté**.
+ *
+ * On ne retient le motif que si le recalcul reproduit ce message au caractère
+ * près. Même message ⇒ même branche ⇒ même motif : la correspondance est alors
+ * certaine. Sinon — l'historique a changé depuis la construction du plan, la
+ * machine a été redécrite — on rend `null`, l'écran retombe sur un ton neutre,
+ * et **aucune couleur fausse n'est possible**. Le repli est du côté du silence,
+ * jamais de l'affirmation.
+ *
+ * Le calcul est pur et la référence déjà chargée : le coût est nul.
+ */
+function motifDuMessagePersiste(
+  ligne: {
+    messageProgression: string | null;
+    fourchetteRepsMin: number;
+    fourchetteRepsMax: number;
+    seriesCibles: number;
+    incrementsPossibles: number[] | null;
+    paliersCharges: number[] | null;
+    chargeMinimale: number | null;
+    chargeMax: number | null;
+    natureCharge: string | null;
+    poidsNonCompte: number | null;
+    conventionCharge: string;
+  },
+  derniere: Awaited<ReturnType<typeof derniereSeriesPour>>,
+): MotifProgression | null {
+  if (!ligne.messageProgression) return null;
+  const rejeu = computeNextSets(derniere, {
+    fourchetteRepsMin: ligne.fourchetteRepsMin,
+    fourchetteRepsMax: ligne.fourchetteRepsMax,
+    seriesCibles: ligne.seriesCibles,
+    charge: configurationDe(ligne),
+  });
+  return rejeu.messageProgression === ligne.messageProgression ? rejeu.motifProgression : null;
+}
+
 /** Une ligne de plan, enrichie de tout ce dont l'écran de séance a besoin. */
 export interface ItemPlanEnrichi {
+  /** La nature de `messageProgression`. Voir `motifDuMessagePersiste`. */
+  motifProgression: MotifProgression | null;
   id: string;
   planItemId: string;
   ordre: number;
@@ -460,6 +504,11 @@ export async function lirePlan(userId: string, sessionLogId: string) {
       poidsNonCompte: exerciseInstances.poidsNonCompte,
       conventionCharge: exerciseInstances.conventionCharge,
       natureCharge: exerciseInstances.natureCharge,
+      // Nécessaires au rejeu qui retrouve le motif : sans la grille complète,
+      // la charge recalculée diffèrerait et le message ne correspondrait plus.
+      paliersCharges: exerciseInstances.paliersCharges,
+      chargeMinimale: exerciseInstances.chargeMinimale,
+      chargeMax: exerciseInstances.chargeMax,
       nom: exercises.nom,
       slug: exercises.slug,
       categorieRole: exercises.categorieRole,
@@ -476,6 +525,7 @@ export async function lirePlan(userId: string, sessionLogId: string) {
     lignes.map(async (l) => {
       const derniere = await derniereSeriesPour(userId, l.exerciseInstanceId);
       return {
+        motifProgression: motifDuMessagePersiste(l, derniere),
         id: l.exerciseInstanceId,
         exerciseId: l.exerciseId,
         planItemId: l.planItemId,

@@ -268,3 +268,109 @@ describe("référence tronquée", () => {
     expect(r.messageProgression).toContain("2 séries sur 4");
   });
 });
+
+/**
+ * La NATURE de la décision, à côté de la phrase.
+ *
+ * `messageProgression` mélangeait six natures dans un texte, et l'écran les
+ * peignait toutes en « gain » : « 1 série sur 3, on refait la séance entière »
+ * s'affichait en vert comme un progrès, et le bandeau de séance les comptait
+ * toutes comme des « charges en hausse ».
+ *
+ * Le motif DÉCRIT une décision déjà prise. Le dernier test de ce bloc vérifie
+ * qu'il n'en prend aucune.
+ */
+describe("motif de progression", () => {
+  const auMax = (n: number, rpe?: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      numero: i + 1, reps: 8, charge: 80, ...(rpe === undefined ? {} : { rpe }),
+    }));
+
+  it("montée normale", () => {
+    expect(computeNextSets({ sets: auMax(3) }, cible).motifProgression).toBe("montee");
+  });
+
+  it("montée sur effort déjà maximal", () => {
+    expect(computeNextSets({ sets: auMax(3, 10) }, cible).motifProgression)
+      .toBe("montee_effort_maximal");
+  });
+
+  it("consolidation sur effort maximal", () => {
+    const r = computeNextSets(
+      { sets: [
+        { numero: 1, reps: 7, charge: 80, rpe: 10 },
+        { numero: 2, reps: 6, charge: 80, rpe: 10 },
+        { numero: 3, reps: 6, charge: 80, rpe: 10 },
+      ] },
+      cible,
+    );
+    expect(r.motifProgression).toBe("consolidation_effort");
+  });
+
+  it("référence tronquée", () => {
+    expect(computeNextSets({ sets: auMax(1), seriesAttendues: 3 }, cible).motifProgression)
+      .toBe("reference_tronquee");
+  });
+
+  it("butée de l'appareil", () => {
+    const r = computeNextSets({ sets: auMax(3) }, {
+      ...cible,
+      charge: { ...CHARGE_INCONNUE, incrementsPossibles: [2.5], chargeMax: 80 },
+    });
+    expect(r.motifProgression).toBe("butee_materiel");
+  });
+
+  it("incréments jamais renseignés", () => {
+    const r = computeNextSets({ sets: auMax(3) }, { ...cible, charge: CHARGE_INCONNUE });
+    expect(r.motifProgression).toBe("increments_inconnus");
+  });
+
+  it("rien à raconter : aucun motif, comme le message", () => {
+    // Les deux seuls cas où `messageProgression` vaut déjà `null`.
+    const sansHistorique = computeNextSets(null, cible);
+    expect(sansHistorique.motifProgression).toBeNull();
+    expect(sansHistorique.messageProgression).toBeNull();
+
+    const uneRepDePlus = computeNextSets(
+      { sets: [{ numero: 1, reps: 7, charge: 80, rpe: 7 }] },
+      cible,
+    );
+    expect(uneRepDePlus.motifProgression).toBeNull();
+    expect(uneRepDePlus.messageProgression).toBeNull();
+  });
+
+  it("le motif ne décide de rien : le retirer ne change aucune sortie", () => {
+    // La garantie centrale de ce chantier. Toutes les décisions restent
+    // identiques quel que soit le motif produit.
+    const cas: Array<Parameters<typeof computeNextSets>[0]> = [
+      null,
+      { sets: auMax(3) },
+      { sets: auMax(3, 10) },
+      { sets: auMax(1), seriesAttendues: 3 },
+      { sets: [{ numero: 1, reps: 7, charge: 80, rpe: 10 }, { numero: 2, reps: 6, charge: 80, rpe: 10 }] },
+      { sets: [{ numero: 1, reps: 7, charge: 80, rpe: 7 }] },
+    ];
+    for (const entree of cas) {
+      const r = computeNextSets(entree, cible);
+      const { motifProgression, ...decision } = r;
+      // La décision — charge, répétitions, complétion, message, consolidation —
+      // se suffit à elle-même : le motif n'y ajoute ni n'en retire rien.
+      expect(Object.keys(decision).sort()).toEqual(
+        ["charge", "consolidation", "fourchetteCompletee", "messageProgression", "reps"],
+      );
+      expect(motifProgression === null || typeof motifProgression === "string").toBe(true);
+    }
+  });
+
+  it("consolidation recouvre deux motifs distincts", () => {
+    // Le champ historique ne distingue pas « effort maximal » de « séance
+    // incomplète ». C'est précisément pourquoi le motif existe.
+    const effort = computeNextSets(
+      { sets: [{ numero: 1, reps: 7, charge: 80, rpe: 10 }] }, cible,
+    );
+    const tronquee = computeNextSets({ sets: auMax(1), seriesAttendues: 3 }, cible);
+    expect(effort.consolidation).toBe(true);
+    expect(tronquee.consolidation).toBe(true);
+    expect(effort.motifProgression).not.toBe(tronquee.motifProgression);
+  });
+});

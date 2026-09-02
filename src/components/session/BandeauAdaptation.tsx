@@ -1,6 +1,7 @@
 "use client";
 import { Feu } from "@/components/carnet/Feu";
 import type { ExercicePrescrit } from "./types";
+import { classeDuMotif, estUneMontee } from "./motif-progression";
 
 interface Props {
   feuJour?: string | null;
@@ -23,10 +24,18 @@ interface Props {
  */
 export function BandeauAdaptation({ feuJour, volumeAjustePct, volumeAjusteRaison, exercices }: Props) {
   const substitutions = exercices.filter((e) => e.raisonSubstitution);
-  const progressions = exercices.filter((e) => e.messageProgression);
+  // « N charges en hausse » comptait TOUT message de progression : une
+  // référence tronquée et une butée d'appareil y étaient donc annoncées comme
+  // des hausses. Ce n'était pas qu'une couleur trompeuse, c'était une phrase
+  // fausse.
+  const hausses = exercices.filter((e) => estUneMontee(e.motifProgression));
+  const autresDecisions = exercices.filter(
+    (e) => e.messageProgression && !estUneMontee(e.motifProgression),
+  );
   const volumeReduit = Boolean(volumeAjustePct);
 
-  if (!volumeReduit && substitutions.length === 0 && progressions.length === 0 && !feuJour) {
+  if (!volumeReduit && substitutions.length === 0
+      && hausses.length === 0 && autresDecisions.length === 0 && !feuJour) {
     return null;
   }
 
@@ -63,16 +72,24 @@ export function BandeauAdaptation({ feuJour, volumeAjustePct, volumeAjusteRaison
         </ul>
       )}
 
-      {progressions.length > 0 && (
+      {hausses.length > 0 && (
         <p className="text-sm text-gain">
           <strong className="font-semibold">
-            {progressions.length} charge{progressions.length > 1 ? "s" : ""} en hausse
+            {hausses.length} charge{hausses.length > 1 ? "s" : ""} en hausse
           </strong>{" "}
-          <span className="text-encre-2">
-            — {progressions.map((e) => e.nom).join(", ")}
-          </span>
+          <span className="text-encre-2">— {hausses.map((e) => e.nom).join(", ")}</span>
         </p>
       )}
+
+      {/* Les décisions qui ne sont pas des hausses ont leur propre ligne, et
+          chacune sa couleur : une référence tronquée appelle une action, une
+          butée d'appareil ne fait qu'informer. */}
+      {autresDecisions.map((e) => (
+        <p key={e.id} className="text-sm">
+          <span className={classeDuMotif(e.motifProgression)}>{e.nom}</span>
+          <span className="text-encre-2"> — {e.messageProgression}</span>
+        </p>
+      ))}
     </section>
   );
 }
