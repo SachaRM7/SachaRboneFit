@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { MemoireDeSaisie } from "@/lib/engine/memoire-de-saisie";
 import {
   messageDeRefus, PHASES_TEMPO, validerReglage,
   type ContexteExecutionClient,
@@ -24,16 +25,29 @@ interface Props {
  * feuille d'un revers de pouce — le geste le plus naturel en salle — ne perdait
  * rien à la clôture de séance mais perdait tout à la fermeture de l'écran.
  *
- *   réglages   enregistrés à la SORTIE DU CHAMP (blur), et au changement pour
- *              une liste déroulante. Un champ que l'on quitte est un champ dont
- *              on a fini de décider ; la frappe, elle, n'appelle jamais le
- *              réseau. Une valeur refusée par la validation locale n'est pas
- *              envoyée du tout — le champ garde la saisie et affiche pourquoi.
+ *   champ de   enregistré à la SORTIE DU CHAMP. Un champ que l'on quitte est
+ *   saisie     un champ dont on a fini de décider ; la frappe, elle, n'appelle
+ *              jamais le réseau. Une valeur refusée par la validation locale
+ *              n'est pas envoyée du tout — le champ garde la saisie et affiche
+ *              pourquoi.
  *
- *   note       enregistrée à la sortie du champ également, et au plus tard à la
- *              fermeture de la feuille. Un texte libre n'a pas d'état « valide
- *              ou non » : rien ne justifierait de le refuser, donc rien ne
- *              justifie non plus de le faire attendre un bouton.
+ *   liste      enregistrée AU CHANGEMENT, et pas au blur. Choisir dans une
+ *   déroulante liste est une décision complète en un geste : attendre d'en
+ *              sortir n'ajoute rien, et sur mobile la fermeture du sélecteur
+ *              natif ne produit pas toujours de `blur`. Elle n'a donc pas de
+ *              `onBlur` du tout — deux déclencheurs pour une seule décision
+ *              produiraient une écriture en double.
+ *
+ *   note       enregistrée à la sortie du champ, et au plus tard à la
+ *              fermeture. Un texte libre n'a pas d'état « valide ou non » :
+ *              rien ne justifierait de le refuser, donc rien ne justifie non
+ *              plus de le faire attendre un bouton.
+ *
+ * CE QUI COMPTE COMME ENREGISTRÉ — la valeur CONFIRMÉE par le serveur, jamais
+ * celle qu'on vient d'envoyer. `MemoireDeSaisie` tient la distinction, et son
+ * en-tête explique pourquoi : marquer une valeur comme sue au moment de
+ * l'envoi laissait le filet de sortie inerte, et une requête échouée perdait
+ * la note en silence.
  *
  * Le serveur reste l'autorité : il revalide tout, et c'est sa réponse qui
  * remplace l'état affiché. La validation locale ne fait qu'éviter un
@@ -66,13 +80,13 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
   /**
    * L'état courant, lisible depuis le démontage.
    *
-   * La fermeture enregistre la note si elle a changé, et l'effet de nettoyage
-   * ne voit que la première valeur capturée s'il lit la variable d'état. La
-   * référence, elle, suit.
+   * L'effet de nettoyage ne voit que la première valeur capturée s'il lit la
+   * variable d'état. La référence, elle, suit.
    */
   const noteRef = useRef(note);
   noteRef.current = note;
-  const noteEnBase = useRef(contexte.note ?? "");
+  /** Ce que le SERVEUR a confirmé — voir `MemoireDeSaisie`. */
+  const memoire = useRef(new MemoireDeSaisie(contexte.note ?? ""));
 
   const f = contexte.fiche;
 
@@ -82,6 +96,9 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
    * ailleurs, alors que la personne vient de corriger celui-ci.
    */
   const envoyer = useCallback(async (corps: Record<string, unknown>) => {
+    // Le jeton est pris AVANT la requête : c'est lui qui permettra d'écarter
+    // une réponse ancienne arrivée après une plus récente.
+    const jeton = corps.note !== undefined ? memoire.current.commencer() : 0;
     setEnCours(true);
     setErreur(null);
     try {
@@ -93,11 +110,19 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
       });
       const reponse = await res.json();
       if (!res.ok) {
+        // Un échec n'avance rien : la valeur reste non confirmée, donc le
+        // filet de sortie partira.
+        if (jeton) memoire.current.echec(jeton);
         setErreur(reponse.error ?? "Enregistrement impossible");
         if (reponse.cle) setRefus((r) => ({ ...r, [reponse.cle]: reponse.error }));
         return false;
       }
-      // Le serveur fait autorité : c'est SA lecture qui remplace l'affichage.
+      // Le serveur fait autorité : c'est SA lecture qui devient la référence.
+      if (jeton) {
+        const aJour = memoire.current.reussite(jeton, reponse.note ?? "");
+        // Réponse périmée : ni l'affichage ni l'état « enregistré » ne bougent.
+        if (!aJour) return false;
+      }
       onEnregistre({
         ...contexte,
         reglages: reponse.reglages ?? contexte.reglages,
@@ -106,6 +131,7 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
       setEnregistre(true);
       return true;
     } catch {
+      if (jeton) memoire.current.echec(jeton);
       setErreur("Enregistrement impossible");
       return false;
     } finally {
@@ -141,6 +167,19 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
    * ne doit jamais atteindre la base, et le message reste sous le champ. Vide :
    * envoyé, parce que c'est ainsi qu'on efface un réglage.
    */
+  /**
+   * Choisir dans une liste est une décision complète en un geste : on
+   * enregistre tout de suite, sans attendre un `blur` que le sélecteur natif
+   * mobile ne produit pas toujours. Pas de `onBlur` sur ce contrôle — deux
+   * déclencheurs pour une seule décision écriraient en double.
+   */
+  const choisir = (cle: string, valeur: string) => {
+    saisir(cle, valeur);
+    const enBase = contexte.reglages.find((r) => r.cle === cle)?.valeur ?? "";
+    if (valeur === enBase) return;
+    void envoyer({ reglages: { [cle]: valeur } });
+  };
+
   const quitterLeChamp = (cle: string) => {
     const valeur = brouillon[cle] ?? "";
     const enBase = contexte.reglages.find((r) => r.cle === cle)?.valeur ?? "";
@@ -149,9 +188,13 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
     void envoyer({ reglages: { [cle]: valeur } });
   };
 
+  /**
+   * Quitter le champ de note : on enregistre si la valeur diffère de ce que le
+   * serveur a confirmé. Rien n'est marqué comme su ici — seule la réponse le
+   * fera.
+   */
   const quitterLaNote = () => {
-    if (noteRef.current === noteEnBase.current) return;
-    noteEnBase.current = noteRef.current;
+    if (!memoire.current.aSauvegarder(noteRef.current)) return;
     void envoyer({ note: noteRef.current });
   };
 
@@ -168,10 +211,21 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onFermer]);
 
-  // Filet de sécurité : fermer sans quitter le champ de note enregistre quand
-  // même. Les réglages, eux, sont déjà partis au blur.
+  /**
+   * Filet de sortie, au démontage.
+   *
+   * Il part dès que la valeur saisie diffère de la valeur CONFIRMÉE — donc
+   * aussi quand un envoi est encore en vol, puisqu'un envoi parti n'est pas un
+   * envoi arrivé. C'est un doublon possible, et il est assumé : l'écriture est
+   * idempotente côté serveur, donc le coût maximal est une requête inutile,
+   * quand le coût de l'inverse est une note perdue.
+   *
+   * Les réglages, eux, sont déjà partis au blur et comparés à ce que le
+   * serveur a renvoyé dans `contexte.reglages` : même discipline, portée par
+   * l'état plutôt que par une référence.
+   */
   useEffect(() => () => {
-    if (noteRef.current !== noteEnBase.current) {
+    if (memoire.current.aSauvegarder(noteRef.current)) {
       const cible = contexte.exerciseInstanceId ?? "sans-appareil";
       // `keepalive` : la requête survit au démontage, et même à la fermeture
       // de l'onglet — c'est précisément le cas qu'on refuse de perdre.
@@ -264,8 +318,7 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
                       <select
                         id={`r-${r.cle}`}
                         value={brouillon[r.cle] ?? ""}
-                        onChange={(e) => { saisir(r.cle, e.target.value); }}
-                        onBlur={() => quitterLeChamp(r.cle)}
+                        onChange={(e) => choisir(r.cle, e.target.value)}
                         className="w-full h-12 rounded-xl border border-filet bg-carte px-3 text-encre"
                       >
                         <option value="">Non renseigné</option>
