@@ -8,6 +8,7 @@ import { FicheExecution } from "./FicheExecution";
 import { useContexteExecution } from "./useContexteExecution";
 import type { ExercicePrescrit } from "./types";
 import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
+import { classeDuMotif } from "./motif-progression";
 import { chargeAEnregistrer, consigneDeSaisie } from "@/lib/validators/exercise-instance";
 
 interface Props {
@@ -225,7 +226,12 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
             <span className="text-encre-2">{exercice.raisonSubstitution}</span>
           )}
           {exercice.messageProgression && (
-            <span className="text-gain font-semibold">{exercice.messageProgression}</span>
+            // La couleur suit la NATURE de la décision. Elle était « gain »
+            // pour toutes : « 1 série sur 3, on refait la séance entière »
+            // s'affichait donc en vert, comme un progrès.
+            <span className={classeDuMotif(exercice.motifProgression)}>
+              {exercice.messageProgression}
+            </span>
           )}
         </p>
       )}

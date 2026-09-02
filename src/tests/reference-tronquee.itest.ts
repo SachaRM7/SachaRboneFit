@@ -27,7 +27,7 @@ vi.mock("@/lib/supabase/auth-helper", () => ({ getAuthenticatedUserId: async () 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
 const { and, eq, asc } = await import("drizzle-orm");
-const { derniereSeriesPour, construireSeanceDuJour } = await import("@/services/plan-seance");
+const { derniereSeriesPour, construireSeanceDuJour, lirePlan } = await import("@/services/plan-seance");
 
 let salle = "";
 let exercice = "";
@@ -206,6 +206,78 @@ describe("bout en bout : la charge suggérée de la séance suivante", () => {
     await seance({ userId: SACHA, date: "2026-05-15", faites: 1, demandees: null, reps: 8, charge: 80 });
     const ligne = await planDuJour("2026-05-22");
     expect(ligne.chargeSuggeree).toBe(82.5);
+  });
+});
+
+/**
+ * Le motif n'est pas persisté — aucune migration — donc il est retrouvé à la
+ * lecture, puis confronté au message persisté. On ne le retient que si le rejeu
+ * reproduit ce message au caractère près : même message, même branche, même
+ * motif. Sinon on rend `null`, et l'écran retombe sur un ton neutre plutôt que
+ * sur une couleur fausse.
+ */
+describe("le motif survit à la persistance", () => {
+  async function motifDuPlan(date: string) {
+    const [gabarit] = await db.insert(schema.seanceTemplates).values({
+      blocId: bloc, lettre: "A", nom: `M ${date}`, ordreDansSemaine: 1,
+    }).returning();
+    await db.insert(schema.exerciseInTemplate).values({
+      seanceTemplateId: gabarit!.id, exerciseInstanceId: machine, ordre: 1,
+      seriesCibles: 3, fourchetteRepsMin: 6, fourchetteRepsMax: 8,
+    });
+    const { seance: creee } = await construireSeanceDuJour({
+      userId: SACHA, seanceTemplateId: gabarit!.id, gymId: salle, date,
+    });
+    const plan = await lirePlan(SACHA, creee.id);
+    return plan!.items.find((i) => i.id === machine)!;
+  }
+
+  it("une montée est relue comme une montée", async () => {
+    await db.delete(schema.setLogs).where(eq(schema.setLogs.exerciseInstanceId, machine));
+    await seance({ userId: SACHA, date: "2026-11-01", faites: 3, demandees: 3, reps: 8, charge: 80 });
+    const item = await motifDuPlan("2026-11-08");
+    expect(item.motifProgression).toBe("montee");
+    expect(item.messageProgression).toContain("Fourchette complétée");
+  });
+
+  it("une référence tronquée est relue comme telle, jamais comme une montée", async () => {
+    // Le défaut visible : ce message s'affichait en vert, comme un progrès.
+    await db.delete(schema.setLogs).where(eq(schema.setLogs.exerciseInstanceId, machine));
+    await seance({ userId: SACHA, date: "2026-11-15", faites: 1, demandees: 3, reps: 8, charge: 80 });
+    const item = await motifDuPlan("2026-11-22");
+    expect(item.motifProgression).toBe("reference_tronquee");
+  });
+
+  it("sans message, aucun motif", async () => {
+    await db.delete(schema.setLogs).where(eq(schema.setLogs.exerciseInstanceId, machine));
+    await seance({ userId: SACHA, date: "2026-12-01", faites: 3, demandees: 3, reps: 7, charge: 80 });
+    const item = await motifDuPlan("2026-12-08");
+    expect(item.messageProgression).toBeNull();
+    expect(item.motifProgression).toBeNull();
+  });
+
+  it("si l'historique a changé depuis le plan, le motif se tait au lieu de mentir", async () => {
+    await db.delete(schema.setLogs).where(eq(schema.setLogs.exerciseInstanceId, machine));
+    await seance({ userId: SACHA, date: "2027-01-01", faites: 3, demandees: 3, reps: 8, charge: 80 });
+    const [gabarit] = await db.insert(schema.seanceTemplates).values({
+      blocId: bloc, lettre: "A", nom: "M divergence", ordreDansSemaine: 1,
+    }).returning();
+    await db.insert(schema.exerciseInTemplate).values({
+      seanceTemplateId: gabarit!.id, exerciseInstanceId: machine, ordre: 1,
+      seriesCibles: 3, fourchetteRepsMin: 6, fourchetteRepsMax: 8,
+    });
+    const { seance: creee } = await construireSeanceDuJour({
+      userId: SACHA, seanceTemplateId: gabarit!.id, gymId: salle, date: "2027-01-08",
+    });
+
+    // Une séance plus récente arrive APRÈS la construction du plan : le rejeu
+    // ne reproduira plus le message persisté.
+    await seance({ userId: SACHA, date: "2027-01-09", faites: 1, demandees: 3, reps: 8, charge: 95 });
+
+    const plan = await lirePlan(SACHA, creee.id);
+    const item = plan!.items.find((i) => i.id === machine)!;
+    expect(item.messageProgression).toContain("Fourchette complétée");
+    expect(item.motifProgression).toBeNull();
   });
 });
 

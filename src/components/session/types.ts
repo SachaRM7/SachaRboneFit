@@ -1,3 +1,4 @@
+import type { MotifProgression } from "@/lib/engine/double-progression";
 /**
  * Description d'un exercice tel qu'il est prescrit pour la séance du jour.
  *
@@ -35,6 +36,8 @@ export interface ExercicePrescrit {
   chargeSuggeree?: number | null;
   repsSuggerees?: number[] | null;
   messageProgression?: string | null;
+  /** La nature de `messageProgression`, pour la peindre sans la relire. */
+  motifProgression?: MotifProgression | null;
   raisonSubstitution?: string | null;
   historique?: { charge: number; reps: number }[];
 }

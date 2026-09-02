@@ -102,6 +102,9 @@ export async function GET(
           chargeSuggeree: suggestion.charge,
           repsSuggerees: suggestion.reps,
           messageProgression: suggestion.messageProgression,
+          // Ce chemin rend la suggestion directement, sans passer par la base :
+          // le motif y voyage tel quel, sans avoir à être redérivé.
+          motifProgression: suggestion.motifProgression,
           historique: (derniere?.sets ?? []).map((s) => ({ charge: s.charge, reps: s.reps })),
         };
       }),

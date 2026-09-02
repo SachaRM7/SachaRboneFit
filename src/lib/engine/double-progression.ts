@@ -36,6 +36,34 @@ export interface ExerciseTarget {
   rpeCible?: number | null;
 }
 
+/**
+ * La NATURE de la décision, à côté de la phrase qui la raconte.
+ *
+ * `messageProgression` mélangeait six natures dans un seul texte : une vraie
+ * montée de charge, une montée sur effort déjà maximal, une consolidation, une
+ * référence tronquée, une butée d'appareil, des incréments non renseignés.
+ * L'écran les peignait toutes en « gain » — le message de la référence tronquée,
+ * « 1 série sur 3, on refait la séance entière », s'affichait donc en vert et en
+ * gras comme un progrès, et le bandeau de séance les comptait toutes comme des
+ * « charges en hausse ».
+ *
+ * Ce motif DÉCRIT une décision déjà prise. Il n'en prend aucune : aucune
+ * condition, aucune charge, aucune répétition ne dépend de lui. Le retirer du
+ * raisonnement ne changerait rien à ce que le moteur prescrit — et un test le
+ * vérifie.
+ *
+ * `null` quand il n'y a rien à raconter : pas d'historique, ou une simple
+ * répétition de plus. Ce sont exactement les deux cas où `messageProgression`
+ * vaut déjà `null`.
+ */
+export type MotifProgression =
+  | "montee"
+  | "montee_effort_maximal"
+  | "consolidation_effort"
+  | "reference_tronquee"
+  | "butee_materiel"
+  | "increments_inconnus";
+
 export interface SuggestedSets {
   /**
    * `null` quand l'appareil n'est pas assez décrit pour qu'une charge suivante
@@ -45,8 +73,17 @@ export interface SuggestedSets {
   reps: number[];
   fourchetteCompletee: boolean;
   messageProgression: string | null;
-  /** Vrai quand on répète la séance précédente au lieu d'ajouter du travail. */
+  /**
+   * Vrai quand on répète la séance précédente au lieu d'ajouter du travail.
+   *
+   * Recouvre `consolidation_effort` et `reference_tronquee` — deux motifs
+   * distincts pour une même conséquence. Le champ n'a aujourd'hui aucun
+   * lecteur ; il est conservé tel quel pour compatibilité, et `motifProgression`
+   * est ce qu'il faut lire pour distinguer les deux cas.
+   */
   consolidation: boolean;
+  /** La nature de la décision. Voir `MotifProgression`. */
+  motifProgression: MotifProgression | null;
 }
 
 /**
@@ -102,6 +139,7 @@ export function computeNextSets(
       fourchetteCompletee: false,
       messageProgression: null,
       consolidation: false,
+      motifProgression: null,
     };
   }
 
@@ -135,6 +173,7 @@ export function computeNextSets(
           "Fourchette complétée — les sauts de charge de cet appareil ne sont pas renseignés, "
           + "à toi de choisir le cran suivant",
         consolidation: false,
+        motifProgression: "increments_inconnus",
       };
     }
 
@@ -150,6 +189,7 @@ export function computeNextSets(
           ? "Plus aucune assistance à retirer — l'exercice se fait au poids du corps"
           : `Fourchette complétée, mais l'appareil est en butée à ${suite.valeur} — il faudra en changer`,
         consolidation: false,
+        motifProgression: "butee_materiel",
       };
     }
 
@@ -165,6 +205,9 @@ export function computeNextSets(
           ? `Fourchette complétée à RPE ${moyenne!.toFixed(1)} — +${pas} kg, ça va piquer`
           : `Fourchette complétée — +${pas} kg → ${suite.valeur} kg`,
       consolidation: false,
+      // L'assistance est une montée comme une autre : progresser, c'est avoir
+      // besoin de moins d'aide.
+      motifProgression: effortMaximal ? "montee_effort_maximal" : "montee",
     };
   }
 
@@ -176,6 +219,7 @@ export function computeNextSets(
       fourchetteCompletee: false,
       messageProgression: `RPE ${moyenne.toFixed(1)} la dernière fois — on refait la même, sans ajouter`,
       consolidation: true,
+      motifProgression: "consolidation_effort",
     };
   }
 
@@ -198,6 +242,7 @@ export function computeNextSets(
         `${sets.length} série${sets.length > 1 ? "s" : ""} sur ${attendues} la dernière fois — `
         + "on refait la séance entière avant d'ajouter de la charge",
       consolidation: true,
+      motifProgression: "reference_tronquee",
     };
   }
 
@@ -213,5 +258,6 @@ export function computeNextSets(
     fourchetteCompletee: false,
     messageProgression: null,
     consolidation: false,
+    motifProgression: null,
   };
 }
