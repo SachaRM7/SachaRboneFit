@@ -44,6 +44,46 @@ export class InstanceIntrouvable extends Error {
   }
 }
 
+/**
+ * Erreur métier : cet appareil ne sert pas à cet exercice.
+ *
+ * Les deux identifiants arrivent séparément du client, et rien ne garantit
+ * qu'ils vont ensemble. Assemblés sans contrôle, ils produiraient la fiche
+ * technique d'un mouvement à côté des réglages d'une machine qui en fait un
+ * autre — le pire résultat possible pour un écran dont tout l'objet est de dire
+ * comment exécuter : des consignes justes, appliquées au mauvais appareil.
+ *
+ * Le couple n'est donc jamais cru sur parole. Il est vérifié contre la base.
+ */
+export class IncoherenceExerciceAppareil extends Error {
+  constructor() {
+    super("Cet appareil ne correspond pas à cet exercice");
+    this.name = "IncoherenceExerciceAppareil";
+  }
+}
+
+/**
+ * L'appareil existe, il est actif, et il sert bien à cet exercice.
+ *
+ * Aucune restriction de compte au-delà : le parc est partagé entre les comptes
+ * d'un même lieu — c'est l'invariant posé dans `db/archivage.ts` et vérifié par
+ * `deux-comptes-meme-salle`. Chacun a le droit de mémoriser SES réglages sur
+ * une machine décrite par quelqu'un d'autre ; ce qu'il écrit reste scopé à son
+ * `user_id`, et la définition de la machine, elle, n'est pas modifiée ici.
+ */
+async function appareilDeLExercice(exerciseInstanceId: string, exerciseId: string) {
+  const instance = await db.query.exerciseInstances.findFirst({
+    where: and(
+      eq(exerciseInstances.id, exerciseInstanceId),
+      isNull(exerciseInstances.archiveLe),
+    ),
+    columns: { id: true, exerciseId: true },
+  });
+  if (!instance) throw new InstanceIntrouvable();
+  if (instance.exerciseId !== exerciseId) throw new IncoherenceExerciceAppareil();
+  return instance;
+}
+
 function definitionsDe(lignes: typeof instanceReglages.$inferSelect[]): DefinitionReglage[] {
   return lignes.map((r) => ({
     cle: r.cle,
@@ -76,6 +116,10 @@ export async function contexteExecution(entrees: {
   tempoProgramme?: string | null;
 }): Promise<ContexteExecution> {
   const { userId, exerciseId, exerciseInstanceId = null } = entrees;
+
+  // Le couple d'abord : sans lui, on assemblerait la fiche d'un mouvement aux
+  // réglages d'une machine qui en fait un autre.
+  if (exerciseInstanceId) await appareilDeLExercice(exerciseInstanceId, exerciseId);
 
   const exercice = await db.query.exercises.findFirst({
     where: eq(exercises.id, exerciseId),
@@ -154,17 +198,17 @@ export async function contexteExecution(entrees: {
 export async function enregistrerReglages(entrees: {
   userId: string;
   exerciseInstanceId: string;
+  /**
+   * Obligatoire : c'est lui qui permet de vérifier que l'appareil visé sert
+   * bien au mouvement affiché. Sans lui, on écrirait des crans de siège sur
+   * une machine choisie par le client.
+   */
+  exerciseId: string;
   valeurs: Record<string, string>;
 }): Promise<ReglageAffiche[]> {
-  const { userId, exerciseInstanceId, valeurs } = entrees;
+  const { userId, exerciseInstanceId, exerciseId, valeurs } = entrees;
 
-  const instance = await db.query.exerciseInstances.findFirst({
-    where: and(
-      eq(exerciseInstances.id, exerciseInstanceId),
-      isNull(exerciseInstances.archiveLe),
-    ),
-  });
-  if (!instance) throw new InstanceIntrouvable();
+  await appareilDeLExercice(exerciseInstanceId, exerciseId);
 
   const definitions = await db.query.instanceReglages.findMany({
     where: eq(instanceReglages.exerciseInstanceId, exerciseInstanceId),
@@ -238,6 +282,7 @@ export async function enregistrerReglages(entrees: {
 export async function ecrireNote(entrees: {
   userId: string;
   exerciseInstanceId?: string | null;
+  /** Toujours transmis : il sert de portée sans appareil, ET de contrôle avec. */
   exerciseId?: string | null;
   texte: string;
 }): Promise<string | null> {
@@ -245,6 +290,13 @@ export async function ecrireNote(entrees: {
   const instanceId = entrees.exerciseInstanceId ?? null;
   const exerciceId = instanceId ? null : (entrees.exerciseId ?? null);
   if (!instanceId && !exerciceId) throw new InstanceIntrouvable();
+
+  // Une note rangée sur un appareil qui ne fait pas cet exercice serait
+  // retrouvée au mauvais moment, devant la mauvaise machine.
+  if (instanceId) {
+    if (!entrees.exerciseId) throw new IncoherenceExerciceAppareil();
+    await appareilDeLExercice(instanceId, entrees.exerciseId);
+  }
 
   const portee = instanceId
     ? eq(notesExercice.exerciseInstanceId, instanceId)

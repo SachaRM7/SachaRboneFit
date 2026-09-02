@@ -25,6 +25,18 @@ interface Props {
  *
  * Aucune image n'est créée : ce sont les fichiers du dépôt, appliqués en
  * masque CSS comme partout ailleurs, donc peints par le thème courant.
+ *
+ * FERMETURE — deux gestes, et pas trois. La croix, et Échap.
+ *
+ * Pas de fermeture au clic sur le fond, parce qu'il n'y a pas de fond : cette
+ * surface est opaque et occupe tout l'écran, contrairement à la feuille de
+ * détail qui laisse voir la séance derrière elle. Le seul « fond » disponible
+ * serait la zone qui entoure l'illustration — c'est-à-dire l'endroit où le
+ * pouce se pose pour tenir le téléphone, et où l'on appuie en cherchant à
+ * agrandir. Y mettre une fermeture produirait des sorties accidentelles au
+ * milieu d'un geste d'observation.
+ *
+ * La croix mesure 44 px et se trouve dans le coin qu'atteint le pouce.
  */
 export function DemonstrationMouvement({ slug, nom, onFermer }: Props) {
   const [phase, setPhase] = useState<number | null>(null);

@@ -22,7 +22,8 @@ const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
 const { and, eq } = await import("drizzle-orm");
 const {
-  contexteExecution, ecrireNote, enregistrerReglages, ReglageRefuse,
+  contexteExecution, ecrireNote, enregistrerReglages,
+  IncoherenceExerciceAppareil, InstanceIntrouvable, ReglageRefuse,
 } = await import("@/services/execution");
 
 let salle = "";
@@ -155,10 +156,10 @@ describe("les réglages disponibles décrivent l'appareil", () => {
 describe("les valeurs appartiennent au couple personne × appareil", () => {
   beforeAll(async () => {
     await enregistrerReglages({
-      userId: SACHA, exerciseInstanceId: matrixA, valeurs: { siege: "6", rouleau: "3" },
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, valeurs: { siege: "6", rouleau: "3" },
     });
     await enregistrerReglages({
-      userId: MARIA, exerciseInstanceId: matrixA, valeurs: { siege: "3", rouleau: "2" },
+      userId: MARIA, exerciseInstanceId: matrixA, exerciseId: legExtension, valeurs: { siege: "3", rouleau: "2" },
     });
   });
 
@@ -189,7 +190,7 @@ describe("les valeurs appartiennent au couple personne × appareil", () => {
 
   it("le modifier remplace, il n'empile pas", async () => {
     await enregistrerReglages({
-      userId: SACHA, exerciseInstanceId: matrixA, valeurs: { siege: "7" },
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, valeurs: { siege: "7" },
     });
     const lignes = await db.query.reglagesPersonnels.findMany({
       where: and(
@@ -207,12 +208,12 @@ describe("les valeurs appartiennent au couple personne × appareil", () => {
 
   it("une valeur vide efface, et remet « non renseigné »", async () => {
     await enregistrerReglages({
-      userId: SACHA, exerciseInstanceId: matrixA, valeurs: { rouleau: "" },
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, valeurs: { rouleau: "" },
     });
     const r = await lire(SACHA, matrixA);
     expect(r.reglages.find((x) => x.cle === "rouleau")?.valeur).toBeNull();
     await enregistrerReglages({
-      userId: SACHA, exerciseInstanceId: matrixA, valeurs: { rouleau: "3" },
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, valeurs: { rouleau: "3" },
     });
   });
 });
@@ -220,7 +221,7 @@ describe("les valeurs appartiennent au couple personne × appareil", () => {
 describe("une valeur hors plage est refusée, pas corrigée", () => {
   it("le siège de la n°2 s'arrête à 5", async () => {
     await expect(
-      enregistrerReglages({ userId: SACHA, exerciseInstanceId: matrixB, valeurs: { siege: "8" } }),
+      enregistrerReglages({ userId: SACHA, exerciseInstanceId: matrixB, exerciseId: legExtension, valeurs: { siege: "8" } }),
     ).rejects.toThrow(ReglageRefuse);
   });
 
@@ -234,7 +235,7 @@ describe("une valeur hors plage est refusée, pas corrigée", () => {
     // rouvrant l'écran on ne saurait plus ce qui a été pris.
     await expect(
       enregistrerReglages({
-        userId: MARIA, exerciseInstanceId: matrixA, valeurs: { siege: "5", rouleau: "99" },
+        userId: MARIA, exerciseInstanceId: matrixA, exerciseId: legExtension, valeurs: { siege: "5", rouleau: "99" },
       }),
     ).rejects.toThrow(ReglageRefuse);
     const r = await lire(MARIA, matrixA);
@@ -244,7 +245,7 @@ describe("une valeur hors plage est refusée, pas corrigée", () => {
   it("une clé que la machine ne décrit pas est refusée", async () => {
     await expect(
       enregistrerReglages({
-        userId: SACHA, exerciseInstanceId: matrixA, valeurs: { safety_bars: "3" },
+        userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, valeurs: { safety_bars: "3" },
       }),
     ).rejects.toThrow(ReglageRefuse);
   });
@@ -252,7 +253,7 @@ describe("une valeur hors plage est refusée, pas corrigée", () => {
 
 describe("la note personnelle", () => {
   it("se range sur l'appareil, et reste privée", async () => {
-    await ecrireNote({ userId: SACHA, exerciseInstanceId: matrixA, texte: "siège 6 parfait" });
+    await ecrireNote({ userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte: "siège 6 parfait" });
     expect((await lire(SACHA, matrixA)).note).toBe("siège 6 parfait");
     expect((await lire(MARIA, matrixA)).note).toBeNull();
     expect((await lire(SACHA, matrixB)).note).toBeNull();
@@ -264,7 +265,7 @@ describe("la note personnelle", () => {
   });
 
   it("se réécrit sans s'empiler", async () => {
-    await ecrireNote({ userId: SACHA, exerciseInstanceId: matrixA, texte: "poignée neutre mieux" });
+    await ecrireNote({ userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte: "poignée neutre mieux" });
     const lignes = await db.query.notesExercice.findMany({
       where: and(
         eq(schema.notesExercice.userId, SACHA),
@@ -276,9 +277,9 @@ describe("la note personnelle", () => {
   });
 
   it("un texte vide l'efface", async () => {
-    await ecrireNote({ userId: SACHA, exerciseInstanceId: matrixA, texte: "   " });
+    await ecrireNote({ userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte: "   " });
     expect((await lire(SACHA, matrixA)).note).toBeNull();
-    await ecrireNote({ userId: SACHA, exerciseInstanceId: matrixA, texte: "siège 6 parfait" });
+    await ecrireNote({ userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte: "siège 6 parfait" });
   });
 
   it("n'entre dans aucune donnée du moteur", async () => {
@@ -297,6 +298,97 @@ describe("la note personnelle", () => {
         await db.$count(schema.setLogs, eq(schema.setLogs.exerciseInstanceId, i.id)),
       ).toBe(0);
     }
+  });
+});
+
+/**
+ * Le couple exercice × appareil n'est jamais cru sur parole.
+ *
+ * Les deux identifiants arrivent séparément du client. Assemblés sans
+ * contrôle, ils produiraient la fiche technique d'un mouvement à côté des
+ * réglages d'une machine qui en fait un autre : des consignes justes,
+ * appliquées au mauvais appareil. C'est le pire résultat possible pour un
+ * écran dont tout l'objet est de dire comment exécuter.
+ */
+describe("l'appareil doit correspondre à l'exercice", () => {
+  it("refuse la lecture d'un couple incohérent", async () => {
+    // matrixA est une Leg Extension ; on prétend y faire des pompes.
+    await expect(
+      contexteExecution({ userId: SACHA, exerciseId: pompes, exerciseInstanceId: matrixA }),
+    ).rejects.toThrow(IncoherenceExerciceAppareil);
+  });
+
+  it("refuse l'écriture d'un réglage sur un couple incohérent", async () => {
+    await expect(
+      enregistrerReglages({
+        userId: SACHA, exerciseInstanceId: matrixA, exerciseId: pompes,
+        valeurs: { siege: "5" },
+      }),
+    ).rejects.toThrow(IncoherenceExerciceAppareil);
+  });
+
+  it("refuse une note rangée sur le mauvais appareil", async () => {
+    await expect(
+      ecrireNote({
+        userId: SACHA, exerciseInstanceId: matrixA, exerciseId: pompes, texte: "ailleurs",
+      }),
+    ).rejects.toThrow(IncoherenceExerciceAppareil);
+  });
+
+  it("refuse un appareil qui n'existe pas", async () => {
+    await expect(
+      contexteExecution({
+        userId: SACHA, exerciseId: legExtension,
+        exerciseInstanceId: "00000000-0000-0000-0000-000000000000",
+      }),
+    ).rejects.toThrow(InstanceIntrouvable);
+  });
+
+  it("refuse un appareil archivé", async () => {
+    const [morte] = await db.insert(schema.exerciseInstances).values({
+      userId: SACHA, exerciseId: legExtension, gymId: salle,
+      machineNom: `Leg Extension retirée ${SACHA.slice(0, 6)}`,
+      conventionCharge: "pile_affichee", incrementsPossibles: [5],
+      archiveLe: new Date(),
+    }).returning();
+    await expect(
+      contexteExecution({
+        userId: SACHA, exerciseId: legExtension, exerciseInstanceId: morte!.id,
+      }),
+    ).rejects.toThrow(InstanceIntrouvable);
+  });
+
+  it("et rien n'a été écrit au passage", async () => {
+    const r = await lire(SACHA, matrixA);
+    // Les valeurs légitimes posées plus haut sont intactes.
+    expect(r.reglages.find((x) => x.cle === "siege")?.valeur).toBe("7");
+    expect(r.note).toBe("siège 6 parfait");
+  });
+});
+
+/**
+ * Le parc est partagé : chacun mémorise SES réglages sur la machine d'un autre.
+ */
+describe("les règles d'accès au parc partagé sont conservées", () => {
+  it("Maria écrit sur une machine décrite par Sacha, sans y toucher", async () => {
+    const avant = await db.query.instanceReglages.findMany({
+      where: eq(schema.instanceReglages.exerciseInstanceId, matrixB),
+    });
+    await enregistrerReglages({
+      userId: MARIA, exerciseInstanceId: matrixB, exerciseId: legExtension,
+      valeurs: { siege: "2" },
+    });
+    // Sa valeur est là…
+    expect((await lire(MARIA, matrixB)).reglages[0]!.valeur).toBe("2");
+    // …celle de Sacha n'a pas bougé…
+    expect((await lire(SACHA, matrixB)).reglages[0]!.valeur).toBeNull();
+    // …et la DÉFINITION de la machine est inchangée : écrire ses réglages
+    // n'est pas modifier l'inventaire du lieu.
+    const apres = await db.query.instanceReglages.findMany({
+      where: eq(schema.instanceReglages.exerciseInstanceId, matrixB),
+    });
+    expect(apres).toHaveLength(avant.length);
+    expect(apres[0]!.max).toBe(5);
   });
 });
 

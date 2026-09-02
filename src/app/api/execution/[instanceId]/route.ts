@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import {
   contexteExecution, ecrireNote, enregistrerReglages,
-  InstanceIntrouvable, ReglageRefuse,
+  IncoherenceExerciceAppareil, InstanceIntrouvable, ReglageRefuse,
 } from "@/services/execution";
 
 export const runtime = "nodejs";
@@ -22,8 +22,12 @@ const majSchema = z.object({
   /** Clé → valeur. Une chaîne vide efface le réglage. */
   reglages: z.record(z.string(), z.string()).optional(),
   note: z.string().max(280).optional(),
-  /** Pour les exercices sans appareil, la note se range sur le mouvement. */
-  exerciseId: z.string().uuid().optional(),
+  /**
+   * Toujours requis. Sans appareil, il porte la note ; avec, il sert à vérifier
+   * que la machine visée fait bien cet exercice — le couple n'est jamais cru
+   * sur parole.
+   */
+  exerciseId: z.string().uuid(),
 });
 
 export async function GET(
@@ -53,6 +57,12 @@ export async function GET(
     });
     return NextResponse.json(contexte);
   } catch (error) {
+    if (error instanceof IncoherenceExerciceAppareil) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    if (error instanceof InstanceIntrouvable) {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
     console.error("[execution GET] error:", error);
     return NextResponse.json({ error: "Lecture impossible" }, { status: 500 });
   }
@@ -87,7 +97,9 @@ export async function PATCH(
     let reglages = undefined;
     if (parsed.data.reglages && !sansAppareil) {
       reglages = await enregistrerReglages({
-        userId, exerciseInstanceId: instanceId, valeurs: parsed.data.reglages,
+        userId, exerciseInstanceId: instanceId,
+        exerciseId: parsed.data.exerciseId,
+        valeurs: parsed.data.reglages,
       });
     }
 
@@ -96,7 +108,7 @@ export async function PATCH(
       note = await ecrireNote({
         userId,
         exerciseInstanceId: sansAppareil ? null : instanceId,
-        exerciseId: parsed.data.exerciseId ?? null,
+        exerciseId: parsed.data.exerciseId,
         texte: parsed.data.note,
       });
     }
@@ -110,6 +122,11 @@ export async function PATCH(
     }
     if (error instanceof InstanceIntrouvable) {
       return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    // 409 : les deux identifiants existent, mais ne vont pas ensemble. Ce
+    // n'est ni une donnée invalide (400) ni un objet absent (404).
+    if (error instanceof IncoherenceExerciceAppareil) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     console.error("[execution PATCH] error:", error);
     return NextResponse.json({ error: "Enregistrement impossible" }, { status: 500 });
