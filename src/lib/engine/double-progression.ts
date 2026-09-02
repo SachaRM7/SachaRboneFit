@@ -2,6 +2,21 @@ import { prochaineCharge, type ConfigurationCharge } from "./charges";
 
 export interface LastSessionSets {
   sets: Array<{ numero: number; reps: number; charge: number; rpe?: number | null }>;
+  /**
+   * Combien de séries la séance de référence demandait réellement.
+   *
+   * C'est `session_plan_items.series_cibles` de CETTE séance-là, donc le nombre
+   * APRÈS les adaptations déterministes de volume. Une réduction décidée par le
+   * moteur est une prescription légitime : qui l'a respectée a fait ce qu'on lui
+   * demandait, et lui compter comme un manque une série que le moteur a lui-même
+   * retirée serait faux. Seul l'écart avec ce qui a été RÉELLEMENT demandé fait
+   * une référence tronquée.
+   *
+   * `null` ou absent quand on ne sait pas — une séance ouverte sans plan calculé
+   * n'a aucune ligne de plan. On ne devine pas : le comportement historique
+   * s'applique alors tel quel.
+   */
+  seriesAttendues?: number | null;
 }
 
 export interface ExerciseTarget {
@@ -47,6 +62,21 @@ function rpeMoyen(sets: LastSessionSets["sets"]): number | null {
 }
 
 /**
+ * La référence porte-t-elle bien toutes les séries qu'on lui avait demandées ?
+ *
+ * Le défaut corrigé tenait à ce que `every` porte sur les séries PRÉSENTES : une
+ * seule série au haut de fourchette suffisait à conclure « fourchette complétée »
+ * et à monter la charge, alors que deux séries n'avaient pas eu lieu.
+ *
+ * Sans nombre attendu, on répond vrai : ne rien savoir ne doit pas bloquer une
+ * progression légitime. C'est l'échec prudent, du côté du comportement existant.
+ */
+function referenceComplete(sets: LastSessionSets["sets"], attendues: number | null | undefined): boolean {
+  if (typeof attendues !== "number" || !Number.isFinite(attendues) || attendues <= 0) return true;
+  return sets.length >= attendues;
+}
+
+/**
  * Double progression : on remplit la fourchette de répétitions, puis on ajoute
  * de la charge et on redescend en bas de fourchette.
  *
@@ -79,8 +109,12 @@ export function computeNextSets(
   const maxReps = target.fourchetteRepsMax;
   const moyenne = rpeMoyen(sets);
   const toutesAuMax = sets.every((s) => s.reps >= maxReps);
+  const complete = referenceComplete(sets, lastSession.seriesAttendues);
 
-  if (toutesAuMax) {
+  // La montée de charge exige les DEUX : toutes les séries attendues faites, et
+  // toutes au haut de fourchette. `toutesAuMax` seul se satisfaisait d'un
+  // tableau plus court.
+  if (toutesAuMax && complete) {
     const suite = prochaineCharge(target.charge, sets[0]!.charge);
     const effortMaximal = moyenne !== null && moyenne >= RPE_LIMITE;
     const assistance = target.charge.natureCharge === "assistance";
@@ -141,6 +175,28 @@ export function computeNextSets(
       reps: sets.map((s) => s.reps),
       fourchetteCompletee: false,
       messageProgression: `RPE ${moyenne.toFixed(1)} la dernière fois — on refait la même, sans ajouter`,
+      consolidation: true,
+    };
+  }
+
+  // Toutes les séries présentes étaient au maximum, mais il en manquait.
+  //
+  // Ce cas est placé APRÈS le RPE : une référence menée à l'échec se consolide
+  // pour cette raison-là, et l'annoncer deux fois ne dirait rien de plus.
+  //
+  // On redemande la séance telle qu'elle avait été prescrite — même charge,
+  // toutes les séries — parce que c'est ce qui reste à faire. Sans message,
+  // l'écran afficherait deux fois de suite la même consigne sans dire pourquoi,
+  // et ça se lit comme une panne.
+  if (toutesAuMax && !complete) {
+    const attendues = lastSession.seriesAttendues!;
+    return {
+      charge: sets[0]!.charge,
+      reps: Array.from({ length: target.seriesCibles }, () => maxReps),
+      fourchetteCompletee: false,
+      messageProgression:
+        `${sets.length} série${sets.length > 1 ? "s" : ""} sur ${attendues} la dernière fois — `
+        + "on refait la séance entière avant d'ajouter de la charge",
       consolidation: true,
     };
   }

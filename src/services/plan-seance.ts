@@ -3,7 +3,7 @@ import {
   contraintes, dailyStates, exerciseInTemplate, exerciseInstances, exercises,
   programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
-import { and, asc, desc, eq, isNull, or, gte } from "drizzle-orm";
+import { and, asc, desc, eq, getTableName, isNull, or, gte, sql } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { contraintesActives } from "./contraintes";
 import { musclesSousContrainte } from "@/lib/engine/contraintes";
@@ -129,6 +129,32 @@ export async function chargerParc(userId: string): Promise<InstanceResolvable[]>
   }));
 }
 
+/**
+ * Combien de séries la séance de référence demandait pour CETTE machine.
+ *
+ * Sous-requête scalaire, et non jointure : rien ne garantit l'unicité du couple
+ * (session_log_id, exercise_instance_id) dans `session_plan_items`, et une
+ * jointure y dupliquerait chaque série de la référence — faussant précisément le
+ * comptage que ce chantier corrige. Un scalaire ne peut pas multiplier de lignes.
+ *
+ * `series_cibles` et non `series_prevues_avant_ajustement` : c'est le nombre
+ * APRÈS les adaptations déterministes de volume, donc ce qui a réellement été
+ * demandé ce jour-là.
+ *
+ * `order by ordre` rend le choix déterministe si plusieurs lignes existaient.
+ */
+function seriesAttenduesDeLaReference() {
+  const P = sql.identifier("plan_de_la_reference");
+  const col = (c: { name: string }) => sql.identifier(c.name);
+  return sql<number | null>`(
+    select ${P}.${col(sessionPlanItems.seriesCibles)}
+      from ${sql.identifier(getTableName(sessionPlanItems))} ${P}
+     where ${P}.${col(sessionPlanItems.sessionLogId)} = ${setLogs.sessionLogId}
+       and ${P}.${col(sessionPlanItems.exerciseInstanceId)} = ${setLogs.exerciseInstanceId}
+     order by ${P}.${col(sessionPlanItems.ordre)}
+     limit 1)`;
+}
+
 /** Derniere seance realisee sur cette instance, pour la double progression. */
 /**
  * Dernières séries réalisées sur une machine.
@@ -149,6 +175,7 @@ export async function derniereSeriesPour(userId: string, exerciseInstanceId: str
       // séance en cours avec : les deux côtés ne mesureraient pas la même chose.
       rpe: setLogs.rpeEffectif,
       date: sessionLogs.date,
+      seriesAttendues: seriesAttenduesDeLaReference(),
     })
     .from(setLogs)
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
@@ -158,10 +185,12 @@ export async function derniereSeriesPour(userId: string, exerciseInstanceId: str
   if (lignes.length === 0) return null;
 
   const derniereSession = lignes[0]!.sessionLogId;
+  const deLaReference = lignes.filter((l) => l.sessionLogId === derniereSession);
   return {
-    sets: lignes
-      .filter((l) => l.sessionLogId === derniereSession)
-      .map((l) => ({ numero: l.numero, reps: l.reps, charge: l.charge, rpe: l.rpe })),
+    sets: deLaReference.map((l) => ({ numero: l.numero, reps: l.reps, charge: l.charge, rpe: l.rpe })),
+    // Identique sur toutes les lignes de la référence : la sous-requête ne
+    // dépend que de la séance et de la machine.
+    seriesAttendues: deLaReference[0]!.seriesAttendues ?? null,
   };
 }
 
