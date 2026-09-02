@@ -171,3 +171,100 @@ describe("le RPE entre dans la décision", () => {
     expect(auSeuil(9.5).consolidation).toBe(true);
   });
 });
+
+/**
+ * Une référence n'est comparable que si elle porte les séries qu'on lui avait
+ * demandées.
+ *
+ * Le défaut corrigé : `sets.every(...)` portait sur les séries PRÉSENTES. Une
+ * seule série au haut de fourchette — les deux autres jamais faites — concluait
+ * « fourchette complétée » et montait la charge. Reproductible sans base de
+ * données, et aucun des treize cas ci-dessus ne le couvrait : ils utilisent tous
+ * exactement trois séries pour une cible de trois.
+ *
+ * `seriesAttendues` est `session_plan_items.series_cibles` de la séance de
+ * référence, donc le nombre APRÈS les adaptations déterministes de volume. Une
+ * réduction décidée par le moteur est une prescription légitime : qui l'a
+ * respectée a fait ce qu'on lui demandait.
+ */
+describe("référence tronquée", () => {
+  const auMax = (n: number, rpe?: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      numero: i + 1, reps: 8, charge: 80, ...(rpe === undefined ? {} : { rpe }),
+    }));
+
+  it("une seule série sur trois attendues : aucune montée de charge", () => {
+    const r = computeNextSets({ sets: auMax(1), seriesAttendues: 3 }, cible);
+    expect(r.fourchetteCompletee).toBe(false);
+    expect(r.charge).toBe(80);
+    expect(r.consolidation).toBe(true);
+  });
+
+  it("les trois séries attendues : la montée a lieu, comme avant", () => {
+    const r = computeNextSets({ sets: auMax(3), seriesAttendues: 3 }, cible);
+    expect(r.fourchetteCompletee).toBe(true);
+    expect(r.charge).toBe(82.5);
+    expect(r.consolidation).toBe(false);
+  });
+
+  it("plus de séries que demandé : on ne punit pas le travail en plus", () => {
+    const r = computeNextSets({ sets: auMax(4), seriesAttendues: 3 }, cible);
+    expect(r.fourchetteCompletee).toBe(true);
+    expect(r.charge).toBe(82.5);
+  });
+
+  it("volume réduit par le moteur : deux séries demandées, deux faites → montée", () => {
+    // Le cœur de la règle. La réduction vient du moteur ; l'athlète a fait ce
+    // qu'on lui demandait. Lui compter la série retirée serait faux.
+    const r = computeNextSets({ sets: auMax(2), seriesAttendues: 2 }, cible);
+    expect(r.fourchetteCompletee).toBe(true);
+    expect(r.charge).toBe(82.5);
+  });
+
+  it("nombre attendu inconnu : comportement historique, strictement", () => {
+    const sansRien = computeNextSets({ sets: auMax(1) }, cible);
+    const avecNull = computeNextSets({ sets: auMax(1), seriesAttendues: null }, cible);
+    // Comportement d'avant le correctif : une série au max suffisait à monter.
+    expect(sansRien.fourchetteCompletee).toBe(true);
+    expect(sansRien.charge).toBe(82.5);
+    expect(avecNull).toEqual(sansRien);
+  });
+
+  it("valeur attendue absurde : traitée comme inconnue plutôt que bloquante", () => {
+    for (const attendues of [0, -1, Number.NaN]) {
+      const r = computeNextSets({ sets: auMax(1), seriesAttendues: attendues }, cible);
+      expect(r.fourchetteCompletee).toBe(true);
+    }
+  });
+
+  it("tronquée sans être au maximum : le chemin « +1 répétition » ne bouge pas", () => {
+    const r = computeNextSets(
+      { sets: [{ numero: 1, reps: 7, charge: 80, rpe: 7 }], seriesAttendues: 3 },
+      cible,
+    );
+    expect(r.consolidation).toBe(false);
+    expect(r.reps).toEqual([8]);
+    expect(r.messageProgression).toBeNull();
+  });
+
+  it("tronquée à effort maximal : la consolidation RPE l'emporte, sans doubler le message", () => {
+    const r = computeNextSets({ sets: auMax(1, 10), seriesAttendues: 3 }, cible);
+    expect(r.consolidation).toBe(true);
+    expect(r.charge).toBe(80);
+    expect(r.messageProgression).toContain("sans ajouter");
+    expect(r.messageProgression).not.toContain("séance entière");
+  });
+
+  it("le message dit ce qui manque, et redemande la séance entière", () => {
+    const r = computeNextSets({ sets: auMax(1), seriesAttendues: 3 }, cible);
+    expect(r.messageProgression).toContain("1 série sur 3");
+    expect(r.messageProgression).toContain("séance entière");
+    // On redemande le format prescrit, pas le format tronqué.
+    expect(r.reps).toEqual([8, 8, 8]);
+  });
+
+  it("le pluriel suit le nombre de séries faites", () => {
+    const r = computeNextSets({ sets: auMax(2), seriesAttendues: 4 }, cible);
+    expect(r.messageProgression).toContain("2 séries sur 4");
+  });
+});
