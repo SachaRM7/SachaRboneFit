@@ -45,6 +45,23 @@ export class InstanceIntrouvable extends Error {
 }
 
 /**
+ * Erreur métier : l'intention transmise n'est pas un instant utilisable.
+ *
+ * Elle finit dans un `bigint` PostgreSQL, qui accepte des valeurs qu'aucun
+ * `number` JavaScript ne sait relire fidèlement. Une intention au-delà de
+ * `Number.MAX_SAFE_INTEGER` s'écrirait donc correctement et se relirait faux —
+ * et, une fois posée sur la ligne, condamnerait toutes les écritures suivantes,
+ * qui lui seraient toutes inférieures. Refusée à l'entrée plutôt que constatée
+ * plus tard.
+ */
+export class IntentionInvalide extends Error {
+  constructor() {
+    super("Intention invalide");
+    this.name = "IntentionInvalide";
+  }
+}
+
+/**
  * Erreur métier : cet appareil ne sert pas à cet exercice.
  *
  * Les deux identifiants arrivent séparément du client, et rien ne garantit
@@ -98,20 +115,76 @@ function valeurOuRien(brute: string | null | undefined): string | null {
 }
 
 /**
- * L'écriture ne l'emporte que si elle est plus récente que ce qui est en base.
+ * Comment cette écriture se situe par rapport aux autres.
  *
- * Comparaison faite par PostgreSQL, dans la même instruction que l'écriture :
+ * Deux natures d'écriture, et elles ne suivent PAS la même règle :
+ *
+ *   ORDONNÉE   elle vient d'un écran qui enregistre tout seul, donc elle peut
+ *              croiser une autre écriture du même champ. Elle porte l'instant
+ *              où l'utilisateur a formé son intention, et ne l'emporte que si
+ *              cet instant est plus récent que celui déjà en base.
+ *
+ *   FORCÉE     elle vient du serveur — un script, un outil du coach, une
+ *              reprise. Elle n'est en course avec personne, donc elle ne
+ *              concourt pas : elle s'applique, point.
+ *
+ * La distinction n'est pas cosmétique. Une écriture forcée qui se contenterait
+ * de l'heure serveur PERDRAIT contre une intention posée par un téléphone en
+ * avance : le `where` la refuserait en silence, et l'appelant croirait avoir
+ * écrit. C'est le défaut que ce type supprime — il n'existe pas de « pas
+ * d'intention » implicite, seulement deux régimes nommés.
+ */
+export type Ordonnancement = { readonly intention: number } | "forcee";
+
+/**
+ * Une intention utilisable : entière, positive, et sûre en JavaScript.
+ *
+ * La borne haute est `Number.MAX_SAFE_INTEGER`, pas celle du `bigint`
+ * PostgreSQL : au-delà, la colonne accepterait une valeur qu'aucun `number` ne
+ * relit fidèlement.
+ */
+export function intentionValide(valeur: number): boolean {
+  return Number.isSafeInteger(valeur) && valeur >= 0;
+}
+
+/**
+ * Traduit un régime d'écriture en trois morceaux de requête.
+ *
+ * La comparaison est faite par PostgreSQL, dans l'instruction même qui écrit :
  * c'est le seul endroit où l'ordre est garanti. Un jeton gardé en mémoire de
  * l'onglet ne protège pas la base, et un verrou qui ignore l'intention se
  * contenterait de sérialiser proprement les écritures dans le mauvais ordre.
  *
- * Quand la condition est fausse, l'instruction ne touche aucune ligne. C'est le
- * comportement voulu : une requête périmée devient une écriture sans effet,
- * silencieusement — l'utilisateur n'a rien à savoir d'une intention qu'il a
- * lui-même remplacée.
+ * Le cas forcé mérite son explication. Il s'applique toujours — pas de
+ * condition — et laisse le repère au PLUS HAUT des deux valeurs :
+ *
+ *   ne pas le faire reculer   sinon une requête utilisateur encore en vol,
+ *                             plus ancienne, repasserait devant.
+ *   ne pas le faire bondir    une valeur énorme (MAX_SAFE_INTEGER, une date
+ *                             lointaine) condamnerait toutes les écritures
+ *                             suivantes de l'utilisateur, définitivement.
+ *
+ * `greatest` donne exactement cela : la ligne est écrite, et le repère reste
+ * ce qu'il était s'il était déjà devant.
  */
-function plusRecenteQue(colonne: Column, intention: number): SQL {
-  return sql`${colonne} < ${intention}`;
+function morceauxDOrdre(ordre: Ordonnancement, colonne: Column): {
+  aLInsertion: number;
+  aLaMiseAJour: number | SQL;
+  condition: SQL | undefined;
+} {
+  if (ordre === "forcee") {
+    const maintenant = Date.now();
+    return {
+      aLInsertion: maintenant,
+      aLaMiseAJour: sql`greatest(${colonne}, ${maintenant})`,
+      condition: undefined,
+    };
+  }
+  return {
+    aLInsertion: ordre.intention,
+    aLaMiseAJour: ordre.intention,
+    condition: sql`${colonne} < ${ordre.intention}`,
+  };
 }
 
 /** Les réglages effectivement renseignés : les vides ne sont pas des valeurs. */
@@ -246,16 +319,18 @@ export async function enregistrerReglages(entrees: {
   exerciseId: string;
   valeurs: Record<string, string>;
   /**
-   * Quand l'utilisateur a formé cette intention, en millisecondes.
-   *
-   * Absent, on retombe sur l'instant de réception : c'est exactement l'ancien
-   * comportement, correct pour un appelant qui n'a pas deux écritures en vol —
-   * un outil du coach, un script. Les écrans, eux, le fournissent.
+   * Ordonnée (l'écran, qui peut avoir deux écritures en vol) ou forcée (un
+   * script, un outil du coach). Voir `Ordonnancement` : il n'y a pas de
+   * troisième cas, et surtout pas d'heure serveur mise en concurrence avec des
+   * intentions client.
    */
-  intention?: number;
+  ordre?: Ordonnancement;
 }): Promise<ReglageAffiche[]> {
   const { userId, exerciseInstanceId, exerciseId, valeurs } = entrees;
-  const intention = entrees.intention ?? Date.now();
+  const ordre = entrees.ordre ?? "forcee";
+  if (ordre !== "forcee" && !intentionValide(ordre.intention)) {
+    throw new IntentionInvalide();
+  }
 
   await appareilDeLExercice(exerciseInstanceId, exerciseId);
 
@@ -283,18 +358,19 @@ export async function enregistrerReglages(entrees: {
     aEcrire.push({ cle, valeur: verdict.valeur! });
   }
 
+  const rang = morceauxDOrdre(ordre, reglagesPersonnels.intention);
   await db.transaction(async (tx) => {
     for (const { cle, valeur } of aEcrire) {
       await tx.insert(reglagesPersonnels)
-        .values({ userId, exerciseInstanceId, cle, valeur, intention })
+        .values({ userId, exerciseInstanceId, cle, valeur, intention: rang.aLInsertion })
         .onConflictDoUpdate({
           target: [
             reglagesPersonnels.userId,
             reglagesPersonnels.exerciseInstanceId,
             reglagesPersonnels.cle,
           ],
-          set: { valeur, intention, updatedAt: new Date() },
-          setWhere: plusRecenteQue(reglagesPersonnels.intention, intention),
+          set: { valeur, intention: rang.aLaMiseAJour, updatedAt: new Date() },
+          setWhere: rang.condition,
         });
     }
   });
@@ -341,11 +417,14 @@ export async function ecrireNote(entrees: {
   /** Toujours transmis : il sert de portée sans appareil, ET de contrôle avec. */
   exerciseId?: string | null;
   texte: string;
-  /** Voir `enregistrerReglages`. Absent, on retombe sur l'instant de réception. */
-  intention?: number;
+  /** Ordonnée (l'écran) ou forcée (le serveur). Voir `Ordonnancement`. */
+  ordre?: Ordonnancement;
 }): Promise<string | null> {
   const { userId, texte } = entrees;
-  const intention = entrees.intention ?? Date.now();
+  const ordre = entrees.ordre ?? "forcee";
+  if (ordre !== "forcee" && !intentionValide(ordre.intention)) {
+    throw new IntentionInvalide();
+  }
   const instanceId = entrees.exerciseInstanceId ?? null;
   const exerciceId = instanceId ? null : (entrees.exerciseId ?? null);
   if (!instanceId && !exerciceId) throw new InstanceIntrouvable();
@@ -380,15 +459,16 @@ export async function ecrireNote(entrees: {
       targetWhere: sql`${notesExercice.exerciseId} is not null`,
     };
 
+  const rang = morceauxDOrdre(ordre, notesExercice.intention);
   await db.insert(notesExercice)
     .values({
       userId, exerciseInstanceId: instanceId, exerciseId: exerciceId,
-      texte: propre, intention,
+      texte: propre, intention: rang.aLInsertion,
     })
     .onConflictDoUpdate({
       ...cible,
-      set: { texte: propre, intention, updatedAt: new Date() },
-      setWhere: plusRecenteQue(notesExercice.intention, intention),
+      set: { texte: propre, intention: rang.aLaMiseAJour, updatedAt: new Date() },
+      setWhere: rang.condition,
     });
 
   const apres = await db.query.notesExercice.findFirst({ where: ou });

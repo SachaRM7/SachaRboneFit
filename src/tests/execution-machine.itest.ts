@@ -23,7 +23,7 @@ const schema = await import("@/db/schema");
 const { and, eq } = await import("drizzle-orm");
 const {
   contexteExecution, ecrireNote, enregistrerReglages,
-  IncoherenceExerciceAppareil, InstanceIntrouvable, ReglageRefuse,
+  IncoherenceExerciceAppareil, InstanceIntrouvable, IntentionInvalide, ReglageRefuse,
 } = await import("@/services/execution");
 
 let salle = "";
@@ -321,7 +321,7 @@ describe("la note personnelle", () => {
  */
 describe("une intention ancienne n'écrase jamais une plus récente", () => {
   const noteDe = async (texte: string, intention: number) => ecrireNote({
-    userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte, intention,
+    userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte, ordre: { intention },
   });
   const enBase = async () => (await lire(SACHA, matrixA)).note;
 
@@ -402,7 +402,7 @@ describe("une intention ancienne n'écrase jamais une plus récente", () => {
     // Deux corrections rapides du même cran : même course, même garantie.
     const siege = async (valeur: string, intention: number) => enregistrerReglages({
       userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension,
-      valeurs: { siege: valeur }, intention,
+      valeurs: { siege: valeur }, ordre: { intention },
     });
     await siege("6", 2_000);
     await siege("8", 1_000);
@@ -415,14 +415,60 @@ describe("une intention ancienne n'écrase jamais une plus récente", () => {
     expect(apres.reglages.find((x) => x.cle === "siege")?.valeur).toBeNull();
   });
 
-  it("sans intention, on retombe sur l'ancien comportement : la dernière écrit", async () => {
-    // Un script ou un outil du coach n'a jamais deux écritures en vol. Il ne
-    // doit pas avoir à connaître ce mécanisme pour écrire.
-    await noteDe("ancienne", 1_000);
-    await ecrireNote({
-      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte: "sans intention",
+  it("une écriture forcée passe même derrière un téléphone à l'heure en avance", async () => {
+    // LE cas qui condamnait le repli sur `Date.now()` côté serveur. Un
+    // téléphone dont l'horloge avance d'un an pose une intention située dans le
+    // futur du serveur. Une écriture serveur mise en concurrence avec elle
+    // perdrait — en silence, et en prétendant avoir enregistré.
+    const dansUnAn = Date.now() + 365 * 24 * 3_600_000;
+    await noteDe("posée par un téléphone en avance", dansUnAn);
+    expect(await enBase()).toBe("posée par un téléphone en avance");
+
+    const rendu = await ecrireNote({
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension,
+      texte: "corrigée par un script",
     });
-    expect(await enBase()).toBe("sans intention");
+    // Elle passe, et ce qui est rendu est bien ce que la base contient.
+    expect(rendu).toBe("corrigée par un script");
+    expect(await enBase()).toBe("corrigée par un script");
+  });
+
+  it("et elle ne condamne pas les écritures suivantes de l'utilisateur", async () => {
+    // L'autre moitié du piège : gagner en posant une valeur énorme
+    // (MAX_SAFE_INTEGER, une date lointaine) rendrait la ligne définitivement
+    // inatteignable. Le repère doit rester exactement là où il était.
+    const dansUnAn = Date.now() + 365 * 24 * 3_600_000;
+    await noteDe("téléphone en avance", dansUnAn);
+    await ecrireNote({
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte: "script",
+    });
+    const [ligne] = await db.select().from(schema.notesExercice).where(and(
+      eq(schema.notesExercice.userId, SACHA),
+      eq(schema.notesExercice.exerciseInstanceId, matrixA),
+    ));
+    expect(ligne!.intention).toBe(dansUnAn);
+
+    // Et le téléphone continue d'écrire normalement, à sa propre horloge.
+    await noteDe("le téléphone reprend la main", dansUnAn + 1);
+    expect(await enBase()).toBe("le téléphone reprend la main");
+  });
+
+  it("une intention hors des entiers sûrs est refusée, pas tronquée", async () => {
+    // Elle finit dans un `bigint` : au-delà de MAX_SAFE_INTEGER elle
+    // s'écrirait bien et se relirait faux, et une fois en tête elle
+    // condamnerait la ligne. Refusée à l'entrée.
+    for (const mauvaise of [Number.MAX_SAFE_INTEGER + 2, 1.5, -1, Number.NaN, Infinity]) {
+      await expect(ecrireNote({
+        userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension,
+        texte: "n'arrivera pas", ordre: { intention: mauvaise },
+      })).rejects.toThrow(IntentionInvalide);
+      await expect(enregistrerReglages({
+        userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension,
+        valeurs: { siege: "5" }, ordre: { intention: mauvaise },
+      })).rejects.toThrow(IntentionInvalide);
+    }
+    // Refusée veut dire rien écrit, pas « écrit avec une valeur de repli ».
+    expect(await enBase()).toBeNull();
   });
 
   // Ce bloc malmène délibérément la note et le siège de matrixA ; la suite les
@@ -439,7 +485,7 @@ describe("une intention ancienne n'écrase jamais une plus récente", () => {
     await noteDe("siège 6 parfait", 9_000);
     await enregistrerReglages({
       userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension,
-      valeurs: { siege: "7", rouleau: "3" }, intention: 9_000,
+      valeurs: { siege: "7", rouleau: "3" }, ordre: { intention: 9_000 },
     });
   });
 });
