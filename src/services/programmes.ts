@@ -231,6 +231,42 @@ export async function ajouterExerciceAuTemplate(donnees: AjoutExerciceProgramme)
 }
 
 /**
+ * Change la cible d'effort d'un exercice déjà programmé.
+ *
+ * La cible n'était modifiable qu'à l'ajout : la corriger imposait de retirer
+ * la ligne et de la recréer, ce qui lui faisait perdre son rang et coupait
+ * `session_plan_items` de son origine. Elle s'édite désormais sur place.
+ *
+ * `null` est une valeur, pas une absence : c'est « effort non prescrit », et
+ * c'est le seul moyen de revenir en arrière après avoir prescrit une cible.
+ * La distinction se fait donc sur la PRÉSENCE de la clé, pas sur sa valeur —
+ * un objet sans `rpeCible` ne touche à rien.
+ */
+export async function modifierExerciceDuTemplate(
+  userId: string,
+  ligneId: string,
+  modifications: { rpeCible?: number | null },
+) {
+  const ligne = await db.query.exerciseInTemplate.findFirst({
+    where: eq(exerciseInTemplate.id, ligneId),
+  });
+  if (!ligne) throw new RessourceIntrouvable("Exercice programmé");
+  if (ligne.archiveLe) throw new RessourceIntrouvable("Exercice programmé");
+  await seanceDeLUtilisateur(ligne.seanceTemplateId, userId);
+
+  if (!("rpeCible" in modifications)) return ligne;
+
+  const [misAJour] = await db
+    .update(exerciseInTemplate)
+    .set({ rpeCible: modifications.rpeCible ?? null, updatedAt: new Date() })
+    .where(eq(exerciseInTemplate.id, ligneId))
+    .returning();
+
+  if (!misAJour) throw new Error("Modification de l'exercice impossible");
+  return misAJour;
+}
+
+/**
  * Retire un exercice du programme.
  *
  * Retirer, ce n'est pas effacer. La ligne a peut-être déjà servi dans des

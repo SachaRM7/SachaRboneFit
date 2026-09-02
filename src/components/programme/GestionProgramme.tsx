@@ -10,6 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
+import {
+  CHOIX_CIBLE_EFFORT,
+  NON_PRESCRIT,
+  choixDepuisCible,
+  cibleDepuisChoix,
+  libelleCibleEffort,
+} from "./cible-effort";
 import { Plus, Trash2 } from "lucide-react";
 
 export interface ExerciceProgramme {
@@ -64,9 +71,14 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
   const [series, setSeries] = useState(4);
   const [repsMin, setRepsMin] = useState(8);
   const [repsMax, setRepsMax] = useState(10);
-  const [rpe, setRpe] = useState(8);
   const [tempo, setTempo] = useState("3010");
   const [repos, setRepos] = useState(120);
+
+  // Le menu s'ouvrait sur « RPE 8 » sans option vide : tout exercice ajouté à
+  // la main partait donc avec une prescription que personne n'avait formulée.
+  const [choixEffort, setChoixEffort] = useState<string>(NON_PRESCRIT);
+
+  const [editionEffort, setEditionEffort] = useState<ExerciceProgramme | null>(null);
 
   const creerSeance = async () => {
     if (!bloc) return;
@@ -114,7 +126,7 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
           seriesCibles: series,
           fourchetteRepsMin: repsMin,
           fourchetteRepsMax: repsMax,
-          rpeCible: rpe,
+          rpeCible: cibleDepuisChoix(choixEffort),
           tempo: tempo || null,
           reposSecondes: repos,
         }),
@@ -124,9 +136,37 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
       setAjoutPour(null);
       setInstanceId("");
       setRecherche("");
+      // Sans cette remise à zéro, la cible du dernier exercice deviendrait le
+      // défaut du suivant — une prescription qui se propage toute seule.
+      setChoixEffort(NON_PRESCRIT);
       router.refresh();
     } catch {
       toast.error("Ajout impossible");
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  /**
+   * Change la cible d'effort d'un exercice déjà programmé.
+   *
+   * `rpeCible` est envoyé même quand il vaut `null` : c'est la clé présente,
+   * pas sa valeur, qui dit au serveur de toucher à la cible.
+   */
+  const changerEffort = async (ligne: ExerciceProgramme, choix: string) => {
+    setEnvoi(true);
+    try {
+      const res = await fetch(`/api/programme/exercices/${ligne.ligneId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rpeCible: cibleDepuisChoix(choix) }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Effort cible mis à jour");
+      setEditionEffort(null);
+      router.refresh();
+    } catch {
+      toast.error("Modification impossible");
     } finally {
       setEnvoi(false);
     }
@@ -207,11 +247,16 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
                         <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                           {e.seriesCibles} × {e.fourchetteRepsMin}-{e.fourchetteRepsMax}
                         </Badge>
-                        {e.rpeCible && (
+                        {/* Toujours affiché, avec ou sans cible : une ligne
+                            muette se lisait comme un oubli, pas comme une
+                            décision. Le badge est le point d'entrée de
+                            l'édition — il n'y en avait aucun. */}
+                        <button type="button" onClick={() => setEditionEffort(e)}
+                          aria-label={`Modifier l'effort cible de ${e.exerciceNom}`}>
                           <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
-                            RPE {e.rpeCible}
+                            {libelleCibleEffort(e.rpeCible)}
                           </Badge>
-                        )}
+                        </button>
                         {e.tempo && (
                           <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
                             tempo {e.tempo}
@@ -325,18 +370,22 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-2">
-                <Label>RPE cible</Label>
-                <Select value={String(rpe)} onValueChange={(v) => setRpe(Number(v ?? 8))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {[6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10].map((v) => (
-                      <SelectItem key={v} value={String(v)}>{v}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* L'effort se choisit en réserve — personne ne sait dire « 7,5 »,
+                tout le monde sait dire « 2 reps de la fin ». Le RPE reste ce
+                qui part en base. */}
+            <div className="space-y-2">
+              <Label>Effort cible</Label>
+              <Select value={choixEffort} onValueChange={(v) => setChoixEffort(v ?? NON_PRESCRIT)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CHOIX_CIBLE_EFFORT.map((c) => (
+                    <SelectItem key={c.valeur} value={c.valeur}>{c.libelle}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label htmlFor="tempo">Tempo</Label>
                 <Input id="tempo" value={tempo} maxLength={10}
@@ -352,6 +401,34 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
             <Button className="w-full h-12" onClick={ajouterExercice} disabled={envoi}>
               {envoi ? "Ajout…" : "Ajouter l'exercice"}
             </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Corriger une cible imposait jusqu'ici de retirer l'exercice et de le
+          recréer — au prix de son rang et du lien de l'historique vers sa
+          ligne d'origine. */}
+      <Drawer open={editionEffort !== null} onOpenChange={(o) => !o && setEditionEffort(null)}>
+        <DrawerContent className="bg-papier border-filet text-encre">
+          <DrawerHeader>
+            <DrawerTitle className="text-encre">
+              Effort cible — {editionEffort?.exerciceNom}
+            </DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-6 space-y-2">
+            {CHOIX_CIBLE_EFFORT.map((c) => {
+              const actuel = editionEffort ? choixDepuisCible(editionEffort.rpeCible) : NON_PRESCRIT;
+              return (
+                <Button key={c.valeur} variant="outline" disabled={envoi}
+                  aria-pressed={c.valeur === actuel}
+                  className={`w-full h-12 justify-start bg-carte border-filet ${
+                    c.valeur === actuel ? "text-encre font-semibold" : "text-encre-2"
+                  }`}
+                  onClick={() => editionEffort && changerEffort(editionEffort, c.valeur)}>
+                  {c.libelle}
+                </Button>
+              );
+            })}
           </div>
         </DrawerContent>
       </Drawer>

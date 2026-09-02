@@ -215,6 +215,13 @@ export async function POST(request: Request) {
           repsMin: x.fourchetteRepsMin,
           repsMax: x.fourchetteRepsMax,
           reposSecondes: x.reposSecondes ?? 120,
+          // Conversion littérale, et non `rpeVersReserve` : celle-ci arrondit,
+          // et les deux consommateurs de `rirCible` comparent à 3 strictement
+          // (`chargeEstimee`, la règle de décharge). Une cible à 7,5 — l'ancien
+          // menu en proposait — donne 2,5 ici et 3 après arrondi : « sous RIR 3 »
+          // deviendrait « conforme ». Aucune règle ne doit bouger dans ce
+          // chantier, la borne à 5 de `rpeVersReserve` étant par ailleurs sans
+          // effet sur ces deux lectures.
           rirCible: x.rpeCible !== null ? 10 - x.rpeCible : null,
         })),
       seriesPrevues,

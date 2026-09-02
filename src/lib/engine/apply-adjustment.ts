@@ -7,7 +7,13 @@ export interface ExerciseInTemplateWithDetails {
   seriesCibles: number;
   fourchetteRepsMin: number;
   fourchetteRepsMax: number;
-  rpeCible: number;
+  /**
+   * Aucune ligne de ce module ne lit la cible d'effort — il compte des séries.
+   * Le champ était donc rempli d'un `?? 8` par l'appelant : un huit qui ne
+   * servait à rien et qu'un jour quelqu'un aurait lu comme une prescription.
+   * Il accepte maintenant l'absence, qui est une valeur possible.
+   */
+  rpeCible: number | null;
   tempo: string;
   reposSecondes: number;
   // Les increments vivaient ici sans qu'aucune ligne de ce module ne les lise :
