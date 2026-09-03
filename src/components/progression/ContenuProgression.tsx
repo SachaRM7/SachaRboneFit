@@ -78,7 +78,14 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
           typeEntite={vue === "exercice" && instanceId ? "instance" : null}
           entiteId={vue === "exercice" && instanceId ? instanceId : null}
         />
-        <header className="sticky top-0 z-10 bg-papier px-4 pt-8 pb-4 flex items-center gap-2">
+        {/* Même règle que la séance : l'en-tête se colle sous l'encoche. Le
+            `pt-8` ne compensait rien — c'était l'espace du titre, et il se
+            trouvait avoir à peu près la bonne taille sur un appareil sans
+            encoche. */}
+        <header
+          className="sticky z-10 bg-papier px-4 pt-8 pb-4 flex items-center gap-2"
+          style={{ top: "var(--marge-haut)" }}
+        >
           <button
             type="button"
             onClick={() => setVue(null)}

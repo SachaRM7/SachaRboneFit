@@ -45,8 +45,23 @@ export function BottomNav() {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 h-16 bg-papier border-t border-filet z-50">
-      <div className="flex items-center justify-around h-full max-w-lg mx-auto px-2">
+    /*
+     * La marge du bas s'ajoute SOUS la rangée tactile, elle ne la rogne pas.
+     *
+     * La barre faisait 4 rem de haut, point final : sur un iPhone à
+     * indicateur d'accueil, le tiers bas de chaque onglet tombait dans la
+     * bande réservée au geste système — les libellés y étaient à moitié
+     * masqués, et un appui trop bas déclenchait le retour à l'accueil d'iOS
+     * plutôt que la navigation.
+     */
+    <nav
+      className="fixed bottom-0 left-0 right-0 bg-papier border-t border-filet z-50"
+      style={{ height: "var(--barre-nav)", paddingBottom: "var(--marge-bas)" }}
+    >
+      <div
+        className="flex items-center justify-around max-w-lg mx-auto px-2"
+        style={{ height: "var(--rangee-nav)" }}
+      >
         {ONGLETS.map(({ href, label, icon: Icone }) => {
           const estActif = actif(href);
           return (

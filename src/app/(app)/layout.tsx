@@ -24,7 +24,25 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <FournisseurCoach>
       <ServiceWorkerRegister />
       <OfflineIndicator />
-      <main className="pb-20">{children}</main>
+      {/*
+        Les deux bords, une fois, pour tous les écrans.
+
+        `pb-20` valait 5 rem — la hauteur supposée de la barre, plus une
+        marge — et ignorait l'indicateur d'accueil : le dernier bloc de chaque
+        écran finissait derrière la barre. Et rien ne réservait le haut, si
+        bien que le premier titre passait sous l'heure et la batterie.
+
+        Les en-têtes collants, eux, gèrent leur propre marge haute : ils se
+        placent à `--marge-haut` pour ne pas glisser sous l'encoche.
+      */}
+      <main
+        style={{
+          paddingTop: "var(--marge-haut)",
+          paddingBottom: "calc(var(--barre-nav) + 1rem)",
+        }}
+      >
+        {children}
+      </main>
       <BottomNav />
       <BoutonCoach />
     </FournisseurCoach>

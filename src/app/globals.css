@@ -263,6 +263,37 @@
   --serie-8: #9E8A2C;
 }
 
+/* ---------------------------------------------------------------------------
+   Les bords de l'écran d'un iPhone
+
+   `viewport-fit: cover` est déclaré depuis le début : la page occupe la dalle
+   entière, encoche et indicateur d'accueil compris. C'est le bon choix pour une
+   application installée sur l'écran d'accueil — mais il vient avec une
+   obligation, celle de tenir compte des zones que le matériel occupe. Cette
+   obligation n'était honorée qu'à trois endroits : l'onboarding, l'entrée du
+   coach, et les feuilles SOS. Tout le reste raisonnait comme si l'écran était
+   un rectangle.
+
+   Conséquences constatées sur l'appareil : la rangée tactile de la barre de
+   navigation tombait dans la bande de l'indicateur d'accueil, le dernier bloc
+   de chaque écran passait derrière cette barre, et la rangée SOS de la séance
+   — posée à exactement 4 rem du bas, la hauteur supposée de la barre — se
+   retrouvait à cheval sur elle, ce que son propre commentaire disait avoir
+   corrigé.
+
+   D'où une source unique. `--barre-nav` est la hauteur RÉELLE de la barre,
+   marge comprise : tout ce qui doit se placer au-dessus d'elle s'y réfère au
+   lieu de recopier 4 rem, et le calcul reste juste sur un appareil sans
+   encoche comme sur un appareil qui en a une.
+   --------------------------------------------------------------------------- */
+:root {
+  --marge-haut: env(safe-area-inset-top, 0px);
+  --marge-bas: env(safe-area-inset-bottom, 0px);
+  /* La zone tactile seule : c'est elle qui doit faire 4 rem, jamais moins. */
+  --rangee-nav: 4rem;
+  --barre-nav: calc(var(--rangee-nav) + var(--marge-bas));
+}
+
 @theme inline {
   --color-papier: var(--papier);
   --color-papier-2: var(--papier-2);

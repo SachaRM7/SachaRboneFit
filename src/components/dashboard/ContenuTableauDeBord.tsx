@@ -179,7 +179,10 @@ export function ContenuTableauDeBord({ data }: { data: DashboardData }) {
         </div>
       )}
 
-      <div className="px-4 space-y-4 pb-20">
+      {/* Le dégagement de la barre de navigation est posé une fois, par le
+          layout, marge du bas comprise. Le `pb-20` qui était ici s'y ajoutait
+          en pure perte : 5 rem de vide à faire défiler sous le dernier bloc. */}
+      <div className="px-4 space-y-4">
         {/* Plus de squelette : les données sont rendues avec la page. Ce qui
             s'affichait pendant deux à trois secondes n'attendait plus rien. */}
         {/* In-progress session banner */}

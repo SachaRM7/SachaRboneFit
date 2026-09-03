@@ -285,11 +285,28 @@ function ContenuSeanceLive() {
   }));
 
   return (
-    <div className="min-h-screen bg-papier pb-40" onPointerDown={interaction}>
+    /*
+     * Le bas de la séance porte DEUX barres — la rangée SOS, puis la
+     * navigation. Le layout dégage déjà la seconde, marge du bas comprise ;
+     * cet écran n'a donc à dégager que la première. `pb-40` les comptait
+     * toutes les deux à la main, en double avec le layout et sans marge : la
+     * dernière série d'une séance longue passait sous la rangée SOS, ce qui
+     * est exactement le moment où elle compte.
+     */
+    <div
+      className="min-h-screen bg-papier pb-16"
+      onPointerDown={interaction}
+    >
       {/* Déclaré pour que l'entrée du coach s'efface : pendant la séance, ce
           sont les actions immédiates de la barre SOS qui servent. */}
       <DeclarerContexte ecran="seance" />
-      <header className="sticky top-0 z-20 bg-papier border-b border-filet px-4 py-3">
+      {/* Collé sous l'encoche, pas sous l'heure : à `top-0`, l'en-tête de la
+          séance — nom de la séance, chrono, bouton quitter — glissait derrière
+          la barre d'état dès le premier défilement. */}
+      <header
+        className="sticky z-20 bg-papier border-b border-filet px-4 py-3"
+        style={{ top: "var(--marge-haut)" }}
+      >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <Button variant="ghost" size="icon" aria-label="Quitter la séance"
@@ -396,8 +413,18 @@ function ContenuSeanceLive() {
       {/* La rangée SOS était posée en bottom-0, sous une barre de navigation
           fixée au même endroit et de z-index supérieur : elle était donc
           entièrement recouverte, invisible pendant toute la séance. Elle se
-          place au-dessus, à la hauteur exacte de cette barre. */}
-      <div className="fixed bottom-16 left-0 right-0 bg-papier border-t border-filet px-4 py-2 z-30">
+          place au-dessus, à la hauteur exacte de cette barre.
+
+          « À la hauteur exacte » avait été écrit 4 rem en dur. C'est la
+          hauteur de la rangée tactile, pas celle de la barre : sur un iPhone
+          à indicateur d'accueil, la barre en fait une trentaine de pixels de
+          plus, et la rangée SOS repassait à cheval sur elle — le défaut que
+          ce commentaire annonçait avoir corrigé. Elle se réfère maintenant à
+          la hauteur réelle. */}
+      <div
+        className="fixed left-0 right-0 bg-papier border-t border-filet px-4 py-2 z-30"
+        style={{ bottom: "var(--barre-nav)" }}
+      >
         <SOSBar
           onMachineOccupee={() => setModaleSOS("machine")}
           onDouleur={() => setModaleSOS("douleur")}
