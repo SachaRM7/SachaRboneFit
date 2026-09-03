@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { users, gyms, contraintes, programmeBlocs } from "@/db/schema";
+import { users, gyms, contraintes, programmeBlocs, bodyWeights } from "@/db/schema";
 import { REEVALUATION_JOURS, decalerDe } from "@/lib/engine/contraintes";
 import { and, eq, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
@@ -82,10 +82,42 @@ export async function POST(request: Request) {
         dureeSeanceMaxMinutes: d.dureeSeanceMaxMinutes,
         preferenceMateriel: d.preferenceMateriel,
         exercicesRefuses: d.exercicesRefuses,
+        /*
+         * Qui s'entraîne. Ces trois colonnes existaient et n'étaient écrites
+         * par aucun écran — l'onboarding ne les demandait pas, le profil ne
+         * les proposait pas. `taille` était bien dans le schéma de validation,
+         * mais aucun formulaire ne l'envoyait.
+         */
+        dateNaissance: d.dateNaissance ?? null,
+        sexe: d.sexe ?? null,
         taille: d.taille ?? null,
         onboardingTermineLe: new Date(),
         updatedAt: new Date(),
       }).where(eq(users.id, userId));
+
+      /*
+       * Le poids devient la PREMIÈRE PESÉE, datée du jour.
+       *
+       * Il était demandé par le schéma de validation — `poids` y figurait —
+       * puis jeté : la route ne l'écrivait ni dans `users`, ni dans
+       * `body_weights`. Personne ne s'en est aperçu parce qu'aucun écran ne
+       * l'envoyait non plus.
+       *
+       * Il n'a volontairement pas de colonne dans `users` : `body_weights` est
+       * déjà la source du poids, datée, et porte la courbe. Deux sources
+       * divergeraient dès la deuxième pesée — celle saisie depuis l'écran
+       * Poids de corps ne mettant pas l'autre à jour.
+       *
+       * `onConflictDoNothing` : refaire l'onboarding le même jour ne doit pas
+       * écrire deux pesées pour la même date.
+       */
+      if (d.poids !== undefined) {
+        await tx.insert(bodyWeights).values({
+          userId,
+          date: new Date().toISOString().slice(0, 10),
+          poids: d.poids,
+        }).onConflictDoNothing();
+      }
 
       // Les salles sont communes : on ne recrée pas ce qui existe déjà.
       let salleId = d.salleId;

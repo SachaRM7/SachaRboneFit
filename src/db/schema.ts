@@ -8,6 +8,17 @@ export const users = pgTable("users", {
   nom: text("nom"),
   dateNaissance: date("date_naissance"),
   taille: integer("taille"),
+  /**
+   * 'homme' | 'femme' | 'non_precise'.
+   *
+   * `NULL` et `non_precise` ne disent pas la même chose : jamais demandé, et
+   * demandé sans réponse. Le moteur doit fonctionner dans les deux cas — rien
+   * ne se calcule à partir d'une valeur par défaut inventée.
+   *
+   * Le poids, lui, n'a pas de colonne ici : sa source est `body_weights`, qui
+   * est datée. Une seconde source diverge dès la deuxième pesée.
+   */
+  sexe: text("sexe"),
   phaseNutritionnelle: text("phase_nutritionnelle"),
   objectifChiffre: text("objectif_chiffre"),
   dateCible: date("date_cible"),

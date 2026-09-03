@@ -14,6 +14,7 @@ import { MUSCLES } from "@/lib/referentiels/muscles";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
 import { nombre, type Fourchette } from "@/lib/saisie";
 import { ChampNombre } from "@/components/onboarding/ChampNombre";
+import { QuiTuEs, MESURES_VIDES, type MesuresDuCorps } from "@/components/onboarding/QuiTuEs";
 import { SelecteurFrequence } from "@/components/onboarding/SelecteurFrequence";
 import { ChoixDuree } from "@/components/onboarding/ChoixDuree";
 import { EchelleDouleur } from "@/components/onboarding/EchelleDouleur";
@@ -42,8 +43,8 @@ import { RechercheExercices, type ExerciceChoisi } from "@/components/onboarding
  * pour les profils qui la portent déjà.
  */
 
-type Etape = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
-const DERNIERE: Etape = 7;
+type Etape = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+const DERNIERE: Etape = 8;
 
 const OBJECTIFS_PROPOSES = OBJECTIFS.filter((o) => o !== "reprise");
 
@@ -69,6 +70,10 @@ export default function PageBienvenue() {
   const [erreur, setErreur] = useState<string | null>(null);
   const [lieux, setLieux] = useState<Lieu[]>([]);
   const [prenom, setPrenom] = useState<string | null>(null);
+
+  // Qui s'entraîne. Le même bloc sert au profil : c'est la seule façon que les
+  // deux écrans ne divergent pas sur ce qu'ils demandent et ce qu'ils envoient.
+  const [mesures, setMesures] = useState<MesuresDuCorps>(MESURES_VIDES);
 
   const [objectifType, setObjectifType] = useState<string>("prise_de_muscle");
   const [musclesPrioritaires, setMusclesPrioritaires] = useState<string[]>([]);
@@ -128,13 +133,13 @@ export default function PageBienvenue() {
    * du champ concerné et sous le bouton.
    */
   const blocage = (): string | null => {
-    if (etape === 5) {
+    if (etape === 6) {
       if (dureeHorsBornes(cible) || dureeHorsBornes(maximum)) {
         return `Une séance dure entre ${BORNES_DUREE.min} et ${BORNES_DUREE.max} minutes.`;
       }
       if (cible > maximum) return "La durée idéale ne peut pas dépasser le maximum.";
     }
-    if (etape === 6 && !lieuId && nouveauLieuNom.trim().length < 2) {
+    if (etape === 7 && !lieuId && nouveauLieuNom.trim().length < 2) {
       return "Donne un nom à ton lieu d'entraînement.";
     }
     return null;
@@ -154,6 +159,13 @@ export default function PageBienvenue() {
         body: JSON.stringify({
           objectifType,
           musclesPrioritaires,
+          // Les champs vides ne partent pas : `undefined` veut dire « pas
+          // répondu », et le serveur écrit alors `null` plutôt qu'une valeur
+          // forgée à partir d'une chaîne vide.
+          dateNaissance: mesures.dateNaissance || undefined,
+          sexe: mesures.sexe || undefined,
+          taille: mesures.taille ? nombre(mesures.taille, 0) : undefined,
+          poids: mesures.poids ? nombre(mesures.poids, 0) : undefined,
           niveauExperience,
           anneesDePratique: nombre(anneesDePratique, 0),
           moisDInterruption: nombre(moisDInterruption, 0),
@@ -239,6 +251,22 @@ export default function PageBienvenue() {
         {etape === 1 && (
           <section className="pt-4 space-y-6">
             <div>
+              <h2 className="text-2xl font-bold">Toi</h2>
+              <p className="text-encre-3 text-sm mt-1">
+                Rien n&apos;est obligatoire ici.
+              </p>
+            </div>
+            <QuiTuEs
+              valeurs={mesures}
+              onChange={setMesures}
+              aide="La taille et la date de naissance servent au coach à situer ce qu'il te propose. Le poids ouvre le suivi de ta courbe. Sans ces réponses, tout fonctionne — le coach parle simplement de façon plus générale."
+            />
+          </section>
+        )}
+
+        {etape === 2 && (
+          <section className="pt-4 space-y-6">
+            <div>
               <h2 className="text-2xl font-bold">Ton objectif</h2>
               <p className="text-encre-3 text-sm mt-1">Il décide de la répartition du volume.</p>
             </div>
@@ -256,7 +284,7 @@ export default function PageBienvenue() {
           </section>
         )}
 
-        {etape === 2 && (
+        {etape === 3 && (
           <section className="pt-4 space-y-4">
             <div>
               <h2 className="text-2xl font-bold">Muscles prioritaires</h2>
@@ -286,7 +314,7 @@ export default function PageBienvenue() {
           </section>
         )}
 
-        {etape === 3 && (
+        {etape === 4 && (
           <section className="pt-4 space-y-6">
             <div>
               <h2 className="text-2xl font-bold">Ton point de départ</h2>
@@ -337,7 +365,7 @@ export default function PageBienvenue() {
           </section>
         )}
 
-        {etape === 4 && (
+        {etape === 5 && (
           <section className="pt-4 space-y-5">
             <div>
               <h2 className="text-2xl font-bold">Une gêne en ce moment ?</h2>
@@ -378,7 +406,7 @@ export default function PageBienvenue() {
           </section>
         )}
 
-        {etape === 5 && (
+        {etape === 6 && (
           <section className="pt-4 space-y-6">
             <div>
               <h2 className="text-2xl font-bold">Ta disponibilité</h2>
@@ -399,7 +427,7 @@ export default function PageBienvenue() {
           </section>
         )}
 
-        {etape === 6 && (
+        {etape === 7 && (
           <section className="pt-4 space-y-5">
             <div>
               <h2 className="text-2xl font-bold">Où t&apos;entraînes-tu ?</h2>
@@ -458,7 +486,7 @@ export default function PageBienvenue() {
           </section>
         )}
 
-        {etape === 7 && (
+        {etape === 8 && (
           <section className="pt-4 space-y-6">
             <div>
               <h2 className="text-2xl font-bold">Tes préférences</h2>

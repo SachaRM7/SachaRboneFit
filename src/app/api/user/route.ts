@@ -5,7 +5,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { MUSCLES } from "@/lib/referentiels/muscles";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { OBJECTIFS } from "@/lib/validators/onboarding";
+import { BORNES_DUREE, OBJECTIFS, SEXES } from "@/lib/validators/onboarding";
 import { MATERIEL_PORTABLE } from "@/lib/referentiels/capacites";
 import { createClient } from "@/lib/supabase/server";
 
@@ -75,8 +75,25 @@ const profilSchema = z.object({
   objectifMusclesPrioritaires: z.array(z.enum(MUSCLES)).max(4).nullable().optional(),
   objectifChiffre: z.string().trim().max(200).nullable().optional(),
   dateCible: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
-  frequenceCibleParSemaine: z.number().int().min(1).max(14).nullable().optional(),
-  dureeSeanceCibleMinutes: z.number().int().min(15).max(240).nullable().optional(),
+  sexe: z.enum(SEXES).nullable().optional(),
+  /*
+   * La fréquence est une FOURCHETTE, et le profil n'en exposait que la cible.
+   *
+   * Les trois colonnes existent, l'onboarding les remplit, le moteur lit les
+   * trois : `bilan-progression` compare les séances faites au minimum et à la
+   * cible, le tableau de bord plafonne au maximum. Le profil n'en montrait
+   * qu'une et la nommait « Séances par semaine » — modifier ce seul chiffre
+   * laissait un minimum et un maximum incohérents avec lui, sans que rien ne
+   * le dise.
+   *
+   * Les bornes viennent du même endroit que l'onboarding : deux écrans qui
+   * écrivent la même colonne ne peuvent pas accepter deux plages différentes.
+   */
+  frequenceMinParSemaine: z.number().int().min(1).max(7).nullable().optional(),
+  frequenceCibleParSemaine: z.number().int().min(1).max(7).nullable().optional(),
+  frequenceMaxParSemaine: z.number().int().min(1).max(7).nullable().optional(),
+  dureeSeanceCibleMinutes: z.number().int().min(BORNES_DUREE.min).max(BORNES_DUREE.max).nullable().optional(),
+  dureeSeanceMaxMinutes: z.number().int().min(BORNES_DUREE.min).max(BORNES_DUREE.max).nullable().optional(),
   materielPersonnelHabituel: z.array(z.enum(MATERIEL_PORTABLE)).max(MATERIEL_PORTABLE.length).nullable().optional(),
 });
 

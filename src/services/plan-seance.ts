@@ -7,6 +7,7 @@ import { and, asc, desc, eq, getTableName, inArray, isNull, or, gte, sql } from 
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { contraintesActives } from "./contraintes";
 import { musclesSousContrainte } from "@/lib/engine/contraintes";
+import { indexerRefus } from "@/lib/engine/refus";
 import { computeVolumeAdjustment } from "@/lib/engine/volume-adjustment";
 import { applyVolumeAdjustment, type ExerciseInTemplateWithDetails } from "@/lib/engine/apply-adjustment";
 import { configurationDe } from "@/lib/engine/charges";
@@ -322,6 +323,20 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
   const parcParId = new Map(parc.map((i) => [i.id, i]));
   const aMenager = await musclesAMenager(ctx.userId, etat);
 
+  /*
+   * Les exercices dont l'utilisateur ne veut pas.
+   *
+   * Cette colonne n'était lue QUE par le plan de calibration : une fois le
+   * bloc en place, l'exercice refusé revenait dans les séances proposées, et
+   * pouvait même être choisi comme remplaçant d'un autre. Un refus qui ne
+   * tient qu'un cycle n'est pas un refus.
+   */
+  const profil = await db.query.users.findFirst({
+    where: eq(users.id, ctx.userId),
+    columns: { exercicesRefuses: true },
+  });
+  const refuses = indexerRefus(profil?.exercicesRefuses);
+
   // --- Resolution vers la salle du jour ---
   const retenues: string[] = [];
   const ecartes: ResultatConstruction["ecartes"] = [];
@@ -337,7 +352,7 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
     if (!prevu) continue;
 
     const resolution = resoudrePourSalle(
-      prevu, parcDuJour, retenues, aMenager.aEviter, aMenager.exclus,
+      prevu, parcDuJour, retenues, aMenager.aEviter, aMenager.exclus, refuses,
     );
     if (!resolution.instance) {
       ecartes.push({ exerciceNom: prevu.exerciceNom, raison: resolution.raison ?? "Indisponible" });

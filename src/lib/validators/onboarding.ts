@@ -30,6 +30,47 @@ export type Objectif = (typeof OBJECTIFS)[number];
 
 export const NIVEAUX = ["debutant", "intermediaire", "avance"] as const;
 
+/**
+ * Le sexe, avec « non précisé » comme réponse à part entière.
+ *
+ * Ce n'est pas une politesse : le moteur doit fonctionner sans. Une liste à
+ * deux valeurs obligatoires imposerait une valeur fausse aux comptes existants,
+ * qui n'ont jamais été interrogés — et rien ne doit se calculer à partir d'un
+ * défaut inventé.
+ */
+export const SEXES = ["homme", "femme", "non_precise"] as const;
+export type Sexe = (typeof SEXES)[number];
+
+export const LIBELLES_SEXE: Record<Sexe, string> = {
+  homme: "Homme",
+  femme: "Femme",
+  non_precise: "Je préfère ne pas dire",
+};
+
+/**
+ * Bornes des mesures corporelles.
+ *
+ * Elles servent au schéma de validation ET aux champs de saisie : sans source
+ * commune, l'écran laisse taper une valeur que le serveur refuse, et le refus
+ * arrive après l'envoi.
+ */
+export const BORNES_CORPS = {
+  taille: { min: 100, max: 250 },
+  poids: { min: 30, max: 300 },
+  /** Personne n'a moins de 13 ans ni plus de 100 : au-delà, c'est une faute de frappe. */
+  age: { min: 13, max: 100 },
+} as const;
+
+/** La date de naissance la plus ancienne / la plus récente acceptable. */
+export function bornesDeNaissance(aujourdhui = new Date()): { min: string; max: string } {
+  const annee = aujourdhui.getFullYear();
+  const jour = aujourdhui.toISOString().slice(5, 10);
+  return {
+    min: `${annee - BORNES_CORPS.age.max}-${jour}`,
+    max: `${annee - BORNES_CORPS.age.min}-${jour}`,
+  };
+}
+
 export const PREFERENCES_MATERIEL = ["machines", "poids_libres", "melange", "aucune"] as const;
 
 export const LIBELLES_OBJECTIF: Record<Objectif, string> = {
@@ -113,8 +154,18 @@ export const onboardingSchema = z
     salleId: z.string().uuid().optional(),
     nouvelleSalleNom: z.string().min(2).max(80).optional(),
 
-    taille: z.number().int().min(100).max(250).optional(),
-    poids: z.number().min(30).max(300).optional(),
+    /**
+     * Qui s'entraîne. Tout est facultatif : refuser de répondre ne doit pas
+     * empêcher de s'entraîner, et le moteur fonctionne sans.
+     *
+     * `poids` n'atterrit pas dans `users` mais dans `body_weights`, daté du
+     * jour : c'est la première pesée. Une colonne de plus dans `users`
+     * divergerait de la courbe dès la deuxième pesée.
+     */
+    dateNaissance: z.string().date().optional(),
+    sexe: z.enum(SEXES).optional(),
+    taille: z.number().int().min(BORNES_CORPS.taille.min).max(BORNES_CORPS.taille.max).optional(),
+    poids: z.number().min(BORNES_CORPS.poids.min).max(BORNES_CORPS.poids.max).optional(),
   })
   .refine((d) => d.frequenceMinParSemaine <= d.frequenceCibleParSemaine, {
     message: "Le minimum ne peut pas dépasser l'objectif",

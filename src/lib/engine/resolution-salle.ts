@@ -1,4 +1,5 @@
 import type { ConfigurationCharge } from "./charges";
+import { estRefuse } from "./refus";
 import { memeMuscle } from "@/lib/referentiels/muscles";
 
 /**
@@ -79,6 +80,9 @@ const LIBELLE_NIVEAU: Record<Exclude<NiveauResolution, "identique" | "indisponib
  * @param dejaRetenues      instances deja placees dans la seance, a ne pas repeter
  * @param musclesAEviter    muscles fatigues : ecarte les remplacants
  * @param musclesExclus     muscles sous contrainte severe : ecarte aussi le prevu
+ * @param exercicesRefuses  exercices dont l'utilisateur ne veut pas, indexes
+ *                          par `indexerRefus`. Ils ecartent l'exercice prevu
+ *                          comme ses remplacants.
  */
 export function resoudrePourSalle(
   prevu: InstanceResolvable,
@@ -86,6 +90,7 @@ export function resoudrePourSalle(
   dejaRetenues: string[] = [],
   musclesAEviter: string[] = [],
   musclesExclus: string[] = [],
+  exercicesRefuses: ReadonlySet<string> = new Set(),
 ): ResolutionSalle {
   const disponibles = parcSalleDuJour.filter((i) => !dejaRetenues.includes(i.id));
 
@@ -98,7 +103,16 @@ export function resoudrePourSalle(
   // jour, sans jamais regarder les muscles : une zone sous contrainte severe
   // etait donc contournee par la simple presence de la machine. C'etait le
   // seul chemin par lequel une exclusion du moteur pouvait etre ignoree.
-  const prevuExclu = sollicite(prevu, musclesExclus);
+  /*
+   * Un exercice refuse est ecarte au meme titre qu'une zone sous contrainte.
+   *
+   * `users.exercices_refuses` n'etait lu QUE par le plan de calibration : une
+   * fois le bloc en place, l'exercice refuse revenait dans les seances
+   * proposees, et dans les remplacants. Un refus qui ne tient qu'un cycle
+   * n'est pas un refus.
+   */
+  const prevuExclu =
+    sollicite(prevu, musclesExclus) || estRefuse(prevu, exercicesRefuses);
 
   if (
     !prevuExclu &&
@@ -111,7 +125,9 @@ export function resoudrePourSalle(
   // Un muscle exclu l'est pour tout le monde : il ne sert a rien de le retirer
   // du prevu pour le laisser revenir par un remplacant.
   const aEviter = [...musclesAEviter, ...musclesExclus];
-  const compatibles = disponibles.filter((i) => !sollicite(i, aEviter));
+  const compatibles = disponibles.filter(
+    (i) => !sollicite(i, aEviter) && !estRefuse(i, exercicesRefuses),
+  );
 
   // 1. Le meme exercice existe ici, sur une autre machine.
   const memeExercice = compatibles.find((i) => i.exerciseId === prevu.exerciseId);
