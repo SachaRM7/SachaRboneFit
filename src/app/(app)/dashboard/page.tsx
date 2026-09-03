@@ -1,6 +1,10 @@
 "use client";
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { messageErreur } from "@/lib/messages";
+import { toast } from "sonner";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -97,9 +101,40 @@ export default function DashboardPage() {
     }
   };
 
-  const handleAbandon = () => {
-    if (confirm("Abandonner la séance en cours ? Toutes les données non enregistrées seront perdues.")) {
+  /**
+   * Abandonner la séance en cours.
+   *
+   * Le geste ne faisait qu'un `clear()` du store : la ligne `session_logs`
+   * restait ouverte en base, et « Séance en cours — 0 séries » revenait au
+   * rechargement suivant. Chaque nouvelle tentative en créait une de plus.
+   *
+   * `window.confirm` est en outre ignoré dans une application installée depuis
+   * l'écran d'accueil sur iOS : le bouton recevait le tap, la fenêtre
+   * n'apparaissait jamais, et rien ne se produisait. La confirmation passe par
+   * la même feuille que partout ailleurs.
+   */
+  const [abandonEnCours, setAbandonEnCours] = useState(false);
+  const [confirmationAbandon, setConfirmationAbandon] = useState(false);
+
+  const handleAbandon = async () => {
+    setAbandonEnCours(true);
+    try {
+      const res = await fetch("/api/sessions/abandon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionLogId: active?.id }),
+      });
+      const corps = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(corps?.error ?? "Abandon impossible");
       clear();
+      setConfirmationAbandon(false);
+      toast.success("Séance abandonnée");
+      router.refresh();
+    } catch (e) {
+      // Un échec se dit. Un bouton qui semble mort est le pire des deux.
+      toast.error(e instanceof Error ? e.message : "Abandon impossible");
+    } finally {
+      setAbandonEnCours(false);
     }
   };
 
@@ -215,7 +250,7 @@ export default function DashboardPage() {
                     size="sm"
                     variant="ghost"
                     className="text-encre-2 hover:text-encre"
-                    onClick={handleAbandon}
+                    onClick={() => setConfirmationAbandon(true)}
                   >
                     Abandonner
                   </Button>
@@ -252,7 +287,7 @@ export default function DashboardPage() {
                     size="sm"
                     variant="ghost"
                     className="text-encre-2 hover:text-encre"
-                    onClick={handleAbandon}
+                    onClick={() => setConfirmationAbandon(true)}
                   >
                     Abandonner
                   </Button>
@@ -261,6 +296,27 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
+
+        <Dialog open={confirmationAbandon} onOpenChange={setConfirmationAbandon}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Abandonner la séance en cours ?</DialogTitle>
+              <DialogDescription>
+                Elle ne porte aucune série enregistrée. Ton programme, ton bloc et
+                le matériel de ta salle ne changent pas.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setConfirmationAbandon(false)}
+                disabled={abandonEnCours}>
+                Continuer la séance
+              </Button>
+              <Button variant="destructive" onClick={handleAbandon} disabled={abandonEnCours}>
+                {abandonEnCours ? "Abandon…" : "Abandonner"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Aujourd'hui — l'état vient du moteur, cet écran ne fait que le rendre.
             Il ne s'affiche pas pendant une séance en cours : la reprendre est

@@ -1,5 +1,5 @@
 import { db } from "@/db/client";
-import { exerciseInstances, sessionLogs, setLogs } from "@/db/schema";
+import { exerciseInstances, sessionIncidents, sessionLogs, sessionPlanItems, setLogs } from "@/db/schema";
 import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import type { SessionLog } from "@/db/schema";
 import { estUneSeanceRealisee } from "@/db/archivage";
@@ -290,4 +290,75 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
     .returning();
 
   return avecTendance ?? cloturee;
+}
+
+/**
+ * Erreur métier : abandonner une séance qui contient déjà des séries.
+ *
+ * Abandonner efface. Une séance où quelque chose a réellement été fait ne
+ * s'efface pas d'un bouton : elle se termine, ou elle reste ouverte.
+ */
+export class SeanceNonVide extends Error {
+  constructor() {
+    super("Cette séance contient des séries : termine-la plutôt que de l'abandonner");
+    this.name = "SeanceNonVide";
+  }
+}
+
+/**
+ * La séance ouverte de ce compte, s'il y en a une.
+ *
+ * « Ouverte » veut dire : créée, pas encore clôturée, pas archivée. Il ne
+ * devrait jamais y en avoir deux — c'est l'invariant que fait respecter
+ * `construireSeanceDuJour`. En cas d'héritage, la plus récente gagne : c'est
+ * celle que l'écran de séance porte.
+ */
+export async function seanceOuverte(userId: string): Promise<SessionLog | null> {
+  const seance = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.userId, userId),
+      isNull(sessionLogs.archiveLe),
+      isNull(sessionLogs.dureeMinutes),
+    ),
+    orderBy: [desc(sessionLogs.createdAt)],
+  });
+  return seance ?? null;
+}
+
+/**
+ * Abandonner une séance commencée.
+ *
+ * Le bouton du tableau de bord n'appelait que `clear()` — une remise à zéro du
+ * store React. La ligne `session_logs` restait ouverte en base : au
+ * rechargement suivant, « Séance en cours — 0 séries enregistrées »
+ * réapparaissait, et une nouvelle tentative en créait une de plus. C'est ce
+ * qui a produit les séances fantômes et le « 4 séances cette semaine ».
+ *
+ * Ce qui part : la ligne et son plan, qui n'ont jamais rien mesuré. Ce qui ne
+ * bouge pas : le gabarit, le bloc, l'inventaire, et toute séance qui porte des
+ * séries — la suppression est refusée dans ce cas plutôt que silencieuse.
+ */
+export async function abandonnerSeance(userId: string, sessionLogId: string): Promise<void> {
+  const seance = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.id, sessionLogId),
+      eq(sessionLogs.userId, userId),
+      isNull(sessionLogs.archiveLe),
+    ),
+  });
+  if (!seance) throw new SeanceIntrouvable();
+
+  const series = await db.query.setLogs.findMany({
+    where: eq(setLogs.sessionLogId, sessionLogId),
+    columns: { id: true },
+  });
+  if (series.length > 0) throw new SeanceNonVide();
+
+  await db.transaction(async (tx) => {
+    // Le plan cite la séance : il part avec elle, et lui seul. Les lignes de
+    // gabarit qu'il référence ne sont pas touchées.
+    await tx.delete(sessionPlanItems).where(eq(sessionPlanItems.sessionLogId, sessionLogId));
+    await tx.delete(sessionIncidents).where(eq(sessionIncidents.sessionLogId, sessionLogId));
+    await tx.delete(sessionLogs).where(eq(sessionLogs.id, sessionLogId));
+  });
 }

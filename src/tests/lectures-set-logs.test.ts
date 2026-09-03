@@ -95,6 +95,11 @@ const LECTEURS: Record<string, { lectures: number; pourquoi: Justification; note
     note: "trois lectures filtrent elles-mêmes, trois partent d'une liste de séances déjà filtrée",
   },
   "services/bilan.ts": { lectures: 2, pourquoi: "regle-dans-la-requete" },
+  "services/seances.ts": {
+    lectures: 1, pourquoi: "bornee-par-des-seances",
+    note: "abandonner : compte les séries d'UNE séance déjà relue et vérifiée non archivée, "
+      + "pour refuser d'effacer une séance où quelque chose a eu lieu",
+  },
   "services/cycle.ts": { lectures: 1, pourquoi: "bornee-par-des-seances" },
   "services/plan-seance.ts": { lectures: 1, pourquoi: "regle-dans-la-requete" },
   "lib/coach/tools.ts": {
