@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { terminerSeance, SeanceIntrouvable, SeanceSansSerie } from "@/services/seances";
+import {
+  terminerSeance, SeanceIntrouvable, SeanceSansSerie, SerieInvalide,
+} from "@/services/seances";
 
 const serieSchema = z.object({
   exerciseInstanceId: z.string().uuid(),
@@ -57,6 +59,18 @@ export async function PATCH(
      */
     if (error instanceof SeanceSansSerie) {
       return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    /**
+     * Même statut, même raison : la requête est bien formée, c'est une série
+     * qui ne mesure rien. Le refus nomme la série et ce qui manque, plutôt que
+     * de l'écarter en silence — l'écran avait montré une ligne validée, la
+     * base n'en gardait rien, et personne n'était prévenu.
+     */
+    if (error instanceof SerieInvalide) {
+      return NextResponse.json(
+        { error: error.message, numeroSerie: error.numeroSerie, motif: error.motif },
+        { status: 422 },
+      );
     }
     console.error("[session-logs PATCH] error:", error);
     return NextResponse.json({ error: "Echec de la cloture" }, { status: 500 });

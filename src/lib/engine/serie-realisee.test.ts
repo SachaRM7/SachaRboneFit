@@ -3,7 +3,8 @@ import {
   chargeZeroEstLegitime,
   estUneSerieRealisee,
   motifSerieInvalide,
-  rpeExploitable,
+  rpeDansLEchelle,
+  effortRequisPour,
   seriesRealisees,
 } from "./serie-realisee";
 
@@ -132,30 +133,69 @@ describe("le filtre commun à toutes les lectures", () => {
   });
 });
 
-describe("un effort perçu hors plage est jeté, la série est gardée", () => {
+describe("un effort hors échelle empêche la validation", () => {
   it("les 99 saisis en recette ne sont pas une mesure", () => {
-    expect(rpeExploitable(99)).toBeNull();
-    expect(rpeExploitable(0)).toBeNull();
-    expect(rpeExploitable(-3)).toBeNull();
+    expect(rpeDansLEchelle(99)).toBe(false);
+    expect(rpeDansLEchelle(0)).toBe(false);
+    expect(rpeDansLEchelle(-3)).toBe(false);
   });
 
-  it("mais les répétitions, elles, ont bien été faites", () => {
-    // On jette la donnée douteuse, pas la performance.
-    expect(estUneSerieRealisee(
+  it("et la série ne peut pas être validée avec", () => {
+    // La première correction jetait la valeur en gardant la série : l'écran
+    // montrait une ligne verte dont l'effort avait disparu en base. C'est
+    // l'écart UI/DB qu'on élimine partout — ici il est simplement refusé.
+    expect(motifSerieInvalide(
       { repsEffectuees: 10, charge: 60, rpeEffectif: 99 },
+      { conventionCharge: "poids_total" },
+    )).toBe("effort_hors_plage");
+  });
+
+  it("une valeur dans l'échelle passe", () => {
+    for (const v of [1, 7.5, 8, 10]) expect(rpeDansLEchelle(v)).toBe(true);
+    expect(estUneSerieRealisee(
+      { repsEffectuees: 10, charge: 60, rpeEffectif: 8 },
       { conventionCharge: "poids_total" },
     )).toBe(true);
   });
 
-  it("une valeur dans la plage est conservée telle quelle", () => {
-    expect(rpeExploitable(8)).toBe(8);
-    expect(rpeExploitable(7.5)).toBe(7.5);
-    expect(rpeExploitable(1)).toBe(1);
-    expect(rpeExploitable(10)).toBe(10);
+  it("une absence reste une absence", () => {
+    expect(rpeDansLEchelle(null)).toBe(false);
+    expect(rpeDansLEchelle(undefined)).toBe(false);
+  });
+});
+
+describe("en calibration, la réserve est obligatoire", () => {
+  it("c'est la phase du cycle qui l'impose, pas l'écran", () => {
+    expect(effortRequisPour("calibration")).toBe(true);
+    expect(effortRequisPour("volume")).toBe(false);
+    expect(effortRequisPour(null)).toBe(false);
   });
 
-  it("une absence reste une absence", () => {
-    expect(rpeExploitable(null)).toBeNull();
-    expect(rpeExploitable(undefined)).toBeNull();
+  it("sans effort, une série de calibration ne mesure rien", () => {
+    expect(motifSerieInvalide(
+      { repsEffectuees: 10, charge: 60, rpeEffectif: null },
+      { conventionCharge: "poids_total" },
+      { effortRequis: true },
+    )).toBe("effort_absent");
+  });
+
+  it("hors calibration, l'effort reste facultatif", () => {
+    // Aucune règle du moteur ne le lit : exiger une saisie dont personne ne se
+    // sert reviendrait à fabriquer de la donnée pour la forme.
+    expect(estUneSerieRealisee(
+      { repsEffectuees: 10, charge: 60, rpeEffectif: null },
+      { conventionCharge: "poids_total" },
+      { effortRequis: false },
+    )).toBe(true);
+  });
+
+  it("mais une valeur hors échelle est refusée dans les deux cas", () => {
+    for (const effortRequis of [true, false]) {
+      expect(motifSerieInvalide(
+        { repsEffectuees: 10, charge: 60, rpeEffectif: 99 },
+        { conventionCharge: "poids_total" },
+        { effortRequis },
+      )).toBe("effort_hors_plage");
+    }
   });
 });

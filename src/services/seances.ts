@@ -1,9 +1,15 @@
 import { db } from "@/db/client";
-import { exerciseInstances, sessionIncidents, sessionLogs, sessionPlanItems, setLogs } from "@/db/schema";
+import {
+  exerciseInstances, programmeBlocs, seanceTemplates,
+  sessionIncidents, sessionLogs, sessionPlanItems, setLogs,
+} from "@/db/schema";
 import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import type { SessionLog } from "@/db/schema";
 import { estUneSeanceRealisee } from "@/db/archivage";
-import { estUneSerieRealisee, rpeExploitable } from "@/lib/engine/serie-realisee";
+import {
+  effortRequisPour, LIBELLES_MOTIF_INVALIDE, motifSerieInvalide,
+  type MotifSerieInvalide,
+} from "@/lib/engine/serie-realisee";
 import { feuDeTendance } from "./progression";
 
 /**
@@ -189,6 +195,38 @@ export class SeanceSansSerie extends Error {
   }
 }
 
+/**
+ * Erreur métier : une série reçue n'est pas une série réalisée.
+ *
+ * Elle porte le numéro et le motif, parce qu'un refus doit dire QUOI corriger.
+ * Le client applique déjà la même règle : l'arrivée d'une série invalide ici
+ * signale un désaccord entre les deux, pas une saisie ordinaire.
+ */
+export class SerieInvalide extends Error {
+  constructor(readonly numeroSerie: number, readonly motif: MotifSerieInvalide) {
+    super(`Série ${numeroSerie} : ${LIBELLES_MOTIF_INVALIDE[motif]}`);
+    this.name = "SerieInvalide";
+  }
+}
+
+/**
+ * La phase du cycle dont relève cette séance.
+ *
+ * Le serveur ne la demande pas au client : c'est elle qui décide si la réserve
+ * est obligatoire, et une exigence qu'on peut désactiver depuis le navigateur
+ * n'en est pas une.
+ */
+async function phaseDuCycle(seanceTemplateId: string | null): Promise<string | null> {
+  if (!seanceTemplateId) return null;
+  const ligne = await db
+    .select({ typeCycle: programmeBlocs.typeCycle })
+    .from(seanceTemplates)
+    .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
+    .where(eq(seanceTemplates.id, seanceTemplateId))
+    .limit(1);
+  return ligne[0]?.typeCycle ?? null;
+}
+
 export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog> {
   const existante = await db.query.sessionLogs.findFirst({
     where: and(
@@ -202,14 +240,17 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
   if (!existante) throw new SeanceIntrouvable();
 
   /**
-   * Ce qui a réellement eu lieu.
+   * Ce qui a réellement eu lieu — et un refus explicite pour le reste.
    *
    * Le filtre ne demandait que « ni l'un ni l'autre n'est `null` ». Zéro n'est
    * pas `null` : une série à 0 répétition et 0 kilo entrait en base, comptait
-   * dans le volume et nourrissait la progression. La définition vit maintenant
-   * dans `engine/serie-realisee`, et elle a besoin de savoir ce que la charge
-   * MESURE sur chaque appareil — zéro est une valeur légitime sur une
-   * assistance, jamais sur une pile.
+   * dans le volume et nourrissait la progression.
+   *
+   * La première correction se contentait d'ÉCARTER ces séries. C'était encore
+   * une correction silencieuse : l'écran avait montré une ligne validée, la
+   * base n'en gardait rien, et personne n'était prévenu. Une série invalide
+   * qui atteint le serveur est maintenant une erreur — le client la refuse
+   * déjà, donc son arrivée ici signale un vrai désaccord entre les deux.
    */
   const instancesCitees = [...new Set(donnees.series.map((s) => s.exerciseInstanceId).filter(Boolean))];
   const conventions = instancesCitees.length
@@ -224,10 +265,20 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
     : [];
   const conventionParInstance = new Map(conventions.map((c) => [c.id, c]));
 
-  const series = donnees.series.filter(
-    (s) => s.exerciseInstanceId
-      && estUneSerieRealisee(s, conventionParInstance.get(s.exerciseInstanceId) ?? {}),
-  );
+  // En calibration, la réserve est LA mesure : c'est elle qui fixera les
+  // charges des blocs suivants. Une série de calibration sans effort renseigné
+  // ne mesure rien, et le serveur le sait sans avoir à croire le client.
+  const exigences = { effortRequis: effortRequisPour(await phaseDuCycle(existante.seanceTemplateId)) };
+
+  const series: SerieASauver[] = [];
+  for (const s of donnees.series) {
+    if (!s.exerciseInstanceId) continue;
+    const motif = motifSerieInvalide(
+      s, conventionParInstance.get(s.exerciseInstanceId) ?? {}, exigences,
+    );
+    if (motif) throw new SerieInvalide(s.numeroSerie, motif);
+    series.push(s);
+  }
 
   // Le seul signal durable d'un entraînement est la série. Sans elle, il n'y a
   // rien à clore — et surtout rien qui doive compter comme une séance faite.
@@ -261,9 +312,7 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
           numeroSerie: s.numeroSerie,
           repsEffectuees: s.repsEffectuees,
           charge: s.charge,
-          // Un 99 saisi en recette n'est pas une mesure : la donnée est
-          // écartée, la série reste — les répétitions, elles, ont eu lieu.
-          rpeEffectif: rpeExploitable(s.rpeEffectif),
+          rpeEffectif: s.rpeEffectif ?? null,
           tempoRespecte: s.tempoRespecte ?? null,
           // Ces deux colonnes existaient mais n'etaient jamais alimentees :
           // le client les transmettait et l'insertion les ignorait.

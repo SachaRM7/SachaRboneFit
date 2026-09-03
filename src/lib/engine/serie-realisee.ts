@@ -47,14 +47,39 @@ export type MotifSerieInvalide =
   | "reps_absentes"
   | "reps_nulles"
   | "charge_absente"
-  | "charge_nulle";
+  | "charge_nulle"
+  | "effort_absent"
+  | "effort_hors_plage";
 
 export const LIBELLES_MOTIF_INVALIDE: Record<MotifSerieInvalide, string> = {
   reps_absentes: "Indique le nombre de répétitions.",
   reps_nulles: "Une série sans répétition n'a pas eu lieu.",
   charge_absente: "Indique la charge utilisée.",
   charge_nulle: "Une charge à zéro ne peut pas être une série réalisée.",
+  effort_absent: "En calibration, indique ce qu'il te restait en réserve : c'est cette réponse qui fixera tes charges.",
+  effort_hors_plage: "Cet effort n'est pas dans l'échelle : corrige-le avant de valider.",
 };
+
+/**
+ * Ce que le contexte impose EN PLUS de ce que le mouvement impose.
+ *
+ * Un seul cas aujourd'hui, et il est fondé : pendant la calibration, la
+ * réserve de répétitions n'est pas une donnée d'ambiance, c'est LA mesure —
+ * c'est elle qui fixera les charges des blocs suivants. Une série de
+ * calibration sans effort renseigné ne mesure rien.
+ *
+ * Hors calibration, l'effort reste facultatif : aucune règle du moteur ne le
+ * lit, et exiger une saisie dont personne ne se sert reviendrait à fabriquer
+ * de la donnée pour la forme.
+ */
+export interface ExigencesDeLaSerie {
+  /** La réserve/effort est-elle obligatoire pour que la série mesure quelque chose ? */
+  effortRequis?: boolean;
+}
+
+export function effortRequisPour(phaseCycle: string | null | undefined): boolean {
+  return phaseCycle === "calibration";
+}
 
 /**
  * Une charge de zéro est-elle une valeur légitime sur cet appareil ?
@@ -77,6 +102,7 @@ export function chargeZeroEstLegitime(convention: ConventionDeLaSerie): boolean 
 export function motifSerieInvalide(
   serie: SerieCandidate,
   convention: ConventionDeLaSerie = {},
+  exigences: ExigencesDeLaSerie = {},
 ): MotifSerieInvalide | null {
   const reps = serie.repsEffectuees;
   if (reps == null || !Number.isFinite(reps)) return "reps_absentes";
@@ -86,10 +112,27 @@ export function motifSerieInvalide(
   if (charge == null || !Number.isFinite(charge)) {
     // Sans charge externe, la colonne vaut zéro par convention et l'écran
     // laisse le champ vide : ne rien saisir est ici la saisie attendue.
-    return convention.conventionCharge === "sans_charge" ? null : "charge_absente";
+    if (convention.conventionCharge !== "sans_charge") return "charge_absente";
+  } else if (charge < 0 || (charge === 0 && !chargeZeroEstLegitime(convention))) {
+    return "charge_nulle";
   }
-  if (charge < 0) return "charge_nulle";
-  if (charge === 0 && !chargeZeroEstLegitime(convention)) return "charge_nulle";
+
+  /**
+   * L'effort, quand il est obligatoire ou quand il a été saisi.
+   *
+   * Une valeur hors échelle — le 99 tapé en recette — n'est pas une mesure. On
+   * ne la jetait pas assez fort : la garder en écartant la donnée revenait à
+   * afficher une série verte dont l'effort n'existait plus nulle part. Elle
+   * empêche maintenant la validation, et l'écran demande de la corriger. La
+   * série n'est pas perdue pour autant : les répétitions saisies restent à
+   * l'écran, c'est le Check qui attend.
+   */
+  const effort = serie.rpeEffectif;
+  const effortSaisi = effort != null && Number.isFinite(effort);
+  if (!effortSaisi) {
+    return exigences.effortRequis ? "effort_absent" : null;
+  }
+  if (effort < RPE_MIN_EXPLOITABLE || effort > RPE_MAX_EXPLOITABLE) return "effort_hors_plage";
 
   return null;
 }
@@ -97,24 +140,26 @@ export function motifSerieInvalide(
 export function estUneSerieRealisee(
   serie: SerieCandidate,
   convention: ConventionDeLaSerie = {},
+  exigences: ExigencesDeLaSerie = {},
 ): boolean {
-  return motifSerieInvalide(serie, convention) === null;
+  return motifSerieInvalide(serie, convention, exigences) === null;
 }
 
 /**
- * Plage d'un effort perçu exploitable.
+ * Les bornes de l'échelle d'effort.
  *
- * Hors plage, la valeur n'est pas une mesure — mais elle n'annule pas la série
- * pour autant : les répétitions ont bien été faites. On jette la donnée
- * douteuse, pas la performance. C'est la même règle que pour une cible non
- * prescrite : une absence de donnée vaut mieux qu'un chiffre inventé.
+ * Hors de ces bornes, il n'y a pas de mesure — et surtout pas de correction
+ * silencieuse. Ramener un 99 à `null` en gardant la série produisait une ligne
+ * verte à l'écran dont l'effort avait disparu en base : exactement l'écart
+ * UI/DB qu'on élimine partout ailleurs. La saisie est refusée, à l'écran comme
+ * au serveur, et l'utilisateur corrige.
  */
 export const RPE_MIN_EXPLOITABLE = 1;
 export const RPE_MAX_EXPLOITABLE = 10;
 
-export function rpeExploitable(rpe: number | null | undefined): number | null {
-  if (rpe == null || !Number.isFinite(rpe)) return null;
-  return rpe >= RPE_MIN_EXPLOITABLE && rpe <= RPE_MAX_EXPLOITABLE ? rpe : null;
+export function rpeDansLEchelle(rpe: number | null | undefined): boolean {
+  if (rpe == null || !Number.isFinite(rpe)) return false;
+  return rpe >= RPE_MIN_EXPLOITABLE && rpe <= RPE_MAX_EXPLOITABLE;
 }
 
 /**
@@ -129,5 +174,8 @@ export function seriesRealisees<T extends SerieCandidate>(
   series: T[],
   conventionPour: (serie: T) => ConventionDeLaSerie = () => ({}),
 ): T[] {
+  // Aucune exigence de contexte ici : ce filtre relit l'historique, où la
+  // phase du cycle de l'époque n'est plus connue. Il écarte ce qui n'a pas eu
+  // lieu, pas ce qui a été mesuré sans réserve.
   return series.filter((s) => estUneSerieRealisee(s, conventionPour(s)));
 }

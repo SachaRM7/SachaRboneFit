@@ -150,8 +150,15 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
       natureCharge: exercice.natureCharge,
     };
     const motif = motifSerieInvalide(
-      { repsEffectuees: Number.isFinite(reps) ? reps : null, charge },
+      {
+        repsEffectuees: Number.isFinite(reps) ? reps : null,
+        charge,
+        rpeEffectif: effortSaisi(v.rpe),
+      },
       convention,
+      // En calibration, la réserve est LA mesure : c'est elle qui fixera les
+      // charges des blocs suivants. `modeReserve` porte déjà cette phase.
+      { effortRequis: modeReserve },
     );
     if (motif) {
       toast.error(LIBELLES_MOTIF_INVALIDE[motif]);

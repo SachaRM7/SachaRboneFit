@@ -19,7 +19,7 @@ vi.mock("@/lib/supabase/auth-helper", () => ({ getAuthenticatedUserId: async () 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
 const { eq } = await import("drizzle-orm");
-const { terminerSeance, SeanceSansSerie } = await import("@/services/seances");
+const { terminerSeance, SeanceSansSerie, SerieInvalide } = await import("@/services/seances");
 const { derniereSeriesPour } = await import("@/services/plan-seance");
 
 let salle = "";
@@ -83,24 +83,48 @@ beforeAll(async () => {
 });
 
 describe("1 — une série vide ou à zéro ne devient pas une série réalisée", () => {
-  it("la clôture n'écrit que ce qui a eu lieu", async () => {
+  it("la clôture refuse la requête au lieu d'écarter en silence", async () => {
     const seance = await nouvelleSeance("2026-09-03");
 
-    await terminerSeance({
+    // Écarter les séries invalides restait une correction silencieuse : l'écran
+    // avait montré des lignes validées, la base n'en gardait rien.
+    await expect(terminerSeance({
       userId: U, sessionLogId: seance, dureeMinutes: 138,
       series: [
         { exerciseInstanceId: pile, numeroSerie: 1, repsEffectuees: 10, charge: 45 },
         { exerciseInstanceId: pile, numeroSerie: 2, repsEffectuees: 0, charge: 0 },
-        { exerciseInstanceId: pile, numeroSerie: 3, repsEffectuees: 0, charge: 45 },
-        { exerciseInstanceId: pile, numeroSerie: 4, repsEffectuees: 8, charge: 0 },
+      ],
+    })).rejects.toBeInstanceOf(SerieInvalide);
+
+    // Rien n'est écrit, et la séance reste ouverte donc reprenable.
+    expect(await db.query.setLogs.findMany({
+      where: eq(schema.setLogs.sessionLogId, seance),
+    })).toHaveLength(0);
+  });
+
+  it("le refus nomme la série et ce qui manque", async () => {
+    const seance = await nouvelleSeance("2026-09-18");
+    await expect(terminerSeance({
+      userId: U, sessionLogId: seance, dureeMinutes: 40,
+      series: [
+        { exerciseInstanceId: pile, numeroSerie: 1, repsEffectuees: 10, charge: 45, rpeEffectif: 8 },
+        { exerciseInstanceId: pile, numeroSerie: 2, repsEffectuees: 8, charge: 0, rpeEffectif: 8 },
+      ],
+    })).rejects.toMatchObject({ numeroSerie: 2, motif: "charge_nulle" });
+  });
+
+  it("une séance dont toutes les séries sont bonnes passe", async () => {
+    const seance = await nouvelleSeance("2026-09-19");
+    await terminerSeance({
+      userId: U, sessionLogId: seance, dureeMinutes: 42,
+      series: [
+        { exerciseInstanceId: pile, numeroSerie: 1, repsEffectuees: 10, charge: 45, rpeEffectif: 8 },
+        { exerciseInstanceId: pile, numeroSerie: 2, repsEffectuees: 9, charge: 45, rpeEffectif: 9 },
       ],
     });
-
-    const enBase = await db.query.setLogs.findMany({
+    expect(await db.query.setLogs.findMany({
       where: eq(schema.setLogs.sessionLogId, seance),
-    });
-    expect(enBase).toHaveLength(1);
-    expect(enBase[0]?.numeroSerie).toBe(1);
+    })).toHaveLength(2);
   });
 
   it("une séance entièrement absurde ne peut pas être clôturée", async () => {
@@ -111,7 +135,7 @@ describe("1 — une série vide ou à zéro ne devient pas une série réalisée
         { exerciseInstanceId: pile, numeroSerie: 1, repsEffectuees: 0, charge: 0 },
         { exerciseInstanceId: pile, numeroSerie: 2, repsEffectuees: 0, charge: 0 },
       ],
-    })).rejects.toBeInstanceOf(SeanceSansSerie);
+    })).rejects.toBeInstanceOf(SerieInvalide);
 
     // Et rien n'a été écrit : la séance reste ouverte, donc reprenable.
     const enBase = await db.query.setLogs.findMany({
@@ -120,22 +144,45 @@ describe("1 — une série vide ou à zéro ne devient pas une série réalisée
     expect(enBase).toHaveLength(0);
   });
 
-  it("un RPE hors plage est jeté, la série est gardée", async () => {
+  it("un RPE hors échelle fait rejeter la clôture, il n'est pas corrigé", async () => {
     const seance = await nouvelleSeance("2026-09-05");
-    await terminerSeance({
+    await expect(terminerSeance({
       userId: U, sessionLogId: seance, dureeMinutes: 45,
       series: [
         { exerciseInstanceId: pile, numeroSerie: 1, repsEffectuees: 9, charge: 45, rpeEffectif: 99 },
-        { exerciseInstanceId: pile, numeroSerie: 2, repsEffectuees: 9, charge: 45, rpeEffectif: 8 },
+      ],
+    })).rejects.toMatchObject({ motif: "effort_hors_plage" });
+
+    // Ni ramené à null, ni écrit tel quel : rien n'est écrit du tout.
+    expect(await db.query.setLogs.findMany({
+      where: eq(schema.setLogs.sessionLogId, seance),
+    })).toHaveLength(0);
+  });
+
+  it("en calibration, une série sans réserve est refusée", async () => {
+    // C'est elle qui fixera les charges des blocs suivants : une série de
+    // calibration sans effort renseigné ne mesure rien.
+    const seance = await nouvelleSeance("2026-09-21");
+    await expect(terminerSeance({
+      userId: U, sessionLogId: seance, dureeMinutes: 45,
+      series: [
+        { exerciseInstanceId: pile, numeroSerie: 1, repsEffectuees: 9, charge: 45 },
+      ],
+    })).rejects.toMatchObject({ motif: "effort_absent" });
+  });
+
+  it("un RPE dans l'échelle est conservé tel quel", async () => {
+    const seance = await nouvelleSeance("2026-09-20");
+    await terminerSeance({
+      userId: U, sessionLogId: seance, dureeMinutes: 45,
+      series: [
+        { exerciseInstanceId: pile, numeroSerie: 1, repsEffectuees: 9, charge: 45, rpeEffectif: 8 },
       ],
     });
     const enBase = await db.query.setLogs.findMany({
       where: eq(schema.setLogs.sessionLogId, seance),
-      orderBy: (s, { asc }) => [asc(s.numeroSerie)],
     });
-    expect(enBase).toHaveLength(2);
-    expect(enBase[0]?.rpeEffectif).toBeNull();
-    expect(enBase[1]?.rpeEffectif).toBe(8);
+    expect(enBase[0]?.rpeEffectif).toBe(8);
   });
 });
 
@@ -144,7 +191,7 @@ describe("zéro kilo selon ce que la charge mesure", () => {
     const seance = await nouvelleSeance("2026-09-06");
     await terminerSeance({
       userId: U, sessionLogId: seance, dureeMinutes: 40,
-      series: [{ exerciseInstanceId: assistee, numeroSerie: 1, repsEffectuees: 6, charge: 0 }],
+      series: [{ exerciseInstanceId: assistee, numeroSerie: 1, repsEffectuees: 6, charge: 0, rpeEffectif: 9 }],
     });
     const enBase = await db.query.setLogs.findMany({
       where: eq(schema.setLogs.sessionLogId, seance),
@@ -156,7 +203,7 @@ describe("zéro kilo selon ce que la charge mesure", () => {
     const seance = await nouvelleSeance("2026-09-07");
     await terminerSeance({
       userId: U, sessionLogId: seance, dureeMinutes: 40,
-      series: [{ exerciseInstanceId: corps, numeroSerie: 1, repsEffectuees: 12, charge: 0 }],
+      series: [{ exerciseInstanceId: corps, numeroSerie: 1, repsEffectuees: 12, charge: 0, rpeEffectif: 7 }],
     });
     const enBase = await db.query.setLogs.findMany({
       where: eq(schema.setLogs.sessionLogId, seance),
