@@ -44,7 +44,25 @@ export interface SeanceFaite {
   adaptee: boolean;
 }
 
-export type EtatSeance = "terminee" | "adaptee" | "aujourdhui" | "prochaine" | "a_venir";
+/**
+ * Où en est une séance de la semaine.
+ *
+ * Deux corrections par rapport à la première version, et les deux venaient de
+ * la même cause : quatre faits différents étaient tassés dans un seul mot.
+ *
+ * `aujourdhui` s'appelle `faite_aujourdhui`. Le mot seul ne disait pas s'il
+ * s'agissait d'une séance FAITE aujourd'hui ou d'une séance À FAIRE
+ * aujourd'hui — et l'écran l'affichait dans le style le plus appuyé de la
+ * liste, ce qui le faisait lire comme une consigne. Or rien dans le modèle
+ * n'attribue un jour à une séance : « à faire aujourd'hui » ne peut pas être
+ * dit, et c'est justement ce que le module refuse par ailleurs.
+ *
+ * Et `adaptee` n'est plus un état, mais un fait à part. Il en était un, placé
+ * dans la même alternative que la date : une séance faite aujourd'hui ET
+ * adaptée ressortait « aujourd'hui », l'adaptation disparaissait. Les deux
+ * questions sont indépendantes — quand, et telle que prévue ou non.
+ */
+export type EtatSeance = "terminee" | "faite_aujourdhui" | "prochaine" | "a_venir";
 
 export interface SeanceDeLaSemaine {
   templateId: string;
@@ -56,6 +74,12 @@ export interface SeanceDeLaSemaine {
   /** Piliers dominants, du plus représenté au moins représenté. */
   piliers: string[];
   etat: EtatSeance;
+  /**
+   * Au moins un exercice a été remplacé par les circonstances.
+   *
+   * Indépendant de l'état : une séance peut être faite aujourd'hui ET adaptée.
+   */
+  adaptee: boolean;
   /** Date de réalisation, quand la séance a eu lieu cette semaine. */
   faiteLe: string | null;
 }
@@ -145,7 +169,7 @@ export function semaineDuProgramme(entrees: {
 
     let etat: EtatSeance;
     if (faite) {
-      etat = faite.date === aujourdhui ? "aujourdhui" : faite.adaptee ? "adaptee" : "terminee";
+      etat = faite.date === aujourdhui ? "faite_aujourdhui" : "terminee";
     } else {
       etat = g.id === premiereNonFaite ? "prochaine" : "a_venir";
     }
@@ -172,6 +196,7 @@ export function semaineDuProgramme(entrees: {
         .slice(0, 3)
         .map(([p]) => p),
       etat,
+      adaptee: faite?.adaptee ?? false,
       faiteLe: faite?.date ?? null,
     };
   });

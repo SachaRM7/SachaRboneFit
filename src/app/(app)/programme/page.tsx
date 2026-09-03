@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
 import {
-  programmeBlocs, seanceTemplates, exerciseInTemplate, exerciseInstances, gyms, users,
+  seanceTemplates, exerciseInTemplate, exerciseInstances, gyms,
 } from "@/db/schema";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
@@ -9,6 +9,7 @@ import { GestionProgramme, type SeanceProgramme, type MachineDisponible } from "
 import { CreationBlocForm } from "@/components/programme/CreationBlocForm";
 import { VueCycle, OptionsAvancees } from "@/components/programme/VueCycle";
 import { vueDuProgramme } from "@/services/cycle";
+import { lireBlocs } from "@/services/blocs";
 import { onboardingTermine } from "@/services/profil-cache";
 
 /**
@@ -32,19 +33,17 @@ export default async function ProgrammePage() {
   // celle que le layout vient d'obtenir — la question n'est pas reposée.
   if (!(await onboardingTermine(userId))) redirect("/bienvenue");
 
-  /**
-   * Deux lectures sans lien entre elles : elles n'ont pas à s'attendre.
+  /*
+   * Les blocs sont lus une fois, et la vue les reçoit.
    *
-   * Sur une connexion unique, deux `await` successifs se sérialisent, et la
-   * seconde ne commence qu'une fois la première revenue. `Promise.all` les
-   * envoie ensemble ; c'est la seule chose qui change.
+   * Les deux lectures étaient menées de front, faute de lien entre elles — mais
+   * elles n'étaient pas indépendantes : elles cherchaient le MÊME bloc actif,
+   * avec les mêmes critères. Les mener en parallèle ne faisait que payer deux
+   * fois en même temps.
    */
-  const [vue, bloc] = await Promise.all([
-    vueDuProgramme(userId),
-    db.query.programmeBlocs.findFirst({
-      where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
-    }),
-  ]);
+  const blocs = await lireBlocs(userId);
+  const bloc = blocs.actif;
+  const vue = await vueDuProgramme(userId, undefined, { blocs });
 
   const [instances, salles] = await Promise.all([
     db.query.exerciseInstances.findMany({
@@ -114,7 +113,7 @@ export default async function ProgrammePage() {
   }
 
   return (
-    <div className="min-h-dvh bg-papier text-encre p-4 pb-24 space-y-5">
+    <div className="min-h-dvh bg-papier text-encre p-4 space-y-5">
       <h1 className="text-2xl font-bold">Programme</h1>
 
       <VueCycle vue={vue} />
