@@ -20,20 +20,43 @@ import { noter, traceActive } from "@/lib/mesure/trace";
  * `max: 1` n'est pas touché : la mesure doit précéder la décision, et rien
  * n'indique encore que le pooler tolérerait davantage.
  *
- * `idle_timeout` passe de 20 à 120 secondes. Ce n'est PAS la même chose
- * qu'élargir le pool : le nombre de connexions simultanées reste un. Ce qui
- * change, c'est la durée pendant laquelle une instance déjà chaude garde la
- * sienne. À 20 secondes, une instance servie toutes les trente secondes
- * rouvrait une connexion à chaque fois — poignée de main TLS et
- * authentification comprises, avant la première requête utile. Une instance
- * inactive plus de deux minutes rend toujours sa place.
+ * `idle_timeout` NON PLUS, et c'est un revirement qu'il faut écrire.
+ *
+ * Il était passé de 20 à 120 secondes, au motif qu'« une instance ne garde
+ * toujours qu'une connexion ». Le motif est vrai et la conclusion fausse. Ce
+ * qui sature un pooler, ce n'est pas le nombre de connexions par instance :
+ * c'est le nombre de connexions OUVERTES EN MÊME TEMPS, c'est-à-dire durée de
+ * vie × nombre d'instances. En exécution serverless le second facteur n'est
+ * pas borné, et six fois la durée, c'est jusqu'à six fois plus d'instances qui
+ * tiennent encore la leur. Cette même PR rend en outre le préchargement de
+ * Next actif — donc multiplie les instances concurrentes. Les deux facteurs
+ * augmentaient ensemble, et l'`EMAXCONNSESSION` d'origine venait exactement de
+ * là.
+ *
+ * La réouverture coûte réellement quelque chose — poignée de main TLS,
+ * authentification, `search_path`, avant la première requête utile. Mais on ne
+ * sait pas encore combien, ni à quelle fréquence elle arrive. La valeur reste
+ * donc à 20, et l'instrumentation ci-dessous compte les réouvertures : c'est
+ * elle qui dira si le jeu en vaut la chandelle, et à quel prix pour le pooler.
  */
 const client = postgres(process.env.DATABASE_URL!, {
   prepare: false,
   max: 1,
-  idle_timeout: 120,
+  idle_timeout: 20,
   connect_timeout: 10,
+  // Une connexion vient de se fermer : la suivante repaiera l'ouverture. C'est
+  // le seul signal qui permette de compter les réouvertures plutôt que de les
+  // supposer.
+  onclose: () => { connexionOuverte = false; },
 });
+
+/**
+ * Y a-t-il une connexion ouverte à cet instant, dans cette instance.
+ *
+ * Faux au démarrage, et remis à faux à chaque fermeture par `idle_timeout`.
+ * La requête qui le retrouve à faux est celle qui paie la réouverture.
+ */
+let connexionOuverte = false;
 
 /**
  * Un compteur que les tests peuvent allumer.
@@ -89,7 +112,6 @@ export async function compterRequetes<T>(
  */
 function brancherCompteur(sql: postgres.Sql): void {
   const original = sql.unsafe.bind(sql);
-  let premiere = true;
 
   // @ts-expect-error — on remplace volontairement la méthode par un décorateur
   // de même signature ; postgres.js ne l'expose pas autrement.
@@ -99,12 +121,21 @@ function brancherCompteur(sql: postgres.Sql): void {
     const requete = original(...args);
     if (!traceActive()) return requete;
 
-    if (premiere) {
-      premiere = false;
-      // La première requête d'une instance porte le coût d'ouverture de la
-      // connexion : poignée de main TLS, authentification, `search_path`.
-      // Les suivantes le trouvent déjà payé.
-      noter("db_connexion", "première requête de l'instance");
+    /*
+     * La requête qui trouve la connexion fermée paie son ouverture : poignée
+     * de main TLS, authentification, `search_path`, avant le moindre octet
+     * utile. Les suivantes le trouvent déjà payé.
+     *
+     * C'est marqué à CHAQUE réouverture, pas seulement à la première de
+     * l'instance : c'est ce qui distingue « une instance froide a payé une
+     * ouverture » de « cette instance rouvre à chaque navigation parce que
+     * l'`idle_timeout` expire entre deux ». La seconde lecture est la seule
+     * qui justifierait d'allonger le délai — au prix d'une pression accrue
+     * sur le pooler, à peser avec ses chiffres à lui.
+     */
+    if (!connexionOuverte) {
+      connexionOuverte = true;
+      noter("db_connexion", "ouverture de connexion");
     }
 
     const debut = performance.now();

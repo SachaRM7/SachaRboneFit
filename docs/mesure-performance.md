@@ -97,6 +97,29 @@ mesure qui décide de la suite :
   et deux instances concurrentes suffisaient à faire tomber le tableau de bord
   sur `EMAXCONNSESSION`.
 
+### 3 bis. `phases.db_connexion` — combien de réouvertures
+
+`db_connexion` compte les fois où une requête a trouvé la connexion fermée et
+a dû l'ouvrir : poignée de main TLS, authentification, `search_path`, avant le
+moindre octet utile.
+
+- **`n: 1` sur une ligne `froid: true`, absent ensuite** : normal. L'instance a
+  payé son ouverture une fois et réutilise sa connexion.
+- **`n: 1` sur des lignes `froid: false`, régulièrement** : l'`idle_timeout`
+  (20 s) expire entre deux navigations, et chaque écran repaie une ouverture.
+
+Le second cas est le seul qui justifierait d'allonger `idle_timeout`. Et il ne
+suffit pas : allonger la durée de vie d'une connexion augmente le nombre de
+connexions **ouvertes en même temps**, puisque c'est durée × nombre
+d'instances — or en serverless le second facteur n'est pas borné, et le
+préchargement de Next multiplie les instances concurrentes. C'est exactement ce
+qui avait produit l'`EMAXCONNSESSION` d'origine.
+
+La décision se prend donc avec les deux chiffres sous les yeux : la fréquence
+des réouvertures ici, **et** le nombre de connexions actives côté Supabase
+(tableau de bord, Database → Connection pooling), en heure de pointe. Pas l'un
+sans l'autre.
+
 ### 4. `froid`
 
 Comparer le `total` des lignes `froid: true` et `froid: false` sur la même
