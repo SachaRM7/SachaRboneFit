@@ -1,12 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { db } from "@/db/client";
-import { gyms } from "@/db/schema";
-import { eq, and, isNull } from "drizzle-orm";
+import { exerciseInstances, gyms } from "@/db/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { GymCard } from "@/components/gyms/GymCard";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 
 export default async function GymsPage() {
   const supabase = await createClient();
@@ -16,39 +17,58 @@ export default async function GymsPage() {
     redirect("/login");
   }
 
-  const allGyms = await db.query.gyms.findMany({
-    where: isNull(gyms.archiveLe),
-  });
+  /**
+   * Les lieux de CE compte.
+   *
+   * La requête ne portait que `archive_le IS NULL` : l'écran listait les salles
+   * de tous les comptes de la base. Sur un compte partagé à deux, chacun voyait
+   * les lieux de l'autre — et pouvait ouvrir leur fiche.
+   *
+   * Le compte des appareils est fait par la base, dans la même requête : le
+   * faire ensuite, lieu par lieu, rendait l'écran linéaire en nombre de salles.
+   */
+  const mesSalles = await db
+    .select({
+      gym: gyms,
+      appareils: sql<number>`cast(count(${exerciseInstances.id}) as int)`,
+    })
+    .from(gyms)
+    .leftJoin(
+      exerciseInstances,
+      and(eq(exerciseInstances.gymId, gyms.id), machinesUtilisablesAujourdhui()),
+    )
+    .where(and(eq(gyms.userId, user.id), isNull(gyms.archiveLe)))
+    .groupBy(gyms.id)
+    .orderBy(gyms.nom);
 
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-encre">Mes salles</h1>
+        {/* Un seul point d'ajout, lisible dans les deux thèmes. Il y en avait
+            deux — ce bouton et un flottant en bas — et celui-ci était presque
+            invisible en clair, faute de contraste sur son fond. */}
         <Link href="/gyms/new">
-          <Button size="icon" variant="default" className="bg-papier-2 hover:bg-papier-2">
-            <Plus className="w-5 h-5" />
+          <Button size="sm" className="bg-encre text-papier hover:bg-encre/90">
+            <Plus className="w-4 h-4 mr-1.5" />
+            Ajouter
           </Button>
         </Link>
       </div>
 
       <div className="space-y-3">
-        {allGyms.map((gym) => (
-          <Link key={gym.id} href={`/gyms/${gym.id}`}>
-            <GymCard gym={gym} />
+        {mesSalles.map(({ gym, appareils }) => (
+          <Link key={gym.id} href={`/gyms/${gym.id}`} className="block">
+            <GymCard gym={gym} appareils={appareils} />
           </Link>
         ))}
       </div>
 
-      {allGyms.length === 0 && (
-        <p className="text-encre-3 text-center py-8">Aucune salle. Créez votre première salle.</p>
+      {mesSalles.length === 0 && (
+        <p className="text-encre-3 text-center py-8">
+          Aucune salle. Crée ta première salle pour commencer.
+        </p>
       )}
-
-      <Link href="/gyms/new">
-        <Button className="fixed bottom-24 right-4 bg-papier-2 hover:bg-papier-2" size="lg">
-          <Plus className="w-5 h-5 mr-2" />
-          Nouvelle salle
-        </Button>
-      </Link>
     </div>
   );
 }

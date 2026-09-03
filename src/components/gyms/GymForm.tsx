@@ -14,7 +14,15 @@ import { toast } from "sonner";
 interface GymFormProps {
   defaultValues?: Partial<GymInput>;
   gymId?: string;
-  onSuccess: () => void;
+  /**
+   * Facultatif — et il doit le rester.
+   *
+   * La fiche salle est un Server Component : lui faire passer cette fonction
+   * lançait « Functions cannot be passed directly to Client Components » au
+   * rendu, donc un 500 et l'écran noir de Safari. Les deux appelants ne
+   * passaient qu'une fonction vide, et le formulaire navigue déjà lui-même.
+   */
+  onSuccess?: () => void;
 }
 
 export function GymForm({ defaultValues, gymId, onSuccess }: GymFormProps) {
@@ -44,7 +52,7 @@ export function GymForm({ defaultValues, gymId, onSuccess }: GymFormProps) {
       }
 
       toast.success(gymId ? "Salle modifiée" : "Salle créée");
-      onSuccess();
+      onSuccess?.();
       router.push("/gyms");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erreur");
