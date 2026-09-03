@@ -19,6 +19,7 @@ import { SOSEnergie } from "@/components/session/SOSEnergie";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
 import { ObservateurSeance } from "@/components/session/ObservateurSeance";
+import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { Feu } from "@/components/carnet/Feu";
 import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
@@ -32,6 +33,9 @@ function normaliserRole(role: string | null | undefined): ExerciceRestant["categ
 
 interface SeanceChargee {
   nom: string;
+  /** Durées déclarées à l'onboarding, pour le chronomètre de séance. */
+  dureeCibleMinutes?: number | null;
+  dureeMaxMinutes?: number | null;
   /** Phase du cycle : la calibration ne demande pas la même chose en séance. */
   phaseCycle?: string | null;
   feuBiologiqueJour?: string | null;
@@ -99,6 +103,8 @@ function ContenuSeanceLive() {
                   volumeAjustePct: plan.seance.volumeAjustePct,
                   volumeAjusteRaison: plan.seance.volumeAjusteRaison,
                   phaseCycle: plan.phaseCycle ?? null,
+                  dureeCibleMinutes: plan.dureeCibleMinutes ?? null,
+                  dureeMaxMinutes: plan.dureeMaxMinutes ?? null,
                   exercices: plan.items,
                 }
               : null,
@@ -304,6 +310,16 @@ function ContenuSeanceLive() {
         exercices={visibles}
       />
 
+      {/* Le temps écoulé, discrètement. Il n'existait pas : les durées idéale
+          et maximale de l'onboarding n'étaient relues nulle part. */}
+      {active?.startedAt && (
+        <ChronoSeance
+          demarreeA={active.startedAt}
+          dureeCibleMinutes={seance.dureeCibleMinutes}
+          dureeMaxMinutes={seance.dureeMaxMinutes}
+        />
+      )}
+
       {/*
         Le Coach regarde la séance pendant qu'elle a lieu. Ce que le moteur
         retient — et lui seul décide quoi — s'affiche ici, sans appel au modèle.
@@ -461,8 +477,18 @@ function ContenuSeanceLive() {
       {modaleSOS === "temps" && (
         <SOSTempsDepasse
           dureeActuelleMin={dureeSOSMin}
-          dureeCibleMin={60}
+          /* La cible venait d'un 60 écrit en dur, alors que l'onboarding la
+             demande. Sans durée déclarée, on retombe sur le maximum, puis sur
+             une heure — mais l'ordre part maintenant de ce que la personne a dit. */
+          dureeCibleMin={seance.dureeCibleMinutes ?? seance.dureeMaxMinutes ?? 60}
           exercicesRestants={restants}
+          seriesRestantesPar={Object.fromEntries(visibles.map((e) => [
+            e.id,
+            Math.max(0, e.seriesCibles - (active?.sets ?? []).filter((s) => s.exerciseInstanceId === e.id).length),
+          ]))}
+          reposSecondesPar={Object.fromEntries(
+            visibles.filter((e) => e.reposSecondes != null).map((e) => [e.id, e.reposSecondes!]),
+          )}
           onClose={() => setModaleSOS(null)}
           onApply={(coupes) => {
             const idParNom = new Map(visibles.map((e) => [e.nom, e.id]));

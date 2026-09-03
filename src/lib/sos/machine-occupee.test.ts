@@ -54,8 +54,9 @@ describe("la raison se lit, elle ne se décode pas", () => {
       [occupe.id],
     );
     for (const s of res.substituts) {
-      expect(s.raisonCompatibilite).not.toContain("undefined");
-      expect(s.raisonCompatibilite.length).toBeGreaterThan(0);
+      const raison = s.raisonCompatibilite ?? "";
+      expect(raison).not.toContain("undefined");
+      expect(raison.length).toBeGreaterThan(0);
     }
   });
 });

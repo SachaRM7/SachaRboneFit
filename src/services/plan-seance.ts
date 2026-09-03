@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import {
   contraintes, dailyStates, exerciseInTemplate, exerciseInstances, exercises,
-  programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
+  programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs, users,
 } from "@/db/schema";
 import { and, asc, desc, eq, getTableName, isNull, or, gte, sql } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
@@ -586,5 +586,23 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         )
     : null;
 
-  return { seance, items, phaseCycle: bloc?.typeCycle ?? null };
+  /**
+   * Les durées déclarées à l'onboarding.
+   *
+   * Elles étaient collectées et jamais relues : le chronomètre de séance n'a
+   * rien à quoi se comparer sans elles. Elles voyagent avec le plan plutôt que
+   * dans une requête de plus — l'écran de séance en fait déjà trois.
+   */
+  const profil = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { dureeSeanceCibleMinutes: true, dureeSeanceMaxMinutes: true },
+  });
+
+  return {
+    seance,
+    items,
+    phaseCycle: bloc?.typeCycle ?? null,
+    dureeCibleMinutes: profil?.dureeSeanceCibleMinutes ?? null,
+    dureeMaxMinutes: profil?.dureeSeanceMaxMinutes ?? null,
+  };
 }
