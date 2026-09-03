@@ -58,7 +58,32 @@ export const users = pgTable("users", {
    * quelqu'un qui a toujours ses elastiques ne doit pas le redire chaque fois.
    */
   materielPersonnelHabituel: jsonb("materiel_personnel_habituel").$type<string[]>(),
+  /**
+   * Exercices dont l'utilisateur ne veut pas.
+   *
+   * Identifiants du catalogue, et des NOMS pour les profils enregistrés avant
+   * ce changement — `lib/engine/refus.ts` reconnaît les deux formes, et c'est
+   * le seul endroit qui sait le faire.
+   *
+   * Lu par le plan de calibration ET par la résolution de salle. Ce second
+   * point a manqué longtemps : le refus ne tenait que le temps du bloc de
+   * calibration, puis l'exercice revenait dans les séances proposées, et
+   * pouvait même servir de remplaçant à un autre.
+   */
   exercicesRefuses: jsonb("exercices_refuses").$type<string[]>(),
+  /**
+   * DORMANTE. Ni écrite, ni lue, par personne.
+   *
+   * Aucun écran ne la remplit — l'onboarding ne pose pas la question — et
+   * aucun moteur ne la consulte. Elle est conservée telle quelle plutôt que
+   * supprimée : une migration destructive sur une colonne inoffensive n'a rien
+   * à gagner, et l'idée reste bonne pour plus tard — une PRÉFÉRENCE DOUCE dans
+   * le choix d'un remplaçant, à départager entre deux candidats équivalents.
+   *
+   * Ce jour-là, il faudra une question à l'onboarding et une règle dans la
+   * résolution. En attendant, ne pas la lire est le comportement correct :
+   * `exercices_refuses` et `preference_materiel` couvrent déjà le besoin.
+   */
   exercicesApprecies: jsonb("exercices_apprecies").$type<string[]>(),
 
   /** Tant qu'elle est nulle, l'application ouvre l'onboarding plutot que l'accueil. */

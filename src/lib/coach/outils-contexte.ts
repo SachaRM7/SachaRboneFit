@@ -76,8 +76,28 @@ async function profil(_p: Record<string, unknown>, userId: string): Promise<Tool
     nom: u.nom,
     age,
     tailleCm: u.taille,
+    // `non_precise` est une réponse, `null` une question jamais posée : le
+    // coach doit pouvoir distinguer les deux plutôt que de supposer.
+    sexe: u.sexe,
     objectif: u.objectifType ?? u.objectifChiffre,
     phaseNutritionnelle: u.phaseNutritionnelle,
+    /*
+     * L'expérience déclarée, et ce qui la relativise.
+     *
+     * `niveau_experience` était demandé à l'inscription et lu par PERSONNE —
+     * pas même par le coach, dont le prompt dit pourtant « si le niveau …
+     * le justifie ». Il le reçoit maintenant, avec les deux nombres qui
+     * l'encadrent : quelqu'un qui se déclare avancé après deux ans d'arrêt
+     * n'est pas dans la même situation que quelqu'un qui s'entraîne
+     * actuellement, et l'interruption prime sur la déclaration.
+     *
+     * Ce niveau ne pilote AUCUN calcul de charge ni de volume : ceux-là
+     * viennent de la calibration et des séries réellement faites. Il dit
+     * comment PARLER et quoi proposer comme complexité de mouvement.
+     */
+    niveauDeclare: u.niveauExperience,
+    anneesDePratique: u.anneesDePratique,
+    moisDInterruption: u.moisDInterruption,
     musclesPrioritaires: (u.objectifMusclesPrioritaires ?? []).map(libelleMuscle),
     seancesParSemaine: u.frequenceCibleParSemaine,
     dureeSeanceMinutes: u.dureeSeanceCibleMinutes,
