@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { genererDebrief } from "@/services/debrief-seance";
 import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import {
@@ -46,6 +47,23 @@ export async function PATCH(
 
   try {
     const seance = await terminerSeance({ userId, sessionLogId: id, ...parsed.data });
+
+    /**
+     * Le débrief se génère ICI, une fois, à la clôture.
+     *
+     * C'est le moment où la séance devient un fait : ensuite, la consulter ne
+     * doit plus rien coûter. Auparavant, aucune génération n'avait lieu à la
+     * clôture et chaque ouverture de la fiche en déclenchait une.
+     *
+     * Et l'échec ne remonte pas : la séance est enregistrée, c'est ce qui
+     * compte. Faire échouer une clôture parce que le modèle n'a pas répondu
+     * ferait perdre une séance pour un texte. L'écran de la séance propose de
+     * le demander.
+     */
+    void genererDebrief(userId, id).catch((erreur: unknown) => {
+      console.warn("[session-logs] débrief non généré à la clôture —", erreur);
+    });
+
     return NextResponse.json(seance);
   } catch (error) {
     if (error instanceof SeanceIntrouvable) {

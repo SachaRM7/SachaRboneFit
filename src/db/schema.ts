@@ -486,6 +486,40 @@ export const precalcSessions = pgTable("precalc_sessions", {
   userDateUnique: unique("precalc_user_date_unique").on(table.userId, table.targetDate),
 }));
 
+/**
+ * Le débrief d'UNE séance, conservé.
+ *
+ * Il ne l'était pas : chaque ouverture de la fiche d'une séance relançait une
+ * génération complète — un appel modèle, une conversation de coach, deux
+ * messages écrits — pour un texte que l'écran n'affichait même pas. Consulter
+ * une vieille séance coûtait donc un appel modèle, à chaque fois.
+ *
+ * La règle : la séance se clôt, le débrief est généré une fois, il est
+ * conservé. Une consultation LIT. Régénérer est une action demandée.
+ */
+export const sessionDebriefs = pgTable("session_debriefs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id").references(() => users.id).notNull(),
+  sessionLogId: uuid("session_log_id")
+    .references(() => sessionLogs.id, { onDelete: "cascade" })
+    .notNull(),
+  contenu: text("contenu").notNull(),
+  genereLe: timestamp("genere_le").defaultNow().notNull(),
+  /** `fournisseur:modele` du modèle qui a répondu. */
+  modele: text("modele"),
+  /**
+   * Empreinte des séries qui ont servi de source.
+   *
+   * Elle ne déclenche rien : elle permet de constater qu'un débrief ne décrit
+   * plus l'état de la séance — après correction d'une charge, par exemple.
+   */
+  empreinteSource: text("empreinte_source"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  // La régénération remplace, elle n'empile pas.
+  seanceUnique: unique("session_debrief_unique").on(table.sessionLogId),
+}));
+
 export const weeklyDebriefs = pgTable("weekly_debriefs", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id).notNull(),
@@ -985,6 +1019,8 @@ export type SessionIncident = typeof sessionIncidents.$inferSelect;
 export type NewSessionIncident = typeof sessionIncidents.$inferInsert;
 export type PrecalcSession = typeof precalcSessions.$inferSelect;
 export type NewPrecalcSession = typeof precalcSessions.$inferInsert;
+export type SessionDebriefEnregistre = typeof sessionDebriefs.$inferSelect;
+export type NewSessionDebrief = typeof sessionDebriefs.$inferInsert;
 export type WeeklyDebrief = typeof weeklyDebriefs.$inferSelect;
 export type NewWeeklyDebrief = typeof weeklyDebriefs.$inferInsert;
 export type SessionPlanItem = typeof sessionPlanItems.$inferSelect;

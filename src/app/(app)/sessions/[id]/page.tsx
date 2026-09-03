@@ -73,13 +73,9 @@ export default async function SessionDetailPage({ params }: { params: Promise<{ 
         </div>
       )}
 
-      {template?.lettre && (
-        <SessionDebrief
-          sessionLogId={id}
-          templateLettre={template.lettre}
-          date={session.date}
-        />
-      )}
+      {/* Plus conditionné au gabarit : une séance libre a aussi droit à son
+          débrief, et le composant lit ce qui est enregistré. */}
+      <SessionDebrief sessionLogId={id} />
 
       <div className="space-y-4">
         {Object.entries(groupedSets).map(([exId, exSets]) => {

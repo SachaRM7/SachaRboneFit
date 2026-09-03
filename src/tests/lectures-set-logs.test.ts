@@ -100,6 +100,14 @@ const LECTEURS: Record<string, { lectures: number; pourquoi: Justification; note
     note: "abandonner : compte les séries d'UNE séance déjà relue et vérifiée non archivée, "
       + "pour refuser d'effacer une séance où quelque chose a eu lieu",
   },
+  "services/debrief-seance.ts": {
+    lectures: 2, pourquoi: "bornee-par-des-seances",
+    note: "génération : la séance est relue avec `seancesRealisees` avant ses séries. "
+      + "Lecture : bornée à une séance qui a DÉJÀ un débrief, donc qui a passé ce "
+      + "contrôle — et la lecture ne sert qu'à recalculer une empreinte, jamais un "
+      + "calcul sportif. Une séance archivée après coup garde son texte, marqué "
+      + "périmé, ce qui est le comportement voulu : on ne réécrit pas l'histoire.",
+  },
   "services/cycle.ts": { lectures: 1, pourquoi: "bornee-par-des-seances" },
   "services/plan-seance.ts": { lectures: 1, pourquoi: "regle-dans-la-requete" },
   "lib/coach/tools.ts": {

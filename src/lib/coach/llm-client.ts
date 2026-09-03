@@ -38,6 +38,15 @@ export interface AppelOutil {
 export interface ReponseLLM {
   texte: string;
   appelsOutils: AppelOutil[];
+  /**
+   * Le modèle qui a effectivement répondu, `fournisseur:modele`.
+   *
+   * La chaîne de repli fait qu'on ne le sait pas d'avance : le premier modèle
+   * peut être indisponible et un autre répondre à sa place. Ce qu'on conserve
+   * d'un texte généré doit dire par quoi il a été produit, sinon deux débriefs
+   * écrits par deux modèles différents se ressemblent.
+   */
+  modeleUtilise?: string;
 }
 
 export interface OptionsLLM {
@@ -370,7 +379,9 @@ export async function appelerLLM(
 
   for (const [rang, cible] of chaine.entries()) {
     try {
-      return await appelerCible(cible, options);
+      // Le nom du modèle est ajouté ICI, une fois pour toutes : c'est le seul
+      // endroit qui sait lequel de la chaîne a fini par répondre.
+      return { ...(await appelerCible(cible, options)), modeleUtilise: `${cible.fournisseur}:${cible.modele}` };
     } catch (erreur) {
       dernierEchec = erreur;
       const reste = rang < chaine.length - 1;
