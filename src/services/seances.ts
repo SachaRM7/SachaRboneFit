@@ -1,8 +1,9 @@
 import { db } from "@/db/client";
-import { sessionLogs, setLogs } from "@/db/schema";
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import { exerciseInstances, sessionLogs, setLogs } from "@/db/schema";
+import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import type { SessionLog } from "@/db/schema";
 import { estUneSeanceRealisee } from "@/db/archivage";
+import { estUneSerieRealisee, rpeExploitable } from "@/lib/engine/serie-realisee";
 import { feuDeTendance } from "./progression";
 
 /**
@@ -200,8 +201,32 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
   });
   if (!existante) throw new SeanceIntrouvable();
 
+  /**
+   * Ce qui a réellement eu lieu.
+   *
+   * Le filtre ne demandait que « ni l'un ni l'autre n'est `null` ». Zéro n'est
+   * pas `null` : une série à 0 répétition et 0 kilo entrait en base, comptait
+   * dans le volume et nourrissait la progression. La définition vit maintenant
+   * dans `engine/serie-realisee`, et elle a besoin de savoir ce que la charge
+   * MESURE sur chaque appareil — zéro est une valeur légitime sur une
+   * assistance, jamais sur une pile.
+   */
+  const instancesCitees = [...new Set(donnees.series.map((s) => s.exerciseInstanceId).filter(Boolean))];
+  const conventions = instancesCitees.length
+    ? await db
+        .select({
+          id: exerciseInstances.id,
+          conventionCharge: exerciseInstances.conventionCharge,
+          natureCharge: exerciseInstances.natureCharge,
+        })
+        .from(exerciseInstances)
+        .where(inArray(exerciseInstances.id, instancesCitees))
+    : [];
+  const conventionParInstance = new Map(conventions.map((c) => [c.id, c]));
+
   const series = donnees.series.filter(
-    (s) => s.repsEffectuees !== null && s.charge !== null && s.exerciseInstanceId,
+    (s) => s.exerciseInstanceId
+      && estUneSerieRealisee(s, conventionParInstance.get(s.exerciseInstanceId) ?? {}),
   );
 
   // Le seul signal durable d'un entraînement est la série. Sans elle, il n'y a
@@ -236,7 +261,9 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
           numeroSerie: s.numeroSerie,
           repsEffectuees: s.repsEffectuees,
           charge: s.charge,
-          rpeEffectif: s.rpeEffectif ?? null,
+          // Un 99 saisi en recette n'est pas une mesure : la donnée est
+          // écartée, la série reste — les répétitions, elles, ont eu lieu.
+          rpeEffectif: rpeExploitable(s.rpeEffectif),
           tempoRespecte: s.tempoRespecte ?? null,
           // Ces deux colonnes existaient mais n'etaient jamais alimentees :
           // le client les transmettait et l'insertion les ignorait.

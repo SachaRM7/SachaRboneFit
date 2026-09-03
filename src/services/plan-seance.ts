@@ -17,6 +17,7 @@ import { expliquerRetours } from "@/services/retours";
 import type { DailyStateInput } from "@/lib/validators/daily-state";
 import type { SessionLog, SessionPlanItem } from "@/db/schema";
 import { machinesUtilisablesAujourdhui } from "@/db/archivage";
+import { seriesRealisees } from "@/lib/engine/serie-realisee";
 
 /**
  * Construction de la seance du jour.
@@ -180,6 +181,11 @@ export async function derniereSeriesPour(userId: string, exerciseInstanceId: str
       numero: setLogs.numeroSerie,
       reps: setLogs.repsEffectuees,
       charge: setLogs.charge,
+      // Ce que la charge mesure sur cet appareil : zéro est une valeur sur une
+      // assistance, jamais sur une pile. Sans ça, la référence ne peut pas
+      // écarter les séries qui n'ont pas eu lieu.
+      conventionCharge: exerciseInstances.conventionCharge,
+      natureCharge: exerciseInstances.natureCharge,
       // Sans le RPE, la séance précédente serait estimée sans réserve et la
       // séance en cours avec : les deux côtés ne mesureraient pas la même chose.
       rpe: setLogs.rpeEffectif,
@@ -188,13 +194,27 @@ export async function derniereSeriesPour(userId: string, exerciseInstanceId: str
     })
     .from(setLogs)
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+    .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
     .where(and(eq(setLogs.exerciseInstanceId, exerciseInstanceId), and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe))))
     .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt), asc(setLogs.numeroSerie));
 
-  if (lignes.length === 0) return null;
+  /**
+   * La référence ne retient que ce qui a eu lieu.
+   *
+   * Une séance de recette entièrement à 0 kg / 0 répétition servait de
+   * référence à la double progression : la fourchette haute était « atteinte »
+   * sur des séries vides, et l'accueil proposait +4,5 kg sur un exercice que
+   * personne n'avait fait. Les lignes restent en base — elles disent ce qui a
+   * été saisi — mais elles ne décident plus rien.
+   */
+  const valides = seriesRealisees(
+    lignes.map((l) => ({ ...l, repsEffectuees: l.reps })),
+    (l) => ({ conventionCharge: l.conventionCharge, natureCharge: l.natureCharge }),
+  );
+  if (valides.length === 0) return null;
 
-  const derniereSession = lignes[0]!.sessionLogId;
-  const deLaReference = lignes.filter((l) => l.sessionLogId === derniereSession);
+  const derniereSession = valides[0]!.sessionLogId;
+  const deLaReference = valides.filter((l) => l.sessionLogId === derniereSession);
   return {
     sets: deLaReference.map((l) => ({ numero: l.numero, reps: l.reps, charge: l.charge, rpe: l.rpe })),
     // Identique sur toutes les lignes de la référence : la sous-requête ne

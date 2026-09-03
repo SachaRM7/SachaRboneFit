@@ -10,6 +10,8 @@ import type { ExercicePrescrit } from "./types";
 import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
 import { classeDuMotif } from "./motif-progression";
 import { champEffortPropose, effortSaisi } from "./effort-propose";
+import { LIBELLES_MOTIF_INVALIDE, motifSerieInvalide } from "@/lib/engine/serie-realisee";
+import { toast } from "sonner";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
 import { chargeAEnregistrer, consigneDeSaisie } from "@/lib/validators/exercise-instance";
 
@@ -135,6 +137,26 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
     const v = valeurs(numero);
     const charge = chargeAEnregistrer(v.charge, exercice.conventionCharge);
     const reps = Number.parseInt(v.reps, 10);
+
+    /**
+     * Le refus est ici AUSSI, pas seulement au serveur.
+     *
+     * Valider une ligne vide cochait la case, lançait le repos et faisait
+     * avancer le compteur ; la série disparaissait silencieusement à la
+     * clôture. L'écran affichait donc une séance que la base n'a jamais eue.
+     */
+    const convention = {
+      conventionCharge: exercice.conventionCharge,
+      natureCharge: exercice.natureCharge,
+    };
+    const motif = motifSerieInvalide(
+      { repsEffectuees: Number.isFinite(reps) ? reps : null, charge },
+      convention,
+    );
+    if (motif) {
+      toast.error(LIBELLES_MOTIF_INVALIDE[motif]);
+      return;
+    }
 
     upsertSet({
       exerciseInstanceId: exercice.id,
