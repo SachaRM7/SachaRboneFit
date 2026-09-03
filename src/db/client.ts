@@ -1,7 +1,7 @@
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
-import { noter, phase, traceActive } from "@/lib/mesure/trace";
+import { noter, traceActive } from "@/lib/mesure/trace";
 
 /**
  * Connexion à la base.
@@ -36,6 +36,35 @@ const client = postgres(process.env.DATABASE_URL!, {
 });
 
 /**
+ * Un compteur que les tests peuvent allumer.
+ *
+ * « L'accueil fait moins de requêtes qu'avant » est une affirmation qu'on peut
+ * écrire dans un commentaire et qui redevient fausse au commit suivant, sans
+ * que rien ne le signale. Le seul moyen de la tenir est de compter — à
+ * l'endroit exact où les requêtes partent, pas en relisant du code.
+ *
+ * Nul en production : la variable reste `null`, et le test seul l'arme.
+ */
+let observateur: { requetes: number } | null = null;
+
+export async function compterRequetes<T>(
+  travail: () => Promise<T>,
+): Promise<{ resultat: T; requetes: number }> {
+  // Une seule observation à la fois : la suite d'intégration s'exécute sans
+  // parallélisme de fichiers, et deux compteurs imbriqués mentiraient tous les
+  // deux. Mieux vaut le dire que le laisser deviner.
+  if (observateur) throw new Error("Un comptage est déjà en cours.");
+  const compteur = { requetes: 0 };
+  observateur = compteur;
+  try {
+    const resultat = await travail();
+    return { resultat, requetes: compteur.requetes };
+  } finally {
+    observateur = null;
+  }
+}
+
+/**
  * Le compteur s'intercale entre Drizzle et postgres.js.
  *
  * Le logger de Drizzle se fixe à la construction et ne donne pas de durée ;
@@ -43,20 +72,33 @@ const client = postgres(process.env.DATABASE_URL!, {
  * `unsafe()` sur le client sous-jacent pour chaque requête : c'est le point de
  * passage obligé, et le seul qui compte exactement ce qui part sur le réseau.
  *
- * La requête elle-même n'est jamais journalisée — ni son texte, ni ses
- * paramètres. Seule sa DURÉE compte, avec le nom de l'appelant quand il est
- * connu. Un `WHERE user_id = …` dans un journal, c'est une donnée personnelle.
+ * Ce qu'il ne faut SURTOUT pas faire ici — et qui a été fait, puis attrapé par
+ * le test de coût : renvoyer une autre promesse à la place de la requête. Ce
+ * que `unsafe()` rend n'est pas une promesse mais une requête PARESSEUSE, que
+ * Drizzle configure ensuite (`.values()`, `.execute()`) et qui ne part qu'une
+ * fois attendue. L'envelopper la remplace par un objet privé de ces méthodes,
+ * et toute lecture échoue — en production comme ailleurs.
+ *
+ * On décore donc son `then`, et on rend la requête elle-même. Elle garde ses
+ * méthodes, sa paresse, son type ; la mesure se déclenche quand elle se
+ * résout, c'est-à-dire exactement quand la réponse revient du réseau.
+ *
+ * La requête n'est jamais journalisée — ni son texte, ni ses paramètres. Seule
+ * sa DURÉE compte. Un `WHERE user_id = …` dans un journal, c'est une donnée
+ * personnelle.
  */
 function brancherCompteur(sql: postgres.Sql): void {
-  if (!traceActive()) return;
-
   const original = sql.unsafe.bind(sql);
   let premiere = true;
 
   // @ts-expect-error — on remplace volontairement la méthode par un décorateur
   // de même signature ; postgres.js ne l'expose pas autrement.
   sql.unsafe = (...args: Parameters<typeof original>) => {
-    const promesse = original(...args);
+    if (observateur) observateur.requetes += 1;
+
+    const requete = original(...args);
+    if (!traceActive()) return requete;
+
     if (premiere) {
       premiere = false;
       // La première requête d'une instance porte le coût d'ouverture de la
@@ -64,7 +106,23 @@ function brancherCompteur(sql: postgres.Sql): void {
       // Les suivantes le trouvent déjà payé.
       noter("db_connexion", "première requête de l'instance");
     }
-    return phase("db", "requete", () => promesse) as typeof promesse;
+
+    const debut = performance.now();
+    let mesuree = false;
+    const finir = () => {
+      if (mesuree) return;
+      mesuree = true;
+      noter("db", "requete", performance.now() - debut);
+    };
+
+    const attendre = requete.then.bind(requete);
+    requete.then = ((ok?: never, ko?: never) =>
+      attendre(
+        (valeur) => { finir(); return ok ? (ok as (v: unknown) => unknown)(valeur) : valeur; },
+        (erreur) => { finir(); if (ko) return (ko as (e: unknown) => unknown)(erreur); throw erreur; },
+      )) as typeof requete.then;
+
+    return requete;
   };
 }
 

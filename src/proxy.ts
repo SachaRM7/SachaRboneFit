@@ -30,8 +30,15 @@ import { formeDuChemin } from '@/lib/mesure/trace';
  * valent mieux qu'une seule qui repose sur la confiance.
  */
 
-/** Les préfixes qui exigent une session. Une seule source, réutilisée plus bas. */
-const PROTEGES = [
+/**
+ * Les préfixes qui exigent une session. Une seule source, réutilisée plus bas.
+ *
+ * Exporté pour que le test puisse confronter cette liste au `matcher` : un
+ * chemin déclaré protégé ici mais absent du matcher n'est jamais gardé, et
+ * rien dans le code ne le signale. C'est le genre d'écart qu'on ne voit qu'en
+ * comparant deux listes à la main — donc qu'on ne voit pas.
+ */
+export const PROTEGES = [
   '/dashboard', '/sessions', '/exercises', '/progression', '/gyms',
   '/bodyweight', '/settings', '/daily-state', '/profil', '/historique',
   '/programme', '/session', '/bienvenue', '/contraintes',
@@ -40,8 +47,17 @@ const PROTEGES = [
 export async function proxy(request: NextRequest) {
   const debut = performance.now();
 
+  /*
+   * Le rendu ne sait pas quel chemin a été demandé — il ne voit qu'un arbre de
+   * composants. Le proxy, lui, le sait. Il transmet la FORME du chemin, jamais
+   * le chemin lui-même : un identifiant de séance n'a rien à faire dans un
+   * en-tête recopié dans un journal.
+   */
+  const enTetes = new Headers(request.headers);
+  enTetes.set('x-route-forme', formeDuChemin(request.nextUrl.pathname));
+
   const response = NextResponse.next({
-    request,
+    request: { headers: enTetes },
   });
 
   const supabase = createServerClient(

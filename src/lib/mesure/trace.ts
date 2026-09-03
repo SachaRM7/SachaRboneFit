@@ -22,7 +22,8 @@
  * `PERF_TRACE=off`, prévu pour le jour où le bruit dépasse l'usage.
  */
 
-import { AsyncLocalStorage } from "node:async_hooks";
+import { cache } from "react";
+import { after } from "next/server";
 
 export type Phase =
   | "proxy"
@@ -63,11 +64,46 @@ interface Trace {
  */
 let instanceDejaServie = false;
 
-const stockage = new AsyncLocalStorage<Trace>();
-
 export function traceActive(): boolean {
   return process.env.PERF_TRACE !== "off";
 }
+
+/**
+ * La trace de la requête en cours, créée à la première mesure.
+ *
+ * `cache()` de React donne exactement la portée voulue : une valeur par
+ * requête HTTP servie, et rien qui survive à la réponse. Deux requêtes
+ * concurrentes ne partagent pas leur trace, et aucune donnée ne franchit la
+ * frontière — ce qui compte d'autant plus qu'on journalise.
+ *
+ * `after()` fournit la fin de requête, qu'aucun composant ne connaît sinon :
+ * la ligne part une fois la réponse envoyée, donc sans rien lui coûter. Hors
+ * d'une requête — un script, un test — il n'y a ni portée ni fin de requête :
+ * `after()` refuse, on renvoie `null`, et toutes les mesures deviennent des
+ * appels directs.
+ */
+const traceCourante = cache((): Trace | null => {
+  if (!traceActive()) return null;
+
+  const trace: Trace = {
+    route: "inconnue",
+    debut: performance.now(),
+    mesures: [],
+    requetesSql: 0,
+    msSql: 0,
+    validationsAuth: 0,
+    froid: !instanceDejaServie,
+  };
+
+  try {
+    after(() => publier(trace));
+  } catch {
+    return null;
+  }
+
+  instanceDejaServie = true;
+  return trace;
+});
 
 /**
  * Réduit un chemin à sa FORME.
@@ -87,33 +123,23 @@ export function formeDuChemin(chemin: string): string {
     .join("/");
 }
 
-/** Ouvre une trace pour la durée d'une requête HTTP. */
-export async function tracer<T>(route: string, travail: () => Promise<T>): Promise<T> {
-  if (!traceActive()) return travail();
-
-  const froid = !instanceDejaServie;
-  instanceDejaServie = true;
-
-  const trace: Trace = {
-    route: formeDuChemin(route),
-    debut: performance.now(),
-    mesures: [],
-    requetesSql: 0,
-    msSql: 0,
-    validationsAuth: 0,
-    froid,
-  };
-
-  try {
-    return await stockage.run(trace, travail);
-  } finally {
-    publier(trace);
-  }
+/**
+ * Donne son nom à la trace en cours.
+ *
+ * Le rendu ne connaît pas le chemin demandé : c'est le proxy qui le sait, et
+ * il le transmet par un en-tête de requête. Sans nom, la ligne reste lisible —
+ * les journaux de Vercel portent déjà le chemin — mais elle ne se regroupe
+ * plus par route.
+ */
+export function nommerTrace(route: string | null | undefined): void {
+  if (!route) return;
+  const trace = traceCourante();
+  if (trace) trace.route = formeDuChemin(route);
 }
 
-/** Mesure une phase. Sans trace ouverte, exécute simplement le travail. */
+/** Mesure une phase. Hors requête, exécute simplement le travail. */
 export async function phase<T>(phase: Phase, quoi: string, travail: () => Promise<T>): Promise<T> {
-  const trace = stockage.getStore();
+  const trace = traceCourante();
   if (!trace) return travail();
 
   const debut = performance.now();
@@ -130,9 +156,22 @@ export async function phase<T>(phase: Phase, quoi: string, travail: () => Promis
   }
 }
 
-/** Note un fait sans durée — par exemple « la connexion a été réutilisée ». */
+/**
+ * Note une mesure déjà prise.
+ *
+ * `phase()` encadre un travail ; `noter()` sert quand on ne peut pas
+ * l'encadrer — une requête paresseuse qu'on ne doit pas remplacer par une
+ * promesse, un fait sans durée comme la réouverture d'une connexion.
+ */
 export function noter(phase: Phase, quoi: string, ms = 0): void {
-  stockage.getStore()?.mesures.push({ phase, quoi, ms: arrondi(ms) });
+  const trace = traceCourante();
+  if (!trace) return;
+  trace.mesures.push({ phase, quoi, ms: arrondi(ms) });
+  if (phase === "db") {
+    trace.requetesSql += 1;
+    trace.msSql += ms;
+  }
+  if (phase === "auth") trace.validationsAuth += 1;
 }
 
 const arrondi = (ms: number) => Math.round(ms * 10) / 10;
