@@ -37,7 +37,7 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
   const fiche = exercise.slug ? CATALOGUE_PAR_SLUG.get(exercise.slug) : undefined;
 
   return (
-    <div className="p-4 space-y-4 pb-24">
+    <div className="p-4 space-y-4">
       {fiche && exercise.slug && (
         <div className="flex justify-center rounded-xl border border-filet bg-carte py-6">
           <IllustrationExercice

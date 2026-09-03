@@ -19,7 +19,7 @@ export default async function Page() {
   const { actives, passees } = await contraintesPourAffichage(userId);
 
   return (
-    <div className="min-h-dvh bg-papier text-encre p-4 pb-28 space-y-6">
+    <div className="min-h-dvh bg-papier text-encre p-4 space-y-6">
       <EnTeteSecondaire titre="Ce que tu ménages" vers="/settings" libelleRetour="Retour à Plus" />
       <header className="space-y-1">
         <p className="text-encre-3 text-sm">
