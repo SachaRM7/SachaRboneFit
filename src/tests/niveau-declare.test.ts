@@ -63,9 +63,9 @@ const MOTEURS_DE_CHARGE = [
 ];
 
 describe("le niveau ne décide pas des charges", () => {
-  for (const module of MOTEURS_DE_CHARGE) {
-    it(`${module} ignore le niveau déclaré`, () => {
-      expect(lire(module), `${module} lit le niveau déclaré`)
+  for (const moteur of MOTEURS_DE_CHARGE) {
+    it(`${moteur} ignore le niveau déclaré`, () => {
+      expect(lire(moteur), `${moteur} lit le niveau déclaré`)
         .not.toMatch(/niveauExperience|niveauDeclare/);
     });
   }

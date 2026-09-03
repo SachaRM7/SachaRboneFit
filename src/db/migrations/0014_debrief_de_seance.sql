@@ -44,4 +44,92 @@ CREATE TABLE IF NOT EXISTS "session_debriefs" (
 
 -- Un seul débrief par séance : la régénération remplace, elle n'empile pas.
 CREATE UNIQUE INDEX IF NOT EXISTS "session_debrief_unique"
-  ON "session_debriefs" ("session_log_id");
+  ON "session_debriefs" ("session_log_id");--> statement-breakpoint
+
+-- ---------------------------------------------------------------------------
+-- Row Level Security
+-- ---------------------------------------------------------------------------
+-- Cette table portait un défaut d'omission : elle était créée sans RLS, et
+-- c'est Supabase qui l'a signalé au moment de l'appliquer. Un débrief contient
+-- le récit d'une séance — charges, ressenti, note personnelle : exactement ce
+-- que le reste du modèle protège.
+--
+-- La protection est reproduite ici À L'IDENTIQUE de ce qui a été appliqué en
+-- production, pour que le repo cesse d'être en retard sur elle. C'est le sens
+-- de cette section : sans elle, une base reconstruite depuis les migrations
+-- serait ouverte là où la production est fermée, et le fossé ne se verrait
+-- qu'au moment où il compte.
+--
+-- Le serveur applicatif n'est pas concerné : il se connecte avec un rôle qui
+-- contourne la RLS (`rolbypassrls`), et son isolation vient de ses propres
+-- filtres `user_id`. La RLS est la SECONDE barrière — celle qui tient si un
+-- filtre applicatif est oublié un jour, et celle qui protège les accès directs
+-- à la base.
+ALTER TABLE "session_debriefs" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+
+/*
+ * `auth.uid()` hors de Supabase.
+ *
+ * La policy en dépend, et cette fonction n'existe QUE dans une base Supabase.
+ * Sans ce filet, rejouer les migrations sur un Postgres nu — ce que font les
+ * tests d'intégration et toute vérification de schéma — échouerait sur
+ * « function auth.uid() does not exist », et la RLS ne serait jamais vérifiée
+ * ailleurs qu'en production.
+ *
+ * Le garde porte sur la FONCTION, pas sur le schéma : en Supabase elle existe,
+ * et ce bloc ne fait donc strictement rien. Il ne remplace jamais celle de
+ * Supabase — pas de `CREATE OR REPLACE`, qui écraserait la vraie.
+ *
+ * La définition reprend la sémantique de l'originale : l'identifiant lu dans
+ * les revendications du jeton. C'est ce qui permet au test de RLS d'exercer
+ * la vraie policy plutôt que d'en recopier la condition.
+ *
+ * L'ORDRE des opérations n'est pas un détail. La chaîne vide est neutralisée
+ * AVANT le transtypage, comme le fait l'originale : caster d'abord ferait
+ * lever « invalid input syntax for type json » sur une session sans identité,
+ * au lieu de rendre NULL. Une policy qui lève au lieu de filtrer ne protège
+ * pas — elle casse. Écrit dans le mauvais ordre au premier essai, et c'est le
+ * test de RLS qui l'a montré.
+ */
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'auth' AND p.proname = 'uid'
+  ) THEN
+    CREATE SCHEMA IF NOT EXISTS auth;
+    EXECUTE $fn$
+      CREATE FUNCTION auth.uid() RETURNS uuid
+      LANGUAGE sql STABLE
+      AS 'SELECT (nullif(current_setting(''request.jwt.claims'', true), '''')::json ->> ''sub'')::uuid';
+    $fn$;
+  END IF;
+END
+$$;--> statement-breakpoint
+
+/*
+ * La policy, dans un bloc conditionnel.
+ *
+ * `CREATE POLICY` n'accepte pas `IF NOT EXISTS` avant PostgreSQL 17 : écrite
+ * telle quelle, elle ferait échouer tout rejeu de cette migration. Le reste du
+ * fichier étant idempotent, c'est la seule instruction qui aurait cassé la
+ * propriété — et elle ne l'aurait cassée qu'au deuxième passage, c'est-à-dire
+ * au pire moment.
+ */
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'public'
+      AND tablename = 'session_debriefs'
+      AND policyname = 'session_debriefs_all_own'
+  ) THEN
+    CREATE POLICY "session_debriefs_all_own"
+      ON "session_debriefs"
+      FOR ALL
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END
+$$;
