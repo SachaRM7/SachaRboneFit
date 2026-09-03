@@ -119,6 +119,9 @@ export async function proxy(request: NextRequest) {
       '[perf-proxy] ' +
         JSON.stringify({
           route: formeDuChemin(chemin),
+          // Le proxy s'exécute en périphérie, souvent loin du rendu : comparer
+          // les deux régions dit si la latence vient de la géographie.
+          region: process.env.VERCEL_REGION ?? null,
           total: Math.round((performance.now() - debut) * 10) / 10,
           authMs: Math.round(msAuth * 10) / 10,
           validations: 1,

@@ -204,6 +204,13 @@ function publier(trace: Trace): void {
     "[perf] " +
       JSON.stringify({
         route: trace.route,
+        // Où cette fonction s'est exécutée. Si la base vit à Francfort et la
+        // fonction à Washington, chacune des trente requêtes d'un écran paie
+        // un aller-retour transatlantique — et aucune optimisation de code ne
+        // rattrape ça. Vercel ne le dit nulle part dans les journaux ; il
+        // remplit cette variable, et c'est le seul endroit d'où on peut la
+        // lire. Elle ne désigne personne.
+        region: process.env.VERCEL_REGION ?? null,
         total: arrondi(total),
         froid: trace.froid,
         auth: trace.validationsAuth,
