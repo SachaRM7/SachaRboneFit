@@ -85,9 +85,23 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
   const [demonstration, setDemonstration] = useState(false);
   const [fiche, setFiche] = useState(false);
 
+  /**
+   * Ce qu'affiche une ligne — et ce que la base en garde.
+   *
+   * Le brouillon primait sur la série enregistrée, même APRÈS validation :
+   * valider une série puis en modifier la charge affichait la nouvelle valeur
+   * pendant que le store — donc la base à la clôture — gardait l'ancienne. Une
+   * ligne verte pouvait donc montrer 60 kg là où 45 seraient enregistrés.
+   * L'écran mentait, et rien ne le signalait.
+   *
+   * Une série validée lit désormais la saisie enregistrée, un point c'est
+   * tout. Le brouillon ne sert qu'aux lignes pas encore validées.
+   */
+  const serieEnregistree = (numero: number) =>
+    seriesSaisies.find((s) => s.numeroSerie === numero);
+
   const valeurs = (numero: number): Brouillon => {
-    if (brouillons[numero]) return brouillons[numero]!;
-    const saisie = seriesSaisies.find((s) => s.numeroSerie === numero);
+    const saisie = serieEnregistree(numero);
     if (saisie) {
       return {
         charge: saisie.charge != null ? String(saisie.charge) : "",
@@ -95,6 +109,7 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
         rpe: saisie.rpeEffectif != null ? String(saisie.rpeEffectif) : "",
       };
     }
+    if (brouillons[numero]) return brouillons[numero]!;
     return proposition(numero);
   };
 
@@ -128,8 +143,24 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
   };
 
   const basculer = (numero: number) => {
-    const dejaValidee = seriesSaisies.some((s) => s.numeroSerie === numero);
-    if (dejaValidee) {
+    const enregistree = serieEnregistree(numero);
+    if (enregistree) {
+      /**
+       * Rouvrir une série validée.
+       *
+       * Le brouillon repart des valeurs RÉELLEMENT enregistrées, pas de la
+       * proposition : rouvrir une série ne doit pas effacer ce qu'on vient d'y
+       * saisir. C'est le geste « Modifier » — la série cesse d'être validée, se
+       * corrige, puis se revalide.
+       */
+      setBrouillons((b) => ({
+        ...b,
+        [numero]: {
+          charge: enregistree.charge != null ? String(enregistree.charge) : "",
+          reps: enregistree.repsEffectuees != null ? String(enregistree.repsEffectuees) : "",
+          rpe: enregistree.rpeEffectif != null ? String(enregistree.rpeEffectif) : "",
+        },
+      }));
       removeSet(exercice.id, numero);
       return;
     }
@@ -177,6 +208,14 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
       reposReelSecondes: intervalleDepuisLaSeriePrecedente(),
     });
 
+    // Le brouillon n'a plus lieu d'être : la série enregistrée devient la
+    // seule source de ce que la ligne affiche.
+    setBrouillons((b) => {
+      const suite = { ...b };
+      delete suite[numero];
+      return suite;
+    });
+
     onSerieValidee(exercice.reposSecondes ?? null);
   };
 
@@ -187,6 +226,11 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
     "w-full min-w-0 rounded-md border border-filet bg-papier-2 px-1.5 py-2 text-center " +
     "chiffres text-base font-semibold text-encre focus:border-encre focus:outline-none " +
     "focus:ring-2 focus:ring-encre/20";
+
+  /** Une série validée se lit, elle ne se corrige qu'après l'avoir rouverte. */
+  const champVerrouille =
+    "w-full min-w-0 rounded-md border border-transparent bg-transparent px-1.5 py-2 " +
+    "text-center chiffres text-base font-semibold text-encre-2 cursor-default";
 
   return (
     <section className="border border-filet rounded-xl bg-carte overflow-hidden">
@@ -300,10 +344,25 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
               const v = valeurs(numero);
               const validee = seriesSaisies.some((s) => s.numeroSerie === numero);
               const passe = exercice.historique?.[numero - 1];
+              /**
+               * Au-delà de ce qui a été prescrit.
+               *
+               * Rien n'interdit d'en faire plus — mais ça ne réécrit pas la
+               * prescription. `seriesCibles` reste ce que le moteur a décidé ;
+               * ces lignes sont de la réalisation en plus, et elles le disent.
+               */
+              const horsPrescription = numero > exercice.seriesCibles;
 
               return (
                 <tr key={numero} className="border-t border-filet-doux">
-                  <td className="chiffres text-xs text-encre-3 py-1.5">{numero}</td>
+                  <td className="chiffres text-xs text-encre-3 py-1.5">
+                    {numero}
+                    {horsPrescription && (
+                      <span className="block text-[9px] leading-tight text-encre-3" title="Au-delà de la prescription">
+                        +
+                      </span>
+                    )}
+                  </td>
                   <td className="chiffres text-xs text-encre-3 py-1.5 whitespace-nowrap">
                     {passe ? `${passe.charge}×${passe.reps}` : "—"}
                   </td>
@@ -312,7 +371,10 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
                       type="text" inputMode="decimal" value={v.charge}
                       onChange={(e) => ecrire(numero, "charge", e.target.value)}
                       aria-label={`Charge série ${numero}`}
-                      className={champ}
+                      /* Verrouillée tant que la série est validée : une valeur
+                         modifiée après le Check ne partait pas en base. */
+                      readOnly={validee}
+                      className={validee ? champVerrouille : champ}
                     />
                   </td>
                   <td className="py-1.5 px-1">
@@ -320,7 +382,8 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
                       type="text" inputMode="numeric" value={v.reps}
                       onChange={(e) => ecrire(numero, "reps", e.target.value)}
                       aria-label={`Répétitions série ${numero}`}
-                      className={champ}
+                      readOnly={validee}
+                      className={validee ? champVerrouille : champ}
                     />
                   </td>
                   <td className="py-1.5 px-1">
@@ -338,7 +401,8 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
                           )
                         }
                         aria-label={`Répétitions encore possibles, série ${numero}`}
-                        className={champ}
+                        disabled={validee}
+                        className={validee ? champVerrouille : champ}
                       >
                         <option value="">—</option>
                         {CHOIX_RESERVE.map((r) => (
@@ -352,7 +416,8 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
                         type="text" inputMode="decimal" value={v.rpe}
                         onChange={(e) => ecrire(numero, "rpe", e.target.value)}
                         aria-label={`Effort perçu série ${numero}`}
-                        className={champ}
+                        readOnly={validee}
+                        className={validee ? champVerrouille : champ}
                       />
                     )}
                   </td>
@@ -361,7 +426,7 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
                       type="button"
                       onClick={() => basculer(numero)}
                       aria-pressed={validee}
-                      aria-label={validee ? `Annuler la série ${numero}` : `Valider la série ${numero}`}
+                      aria-label={validee ? `Modifier la série ${numero}` : `Valider la série ${numero}`}
                       className={`w-9 h-9 rounded-md border grid place-items-center transition-colors ${
                         validee
                           ? "bg-gain border-gain text-papier"
@@ -383,8 +448,15 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
           className="mt-2.5 flex items-center gap-1.5 text-xs text-encre-2 hover:text-encre"
         >
           <Plus className="w-3.5 h-3.5" />
-          Ajouter une série
+          Ajouter une série hors prescription
         </button>
+        {seriesEnPlus > 0 && (
+          <p className="text-xs text-encre-3 mt-1">
+            {exercice.seriesCibles} série{exercice.seriesCibles > 1 ? "s" : ""} prescrite
+            {exercice.seriesCibles > 1 ? "s" : ""} — les suivantes sont enregistrées comme
+            réalisation, la prescription ne change pas.
+          </p>
+        )}
 
         {/*
           Ce qu'il faut saisir, là où on le saisit.
