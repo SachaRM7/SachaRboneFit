@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   evenementsDeLaSeance,
+  interventionsUtiles,
   libelleFactuel,
   meritentLeCoach,
   type PrescriptionObservee,
@@ -78,6 +79,35 @@ describe("le repos réellement pris", () => {
       [prescription({ reposSecondes: null })],
     );
     expect(evenements.filter((e) => e.type.startsWith("repos"))).toHaveLength(0);
+  });
+
+  it("« Passer » est un fait, même sans repos prescrit", () => {
+    // Sans prescription il n'y a rien à quoi comparer la durée, mais
+    // l'intention se suffit : c'est le seul cas où le geste fait l'événement.
+    const evenements = evenementsDeLaSeance(
+      [1, 2].map((n) => serie({ numeroSerie: n, reposReelSecondes: 12, reposIgnore: true })),
+      [prescription({ reposSecondes: null })],
+    );
+    const repos = evenements.find((e) => e.type === "repos_ecourte");
+    expect(repos?.mesure).toMatchObject({ reel: 12, delibere: 1 });
+    expect(meritentLeCoach(evenements).map((e) => e.type)).toContain("repos_ecourte");
+  });
+
+  it("le geste et la durée sont deux faits distincts", () => {
+    // « Passer » puis attendre trois minutes n'écourte rien.
+    const evenements = evenementsDeLaSeance(
+      [serie({ reposReelSecondes: 190, reposIgnore: true })],
+      [prescription({ reposSecondes: 120 })],
+    );
+    expect(evenements.some((e) => e.type === "repos_ecourte")).toBe(false);
+  });
+
+  it("un repos écourté volontairement le dit dans sa mesure", () => {
+    const evenements = evenementsDeLaSeance(
+      [serie({ reposReelSecondes: 8, reposIgnore: true })],
+      [prescription({ reposSecondes: 120 })],
+    );
+    expect(evenements.find((e) => e.type === "repos_ecourte")?.mesure.delibere).toBe(1);
   });
 
   it("un intervalle inconnu n'invente pas un skip", () => {
@@ -240,5 +270,63 @@ describe("les phrases citent les nombres mesurés", () => {
       expect(libelleFactuel(e).length).toBeGreaterThan(0);
     }
     expect(tous.length).toBeGreaterThan(2);
+  });
+});
+
+describe("le Coach parle quand ça peut encore changer la suite", () => {
+  const reste = (series: number, exercices: number) => () => ({
+    seriesRestantesSurLExercice: series,
+    exercicesRestants: exercices,
+  });
+
+  const reposEcourteDeuxFois = () =>
+    evenementsDeLaSeance(
+      [1, 2].map((n) => serie({ numeroSerie: n, reposReelSecondes: 8 })),
+      [prescription({ seriesCibles: 5 })],
+    );
+
+  it("un repos écourté avec des séries à venir mérite d'être dit", () => {
+    expect(interventionsUtiles(reposEcourteDeuxFois(), reste(3, 2))).toHaveLength(1);
+  });
+
+  it("le même fait, la séance finie, n'est plus que du récit", () => {
+    // C'est le débrief qui en parlera, et il le fera mieux.
+    expect(interventionsUtiles(reposEcourteDeuxFois(), reste(0, 0))).toHaveLength(0);
+  });
+
+  it("un fait isolé ne passe pas, même s'il reste toute la séance", () => {
+    const isole = evenementsDeLaSeance(
+      [serie({ reposReelSecondes: 8 })],
+      [prescription({ seriesCibles: 5 })],
+    );
+    expect(interventionsUtiles(isole, reste(4, 3))).toHaveLength(0);
+  });
+
+  it("des séries en plus n'intéressent que s'il reste des exercices", () => {
+    const extra = evenementsDeLaSeance(
+      [1, 2, 3, 4].map((n) => serie({ numeroSerie: n })),
+      [prescription({ seriesCibles: 2 })],
+    );
+    expect(interventionsUtiles(extra, reste(0, 2)).map((e) => e.type))
+      .toContain("series_hors_prescription");
+    expect(interventionsUtiles(extra, reste(0, 0))).toHaveLength(0);
+  });
+
+  it("sous la fourchette compte encore quand l'exercice est fini", () => {
+    // La charge de l'exercice suivant est en question.
+    const sous = evenementsDeLaSeance(
+      [1, 2].map((n) => serie({ numeroSerie: n, repsEffectuees: 5 })),
+      [prescription({ fourchetteRepsMin: 8, seriesCibles: 2 })],
+    );
+    expect(interventionsUtiles(sous, reste(0, 1)).map((e) => e.type))
+      .toContain("reps_sous_la_fourchette");
+  });
+
+  it("une séance conforme ne déclenche jamais rien", () => {
+    const rien = evenementsDeLaSeance(
+      [1, 2, 3].map((n) => serie({ numeroSerie: n })),
+      [prescription()],
+    );
+    expect(interventionsUtiles(rien, reste(5, 5))).toHaveLength(0);
   });
 });

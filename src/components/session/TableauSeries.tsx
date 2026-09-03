@@ -206,6 +206,10 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
       // eslint-disable-next-line react-hooks/purity
       validatedAt: Date.now(),
       reposReelSecondes: intervalleDepuisLaSeriePrecedente(),
+      // L'intervalle dit combien de temps s'est écoulé ; ceci dit si le repos
+      // a été écourté volontairement. Un « Passer » suivi de trois minutes
+      // d'attente ne se lit pas dans la durée seule.
+      reposIgnore: active?.restSkipped ? true : undefined,
     });
 
     // Le brouillon n'a plus lieu d'être : la série enregistrée devient la

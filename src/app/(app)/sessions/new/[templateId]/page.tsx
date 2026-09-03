@@ -18,6 +18,7 @@ import { SOSDouleur } from "@/components/session/SOSDouleur";
 import { SOSEnergie } from "@/components/session/SOSEnergie";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
+import { ObservateurSeance } from "@/components/session/ObservateurSeance";
 import { Feu } from "@/components/carnet/Feu";
 import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
@@ -64,7 +65,7 @@ function ContenuSeanceLive() {
 
   const {
     active, start,
-    startRest, clearRest, extendRest, skipExercises, allegerExercises,
+    startRest, clearRest, skipRest, extendRest, skipExercises, allegerExercises,
   } = useSessionStore();
 
   const [seance, setSeance] = useState<SeanceChargee | null>(null);
@@ -194,8 +195,21 @@ function ContenuSeanceLive() {
     setTimerVisible(true);
   };
 
+  /** Le repos arrive à son terme : on referme, sans rien signaler de plus. */
   const fermerTimer = () => {
     clearRest();
+    setTimerVisible(false);
+  };
+
+  /**
+   * « Passer » : le repos est écourté volontairement.
+   *
+   * Le geste appelait `clearRest`, indistinguable d'une fermeture ordinaire —
+   * skipper trois repos de 120 s ne laissait donc aucune trace exploitable
+   * pendant la séance.
+   */
+  const passerRepos = () => {
+    skipRest();
     setTimerVisible(false);
   };
 
@@ -290,6 +304,22 @@ function ContenuSeanceLive() {
         exercices={visibles}
       />
 
+      {/*
+        Le Coach regarde la séance pendant qu'elle a lieu. Ce que le moteur
+        retient — et lui seul décide quoi — s'affiche ici, sans appel au modèle.
+      */}
+      <ObservateurSeance
+        prescriptions={visibles.map((e) => ({
+          exerciseInstanceId: e.id,
+          seriesCibles: e.seriesCibles,
+          fourchetteRepsMin: e.fourchetteRepsMin,
+          fourchetteRepsMax: e.fourchetteRepsMax,
+          rpeCible: e.rpeCible,
+          reposSecondes: e.reposSecondes,
+        }))}
+        ordreDesExercices={visibles.map((e) => e.id)}
+      />
+
       <div className="px-4 pt-4 space-y-3">
         <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
 
@@ -365,7 +395,7 @@ function ContenuSeanceLive() {
             <RestTimer
               durationSeconds={active.restDurationSeconds}
               onComplete={playBeep}
-              onSkip={fermerTimer}
+              onSkip={passerRepos}
               onExtend={extendRest}
             />
           </div>

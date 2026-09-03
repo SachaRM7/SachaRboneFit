@@ -45,6 +45,15 @@ export interface SerieObservee {
   rpeEffectif?: number | null;
   /** Intervalle réel depuis la série précédente, en secondes. */
   reposReelSecondes?: number | null;
+  /**
+   * Le repos qui précède cette série a-t-il été écourté volontairement ?
+   *
+   * L'intervalle dit COMBIEN de temps s'est écoulé ; ceci dit si la personne a
+   * décidé de ne pas attendre. Les deux sont nécessaires : un « Passer » suivi
+   * de trois minutes d'attente n'écourte rien, et un intervalle court sans
+   * prescription connue n'a rien à quoi se comparer.
+   */
+  reposIgnore?: boolean;
 }
 
 export interface PrescriptionObservee {
@@ -104,12 +113,29 @@ export function evenementsDeLaSeance(
     // --- Le repos réellement pris ---
     const prescrit = prescrite.reposSecondes;
     const reel = serie.reposReelSecondes;
-    if (prescrit != null && prescrit > 0 && reel != null && reel >= 0) {
-      if (reel < prescrit * PART_DU_REPOS_PRESCRIT_ECOURTE) {
-        noter("repos_ecourte", serie.exerciseInstanceId, { prescrit, reel, ecart: reel - prescrit });
-      } else if (reel > prescrit * 2) {
-        noter("repos_rallonge", serie.exerciseInstanceId, { prescrit, reel, ecart: reel - prescrit });
+    const aPrescription = prescrit != null && prescrit > 0;
+    const aMesure = reel != null && reel >= 0;
+
+    if (aPrescription && aMesure) {
+      if (reel! < prescrit! * PART_DU_REPOS_PRESCRIT_ECOURTE) {
+        noter("repos_ecourte", serie.exerciseInstanceId, {
+          prescrit: prescrit!, reel: reel!, ecart: reel! - prescrit!,
+          delibere: serie.reposIgnore ? 1 : 0,
+        });
+      } else if (reel! > prescrit! * 2) {
+        noter("repos_rallonge", serie.exerciseInstanceId, {
+          prescrit: prescrit!, reel: reel!, ecart: reel! - prescrit!,
+        });
       }
+    } else if (serie.reposIgnore && aMesure) {
+      /**
+       * Un « Passer » sans repos prescrit.
+       *
+       * Il n'y a rien à quoi comparer la durée — mais l'intention, elle, est
+       * explicite et se suffit. C'est le seul cas où le geste fait
+       * l'événement : partout ailleurs, c'est la durée qui parle.
+       */
+      noter("repos_ecourte", serie.exerciseInstanceId, { reel: reel!, delibere: 1 });
     }
 
     // --- L'effort ressenti face à l'effort visé ---
@@ -187,7 +213,10 @@ export function libelleFactuel(e: EvenementSeance): string {
   const m = e.mesure;
   switch (e.type) {
     case "repos_ecourte":
-      return `repos prescrit ${m.prescrit} s, pris ${m.reel} s (${e.occurrences} fois)`;
+      return m.prescrit == null
+        ? `repos passé volontairement, ${m.reel} s entre les séries (${e.occurrences} fois)`
+        : `repos prescrit ${m.prescrit} s, pris ${m.reel} s${m.delibere ? ", passé volontairement" : ""}`
+          + ` (${e.occurrences} fois)`;
     case "repos_rallonge":
       return `repos prescrit ${m.prescrit} s, pris ${m.reel} s (${e.occurrences} fois)`;
     case "effort_au_dela_de_la_cible":
@@ -199,4 +228,60 @@ export function libelleFactuel(e: EvenementSeance): string {
     case "series_hors_prescription":
       return `${m.prescrites} séries prescrites, ${m.faites} réalisées`;
   }
+}
+
+/**
+ * Ce fait peut-il encore changer quelque chose ?
+ *
+ * La règle qui sépare un coach d'un commentateur. Signaler qu'un repos a été
+ * écourté alors que la séance est finie ne sert à rien : c'est du récit, et le
+ * débrief le fera mieux. Le même fait dit à la deuxième série sur cinq permet
+ * encore de corriger la troisième.
+ *
+ * Deux conditions, et il faut les deux : le fait doit se répéter assez pour ne
+ * pas être un accident (`meritentLeCoach`), et il doit rester de la séance sur
+ * laquelle il porte.
+ */
+export interface RestantDeLaSeance {
+  /** Séries encore à faire sur l'exercice concerné. */
+  seriesRestantesSurLExercice: number;
+  /** Exercices encore à faire après celui-ci. */
+  exercicesRestants: number;
+}
+
+export function peutChangerLaSuite(e: EvenementSeance, restant: RestantDeLaSeance): boolean {
+  switch (e.type) {
+    // Ces trois-là portent sur l'exécution : ils ne valent que s'il reste des
+    // séries à exécuter sur cette machine.
+    case "repos_ecourte":
+    case "effort_au_dela_de_la_cible":
+    case "effort_en_deca_de_la_cible":
+      return restant.seriesRestantesSurLExercice > 0;
+
+    // Sous la fourchette, la charge de la SUITE est en question : la même
+    // machine tout à l'heure, ou l'exercice suivant si celui-ci est fini.
+    case "reps_sous_la_fourchette":
+      return restant.seriesRestantesSurLExercice > 0 || restant.exercicesRestants > 0;
+
+    // Un repos rallongé et des séries en plus pèsent sur le temps qui reste :
+    // sans exercice après, il n'y a plus rien à arbitrer.
+    case "repos_rallonge":
+    case "series_hors_prescription":
+      return restant.exercicesRestants > 0;
+  }
+}
+
+/**
+ * Ce que le Coach doit voir maintenant — la liste complète des conditions.
+ *
+ * Un seul point d'entrée, pour que la politique d'intervention ne se retrouve
+ * pas dispersée entre le composant et le moteur. Elle est ici, testable, et ne
+ * déclenche aucun appel au modèle : elle ne fait que choisir.
+ */
+export function interventionsUtiles(
+  evenements: EvenementSeance[],
+  restantParExercice: (exerciseInstanceId: string) => RestantDeLaSeance,
+): EvenementSeance[] {
+  return meritentLeCoach(evenements)
+    .filter((e) => peutChangerLaSuite(e, restantParExercice(e.exerciseInstanceId)));
 }
