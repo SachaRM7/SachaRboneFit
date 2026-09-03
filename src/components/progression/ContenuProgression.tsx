@@ -97,7 +97,7 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
           <h1 className="text-xl font-bold">{active.libelle}</h1>
         </header>
 
-        <div className="px-4 pb-24 space-y-4">
+        <div className="px-4 space-y-4">
           {vue === "exercice" && (
             <>
               <div className="flex gap-2">
@@ -159,7 +159,7 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
         )}
       </header>
 
-      <div className="px-4 pb-24 space-y-6">
+      <div className="px-4 space-y-6">
         {/* Plus de spinner plein écran : le bilan arrive avec la page. */}
         <BilanProgression bilan={bilan} />
 

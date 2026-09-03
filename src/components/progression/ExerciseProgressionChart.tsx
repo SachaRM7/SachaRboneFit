@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { avecUnite } from "@/lib/format";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { CHART_THEME } from "@/lib/chart-theme";
+import { CHART_THEME, couleursGraphique } from "@/lib/chart-theme";
+import { jourCourt } from "@/lib/format-date";
 import { libelleDeLaMesure, type PorteeDeLaMesure } from "@/lib/engine/charges";
 
 interface DataPoint {
@@ -75,7 +76,7 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
   }
 
   const chartData = data.map((d) => ({
-    date: new Date(d.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
+    date: jourCourt(d.date),
     value: mode === "1rm" ? d.best1RM : d.totalVolume,
   }));
 
@@ -120,7 +121,7 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
                 backgroundColor: CHART_THEME.tooltipBg,
                 border: `1px solid ${CHART_THEME.tooltipBorder}`,
                 borderRadius: "8px",
-                color: "#fff",
+                color: couleursGraphique().trace,
               }}
               formatter={(value, name, props: { dataPointIndex?: number }) => {
                 const point = props.dataPointIndex === undefined ? undefined : data[props.dataPointIndex];
@@ -136,9 +137,9 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
             <Line
               type="monotone"
               dataKey="value"
-              stroke="#22c55e"
+              stroke={couleursGraphique().trace}
               strokeWidth={2}
-              dot={{ fill: "#22c55e", strokeWidth: 0, r: 4 }}
+              dot={{ fill: couleursGraphique().trace, strokeWidth: 0, r: 4 }}
               activeDot={{ r: 6 }}
             />
           </LineChart>

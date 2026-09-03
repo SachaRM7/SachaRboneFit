@@ -1,47 +1,110 @@
 "use client";
 import { useEffect, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
-import { CHART_THEME } from "@/lib/chart-theme";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { CHART_THEME, couleursGraphique } from "@/lib/chart-theme";
+import { jourCourt } from "@/lib/format-date";
 
 interface BodyWeightChartProps {
   months: number;
 }
 
+interface Pesee {
+  date: string;
+  poids: number;
+  movingAvg: number;
+}
+
+/** Une courbe ne dit rien avant d'avoir deux points à relier. */
+const PESEES_POUR_UNE_COURBE = 2;
+
 export function BodyWeightChart({ months }: BodyWeightChartProps) {
-  const [data, setData] = useState<{ date: string; poids: number; movingAvg: number }[]>([]);
-  const [loading, setLoading] = useState(true);
+  /**
+   * Un seul état, portant la période qu'il décrit.
+   *
+   * Repasser `chargement` à vrai dans le corps de l'effet déclenche un rendu en
+   * cascade. La période demandée fait donc partie du résultat : tant que la
+   * clé ne correspond pas, c'est qu'on charge — et changer de période ne peut
+   * pas afficher les chiffres de l'ancienne.
+   */
+  const [resultat, setResultat] = useState<{ cle: number; pesees: Pesee[]; echec: boolean } | null>(null);
 
   useEffect(() => {
+    let annule = false;
     fetch(`/api/progression/bodyweight?months=${months}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d) => {
-        setData(d);
-        setLoading(false);
+        if (!annule) setResultat({ cle: months, pesees: Array.isArray(d) ? d : [], echec: false });
+      })
+      /*
+       * Sans ce `catch`, une réponse en erreur laissait le chargement à vrai
+       * pour toujours : le squelette pulsait indéfiniment, et l'écran
+       * n'annonçait jamais ni donnée ni panne. C'est le « loader qui finit
+       * dans le vide » — il ne finissait pas du tout.
+       */
+      .catch(() => {
+        if (!annule) setResultat({ cle: months, pesees: [], echec: true });
       });
+    return () => { annule = true; };
   }, [months]);
 
-  if (loading) {
+  const chargement = resultat?.cle !== months;
+  const data = resultat?.pesees ?? [];
+  const echec = resultat?.echec ?? false;
+
+  if (chargement) {
     return <div className="h-64 bg-papier-2 rounded-lg animate-pulse" />;
   }
 
-  if (!data || data.length === 0) {
+  if (echec) {
     return (
-      <div className="text-encre-3 text-center py-12">
-        Pas encore de données de poids corporel
+      <p className="text-encre-2 text-sm py-8 text-center">
+        Impossible de lire tes pesées pour l&apos;instant. Réessaie dans un moment.
+      </p>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <p className="text-encre-3 text-sm py-8 text-center">
+        Pas encore de pesée enregistrée.
+      </p>
+    );
+  }
+
+  const derniere = data[data.length - 1]!;
+
+  /*
+   * Une seule pesée : le chiffre, pas un graphique.
+   *
+   * Recharts rendait un cadre de 16 rem avec deux axes, une grille et un point
+   * unique perdu au milieu — une mise en scène de l'absence de tendance. Le
+   * poids du jour se lit mieux écrit.
+   */
+  if (data.length < PESEES_POUR_UNE_COURBE) {
+    return (
+      <div className="rounded-xl border border-filet bg-carte p-5 space-y-1">
+        <p className="text-encre-2 text-sm">Première pesée</p>
+        <p className="text-encre text-3xl font-bold chiffres">
+          {derniere.poids} <span className="text-lg font-medium text-encre-2">kg</span>
+        </p>
+        <p className="text-encre-3 text-sm">
+          Le {jourCourt(derniere.date)}. Une deuxième pesée suffira à tracer une tendance.
+        </p>
       </div>
     );
   }
 
+  const couleurs = couleursGraphique();
+
   const chartData = data.map((d) => ({
-    date: new Date(d.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
+    date: jourCourt(d.date),
     poids: d.poids,
     moyenne: d.movingAvg,
   }));
 
-  const minWeight = Math.min(...data.map((d) => d.poids));
-  const maxWeight = Math.max(...data.map((d) => d.poids));
-  const yMin = Math.floor(minWeight - 2);
-  const yMax = Math.ceil(maxWeight + 2);
+  const poids = data.map((d) => d.poids);
+  const yMin = Math.floor(Math.min(...poids) - 2);
+  const yMax = Math.ceil(Math.max(...poids) + 2);
 
   return (
     <div className="space-y-4">
@@ -64,23 +127,29 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
                 backgroundColor: CHART_THEME.tooltipBg,
                 border: `1px solid ${CHART_THEME.tooltipBorder}`,
                 borderRadius: "8px",
-                color: "#fff",
+                color: couleurs.trace,
               }}
             />
-            {/* Raw data - thin line */}
+            {/*
+              Les couleurs viennent des tokens du système, pas de valeurs
+              écrites ici. Les pesées étaient tracées en blanc translucide et
+              la moyenne en cyan : invisibles sur le papier du thème clair, et
+              hors palette dans les deux thèmes. La pesée brute est une trace
+              douce, la moyenne mobile est la trace pleine — c'est elle qu'on
+              lit, le poids d'un jour ne veut pas dire grand-chose.
+            */}
             <Line
               type="monotone"
               dataKey="poids"
-              stroke="rgba(255,255,255,0.3)"
+              stroke={couleurs.traceDouce}
               strokeWidth={1}
-              dot={{ fill: "rgba(255,255,255,0.5)", strokeWidth: 0, r: 3 }}
-              name="Poids"
+              dot={{ fill: couleurs.traceDouce, strokeWidth: 0, r: 3 }}
+              name="Pesée"
             />
-            {/* Moving average - thick line */}
             <Line
               type="monotone"
               dataKey="moyenne"
-              stroke="#06B6D4"
+              stroke={couleurs.trace}
               strokeWidth={2}
               dot={false}
               name="Moyenne mobile"
@@ -89,8 +158,9 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
         </ResponsiveContainer>
       </div>
       <div className="text-encre-3 text-sm text-center">
-        {data.length} pesée{data.length > 1 ? "s" : ""} —{" "}
-        dernière: {data[data.length - 1]?.poids}kg — moyenne: {data[data.length - 1]?.movingAvg}kg
+        <span className="chiffres">{data.length}</span> pesées — dernière{" "}
+        <span className="chiffres">{derniere.poids}</span> kg, moyenne{" "}
+        <span className="chiffres">{derniere.movingAvg}</span> kg
       </div>
     </div>
   );

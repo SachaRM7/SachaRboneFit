@@ -61,9 +61,26 @@ const ORDRE_SERIES = [
   "epaules", "bras_biceps", "bras_triceps", "jambes_iso",
 ] as const;
 
+/**
+ * Le rang de la série d'un pilier — 1 à 8, et 8 pour tout le reste.
+ *
+ * Exporté parce que c'est la seule moitié de la couleur qui se vérifie hors
+ * navigateur : `token()` lit le CSS calculé, et rend son repli côté serveur.
+ * Un test qui comparerait des couleurs les trouverait donc toutes identiques,
+ * y compris quand elles diffèrent réellement à l'écran — c'est exactement ce
+ * qui s'est produit, et l'assertion ne prouvait rien.
+ *
+ * Le rang, lui, porte la propriété qui compte : deux piliers distincts ne
+ * partagent pas leur place. Le défaut réel était là — des clés passées en
+ * minuscules ne correspondaient plus à cette table, tombaient toutes sur le
+ * repli, et l'empilement devenait monochrome.
+ */
+export function slotDeSerie(pilier?: string): number {
+  const index = ORDRE_SERIES.indexOf((pilier ?? "") as (typeof ORDRE_SERIES)[number]);
+  return index >= 0 ? index + 1 : 8;
+}
+
 /** Couleur stable d'une série. Elle suit l'entité, jamais son rang à l'écran. */
 export function getPillarColor(pilier?: string): string {
-  const index = ORDRE_SERIES.indexOf((pilier ?? "") as (typeof ORDRE_SERIES)[number]);
-  const slot = index >= 0 ? index + 1 : 8;
-  return token(`--serie-${slot}`, "#1F6FA8");
+  return token(`--serie-${slotDeSerie(pilier)}`, "#1F6FA8");
 }
