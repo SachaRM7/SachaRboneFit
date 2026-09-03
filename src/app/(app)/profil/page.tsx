@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 import { db } from "@/db/client";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { ProfilForm } from "@/components/profil/ProfilForm";
@@ -15,9 +16,9 @@ export default async function ProfilPage() {
 
   return (
     <div className="p-4 space-y-6">
+      <EnTeteSecondaire titre="Profil" vers="/settings" libelleRetour="Retour à Plus" />
       <div>
-        <h1 className="text-xl font-bold text-encre">Profil</h1>
-        <p className="text-encre-3 text-sm mt-1">
+        <p className="text-encre-3 text-sm">
           Ces informations orientent les séances proposées.
         </p>
       </div>

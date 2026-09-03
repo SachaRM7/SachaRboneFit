@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 import { nombre } from "@/lib/format";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { db } from "@/db/client";
@@ -24,7 +25,7 @@ export default async function BodyweightPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold text-encre">Poids corporel</h1>
+      <EnTeteSecondaire titre="Poids de corps" vers="/settings" libelleRetour="Retour à Plus" />
 
       <Card className="bg-carte border-filet">
         <CardContent className="pt-4">

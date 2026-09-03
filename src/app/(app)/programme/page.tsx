@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 import { db } from "@/db/client";
 import {
   seanceTemplates, exerciseInTemplate, exerciseInstances, gyms,
@@ -114,7 +115,7 @@ export default async function ProgrammePage() {
 
   return (
     <div className="min-h-dvh bg-papier text-encre p-4 space-y-5">
-      <h1 className="text-2xl font-bold">Programme</h1>
+      <EnTeteSecondaire titre="Programme" vers="/settings" libelleRetour="Retour à Plus" />
 
       <VueCycle vue={vue} />
 

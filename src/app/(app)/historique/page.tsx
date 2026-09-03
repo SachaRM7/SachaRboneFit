@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 import { seancesRealisees } from "@/db/archivage";
 import { libelleFeu } from "@/lib/referentiels/libelles";
 import Link from "next/link";
@@ -81,9 +82,9 @@ export default async function HistoriquePage() {
 
   return (
     <div className="p-4 space-y-6">
+      <EnTeteSecondaire titre="Historique" vers="/settings" libelleRetour="Retour à Plus" />
       <div>
-        <h1 className="text-xl font-bold text-encre">Historique</h1>
-        <p className="text-encre-3 text-sm mt-1">
+        <p className="text-encre-3 text-sm">
           {seances.length} séance{seances.length > 1 ? "s" : ""} enregistrée{seances.length > 1 ? "s" : ""}
         </p>
       </div>

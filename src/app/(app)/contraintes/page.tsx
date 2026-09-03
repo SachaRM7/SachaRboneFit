@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { contraintesPourAffichage } from "@/services/contraintes";
 import { ListeContraintes } from "@/components/contraintes/ListeContraintes";
@@ -19,8 +20,8 @@ export default async function Page() {
 
   return (
     <div className="min-h-dvh bg-papier text-encre p-4 pb-28 space-y-6">
+      <EnTeteSecondaire titre="Ce que tu ménages" vers="/settings" libelleRetour="Retour à Plus" />
       <header className="space-y-1">
-        <h1 className="text-2xl">Ce que tu ménages</h1>
         <p className="text-encre-3 text-sm">
           {actives.length === 0
             ? "Rien en ce moment. Tu peux signaler une gêne pendant une séance."

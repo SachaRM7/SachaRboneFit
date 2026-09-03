@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { machinesUtilisablesAujourdhui } from "@/db/archivage";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 
 export default async function GymsPage() {
   // Mémoïsé pour la durée du rendu : le layout vient de faire cet
@@ -55,20 +56,26 @@ export default async function GymsPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        {/* « Mes salles » sous-entendait une propriété personnelle qui n'existe
-            pas dans le modèle : le catalogue des lieux est commun. */}
-        <h1 className="text-xl font-bold text-encre">Salles</h1>
-        {/* Un seul point d'ajout, lisible dans les deux thèmes. Il y en avait
-            deux — ce bouton et un flottant en bas — et celui-ci était presque
-            invisible en clair, faute de contraste sur son fond. */}
-        <Link href="/gyms/new">
-          <Button size="sm" className="bg-encre text-papier hover:bg-encre/90">
-            <Plus className="w-4 h-4 mr-1.5" />
-            Ajouter
-          </Button>
-        </Link>
-      </div>
+      {/* « Mes salles » sous-entendait une propriété personnelle qui n'existe
+          pas dans le modèle : le catalogue des lieux est commun.
+
+          Et l'écran n'avait pas de retour, alors qu'on y arrive depuis « Plus » :
+          seul l'onglet du bas permettait d'en repartir. Un seul point d'ajout,
+          par ailleurs — il y en avait deux, dont un flottant presque invisible
+          en thème clair. */}
+      <EnTeteSecondaire
+        titre="Salles"
+        vers="/settings"
+        libelleRetour="Retour à Plus"
+        action={
+          <Link href="/gyms/new">
+            <Button size="sm" className="bg-encre text-papier hover:bg-encre/90">
+              <Plus className="w-4 h-4 mr-1.5" />
+              Ajouter
+            </Button>
+          </Link>
+        }
+      />
 
       <div className="space-y-3">
         {salles.map(({ gym, appareils }) => (
