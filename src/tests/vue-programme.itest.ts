@@ -202,8 +202,12 @@ describe("vue du programme", () => {
     await enregistrerSeance("2026-08-03", templates[0]!, true);
 
     const v = await vueDuProgramme(U, AUJOURDHUI);
-    expect(v.semaine[0]!.etat).toBe("adaptee");
+    // « Adaptée » n'est plus un état mais un fait à part : il était dans la
+    // même alternative que la date, et disparaissait le jour même.
+    expect(v.semaine[0]!.etat).toBe("terminee");
+    expect(v.semaine[0]!.adaptee).toBe(true);
     expect(v.semaine[1]!.etat).toBe("prochaine");
+    expect(v.semaine[1]!.adaptee).toBe(false);
   });
 
   it("ignore une séance de la semaine précédente", async () => {

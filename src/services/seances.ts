@@ -1,8 +1,15 @@
 import { db } from "@/db/client";
-import { sessionLogs, setLogs } from "@/db/schema";
-import { and, desc, eq, gte, isNull } from "drizzle-orm";
+import {
+  exerciseInstances, programmeBlocs, seanceTemplates,
+  sessionIncidents, sessionLogs, sessionPlanItems, setLogs,
+} from "@/db/schema";
+import { and, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import type { SessionLog } from "@/db/schema";
 import { estUneSeanceRealisee } from "@/db/archivage";
+import {
+  effortRequisPour, LIBELLES_MOTIF_INVALIDE, motifSerieInvalide,
+  type MotifSerieInvalide,
+} from "@/lib/engine/serie-realisee";
 import { feuDeTendance } from "./progression";
 
 /**
@@ -188,6 +195,38 @@ export class SeanceSansSerie extends Error {
   }
 }
 
+/**
+ * Erreur métier : une série reçue n'est pas une série réalisée.
+ *
+ * Elle porte le numéro et le motif, parce qu'un refus doit dire QUOI corriger.
+ * Le client applique déjà la même règle : l'arrivée d'une série invalide ici
+ * signale un désaccord entre les deux, pas une saisie ordinaire.
+ */
+export class SerieInvalide extends Error {
+  constructor(readonly numeroSerie: number, readonly motif: MotifSerieInvalide) {
+    super(`Série ${numeroSerie} : ${LIBELLES_MOTIF_INVALIDE[motif]}`);
+    this.name = "SerieInvalide";
+  }
+}
+
+/**
+ * La phase du cycle dont relève cette séance.
+ *
+ * Le serveur ne la demande pas au client : c'est elle qui décide si la réserve
+ * est obligatoire, et une exigence qu'on peut désactiver depuis le navigateur
+ * n'en est pas une.
+ */
+async function phaseDuCycle(seanceTemplateId: string | null): Promise<string | null> {
+  if (!seanceTemplateId) return null;
+  const ligne = await db
+    .select({ typeCycle: programmeBlocs.typeCycle })
+    .from(seanceTemplates)
+    .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
+    .where(eq(seanceTemplates.id, seanceTemplateId))
+    .limit(1);
+  return ligne[0]?.typeCycle ?? null;
+}
+
 export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog> {
   const existante = await db.query.sessionLogs.findFirst({
     where: and(
@@ -200,9 +239,46 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
   });
   if (!existante) throw new SeanceIntrouvable();
 
-  const series = donnees.series.filter(
-    (s) => s.repsEffectuees !== null && s.charge !== null && s.exerciseInstanceId,
-  );
+  /**
+   * Ce qui a réellement eu lieu — et un refus explicite pour le reste.
+   *
+   * Le filtre ne demandait que « ni l'un ni l'autre n'est `null` ». Zéro n'est
+   * pas `null` : une série à 0 répétition et 0 kilo entrait en base, comptait
+   * dans le volume et nourrissait la progression.
+   *
+   * La première correction se contentait d'ÉCARTER ces séries. C'était encore
+   * une correction silencieuse : l'écran avait montré une ligne validée, la
+   * base n'en gardait rien, et personne n'était prévenu. Une série invalide
+   * qui atteint le serveur est maintenant une erreur — le client la refuse
+   * déjà, donc son arrivée ici signale un vrai désaccord entre les deux.
+   */
+  const instancesCitees = [...new Set(donnees.series.map((s) => s.exerciseInstanceId).filter(Boolean))];
+  const conventions = instancesCitees.length
+    ? await db
+        .select({
+          id: exerciseInstances.id,
+          conventionCharge: exerciseInstances.conventionCharge,
+          natureCharge: exerciseInstances.natureCharge,
+        })
+        .from(exerciseInstances)
+        .where(inArray(exerciseInstances.id, instancesCitees))
+    : [];
+  const conventionParInstance = new Map(conventions.map((c) => [c.id, c]));
+
+  // En calibration, la réserve est LA mesure : c'est elle qui fixera les
+  // charges des blocs suivants. Une série de calibration sans effort renseigné
+  // ne mesure rien, et le serveur le sait sans avoir à croire le client.
+  const exigences = { effortRequis: effortRequisPour(await phaseDuCycle(existante.seanceTemplateId)) };
+
+  const series: SerieASauver[] = [];
+  for (const s of donnees.series) {
+    if (!s.exerciseInstanceId) continue;
+    const motif = motifSerieInvalide(
+      s, conventionParInstance.get(s.exerciseInstanceId) ?? {}, exigences,
+    );
+    if (motif) throw new SerieInvalide(s.numeroSerie, motif);
+    series.push(s);
+  }
 
   // Le seul signal durable d'un entraînement est la série. Sans elle, il n'y a
   // rien à clore — et surtout rien qui doive compter comme une séance faite.
@@ -263,4 +339,75 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
     .returning();
 
   return avecTendance ?? cloturee;
+}
+
+/**
+ * Erreur métier : abandonner une séance qui contient déjà des séries.
+ *
+ * Abandonner efface. Une séance où quelque chose a réellement été fait ne
+ * s'efface pas d'un bouton : elle se termine, ou elle reste ouverte.
+ */
+export class SeanceNonVide extends Error {
+  constructor() {
+    super("Cette séance contient des séries : termine-la plutôt que de l'abandonner");
+    this.name = "SeanceNonVide";
+  }
+}
+
+/**
+ * La séance ouverte de ce compte, s'il y en a une.
+ *
+ * « Ouverte » veut dire : créée, pas encore clôturée, pas archivée. Il ne
+ * devrait jamais y en avoir deux — c'est l'invariant que fait respecter
+ * `construireSeanceDuJour`. En cas d'héritage, la plus récente gagne : c'est
+ * celle que l'écran de séance porte.
+ */
+export async function seanceOuverte(userId: string): Promise<SessionLog | null> {
+  const seance = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.userId, userId),
+      isNull(sessionLogs.archiveLe),
+      isNull(sessionLogs.dureeMinutes),
+    ),
+    orderBy: [desc(sessionLogs.createdAt)],
+  });
+  return seance ?? null;
+}
+
+/**
+ * Abandonner une séance commencée.
+ *
+ * Le bouton du tableau de bord n'appelait que `clear()` — une remise à zéro du
+ * store React. La ligne `session_logs` restait ouverte en base : au
+ * rechargement suivant, « Séance en cours — 0 séries enregistrées »
+ * réapparaissait, et une nouvelle tentative en créait une de plus. C'est ce
+ * qui a produit les séances fantômes et le « 4 séances cette semaine ».
+ *
+ * Ce qui part : la ligne et son plan, qui n'ont jamais rien mesuré. Ce qui ne
+ * bouge pas : le gabarit, le bloc, l'inventaire, et toute séance qui porte des
+ * séries — la suppression est refusée dans ce cas plutôt que silencieuse.
+ */
+export async function abandonnerSeance(userId: string, sessionLogId: string): Promise<void> {
+  const seance = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.id, sessionLogId),
+      eq(sessionLogs.userId, userId),
+      isNull(sessionLogs.archiveLe),
+    ),
+  });
+  if (!seance) throw new SeanceIntrouvable();
+
+  const series = await db.query.setLogs.findMany({
+    where: eq(setLogs.sessionLogId, sessionLogId),
+    columns: { id: true },
+  });
+  if (series.length > 0) throw new SeanceNonVide();
+
+  await db.transaction(async (tx) => {
+    // Le plan cite la séance : il part avec elle, et lui seul. Les lignes de
+    // gabarit qu'il référence ne sont pas touchées.
+    await tx.delete(sessionPlanItems).where(eq(sessionPlanItems.sessionLogId, sessionLogId));
+    await tx.delete(sessionIncidents).where(eq(sessionIncidents.sessionLogId, sessionLogId));
+    await tx.delete(sessionLogs).where(eq(sessionLogs.id, sessionLogId));
+  });
 }

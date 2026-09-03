@@ -18,9 +18,12 @@ import { SOSDouleur } from "@/components/session/SOSDouleur";
 import { SOSEnergie } from "@/components/session/SOSEnergie";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
+import { ObservateurSeance } from "@/components/session/ObservateurSeance";
+import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { Feu } from "@/components/carnet/Feu";
 import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
+import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
 
 type ModaleSOS = "machine" | "douleur" | "energie" | "temps" | null;
 
@@ -31,6 +34,9 @@ function normaliserRole(role: string | null | undefined): ExerciceRestant["categ
 
 interface SeanceChargee {
   nom: string;
+  /** Durées déclarées à l'onboarding, pour le chronomètre de séance. */
+  dureeCibleMinutes?: number | null;
+  dureeMaxMinutes?: number | null;
   /** Phase du cycle : la calibration ne demande pas la même chose en séance. */
   phaseCycle?: string | null;
   feuBiologiqueJour?: string | null;
@@ -64,11 +70,15 @@ function ContenuSeanceLive() {
 
   const {
     active, start,
-    startRest, clearRest, extendRest, skipExercises, allegerExercises,
+    startRest, clearRest, skipRest, extendRest, skipExercises, allegerExercises,
   } = useSessionStore();
 
   const [seance, setSeance] = useState<SeanceChargee | null>(null);
   const [chargement, setChargement] = useState(true);
+  // Distinguer « ce gabarit n'a pas pu être lu » de « ce gabarit est vide ».
+  // Les deux menaient au même écran, et le second est un mensonge quand c'est
+  // le premier qui s'est produit.
+  const [echecLecture, setEchecLecture] = useState(false);
   const [timerVisible, setTimerVisible] = useState(false);
   const [audioPret, setAudioPret] = useState(false);
   const [modaleSOS, setModaleSOS] = useState<ModaleSOS>(null);
@@ -94,6 +104,8 @@ function ContenuSeanceLive() {
                   volumeAjustePct: plan.seance.volumeAjustePct,
                   volumeAjusteRaison: plan.seance.volumeAjusteRaison,
                   phaseCycle: plan.phaseCycle ?? null,
+                  dureeCibleMinutes: plan.dureeCibleMinutes ?? null,
+                  dureeMaxMinutes: plan.dureeMaxMinutes ?? null,
                   exercices: plan.items,
                 }
               : null,
@@ -105,7 +117,14 @@ function ContenuSeanceLive() {
       .then((plan) =>
         plan ??
         fetch(`/api/sessions/${templateId}`)
-          .then((r) => r.json())
+          // Le repli est le dernier filet : il rend une ligne par exercice
+          // programmé, sans consulter ni la salle ni l'état du jour. Sa réponse
+          // était lue sans regarder le statut — un 500 donnait un corps
+          // `{ error }`, donc `t.exercises` valait `undefined`, donc `[]`, et
+          // l'écran annonçait « Aucun exercice dans cette séance ». Une panne
+          // serveur se présentait comme un programme vide, et c'est ce qui a
+          // fait chercher la cause dans les données pendant des heures.
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`gabarit illisible (${r.status})`))))
           .then((t) => ({ nom: t.nom, exercices: t.exercises ?? [] })),
       )
       .then((s: SeanceChargee) => {
@@ -114,7 +133,11 @@ function ContenuSeanceLive() {
           setChargement(false);
         }
       })
-      .catch(() => !annule && setChargement(false));
+      .catch(() => {
+        if (annule) return;
+        setEchecLecture(true);
+        setChargement(false);
+      });
 
     if (gymId) {
       fetch(`/api/exercise-instances?gymId=${gymId}`)
@@ -179,8 +202,21 @@ function ContenuSeanceLive() {
     setTimerVisible(true);
   };
 
+  /** Le repos arrive à son terme : on referme, sans rien signaler de plus. */
   const fermerTimer = () => {
     clearRest();
+    setTimerVisible(false);
+  };
+
+  /**
+   * « Passer » : le repos est écourté volontairement.
+   *
+   * Le geste appelait `clearRest`, indistinguable d'une fermeture ordinaire —
+   * skipper trois repos de 120 s ne laissait donc aucune trace exploitable
+   * pendant la séance.
+   */
+  const passerRepos = () => {
+    skipRest();
     setTimerVisible(false);
   };
 
@@ -206,6 +242,21 @@ function ContenuSeanceLive() {
   };
 
   if (chargement) return <div className="p-4 text-encre-3">Chargement…</div>;
+  if (echecLecture) {
+    return (
+      <div className="p-4 space-y-3">
+        <p className="text-perte font-semibold">Je n&apos;ai pas pu lire cette séance</p>
+        <p className="text-encre-2 text-sm">
+          Ton programme n&apos;est pas en cause : c&apos;est la lecture qui a échoué.
+          Réessaie — si ça persiste, c&apos;est côté serveur.
+        </p>
+        <Button variant="outline" className="w-full border-filet bg-carte text-encre"
+          onClick={() => router.refresh()}>
+          Réessayer
+        </Button>
+      </div>
+    );
+  }
   if (!seance) return <div className="p-4 text-encre-3">Séance introuvable</div>;
 
   const exercicesSkippes = active?.skippedExerciseIds ?? [];
@@ -221,21 +272,41 @@ function ContenuSeanceLive() {
   const courant = visibles[index];
   const termines = visibles.filter((e) => seriesValidees(e.id) >= e.seriesCibles).length;
 
-  const restants: ExerciceRestant[] = visibles.slice(index).map((e, i) => ({
+  const restants: ExerciceAvecMuscles[] = visibles.slice(index).map((e, i) => ({
     exercise_instance_id: e.id,
     nom: e.nom,
     muscles_principaux: e.musclesPrincipaux ?? [],
+    // Sans eux, la douleur ne pourrait pas distinguer une zone visée d'une
+    // zone seulement traversée — et retirerait tout ce qui la touche.
+    muscles_secondaires: e.musclesSecondaires ?? undefined,
     categorie_role: normaliserRole(e.categorieRole),
     statut: i === 0 ? ("en_cours" as const) : ("à_venir" as const),
     ordre: index + i + 1,
   }));
 
   return (
-    <div className="min-h-screen bg-papier pb-40" onPointerDown={interaction}>
+    /*
+     * Le bas de la séance porte DEUX barres — la rangée SOS, puis la
+     * navigation. Le layout dégage déjà la seconde, marge du bas comprise ;
+     * cet écran n'a donc à dégager que la première. `pb-40` les comptait
+     * toutes les deux à la main, en double avec le layout et sans marge : la
+     * dernière série d'une séance longue passait sous la rangée SOS, ce qui
+     * est exactement le moment où elle compte.
+     */
+    <div
+      className="min-h-screen bg-papier pb-16"
+      onPointerDown={interaction}
+    >
       {/* Déclaré pour que l'entrée du coach s'efface : pendant la séance, ce
           sont les actions immédiates de la barre SOS qui servent. */}
       <DeclarerContexte ecran="seance" />
-      <header className="sticky top-0 z-20 bg-papier border-b border-filet px-4 py-3">
+      {/* Collé sous l'encoche, pas sous l'heure : à `top-0`, l'en-tête de la
+          séance — nom de la séance, chrono, bouton quitter — glissait derrière
+          la barre d'état dès le premier défilement. */}
+      <header
+        className="sticky z-20 bg-papier border-b border-filet px-4 py-3"
+        style={{ top: "var(--marge-haut)" }}
+      >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <Button variant="ghost" size="icon" aria-label="Quitter la séance"
@@ -258,6 +329,32 @@ function ContenuSeanceLive() {
         volumeAjustePct={seance.volumeAjustePct}
         volumeAjusteRaison={seance.volumeAjusteRaison}
         exercices={visibles}
+      />
+
+      {/* Le temps écoulé, discrètement. Il n'existait pas : les durées idéale
+          et maximale de l'onboarding n'étaient relues nulle part. */}
+      {active?.startedAt && (
+        <ChronoSeance
+          demarreeA={active.startedAt}
+          dureeCibleMinutes={seance.dureeCibleMinutes}
+          dureeMaxMinutes={seance.dureeMaxMinutes}
+        />
+      )}
+
+      {/*
+        Le Coach regarde la séance pendant qu'elle a lieu. Ce que le moteur
+        retient — et lui seul décide quoi — s'affiche ici, sans appel au modèle.
+      */}
+      <ObservateurSeance
+        prescriptions={visibles.map((e) => ({
+          exerciseInstanceId: e.id,
+          seriesCibles: e.seriesCibles,
+          fourchetteRepsMin: e.fourchetteRepsMin,
+          fourchetteRepsMax: e.fourchetteRepsMax,
+          rpeCible: e.rpeCible,
+          reposSecondes: e.reposSecondes,
+        }))}
+        ordreDesExercices={visibles.map((e) => e.id)}
       />
 
       <div className="px-4 pt-4 space-y-3">
@@ -316,8 +413,18 @@ function ContenuSeanceLive() {
       {/* La rangée SOS était posée en bottom-0, sous une barre de navigation
           fixée au même endroit et de z-index supérieur : elle était donc
           entièrement recouverte, invisible pendant toute la séance. Elle se
-          place au-dessus, à la hauteur exacte de cette barre. */}
-      <div className="fixed bottom-16 left-0 right-0 bg-papier border-t border-filet px-4 py-2 z-30">
+          place au-dessus, à la hauteur exacte de cette barre.
+
+          « À la hauteur exacte » avait été écrit 4 rem en dur. C'est la
+          hauteur de la rangée tactile, pas celle de la barre : sur un iPhone
+          à indicateur d'accueil, la barre en fait une trentaine de pixels de
+          plus, et la rangée SOS repassait à cheval sur elle — le défaut que
+          ce commentaire annonçait avoir corrigé. Elle se réfère maintenant à
+          la hauteur réelle. */}
+      <div
+        className="fixed left-0 right-0 bg-papier border-t border-filet px-4 py-2 z-30"
+        style={{ bottom: "var(--barre-nav)" }}
+      >
         <SOSBar
           onMachineOccupee={() => setModaleSOS("machine")}
           onDouleur={() => setModaleSOS("douleur")}
@@ -335,7 +442,7 @@ function ContenuSeanceLive() {
             <RestTimer
               durationSeconds={active.restDurationSeconds}
               onComplete={playBeep}
-              onSkip={fermerTimer}
+              onSkip={passerRepos}
               onExtend={extendRest}
             />
           </div>
@@ -344,6 +451,13 @@ function ContenuSeanceLive() {
 
       {modaleSOS === "machine" && courant && (
         <SOSMachineOccupee
+          exercicesDeLaSeance={visibles.map((e) => ({
+            id: e.id,
+            nom: e.nom,
+            machineNom: e.machineNom,
+            seriesFaites: (active?.sets ?? []).filter((s) => s.exerciseInstanceId === e.id).length,
+            seriesCibles: e.seriesCibles,
+          }))}
           exerciseInstanceId={courant.id}
           gymId={gymId}
           allInstances={parcSalle}
@@ -394,8 +508,18 @@ function ContenuSeanceLive() {
       {modaleSOS === "temps" && (
         <SOSTempsDepasse
           dureeActuelleMin={dureeSOSMin}
-          dureeCibleMin={60}
+          /* La cible venait d'un 60 écrit en dur, alors que l'onboarding la
+             demande. Sans durée déclarée, on retombe sur le maximum, puis sur
+             une heure — mais l'ordre part maintenant de ce que la personne a dit. */
+          dureeCibleMin={seance.dureeCibleMinutes ?? seance.dureeMaxMinutes ?? 60}
           exercicesRestants={restants}
+          seriesRestantesPar={Object.fromEntries(visibles.map((e) => [
+            e.id,
+            Math.max(0, e.seriesCibles - (active?.sets ?? []).filter((s) => s.exerciseInstanceId === e.id).length),
+          ]))}
+          reposSecondesPar={Object.fromEntries(
+            visibles.filter((e) => e.reposSecondes != null).map((e) => [e.id, e.reposSecondes!]),
+          )}
           onClose={() => setModaleSOS(null)}
           onApply={(coupes) => {
             const idParNom = new Map(visibles.map((e) => [e.nom, e.id]));

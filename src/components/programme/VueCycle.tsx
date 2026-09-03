@@ -23,22 +23,41 @@ import type { EtatSeance } from "@/lib/engine/semaine-programme";
  * établi, et n'affiche jamais un identifiant du modèle.
  */
 
+/**
+ * L'emphase va à ce qui reste à faire, jamais à ce qui est fait.
+ *
+ * « Aujourd'hui » portait le style le plus appuyé de la liste — encre pleine —
+ * alors qu'il désignait une séance DÉJÀ FAITE le jour même. La séance close
+ * était donc la plus visible de l'écran, et se lisait comme la consigne du
+ * jour ; la prochaine, elle, passait inaperçue. Le libellé le dit maintenant,
+ * et l'encre pleine revient à la seule ligne sur laquelle il y a quelque chose
+ * à faire.
+ */
 const ETIQUETTES: Record<EtatSeance, { texte: string; classe: string }> = {
   terminee: { texte: "Terminée", classe: "bg-papier-2 text-encre-2" },
-  adaptee: { texte: "Adaptée", classe: "bg-papier-2 text-encre-2" },
-  aujourdhui: { texte: "Aujourd'hui", classe: "bg-encre text-papier" },
-  prochaine: { texte: "Prochaine", classe: "bg-papier-2 text-encre" },
+  faite_aujourdhui: { texte: "Faite aujourd'hui", classe: "bg-papier-2 text-encre-2" },
+  prochaine: { texte: "Prochaine", classe: "bg-encre text-papier" },
   a_venir: { texte: "À venir", classe: "bg-papier-2 text-encre-3" },
 };
 
-function Etiquette({ etat }: { etat: EtatSeance }) {
+function Etiquette({ etat, adaptee }: { etat: EtatSeance; adaptee: boolean }) {
   const e = ETIQUETTES[etat];
   return (
-    <span
-      className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${e.classe}`}
-    >
-      {e.texte}
-    </span>
+    <>
+      <span
+        className={`shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${e.classe}`}
+      >
+        {e.texte}
+      </span>
+      {/* Deuxième fait, et non deuxième état : une séance peut être faite
+          aujourd'hui ET avoir été adaptée. Les deux tenaient dans la même
+          alternative, et l'adaptation était perdue le jour même. */}
+      {adaptee && (
+        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-papier-2 text-encre-3">
+          Adaptée
+        </span>
+      )}
+    </>
   );
 }
 
@@ -205,7 +224,7 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
                       <span className="text-encre text-sm font-medium truncate">{s.nom}</span>
-                      <Etiquette etat={s.etat} />
+                      <Etiquette etat={s.etat} adaptee={s.adaptee} />
                     </span>
                     <span className="block text-encre-3 text-xs mt-0.5">
                       {s.piliers.length > 0 && <>{s.piliers.map(libellePilier).join(" · ")} — </>}

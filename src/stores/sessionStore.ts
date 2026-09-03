@@ -15,6 +15,16 @@ export type DraftSet = {
    * tenu. Jamais `true` par défaut : un tempo non commenté reste inconnu.
    */
   tempoRespecte?: boolean | null;
+  /**
+   * Le repos qui précède cette série a-t-il été écourté volontairement ?
+   *
+   * L'intervalle réel (`reposReelSecondes`) dit déjà COMBIEN de temps s'est
+   * écoulé, et c'est lui la trace durable — cette intention-là n'a pas de
+   * colonne et n'en demande pas. Mais un « Passer » suivi de trois minutes
+   * d'attente ne se lit pas dans l'intervalle : l'intention et la durée sont
+   * deux faits distincts, et le Coach a besoin des deux pendant la séance.
+   */
+  reposIgnore?: boolean;
 };
 
 export type ActiveSession = {
@@ -29,6 +39,8 @@ export type ActiveSession = {
   restStartTimestamp: number | null;
   restDurationSeconds: number | null;
   restExerciseIndex: number | null;
+  /** « Passer » a été touché depuis le début de ce repos. */
+  restSkipped: boolean;
   // Completion tracking
   completedAt: number | null;
   // Last action timestamp for proactive checks
@@ -53,7 +65,7 @@ type SessionStore = {
    * Le store generait auparavant un UUID local, decorrele de la base : tout
    * appel utilisant cet id (enregistrement d'incident, cloture) echouait en 403.
    */
-  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "tempoParExercice" | "shownProactiveAlerts">) => void;
+  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "tempoParExercice" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
   removeSet: (exerciseInstanceId: string, numeroSerie: number) => void;
   setCurrentExerciseIndex: (i: number) => void;
@@ -61,6 +73,7 @@ type SessionStore = {
   // Rest timer actions
   startRest: (durationSeconds: number, exerciseIndex: number) => void;
   clearRest: () => void;
+  skipRest: () => void;
   extendRest: (extraSeconds: number) => void;
   // Session completion
   complete: () => void;
@@ -88,6 +101,7 @@ export const useSessionStore = create<SessionStore>()(
           restStartTimestamp: null,
           restDurationSeconds: null,
           restExerciseIndex: null,
+          restSkipped: false,
           completedAt: null,
           lastActionTimestamp: Date.now(),
           skippedExerciseIds: [],
@@ -128,6 +142,8 @@ export const useSessionStore = create<SessionStore>()(
             restStartTimestamp: Date.now(),
             restDurationSeconds: durationSeconds,
             restExerciseIndex: exerciseIndex,
+            // Un nouveau repos commence : l'intention précédente ne le concerne pas.
+            restSkipped: false,
           }
         } : state
       ),
@@ -141,6 +157,19 @@ export const useSessionStore = create<SessionStore>()(
       clearRest: () => set((state) =>
         state.active ? {
           active: { ...state.active, restDurationSeconds: null },
+        } : state
+      ),
+      /**
+       * « Passer » : masquer le minuteur ET retenir que ça a été voulu.
+       *
+       * Le geste passait par `clearRest`, indistinguable d'une simple
+       * fermeture : le repos écourté ne laissait aucune trace exploitable
+       * pendant la séance. La mesure, elle, continue — `restStartTimestamp`
+       * n'est pas touché.
+       */
+      skipRest: () => set((state) =>
+        state.active ? {
+          active: { ...state.active, restDurationSeconds: null, restSkipped: true },
         } : state
       ),
       extendRest: (extraSeconds) => set((state) => {

@@ -1,12 +1,13 @@
 import { db } from "@/db/client";
 import {
   contraintes, dailyStates, exerciseInTemplate, exerciseInstances, exercises,
-  programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
+  programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs, users,
 } from "@/db/schema";
-import { and, asc, desc, eq, getTableName, isNull, or, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableName, inArray, isNull, or, gte, sql } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { contraintesActives } from "./contraintes";
 import { musclesSousContrainte } from "@/lib/engine/contraintes";
+import { indexerRefus } from "@/lib/engine/refus";
 import { computeVolumeAdjustment } from "@/lib/engine/volume-adjustment";
 import { applyVolumeAdjustment, type ExerciseInTemplateWithDetails } from "@/lib/engine/apply-adjustment";
 import { configurationDe } from "@/lib/engine/charges";
@@ -17,6 +18,7 @@ import { expliquerRetours } from "@/services/retours";
 import type { DailyStateInput } from "@/lib/validators/daily-state";
 import type { SessionLog, SessionPlanItem } from "@/db/schema";
 import { machinesUtilisablesAujourdhui } from "@/db/archivage";
+import { seriesRealisees } from "@/lib/engine/serie-realisee";
 
 /**
  * Construction de la seance du jour.
@@ -173,34 +175,111 @@ function seriesAttenduesDeLaReference() {
  * celle utilisée à la construction du plan, sinon la charge suggérée et la
  * colonne « Dernière » restent vides.
  */
-export async function derniereSeriesPour(userId: string, exerciseInstanceId: string) {
+export interface ReferenceExercice {
+  sets: Array<{ numero: number; reps: number; charge: number; rpe: number | null }>;
+  seriesAttendues: number | null;
+}
+
+/**
+ * Les dernières séries réalisées sur PLUSIEURS machines, en une requête.
+ *
+ * Elles étaient lues machine par machine : l'écran de séance appelait la
+ * version unitaire une fois par exercice, soit six allers-retours pour six
+ * exercices, et le coût grandissait avec la séance. Le pool applicatif
+ * n'ouvrant qu'UNE connexion, ces requêtes se sérialisaient — chacune payait
+ * sa latence l'une après l'autre, et un `Promise.all` n'y changeait rien.
+ *
+ * Le volume rapatrié reste petit : ce sont les séries faites sur ces machines-là
+ * seulement, soit quelques dizaines de lignes pour un historique ordinaire. Le
+ * tri est fait par la base ; le regroupement et le filtre de validité en
+ * mémoire, parce que ce dernier dépend des conventions de charge et ne
+ * s'exprimerait pas en SQL sans les y recopier.
+ */
+export async function dernieresSeriesPour(
+  userId: string,
+  exerciseInstanceIds: string[],
+): Promise<Map<string, ReferenceExercice>> {
+  const resultat = new Map<string, ReferenceExercice>();
+  const instances = [...new Set(exerciseInstanceIds)].filter(Boolean);
+  if (instances.length === 0) return resultat;
+
   const lignes = await db
     .select({
+      exerciseInstanceId: setLogs.exerciseInstanceId,
       sessionLogId: setLogs.sessionLogId,
       numero: setLogs.numeroSerie,
       reps: setLogs.repsEffectuees,
       charge: setLogs.charge,
+      // Ce que la charge mesure sur cet appareil : zéro est une valeur sur une
+      // assistance, jamais sur une pile. Sans ça, la référence ne peut pas
+      // écarter les séries qui n'ont pas eu lieu.
+      conventionCharge: exerciseInstances.conventionCharge,
+      natureCharge: exerciseInstances.natureCharge,
       // Sans le RPE, la séance précédente serait estimée sans réserve et la
       // séance en cours avec : les deux côtés ne mesureraient pas la même chose.
       rpe: setLogs.rpeEffectif,
-      date: sessionLogs.date,
       seriesAttendues: seriesAttenduesDeLaReference(),
     })
     .from(setLogs)
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
-    .where(and(eq(setLogs.exerciseInstanceId, exerciseInstanceId), and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe))))
+    .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
+    .where(and(
+      inArray(setLogs.exerciseInstanceId, instances),
+      and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+    ))
     .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt), asc(setLogs.numeroSerie));
 
-  if (lignes.length === 0) return null;
+  const parInstance = new Map<string, typeof lignes>();
+  for (const ligne of lignes) {
+    const liste = parInstance.get(ligne.exerciseInstanceId) ?? [];
+    liste.push(ligne);
+    parInstance.set(ligne.exerciseInstanceId, liste);
+  }
 
-  const derniereSession = lignes[0]!.sessionLogId;
-  const deLaReference = lignes.filter((l) => l.sessionLogId === derniereSession);
-  return {
-    sets: deLaReference.map((l) => ({ numero: l.numero, reps: l.reps, charge: l.charge, rpe: l.rpe })),
-    // Identique sur toutes les lignes de la référence : la sous-requête ne
-    // dépend que de la séance et de la machine.
-    seriesAttendues: deLaReference[0]!.seriesAttendues ?? null,
-  };
+  for (const [instanceId, sesLignes] of parInstance) {
+    /**
+     * La référence ne retient que ce qui a eu lieu.
+     *
+     * Une séance de recette entièrement à 0 kg / 0 répétition servait de
+     * référence à la double progression : la fourchette haute était
+     * « atteinte » sur des séries vides, et l'accueil proposait +4,5 kg sur un
+     * exercice que personne n'avait fait. Les lignes restent en base — elles
+     * disent ce qui a été saisi — mais elles ne décident plus rien.
+     */
+    const valides = seriesRealisees(
+      sesLignes.map((l) => ({ ...l, repsEffectuees: l.reps })),
+      (l) => ({ conventionCharge: l.conventionCharge, natureCharge: l.natureCharge }),
+    );
+    if (valides.length === 0) continue;
+
+    const derniereSession = valides[0]!.sessionLogId;
+    const deLaReference = valides.filter((l) => l.sessionLogId === derniereSession);
+    resultat.set(instanceId, {
+      sets: deLaReference.map((l) => ({
+        numero: l.numero, reps: l.reps, charge: l.charge, rpe: l.rpe,
+      })),
+      // Identique sur toutes les lignes de la référence : la sous-requête ne
+      // dépend que de la séance et de la machine.
+      seriesAttendues: deLaReference[0]!.seriesAttendues ?? null,
+    });
+  }
+
+  return resultat;
+}
+
+/**
+ * La même chose, pour une seule machine.
+ *
+ * Conservée parce que deux chemins n'ont qu'un exercice à regarder — la
+ * substitution en cours de séance, et le repli du gabarit. Elle passe par la
+ * version groupée : une seule définition de « la dernière référence valable ».
+ */
+export async function derniereSeriesPour(
+  userId: string,
+  exerciseInstanceId: string,
+): Promise<ReferenceExercice | null> {
+  const parInstance = await dernieresSeriesPour(userId, [exerciseInstanceId]);
+  return parInstance.get(exerciseInstanceId) ?? null;
 }
 
 export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<ResultatConstruction> {
@@ -244,6 +323,20 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
   const parcParId = new Map(parc.map((i) => [i.id, i]));
   const aMenager = await musclesAMenager(ctx.userId, etat);
 
+  /*
+   * Les exercices dont l'utilisateur ne veut pas.
+   *
+   * Cette colonne n'était lue QUE par le plan de calibration : une fois le
+   * bloc en place, l'exercice refusé revenait dans les séances proposées, et
+   * pouvait même être choisi comme remplaçant d'un autre. Un refus qui ne
+   * tient qu'un cycle n'est pas un refus.
+   */
+  const profil = await db.query.users.findFirst({
+    where: eq(users.id, ctx.userId),
+    columns: { exercicesRefuses: true },
+  });
+  const refuses = indexerRefus(profil?.exercicesRefuses);
+
   // --- Resolution vers la salle du jour ---
   const retenues: string[] = [];
   const ecartes: ResultatConstruction["ecartes"] = [];
@@ -259,7 +352,7 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
     if (!prevu) continue;
 
     const resolution = resoudrePourSalle(
-      prevu, parcDuJour, retenues, aMenager.aEviter, aMenager.exclus,
+      prevu, parcDuJour, retenues, aMenager.aEviter, aMenager.exclus, refuses,
     );
     if (!resolution.instance) {
       ecartes.push({ exerciceNom: prevu.exerciceNom, raison: resolution.raison ?? "Indisponible" });
@@ -300,9 +393,14 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
   const seriesParLigne = new Map(ajustes.map((a) => [a.exerciseInTemplateId, a.seriesAjustees]));
 
   // --- Charge suggeree par double progression ---
+  //
+  // Les références de TOUS les exercices en une lecture : elles étaient prises
+  // une par une, donc autant d'allers-retours que d'exercices — et le pool
+  // n'ouvrant qu'une connexion, ils se suivaient au lieu de se superposer.
+  const references = await dernieresSeriesPour(ctx.userId, resolus.map((r) => r.instance.id));
   const suggestions = await Promise.all(
     resolus.map(async (r) => {
-      const derniere = await derniereSeriesPour(ctx.userId, r.instance.id);
+      const derniere = references.get(r.instance.id) ?? null;
       return computeNextSets(derniere, {
         fourchetteRepsMin: r.ligne.fourchetteRepsMin,
         fourchetteRepsMax: r.ligne.fourchetteRepsMax,
@@ -452,6 +550,7 @@ export interface ItemPlanEnrichi {
   categorieRole: string;
   profilTension: string;
   musclesPrincipaux: string[];
+  musclesSecondaires?: string[];
   slug: string | null;
   seriesCibles: number;
   seriesPrevuesAvantAjustement: number | null;
@@ -514,6 +613,10 @@ export async function lirePlan(userId: string, sessionLogId: string) {
       categorieRole: exercises.categorieRole,
       profilTension: exercises.profilTension,
       musclesPrincipaux: exercises.musclesPrincipaux,
+      // Les muscles seulement sollicités : ce sont eux qui distinguent un
+      // exercice qui VISE une zone gênée d'un exercice qui la traverse. Sans
+      // eux, une gêne au poignet retirerait tous les tirages.
+      musclesSecondaires: exercises.musclesSecondaires,
     })
     .from(sessionPlanItems)
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, sessionPlanItems.exerciseInstanceId))
@@ -521,9 +624,14 @@ export async function lirePlan(userId: string, sessionLogId: string) {
     .where(eq(sessionPlanItems.sessionLogId, sessionLogId))
     .orderBy(asc(sessionPlanItems.ordre));
 
+  // Même lecture groupée que la construction : un plan de six exercices
+  // demandait six lectures d'historique, l'écran de séance les attendait
+  // toutes avant d'afficher quoi que ce soit.
+  const references = await dernieresSeriesPour(userId, lignes.map((l) => l.exerciseInstanceId));
+
   const items: ItemPlanEnrichi[] = await Promise.all(
     lignes.map(async (l) => {
-      const derniere = await derniereSeriesPour(userId, l.exerciseInstanceId);
+      const derniere = references.get(l.exerciseInstanceId) ?? null;
       return {
         motifProgression: motifDuMessagePersiste(l, derniere),
         id: l.exerciseInstanceId,
@@ -535,6 +643,7 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         categorieRole: l.categorieRole,
         profilTension: l.profilTension,
         musclesPrincipaux: l.musclesPrincipaux ?? [],
+        musclesSecondaires: l.musclesSecondaires ?? [],
         slug: l.slug,
         seriesCibles: l.seriesCibles,
         seriesPrevuesAvantAjustement: l.seriesPrevuesAvantAjustement,
@@ -566,5 +675,23 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         )
     : null;
 
-  return { seance, items, phaseCycle: bloc?.typeCycle ?? null };
+  /**
+   * Les durées déclarées à l'onboarding.
+   *
+   * Elles étaient collectées et jamais relues : le chronomètre de séance n'a
+   * rien à quoi se comparer sans elles. Elles voyagent avec le plan plutôt que
+   * dans une requête de plus — l'écran de séance en fait déjà trois.
+   */
+  const profil = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { dureeSeanceCibleMinutes: true, dureeSeanceMaxMinutes: true },
+  });
+
+  return {
+    seance,
+    items,
+    phaseCycle: bloc?.typeCycle ?? null,
+    dureeCibleMinutes: profil?.dureeSeanceCibleMinutes ?? null,
+    dureeMaxMinutes: profil?.dureeSeanceMaxMinutes ?? null,
+  };
 }

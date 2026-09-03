@@ -135,7 +135,7 @@ export default function PreparationCalibrationPage() {
 
 function Cadre({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh bg-papier text-encre px-4 pt-8 pb-24">
+    <div className="min-h-dvh bg-papier text-encre px-4 pt-8">
       <div className="mx-auto w-full max-w-lg space-y-4">{children}</div>
     </div>
   );

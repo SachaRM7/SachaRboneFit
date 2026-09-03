@@ -95,6 +95,19 @@ const LECTEURS: Record<string, { lectures: number; pourquoi: Justification; note
     note: "trois lectures filtrent elles-mêmes, trois partent d'une liste de séances déjà filtrée",
   },
   "services/bilan.ts": { lectures: 2, pourquoi: "regle-dans-la-requete" },
+  "services/seances.ts": {
+    lectures: 1, pourquoi: "bornee-par-des-seances",
+    note: "abandonner : compte les séries d'UNE séance déjà relue et vérifiée non archivée, "
+      + "pour refuser d'effacer une séance où quelque chose a eu lieu",
+  },
+  "services/debrief-seance.ts": {
+    lectures: 2, pourquoi: "bornee-par-des-seances",
+    note: "génération : la séance est relue avec `seancesRealisees` avant ses séries. "
+      + "Lecture : bornée à une séance qui a DÉJÀ un débrief, donc qui a passé ce "
+      + "contrôle — et la lecture ne sert qu'à recalculer une empreinte, jamais un "
+      + "calcul sportif. Une séance archivée après coup garde son texte, marqué "
+      + "périmé, ce qui est le comportement voulu : on ne réécrit pas l'histoire.",
+  },
   "services/cycle.ts": { lectures: 1, pourquoi: "bornee-par-des-seances" },
   "services/plan-seance.ts": { lectures: 1, pourquoi: "regle-dans-la-requete" },
   "lib/coach/tools.ts": {
@@ -135,7 +148,15 @@ describe("les lectures enracinées sur une instance portent la règle", () => {
    * — `eq(exerciseInstances.id, setLogs.exerciseInstanceId)` —, donc ce motif
    * ne désigne que les requêtes qui partent vraiment d'un appareil.
    */
-  const ENRACINEE = /eq\(setLogs\.exerciseInstanceId,/g;
+  /**
+   * `inArray` autant que `eq` : grouper la lecture ne la sort pas de la règle.
+   *
+   * Le garde ne reconnaissait que la forme unitaire. Le jour où six lectures
+   * d'historique — une par exercice — ont été remplacées par une seule sur
+   * plusieurs instances, la requête a cessé d'être surveillée sans que rien ne
+   * le signale : le nombre de cas vérifiés a simplement baissé de un.
+   */
+  const ENRACINEE = /(?:eq|inArray)\(setLogs\.exerciseInstanceId,/g;
 
   /**
    * L'instruction qui contient ce point, et elle seule.

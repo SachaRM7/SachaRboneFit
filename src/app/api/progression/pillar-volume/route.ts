@@ -50,10 +50,26 @@ export async function GET(request: Request) {
 
   const parSemaine = new Map<string, Record<string, number>>();
 
+  /*
+   * La clé rendue est celle du modèle, telle quelle.
+   *
+   * Elle était passée en minuscules — `P1_poussee` devenait `p1_poussee` — et
+   * l'écran, lui, filtrait sur une liste écrite à la main : « poussee »,
+   * « tirage », « squat », « hanche », « bras ». Aucune des deux ne
+   * correspondait à l'autre. Résultat : les quatre piliers principaux et les
+   * bras étaient tout simplement absents du graphique, qui n'affichait que les
+   * épaules, les jambes et le gainage — sans que rien ne signale la perte. La
+   * couleur de série, qui se cherche sur la clé exacte, tombait elle aussi sur
+   * le repli : toutes les barres de la même teinte.
+   *
+   * Et un exercice sans pilier était compté en « core ». Il n'y a aucune
+   * raison de croire qu'un pilier manquant soit du gainage : il est rendu
+   * comme ce qu'il est, une catégorie à part.
+   */
   for (const l of lignes) {
     const semaine = lundiDe(l.date);
     const volumes = parSemaine.get(semaine) ?? {};
-    const pilier = l.pilier?.toLowerCase() || "core";
+    const pilier = l.pilier ?? "autre";
     volumes[pilier] = (volumes[pilier] ?? 0) + l.charge * l.reps;
     parSemaine.set(semaine, volumes);
   }

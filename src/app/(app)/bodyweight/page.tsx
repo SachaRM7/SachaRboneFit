@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 import { nombre } from "@/lib/format";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { db } from "@/db/client";
 import { bodyWeights } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
@@ -9,15 +10,13 @@ import { WeightSparkline } from "@/components/bodyweight/WeightSparkline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function BodyweightPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  // Mémoïsé pour la durée du rendu : le layout vient de faire cet
+  // aller-retour vers le serveur d'authentification, inutile de le refaire.
+  const userId = await getAuthenticatedUserId();
+  if (!userId) redirect("/login");
 
   const weights = await db.query.bodyWeights.findMany({
-    where: eq(bodyWeights.userId, user.id),
+    where: eq(bodyWeights.userId, userId),
     orderBy: [desc(bodyWeights.date)],
     limit: 30,
   });
@@ -26,7 +25,7 @@ export default async function BodyweightPage() {
 
   return (
     <div className="p-4 space-y-4">
-      <h1 className="text-xl font-bold text-encre">Poids corporel</h1>
+      <EnTeteSecondaire titre="Poids de corps" vers="/settings" libelleRetour="Retour à Plus" />
 
       <Card className="bg-carte border-filet">
         <CardContent className="pt-4">

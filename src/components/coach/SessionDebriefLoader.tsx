@@ -5,17 +5,12 @@ import { SessionDebrief } from "@/components/coach/SessionDebrief";
 
 export function SessionDebriefLoader() {
   const searchParams = useSearchParams();
-  const templateLettre = searchParams.get("templateLettre");
-  const sessionDate = searchParams.get("sessionDate");
+  // La lettre et la date ne sont plus transmises : le débrief est lu en base
+  // à partir de la seule séance, et le serveur relit lui-même ce qu'il décrit
+  // plutôt que de faire confiance à des paramètres d'URL.
   const sessionId = searchParams.get("sessionId");
 
-  if (!sessionId || !templateLettre || !sessionDate) return null;
+  if (!sessionId) return null;
 
-  return (
-    <SessionDebrief
-      sessionLogId={sessionId}
-      templateLettre={templateLettre}
-      date={sessionDate}
-    />
-  );
+  return <SessionDebrief sessionLogId={sessionId} />;
 }

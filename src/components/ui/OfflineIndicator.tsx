@@ -30,7 +30,10 @@ export function OfflineIndicator() {
   if (!isOffline) return null;
 
   return (
-    <div className="fixed top-2 right-2 z-50">
+    /* À 8 px du haut, la pastille se logeait derrière la barre d'état — donc
+       invisible au moment précis où l'information compte, en salle avec une
+       connexion qui lâche. */
+    <div className="fixed right-2 z-50" style={{ top: "calc(var(--marge-haut) + 0.5rem)" }}>
       <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-feu-orange text-encre">
         <WifiOff className="w-3 h-3" />
         Hors ligne

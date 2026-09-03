@@ -131,7 +131,7 @@ export default function FinishSessionPage() {
   if (!active || !recap) return null;
 
   return (
-    <div className="min-h-dvh bg-papier text-encre p-4 space-y-5 pb-28">
+    <div className="min-h-dvh bg-papier text-encre p-4 space-y-5">
       <div className="flex items-baseline justify-between gap-3">
         <h1 className="text-xl font-semibold">Séance terminée</h1>
         <span className="text-xs text-encre-3">

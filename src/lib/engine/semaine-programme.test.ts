@@ -78,7 +78,7 @@ describe("semaine du programme", () => {
     // Rien dans le modèle n'attribue un jour à une séance : la prochaine est
     // « prochaine », pas « aujourd'hui ».
     const s = semaineDuProgramme({ gabarits, seancesFaites: [], aujourdhui: AUJOURDHUI });
-    expect(s.some((x) => x.etat === "aujourdhui")).toBe(false);
+    expect(s.some((x) => x.etat === "faite_aujourdhui")).toBe(false);
   });
 
   it("reconnaît une séance terminée cette semaine", () => {
@@ -98,7 +98,27 @@ describe("semaine du programme", () => {
       seancesFaites: [{ seanceTemplateId: "a", date: "2026-08-04", adaptee: true }],
       aujourdhui: "2026-08-05",
     });
-    expect(s[0]!.etat).toBe("adaptee");
+    // L'adaptation est un fait à part, pas un état : la séance reste terminée.
+    expect(s[0]!.etat).toBe("terminee");
+    expect(s[0]!.adaptee).toBe(true);
+  });
+
+  it("n'efface pas l'adaptation d'une séance faite aujourd'hui", () => {
+    // Les deux tenaient dans la même alternative, la date passant en premier :
+    // une séance adaptée le jour même ressortait « aujourd'hui », et le fait
+    // qu'un exercice ait été remplacé disparaissait de l'écran.
+    const s = semaineDuProgramme({
+      gabarits,
+      seancesFaites: [{ seanceTemplateId: "a", date: AUJOURDHUI, adaptee: true }],
+      aujourdhui: AUJOURDHUI,
+    });
+    expect(s[0]!.etat).toBe("faite_aujourdhui");
+    expect(s[0]!.adaptee).toBe(true);
+  });
+
+  it("une séance non faite n'est jamais dite adaptée", () => {
+    const s = semaineDuProgramme({ gabarits, seancesFaites: [], aujourdhui: AUJOURDHUI });
+    expect(s.every((x) => x.adaptee === false)).toBe(true);
   });
 
   it("dit « aujourd'hui » seulement pour une séance enregistrée aujourd'hui", () => {
@@ -107,7 +127,7 @@ describe("semaine du programme", () => {
       seancesFaites: [{ seanceTemplateId: "b", date: AUJOURDHUI, adaptee: false }],
       aujourdhui: AUJOURDHUI,
     });
-    expect(s[1]!.etat).toBe("aujourdhui");
+    expect(s[1]!.etat).toBe("faite_aujourdhui");
   });
 
   it("ignore les séances des semaines précédentes", () => {

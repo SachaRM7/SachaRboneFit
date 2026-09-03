@@ -23,6 +23,51 @@ export interface SeanceProgrammee {
   nom: string;
 }
 
+/**
+ * Une salle telle que la base la rend : lisible par tous, tenue par quelqu'un.
+ *
+ * `userId` désigne le responsable du lieu, pas son public. Le schéma le dit :
+ * une salle et ses machines décrivent un lieu, pas un pratiquant, et deux
+ * comptes qui s'y entraînent y trouvent la même chose.
+ */
+export interface SalleConnue {
+  id: string;
+  userId: string | null;
+}
+
+/**
+ * Quelle salle proposer aujourd'hui, parmi celles que l'application connaît.
+ *
+ * Deux règles, et l'ordre compte :
+ *
+ *   1. la préférence posée à l'onboarding, si le lieu existe encore ;
+ *   2. à défaut, l'unique salle DU COMPTE — « il n'y en a qu'une, c'est donc
+ *      celle-là ».
+ *
+ * C'est le mot « du compte » qui manquait. La règle 2 comptait toutes les
+ * salles lisibles, c'est-à-dire celles de toute la base : un compte sans aucun
+ * lieu, à côté d'un compte qui en a exactement un, se voyait proposer la salle
+ * du voisin comme salle du jour — avec son inventaire pour construire la
+ * séance et le lien de démarrage qui va avec.
+ *
+ * Le partage lui-même n'est pas en cause et reste entier : désigner
+ * explicitement la salle d'un autre comme sienne (règle 1) continue de
+ * fonctionner, c'est même le cas normal quand deux personnes s'entraînent au
+ * même endroit. Ce qu'on retire, c'est la DÉDUCTION faite à sa place.
+ */
+export function choisirSalleDuJour<T extends SalleConnue>(
+  compte: { id: string; prefSalleParDefautId: string | null },
+  sallesConnues: T[],
+): T | null {
+  const preferee = compte.prefSalleParDefautId
+    ? sallesConnues.find((s) => s.id === compte.prefSalleParDefautId) ?? null
+    : null;
+  if (preferee) return preferee;
+
+  const siennes = sallesConnues.filter((s) => s.userId === compte.id);
+  return siennes.length === 1 ? siennes[0]! : null;
+}
+
 export interface EntreeEtatDuJour {
   /** Salle du jour : préférence de l'utilisateur, ou unique salle active. */
   salle: Salle | null;

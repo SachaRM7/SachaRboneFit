@@ -1,12 +1,12 @@
 "use client";
 import { GymForm } from "@/components/gyms/GymForm";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 
 export default function NewGymPage() {
   return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold text-encre mb-4">Nouvelle salle</h1>
+    <div className="p-4 space-y-4">
+      <EnTeteSecondaire titre="Nouvelle salle" vers="/gyms" libelleRetour="Retour aux salles" />
       <GymForm
-        onSuccess={() => {}}
         defaultValues={{ est24h: false }}
       />
     </div>

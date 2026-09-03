@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db/client";
 import { programmeBlocs, seanceTemplates } from "@/db/schema";
@@ -7,15 +7,13 @@ import { eq, and, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 export default async function NewSessionPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  // Mémoïsé pour la durée du rendu : le layout vient de faire cet
+  // aller-retour vers le serveur d'authentification, inutile de le refaire.
+  const userId = await getAuthenticatedUserId();
+  if (!userId) redirect("/login");
 
   const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(and(eq(programmeBlocs.userId, user.id), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
+    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
   });
 
   if (!bloc) {

@@ -2,20 +2,20 @@ import { db } from "@/db/client";
 import { seancesRealisees } from "@/db/archivage";
 import type { Lecteur } from "@/db/lecteur";
 import {
-  dailyStates, exerciseInTemplate, exerciseInstances, exercises, programmeBlocs,
-  seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
+  dailyStates, exerciseInTemplate, exerciseInstances, exercises,
+  seanceTemplates, sessionLogs, setLogs,
 } from "@/db/schema";
 import { and, asc, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { classerEtatCycle, type EntreeSeance, type PhaseCycle } from "@/lib/engine/etat-cycle";
 import { estimer1RM, reserveDepuisRpe } from "@/lib/engine/records";
-import { empecheParLesCirconstances, type ContexteAdaptation } from "@/lib/engine/tracabilite";
+import { lireBlocs, type BlocsDuProgramme } from "./blocs";
 import {
   positionDansLeCycle, semaineDuProgramme, dechargeJustifiee,
   type PositionDansLeCycle, type SeanceDeLaSemaine,
 } from "@/lib/engine/semaine-programme";
 import { DOMINANTES, libelleCycle, type LibelleCycle } from "@/lib/referentiels/cycle";
 import { semainesSansDeload } from "./progression";
-import { memoireEmpechements } from "./memoire";
+import { memoireEmpechements, type MemoireEmpechements } from "./memoire";
 
 /**
  * L'état du cycle, pour l'écran Programme comme pour le coach.
@@ -78,10 +78,13 @@ export function positionDuBloc(
  * Le validateur en a besoin autant que l'outil de lecture : la phase décide
  * du seuil de récupération et des règles de décharge.
  */
-export async function mesurerCycle(userId: string, executeur: Lecteur = db) {
-  const bloc = await executeur.query.programmeBlocs.findFirst({
-    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
-  });
+export async function mesurerCycle(
+  userId: string,
+  executeur: Lecteur = db,
+  prealables: { blocs?: BlocsDuProgramme } = {},
+) {
+  const blocs = prealables.blocs ?? (await lireBlocs(userId, executeur));
+  const bloc = blocs.actif;
 
   // Une jointure plutôt qu'une requête par séance : la version précédente
   // interrogeait la base huit fois pour huit séances.
@@ -138,7 +141,19 @@ export async function mesurerCycle(userId: string, executeur: Lecteur = db) {
 
   const etat = classerEtatCycle({
     phasePrevue: phaseDepuisTypeCycle(bloc?.typeCycle),
-    semainesSansDecharge: await semainesSansDeload(userId, executeur),
+    /**
+     * Les blocs sont déjà lus ; la séance la plus récente aussi — `seances`
+     * est triée par date décroissante et bornée aux séances réalisées, ce que
+     * `semainesSansDeload` allait rechercher avec exactement les mêmes
+     * critères. `null` quand il n'y en a aucune : c'est une réponse, pas une
+     * absence de lecture.
+     */
+    semainesSansDecharge: await semainesSansDeload(userId, executeur, {
+      blocs,
+      derniereSeance: seances[0]
+        ? { date: seances[0].date, volumeAjustePct: seances[0].volumeAjustePct }
+        : null,
+    }),
     seancesRecentes: entrees,
     signaux: {
       sommeilRecent: etatsRecents.map((e) => e.sommeilHeures ?? 7),
@@ -215,6 +230,7 @@ const SEANCES_POUR_LIRE_LETAT = 3;
 export async function vueDuProgramme(
   userId: string,
   aujourdhui = new Date().toISOString().slice(0, 10),
+  prealables: { blocs?: BlocsDuProgramme; memoire?: MemoireEmpechements } = {},
 ): Promise<VueProgramme> {
   const vide: VueProgramme = {
     etat: "sans_cycle",
@@ -225,12 +241,10 @@ export async function vueDuProgramme(
     ajustements: [],
   };
 
-  const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(
-      and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)),
-      eq(programmeBlocs.actif, true),
-    ),
-  });
+  // Une seule lecture des blocs pour tout l'écran : `mesurerCycle` et
+  // `semainesSansDeload` la reçoivent au lieu de la refaire chacun.
+  const blocs = prealables.blocs ?? (await lireBlocs(userId));
+  const bloc = blocs.actif;
   if (!bloc) return vide;
 
   const gabarits = await db.query.seanceTemplates.findMany({
@@ -274,31 +288,14 @@ export async function vueDuProgramme(
     )
     .orderBy(asc(sessionLogs.date));
 
-  const items = faites.length
-    ? await db
-        .select({
-          sessionLogId: sessionPlanItems.sessionLogId,
-          exerciseInstanceId: sessionPlanItems.exerciseInstanceId,
-          exerciseInstancePrevuId: sessionPlanItems.exerciseInstancePrevuId,
-          raisonSubstitution: sessionPlanItems.raisonSubstitution,
-          contexteAdaptation: sessionPlanItems.contexteAdaptation,
-        })
-        .from(sessionPlanItems)
-        .where(inArray(sessionPlanItems.sessionLogId, faites.map((s) => s.id)))
-    : [];
-
-  const adapteesPar = new Set(
-    items
-      .filter((i) =>
-        empecheParLesCirconstances({
-          exerciseInstanceId: i.exerciseInstanceId,
-          exerciseInstancePrevuId: i.exerciseInstancePrevuId,
-          raisonSubstitution: i.raisonSubstitution,
-          contexteAdaptation: i.contexteAdaptation as ContexteAdaptation | null,
-        }),
-      )
-      .map((i) => i.sessionLogId),
-  );
+  /**
+   * La mémoire des empêchements est lue de toute façon, plus bas, pour les
+   * ajustements proposés — et sur la même table, avec le même critère. Elle
+   * remonte donc aussi les séances adaptées, au lieu que l'écran refasse la
+   * lecture et rejoue `empecheParLesCirconstances` de son côté.
+   */
+  const memoire = prealables.memoire ?? (await memoireEmpechements(userId, aujourdhui));
+  const adapteesPar = memoire.seancesAdaptees;
 
   const semaine = semaineDuProgramme({
     gabarits: gabarits.map((g) => ({
@@ -323,10 +320,10 @@ export async function vueDuProgramme(
 
   // La lecture de l'état n'a de sens qu'avec un historique. Sur une ou deux
   // séances, `classerEtatCycle` classe surtout du vide.
-  const mesure = faites.length >= SEANCES_POUR_LIRE_LETAT ? await mesurerCycle(userId) : null;
+  const mesure =
+    faites.length >= SEANCES_POUR_LIRE_LETAT ? await mesurerCycle(userId, db, { blocs }) : null;
 
   const ajustements: AjustementPropose[] = [];
-  const memoire = await memoireEmpechements(userId, aujourdhui);
   for (const s of memoire.suggestions) {
     ajustements.push({ titre: "Ajustement possible", message: s.message });
   }

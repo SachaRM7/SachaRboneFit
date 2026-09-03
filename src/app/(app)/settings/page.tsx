@@ -88,7 +88,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-dvh bg-papier text-encre p-4 pb-24 space-y-6">
+    <div className="min-h-dvh bg-papier text-encre p-4 space-y-6">
       {/* Aucun contexte sportif : on ne fabrique pas de situation ici. */}
       <DeclarerContexte ecran="plus" />
 

@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PILIERS, PROFILS, ROLES } from "@/lib/schemas/exercise";
+import {
+  libelleCategorieRole, libellePilier, libelleProfilTension,
+} from "@/lib/referentiels/libelles";
 
 interface FiltersState {
   piliers: string[];
@@ -14,11 +15,39 @@ interface ExerciseFiltersProps {
   onChange: (filters: FiltersState) => void;
 }
 
-const pilierLabels: Record<string, string> = {
-  P1_poussee: "P1", P2_tirage: "P2", P3_squat: "P3", P4_hanche: "P4",
-  epaules: "Épaule", bras_biceps: "Biceps", bras_triceps: "Triceps",
-  jambes_iso: "Jambes", core: "Core",
-};
+/**
+ * Les filtres de la bibliothèque.
+ *
+ * Deux défauts, tous les deux visibles au premier coup d'œil sur l'appareil.
+ *
+ * Le filtre actif était INVISIBLE en thème clair. Il combinait le variant
+ * `default` du bouton — dont le texte est `primary-foreground`, presque blanc —
+ * avec un fond forcé à `--papier-2`, presque blanc lui aussi. Blanc sur blanc :
+ * on voyait la pastille changer de teinte, sans pouvoir lire ce qu'elle disait.
+ * En thème sombre le même code passait inaperçu, les deux valeurs s'y trouvant
+ * de part et d'autre du contraste.
+ *
+ * Et les pastilles affichaient les clés du moteur : « P1 », « P2 », « stretch »,
+ * « mi_range », « substitut ». Le référentiel des libellés existe, et son
+ * commentaire dit déjà que le préfixe `P1_` est une clé de TRI qui n'a rien à
+ * faire à l'écran — cette table vivait ici en troisième exemplaire, dans sa
+ * version la plus cryptique.
+ *
+ * Les pastilles reprennent la forme de celles du filtre par salle, juste
+ * au-dessus, qui étaient correctes : encre sur papier quand c'est actif, texte
+ * secondaire sur carte sinon. Deux états qu'on distingue dans les deux thèmes,
+ * sans dépendre de la couleur seule — le contour change avec le fond, et l'état
+ * est annoncé.
+ */
+const PASTILLE_ACTIVE = "bg-encre text-papier border-encre";
+const PASTILLE_INERTE = "bg-carte text-encre-2 border-filet";
+
+interface Groupe {
+  titre: string;
+  categorie: keyof FiltersState;
+  valeurs: readonly string[];
+  libelle: (v: string) => string;
+}
 
 export function ExerciseFilters({ onChange }: ExerciseFiltersProps) {
   const [filters, setFilters] = useState<FiltersState>({
@@ -38,58 +67,37 @@ export function ExerciseFilters({ onChange }: ExerciseFiltersProps) {
     onChange(updated);
   };
 
+  const groupes: Groupe[] = [
+    { titre: "Pilier", categorie: "piliers", valeurs: PILIERS, libelle: libellePilier },
+    { titre: "Profil de tension", categorie: "profils", valeurs: PROFILS, libelle: libelleProfilTension },
+    { titre: "Rôle", categorie: "roles", valeurs: ROLES, libelle: libelleCategorieRole },
+  ];
+
   return (
     <div className="space-y-3 p-4">
-      <div>
-        <p className="text-encre-3 text-xs mb-2">Pilier</p>
-        <div className="flex flex-wrap gap-2">
-          {PILIERS.map((p) => (
-            <Button
-              key={p}
-              size="sm"
-              variant={filters.piliers.includes(p) ? "default" : "outline"}
-              className={filters.piliers.includes(p) ? "bg-papier-2" : "bg-carte border-filet"}
-              onClick={() => toggle("piliers", p)}
-            >
-              {pilierLabels[p] || p}
-            </Button>
-          ))}
+      {groupes.map(({ titre, categorie, valeurs, libelle }) => (
+        <div key={categorie}>
+          <p className="text-encre-3 text-xs mb-2">{titre}</p>
+          <div className="flex flex-wrap gap-2">
+            {valeurs.map((v) => {
+              const actif = filters[categorie].includes(v);
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => toggle(categorie, v)}
+                  aria-pressed={actif}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                    actif ? PASTILLE_ACTIVE : PASTILLE_INERTE
+                  }`}
+                >
+                  {libelle(v)}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
-
-      <div>
-        <p className="text-encre-3 text-xs mb-2">Profil de tension</p>
-        <div className="flex flex-wrap gap-2">
-          {PROFILS.map((p) => (
-            <Button
-              key={p}
-              size="sm"
-              variant={filters.profils.includes(p) ? "default" : "outline"}
-              className={filters.profils.includes(p) ? "bg-papier-2" : "bg-carte border-filet"}
-              onClick={() => toggle("profils", p)}
-            >
-              {p}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <p className="text-encre-3 text-xs mb-2">Rôle</p>
-        <div className="flex flex-wrap gap-2">
-          {ROLES.map((r) => (
-            <Button
-              key={r}
-              size="sm"
-              variant={filters.roles.includes(r) ? "default" : "outline"}
-              className={filters.roles.includes(r) ? "bg-papier-2" : "bg-carte border-filet"}
-              onClick={() => toggle("roles", r)}
-            >
-              {r}
-            </Button>
-          ))}
-        </div>
-      </div>
+      ))}
     </div>
   );
 }

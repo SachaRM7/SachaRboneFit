@@ -31,6 +31,8 @@ export interface ExercicePrescrit {
   incrementsPossibles: number[];
   poidsNonCompte?: number | null;
   /** Ce que le nombre saisi signifie sur cet appareil. */
+  /** Muscles seulement sollicités : ils distinguent une zone visée d'une zone traversée. */
+  musclesSecondaires?: string[];
   conventionCharge?: string | null;
   natureCharge?: string | null;
   chargeSuggeree?: number | null;

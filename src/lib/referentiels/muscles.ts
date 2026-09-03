@@ -119,15 +119,26 @@ export function memeMuscle(a: string | null | undefined, b: string | null | unde
 
 /** Zones de douleur proposees a l'utilisateur, et le muscle qu'elles impliquent. */
 export const ZONES_DOULEUR = [
+  // La nuque manquait, et c'est une des zones les plus fréquemment gênées en
+  // salle. Elle pointe vers le haut du dos : le vocabulaire musculaire du
+  // moteur n'a pas d'entrée cervicale, et en inventer une se propagerait
+  // jusqu'au calcul de volume pour un gain nul.
+  { zone: "Nuque / cervicales", muscles: ["haut_dos", "epaules"] },
   { zone: "Épaule", muscles: ["epaules", "deltoide_posterieur"] },
-  { zone: "Coude", muscles: ["biceps", "triceps"] },
-  { zone: "Poignet", muscles: ["avant_bras"] },
-  { zone: "Bas du dos", muscles: ["lombaires"] },
   { zone: "Haut du dos", muscles: ["haut_dos", "dorsaux"] },
   { zone: "Pectoraux", muscles: ["pectoraux"] },
+  { zone: "Coude", muscles: ["biceps", "triceps"] },
+  { zone: "Avant-bras", muscles: ["avant_bras"] },
+  { zone: "Poignet", muscles: ["avant_bras"] },
+  { zone: "Bas du dos", muscles: ["lombaires"] },
+  { zone: "Sangle abdominale", muscles: ["core"] },
   { zone: "Hanche", muscles: ["fessiers", "adducteurs"] },
-  { zone: "Genou", muscles: ["quadriceps", "ischios"] },
+  { zone: "Aine / adducteurs", muscles: ["adducteurs"] },
+  { zone: "Fessiers", muscles: ["fessiers"] },
+  { zone: "Quadriceps", muscles: ["quadriceps"] },
   { zone: "Ischios", muscles: ["ischios"] },
+  { zone: "Genou", muscles: ["quadriceps", "ischios"] },
+  { zone: "Mollets", muscles: ["mollets"] },
   { zone: "Cheville", muscles: ["mollets"] },
 ] as const satisfies readonly { zone: string; muscles: readonly Muscle[] }[];
 

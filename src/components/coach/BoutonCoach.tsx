@@ -29,7 +29,10 @@ export function BoutonCoach() {
           className="fixed right-4 z-40 h-10 pl-3 pr-4 rounded-full bg-encre text-papier
                      flex items-center gap-1.5 text-sm font-medium shadow-sm
                      active:scale-[0.98] transition-transform"
-          style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 5.5rem)" }}
+          /* Posée au-dessus de la barre, à partir de sa hauteur réelle. Le
+             calcul était juste mais recopié : `env(...) + 5.5rem` supposait
+             une rangée de 4 rem, et aurait cessé de l'être en la changeant. */
+          style={{ bottom: "calc(var(--barre-nav) + 1.5rem)" }}
         >
           <Sparkles className="w-4 h-4" aria-hidden />
           Coach

@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { directionDuGeste, indexApresGeste, indexValide } from "./navigation-seances";
 import { libelleCycle } from "@/lib/referentiels/cycle";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -59,6 +60,23 @@ interface Props {
 
 export function GestionProgramme({ bloc, seances, machines }: Props) {
   const router = useRouter();
+  /**
+   * Une séance à la fois.
+   *
+   * L'édition avancée dépliait les quatre séances, chacune avec tous ses
+   * exercices et leurs réglages : un ruban de plusieurs écrans où l'on ne
+   * savait plus quelle séance on modifiait, et où corriger la séance D
+   * supposait de faire défiler A, B et C. La capacité d'édition ne change pas
+   * — c'est la quantité montrée d'un coup qui change.
+   *
+   * `indexValide` recadre quand la liste bouge : après la suppression de la
+   * séance affichée, l'index désignait le vide et l'écran annonçait « aucune
+   * séance » alors qu'il en restait trois.
+   */
+  const [indexSeance, setIndexSeance] = useState(0);
+  const courante = seances[indexValide(indexSeance, seances.length)] ?? null;
+  const depart = useRef<{ x: number; y: number } | null>(null);
+
   const [creationSeance, setCreationSeance] = useState(false);
   const [ajoutPour, setAjoutPour] = useState<SeanceProgramme | null>(null);
   const [envoi, setEnvoi] = useState(false);
@@ -210,26 +228,86 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
         <p className="text-encre-3 text-sm mt-0.5">{libelleCycle(bloc.typeCycle).libelle}</p>
       </div>
 
-      {seances.map((s) => (
-        <section key={s.id} className="space-y-2">
+      {/* Les onglets : la séance ouverte est nommée, les autres sont à un
+          appui — ou à un glissement. La rangée défile si le bloc en compte
+          beaucoup, plutôt que de se comprimer jusqu'à l'illisible. */}
+      {seances.length > 1 && (
+        <div
+          role="tablist"
+          aria-label="Séances du bloc"
+          className="flex gap-2 overflow-x-auto -mx-1 px-1 pb-1"
+        >
+          {seances.map((s, i) => {
+            const actif = s.id === courante?.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={actif}
+                onClick={() => setIndexSeance(i)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                  actif ? "bg-encre text-papier border-encre" : "bg-carte text-encre-2 border-filet"
+                }`}
+              >
+                {s.lettre}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {courante && (
+        <section
+          key={courante.id}
+          className="space-y-2"
+          /* Le glissement double les onglets sans les remplacer : un geste
+             n'est pas découvrable, un onglet si. `directionDuGeste` refuse
+             tout ce qui ressemble à un défilement vertical. */
+          onTouchStart={(e) => {
+            const t = e.touches[0];
+            depart.current = t ? { x: t.clientX, y: t.clientY } : null;
+          }}
+          onTouchEnd={(e) => {
+            const t = e.changedTouches[0];
+            if (!t || !depart.current) return;
+            const direction = directionDuGeste(
+              t.clientX - depart.current.x,
+              t.clientY - depart.current.y,
+            );
+            depart.current = null;
+            if (direction) {
+              setIndexSeance((i) => indexApresGeste(indexValide(i, seances.length), direction, seances.length));
+            }
+          }}
+        >
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-encre font-semibold">
-              <span className="text-encre-3 mr-2">{s.lettre}</span>
-              {s.nom}
+            <h2 className="text-encre font-semibold min-w-0">
+              <span className="text-encre-3 mr-2">{courante.lettre}</span>
+              {courante.nom}
             </h2>
-            <Button variant="ghost" size="sm" onClick={() => setAjoutPour(s)}>
+            <Button variant="ghost" size="sm" onClick={() => setAjoutPour(courante)}>
               <Plus className="w-4 h-4 mr-1" />
               Exercice
             </Button>
           </div>
 
-          {s.exercices.length === 0 ? (
+          {/* Le repère de position : sans lui, on ne sait pas combien de
+              séances existent ni où l'on se trouve dans le bloc. */}
+          {seances.length > 1 && (
+            <p className="text-encre-3 text-xs">
+              Séance <span className="chiffres">{indexValide(indexSeance, seances.length) + 1}</span> sur{" "}
+              <span className="chiffres">{seances.length}</span> — glisse pour changer.
+            </p>
+          )}
+
+          {courante.exercices.length === 0 ? (
             <p className="text-encre-3 text-sm bg-carte border border-filet rounded-lg p-3">
               Séance vide — elle ne proposera aucun exercice.
             </p>
           ) : (
             <div className="space-y-2">
-              {s.exercices.map((e) => (
+              {courante.exercices.map((e) => (
                 <div key={e.ligneId} className="bg-carte border border-filet rounded-lg p-3">
                   <div className="flex items-start gap-3">
                     <span className="text-encre-3 text-xs font-mono mt-1 w-4 shrink-0">{e.ordre}</span>
@@ -279,7 +357,13 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
             </div>
           )}
         </section>
-      ))}
+      )}
+
+      {seances.length === 0 && (
+        <p className="text-encre-3 text-sm bg-carte border border-filet rounded-lg p-3">
+          Ce bloc n&apos;a aucune séance. Ajoute la première ci-dessous.
+        </p>
+      )}
 
       <Button variant="outline" className="w-full bg-carte border-filet"
         onClick={() => setCreationSeance(true)}>

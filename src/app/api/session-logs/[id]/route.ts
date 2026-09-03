@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { genererDebrief } from "@/services/debrief-seance";
 import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { terminerSeance, SeanceIntrouvable, SeanceSansSerie } from "@/services/seances";
+import {
+  terminerSeance, SeanceIntrouvable, SeanceSansSerie, SerieInvalide,
+} from "@/services/seances";
 
 const serieSchema = z.object({
   exerciseInstanceId: z.string().uuid(),
@@ -44,6 +47,23 @@ export async function PATCH(
 
   try {
     const seance = await terminerSeance({ userId, sessionLogId: id, ...parsed.data });
+
+    /**
+     * Le débrief se génère ICI, une fois, à la clôture.
+     *
+     * C'est le moment où la séance devient un fait : ensuite, la consulter ne
+     * doit plus rien coûter. Auparavant, aucune génération n'avait lieu à la
+     * clôture et chaque ouverture de la fiche en déclenchait une.
+     *
+     * Et l'échec ne remonte pas : la séance est enregistrée, c'est ce qui
+     * compte. Faire échouer une clôture parce que le modèle n'a pas répondu
+     * ferait perdre une séance pour un texte. L'écran de la séance propose de
+     * le demander.
+     */
+    void genererDebrief(userId, id).catch((erreur: unknown) => {
+      console.warn("[session-logs] débrief non généré à la clôture —", erreur);
+    });
+
     return NextResponse.json(seance);
   } catch (error) {
     if (error instanceof SeanceIntrouvable) {
@@ -57,6 +77,18 @@ export async function PATCH(
      */
     if (error instanceof SeanceSansSerie) {
       return NextResponse.json({ error: error.message }, { status: 422 });
+    }
+    /**
+     * Même statut, même raison : la requête est bien formée, c'est une série
+     * qui ne mesure rien. Le refus nomme la série et ce qui manque, plutôt que
+     * de l'écarter en silence — l'écran avait montré une ligne validée, la
+     * base n'en gardait rien, et personne n'était prévenu.
+     */
+    if (error instanceof SerieInvalide) {
+      return NextResponse.json(
+        { error: error.message, numeroSerie: error.numeroSerie, motif: error.motif },
+        { status: 422 },
+      );
     }
     console.error("[session-logs PATCH] error:", error);
     return NextResponse.json({ error: "Echec de la cloture" }, { status: 500 });

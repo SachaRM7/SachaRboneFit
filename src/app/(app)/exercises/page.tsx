@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 import { db } from "@/db/client";
 import { exercises, exerciseInstances, gyms } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
@@ -31,7 +32,9 @@ export default async function ExercisesPage() {
 
   return (
     <div className="pb-4">
-      <h1 className="text-xl font-bold text-encre p-4">Exercices</h1>
+      <div className="p-4 pb-0">
+        <EnTeteSecondaire titre="Bibliothèque" vers="/settings" libelleRetour="Retour à Plus" />
+      </div>
       <ExerciseLibrary
         exercises={avecInstances}
         salles={salles.map((g) => ({ id: g.id, nom: g.nom }))}
