@@ -404,6 +404,13 @@ function ContenuSeanceLive() {
 
       {modaleSOS === "machine" && courant && (
         <SOSMachineOccupee
+          exercicesDeLaSeance={visibles.map((e) => ({
+            id: e.id,
+            nom: e.nom,
+            machineNom: e.machineNom,
+            seriesFaites: (active?.sets ?? []).filter((s) => s.exerciseInstanceId === e.id).length,
+            seriesCibles: e.seriesCibles,
+          }))}
           exerciseInstanceId={courant.id}
           gymId={gymId}
           allInstances={parcSalle}

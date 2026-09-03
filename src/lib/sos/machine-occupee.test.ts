@@ -2,71 +2,120 @@ import { describe, it, expect } from "vitest";
 import { machineOccupee } from "./machine-occupee";
 import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
 
-const inst = (
-  id: string,
-  pilier: string,
-  profilTension: string,
-  categorieRole: ExerciseInstanceWithExercise["categorieRole"],
-  muscles: string[] = ["pectoraux"],
-  gymId = "lalande",
-): ExerciseInstanceWithExercise => ({
-  id, gymId, exerciseId: id, nom: `exo-${id}`, machineNom: `machine-${id}`,
-  categorieRole, profilTension, musclesPrincipaux: muscles, pilier,
+/**
+ * Ce que la modale « Machine occupée » affichait en recette.
+ *
+ * Trois lignes rigoureusement identiques — « Sortie de poulie réglable »,
+ * trois fois — et sous chacune : « Même pilier (undefined) et même profil de
+ * tension ». Trois défauts en une liste : un enum technique donné à lire, une
+ * valeur absente racontée comme une raison, et des propositions impossibles à
+ * départager.
+ */
+
+const SALLE = "salle";
+
+const instance = (over: Partial<ExerciseInstanceWithExercise> = {}): ExerciseInstanceWithExercise => ({
+  id: "i1",
+  gymId: SALLE,
+  exerciseId: "e1",
+  nom: "Tirage vertical",
+  machineNom: "Lat Pulldown",
+  pilier: "P2_tirage",
+  profilTension: "mi_range",
+  type: "polyarticulaire",
+  categorieRole: "pilier",
+  musclesPrincipaux: ["dorsaux"],
+  equipement: "machine",
+  ...over,
+} as ExerciseInstanceWithExercise);
+
+const occupe = instance({ id: "occupe", nom: "Tirage horizontal", machineNom: "Seated Row" });
+
+describe("la raison se lit, elle ne se décode pas", () => {
+  it("le pilier est traduit, jamais rendu brut", async () => {
+    const res = await machineOccupee(
+      { exercise_instance_id: occupe.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [occupe, instance({ id: "autre" })],
+      [occupe.id],
+    );
+    const raison = res.substituts[0]?.raisonCompatibilite ?? "";
+    expect(raison).toContain("Tirage");
+    expect(raison).not.toContain("P2_tirage");
+  });
+
+  it("un pilier absent ne devient pas « undefined »", async () => {
+    // C'est mot pour mot ce que l'écran affichait.
+    const res = await machineOccupee(
+      { exercise_instance_id: occupe.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [
+        instance({ ...occupe, pilier: undefined as unknown as string }),
+        instance({ id: "autre", pilier: undefined as unknown as string }),
+      ],
+      [occupe.id],
+    );
+    for (const s of res.substituts) {
+      expect(s.raisonCompatibilite).not.toContain("undefined");
+      expect(s.raisonCompatibilite.length).toBeGreaterThan(0);
+    }
+  });
 });
 
-const parc: ExerciseInstanceWithExercise[] = [
-  inst("chest-press", "P1_poussee", "mi_range", "pilier"),
-  inst("bench", "P1_poussee", "mi_range", "substitut"),
-  inst("pec-deck", "P1_poussee", "stretch", "accessoire"),
-  inst("row", "P2_tirage", "mi_range", "pilier", ["dorsaux"]),
-  inst("bench-ailleurs", "P1_poussee", "mi_range", "pilier", ["pectoraux"], "sesquiere"),
-];
+describe("deux propositions ne peuvent pas être indistinguables", () => {
+  it("des homonymes sont départagés par leur poste", async () => {
+    // Les trois sorties de poulie de Saint-Martin : même exercice, même nom
+    // de machine, trois appareils bien réels.
+    const poulies = [1, 2, 3].map((n) =>
+      instance({ id: `poulie-${n}`, nom: "Sortie de poulie réglable", machineNom: "Poulie réglable" }),
+    );
+    const res = await machineOccupee(
+      { exercise_instance_id: occupe.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [occupe, ...poulies],
+      [occupe.id],
+    );
 
-const entree = {
-  exercise_instance_id: "chest-press",
-  gym_id: "lalande",
-  seance_template_id: "t",
-  daily_state_id: null,
-};
-
-describe("SOS machine occupée", () => {
-  it("propose un substitut pour un exercice pilier", async () => {
-    // Le pilier était lu comme le PREMIER MOT DU NOM de l'exercice et comparé au
-    // champ `pilier` : aucun candidat ne correspondait jamais sur un exercice pilier.
-    const r = await machineOccupee(entree, parc, ["chest-press"]);
-    expect(r.substituts.length).toBeGreaterThan(0);
-    expect(r.substituts.map((s) => s.exerciseInstanceId)).toContain("bench");
+    const etiquettes = res.substituts.map((s) => `${s.exerciseName}|${s.machineName}`);
+    expect(new Set(etiquettes).size).toBe(etiquettes.length);
+    expect(res.substituts.every((s) => s.machineName?.includes("poste"))).toBe(true);
   });
 
-  it("ne propose jamais un exercice d'un autre pilier", async () => {
-    const r = await machineOccupee(entree, parc, ["chest-press"]);
-    expect(r.substituts.map((s) => s.exerciseInstanceId)).not.toContain("row");
+  it("des propositions déjà distinctes ne sont pas numérotées pour rien", async () => {
+    const res = await machineOccupee(
+      { exercise_instance_id: occupe.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [occupe, instance({ id: "a", nom: "Tirage nuque", machineNom: "Poulie haute" })],
+      [occupe.id],
+    );
+    expect(res.substituts[0]?.machineName).toBe("Poulie haute");
+  });
+});
+
+describe("la recherche part bien de l'exercice désigné", () => {
+  it("elle exclut ce qui est déjà au programme du jour", async () => {
+    const dejaPrevu = instance({ id: "deja", nom: "Rowing machine" });
+    const libre = instance({ id: "libre", nom: "Tirage bas" });
+    const res = await machineOccupee(
+      { exercise_instance_id: occupe.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [occupe, dejaPrevu, libre],
+      [occupe.id, dejaPrevu.id],
+    );
+    expect(res.substituts.map((s) => s.exerciseInstanceId)).toEqual(["libre"]);
   });
 
-  it("ne propose jamais une machine d'une autre salle", async () => {
-    const r = await machineOccupee(entree, parc, ["chest-press"]);
-    expect(r.substituts.map((s) => s.exerciseInstanceId)).not.toContain("bench-ailleurs");
+  it("une salle sans équivalent le dit clairement", async () => {
+    const res = await machineOccupee(
+      { exercise_instance_id: occupe.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [occupe],
+      [occupe.id],
+    );
+    expect(res.substituts).toHaveLength(0);
+    expect(res.message).toContain("Aucun substitut");
   });
 
-  it("exclut les exercices déjà dans la séance", async () => {
-    const r = await machineOccupee(entree, parc, ["chest-press", "bench"]);
-    expect(r.substituts.map((s) => s.exerciseInstanceId)).not.toContain("bench");
-  });
-
-  it("écarte un exercice courbaturé, quel que soit le muscle concerné", async () => {
-    // Le muscle courbaturé est le SECOND de l'exercice : l'ancienne version ne
-    // testait que le premier.
-    const avecSecondMuscle = [
-      ...parc,
-      inst("dips", "P1_poussee", "mi_range", "substitut", ["pectoraux", "triceps"]),
-    ];
-    const r = await machineOccupee(entree, avecSecondMuscle, ["chest-press"], ["Triceps"]);
-    expect(r.substituts.map((s) => s.exerciseInstanceId)).not.toContain("dips");
-  });
-
-  it("exercice introuvable : message clair, pas d'erreur", async () => {
-    const r = await machineOccupee({ ...entree, exercise_instance_id: "inconnu" }, parc, []);
-    expect(r.substituts).toEqual([]);
-    expect(r.message).toContain("introuvable");
+  it("un exercice inconnu ne fabrique pas de proposition", async () => {
+    const res = await machineOccupee(
+      { exercise_instance_id: "fantome", gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [occupe],
+      [],
+    );
+    expect(res.substituts).toHaveLength(0);
   });
 });

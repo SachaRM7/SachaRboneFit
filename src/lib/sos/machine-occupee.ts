@@ -1,6 +1,7 @@
 import { profilCompatible } from "@/lib/engine/profils-tension";
 import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engine/substitutions";
 import { memeMuscle } from "@/lib/referentiels/muscles";
+import { libellePilier } from "@/lib/referentiels/libelles";
 
 export interface MachineOccupeInput {
   exercise_instance_id: string;
@@ -12,6 +13,12 @@ export interface MachineOccupeInput {
 export interface MachineOccupeResult {
   substituts: SubstituteResult[];
   message: string;
+}
+
+function raisonDe(pilier: string | null | undefined, memeProfil: boolean): string {
+  const geste = pilier ? libellePilier(pilier) : null;
+  if (!geste) return memeProfil ? "Même profil de tension" : "Même famille de mouvement";
+  return memeProfil ? `Même geste (${geste}) et même profil de tension` : `Même geste (${geste})`;
 }
 
 export async function machineOccupee(
@@ -74,16 +81,49 @@ export async function machineOccupee(
     });
   }
 
-  const substituts = candidates.slice(0, 3).map(inst => ({
-    exerciseInstanceId: inst.id,
-    exerciseName: inst.nom,
-    machineName: inst.machineNom,
-    categorieRole: inst.categorieRole,
-    profilTension: inst.profilTension,
-    raisonCompatibilite: inst.profilTension === baseProfilTension
-      ? `Même pilier (${inst.pilier}) et même profil de tension`
-      : `Même pilier (${inst.pilier})`,
-  }));
+  /**
+   * Ce qui distingue deux propositions.
+   *
+   * Trois sorties de poulie réglable portent le même nom d'exercice ET le même
+   * nom de machine : la liste en affichait trois lignes rigoureusement
+   * identiques, impossibles à départager. Quand le couple se répète, le rang
+   * de l'appareil le lève — c'est la seule chose qui les différencie sur
+   * place.
+   */
+  const retenus = candidates.slice(0, 3);
+  const occurrences = new Map<string, number>();
+  const rangDe = (inst: ExerciseInstanceWithExercise) => {
+    const cle = `${inst.nom}|${inst.machineNom ?? ""}`;
+    const rang = (occurrences.get(cle) ?? 0) + 1;
+    occurrences.set(cle, rang);
+    return rang;
+  };
+  const homonymes = new Set(
+    retenus
+      .map((i) => `${i.nom}|${i.machineNom ?? ""}`)
+      .filter((cle, index, tous) => tous.indexOf(cle) !== index),
+  );
+
+  const substituts = retenus.map(inst => {
+    const cle = `${inst.nom}|${inst.machineNom ?? ""}`;
+    const rang = rangDe(inst);
+    return {
+      exerciseInstanceId: inst.id,
+      exerciseName: inst.nom,
+      machineName: homonymes.has(cle) ? `${inst.machineNom ?? inst.nom} — poste ${rang}` : inst.machineNom,
+      categorieRole: inst.categorieRole,
+      profilTension: inst.profilTension,
+      /**
+       * La raison se lit, elle ne se décode pas.
+       *
+       * Elle interpolait `inst.pilier` brut : « Même pilier (P1_poussee) », et
+       * « Même pilier (undefined) » dès que le champ manquait — ce que l'écran
+       * affichait tel quel. Le libellé humain existe déjà pour ça, et une
+       * valeur absente ne se raconte pas.
+       */
+      raisonCompatibilite: raisonDe(inst.pilier, inst.profilTension === baseProfilTension),
+    };
+  });
 
   return {
     substituts,
