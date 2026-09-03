@@ -69,6 +69,10 @@ function ContenuSeanceLive() {
 
   const [seance, setSeance] = useState<SeanceChargee | null>(null);
   const [chargement, setChargement] = useState(true);
+  // Distinguer « ce gabarit n'a pas pu être lu » de « ce gabarit est vide ».
+  // Les deux menaient au même écran, et le second est un mensonge quand c'est
+  // le premier qui s'est produit.
+  const [echecLecture, setEchecLecture] = useState(false);
   const [timerVisible, setTimerVisible] = useState(false);
   const [audioPret, setAudioPret] = useState(false);
   const [modaleSOS, setModaleSOS] = useState<ModaleSOS>(null);
@@ -105,7 +109,14 @@ function ContenuSeanceLive() {
       .then((plan) =>
         plan ??
         fetch(`/api/sessions/${templateId}`)
-          .then((r) => r.json())
+          // Le repli est le dernier filet : il rend une ligne par exercice
+          // programmé, sans consulter ni la salle ni l'état du jour. Sa réponse
+          // était lue sans regarder le statut — un 500 donnait un corps
+          // `{ error }`, donc `t.exercises` valait `undefined`, donc `[]`, et
+          // l'écran annonçait « Aucun exercice dans cette séance ». Une panne
+          // serveur se présentait comme un programme vide, et c'est ce qui a
+          // fait chercher la cause dans les données pendant des heures.
+          .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`gabarit illisible (${r.status})`))))
           .then((t) => ({ nom: t.nom, exercices: t.exercises ?? [] })),
       )
       .then((s: SeanceChargee) => {
@@ -114,7 +125,11 @@ function ContenuSeanceLive() {
           setChargement(false);
         }
       })
-      .catch(() => !annule && setChargement(false));
+      .catch(() => {
+        if (annule) return;
+        setEchecLecture(true);
+        setChargement(false);
+      });
 
     if (gymId) {
       fetch(`/api/exercise-instances?gymId=${gymId}`)
@@ -206,6 +221,21 @@ function ContenuSeanceLive() {
   };
 
   if (chargement) return <div className="p-4 text-encre-3">Chargement…</div>;
+  if (echecLecture) {
+    return (
+      <div className="p-4 space-y-3">
+        <p className="text-perte font-semibold">Je n&apos;ai pas pu lire cette séance</p>
+        <p className="text-encre-2 text-sm">
+          Ton programme n&apos;est pas en cause : c&apos;est la lecture qui a échoué.
+          Réessaie — si ça persiste, c&apos;est côté serveur.
+        </p>
+        <Button variant="outline" className="w-full border-filet bg-carte text-encre"
+          onClick={() => router.refresh()}>
+          Réessayer
+        </Button>
+      </div>
+    );
+  }
   if (!seance) return <div className="p-4 text-encre-3">Séance introuvable</div>;
 
   const exercicesSkippes = active?.skippedExerciseIds ?? [];
