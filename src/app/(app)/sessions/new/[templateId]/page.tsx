@@ -23,6 +23,7 @@ import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { Feu } from "@/components/carnet/Feu";
 import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
+import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
 
 type ModaleSOS = "machine" | "douleur" | "energie" | "temps" | null;
 
@@ -271,10 +272,13 @@ function ContenuSeanceLive() {
   const courant = visibles[index];
   const termines = visibles.filter((e) => seriesValidees(e.id) >= e.seriesCibles).length;
 
-  const restants: ExerciceRestant[] = visibles.slice(index).map((e, i) => ({
+  const restants: ExerciceAvecMuscles[] = visibles.slice(index).map((e, i) => ({
     exercise_instance_id: e.id,
     nom: e.nom,
     muscles_principaux: e.musclesPrincipaux ?? [],
+    // Sans eux, la douleur ne pourrait pas distinguer une zone visée d'une
+    // zone seulement traversée — et retirerait tout ce qui la touche.
+    muscles_secondaires: e.musclesSecondaires ?? undefined,
     categorie_role: normaliserRole(e.categorieRole),
     statut: i === 0 ? ("en_cours" as const) : ("à_venir" as const),
     ordre: index + i + 1,

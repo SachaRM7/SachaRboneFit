@@ -472,6 +472,7 @@ export interface ItemPlanEnrichi {
   categorieRole: string;
   profilTension: string;
   musclesPrincipaux: string[];
+  musclesSecondaires?: string[];
   slug: string | null;
   seriesCibles: number;
   seriesPrevuesAvantAjustement: number | null;
@@ -534,6 +535,10 @@ export async function lirePlan(userId: string, sessionLogId: string) {
       categorieRole: exercises.categorieRole,
       profilTension: exercises.profilTension,
       musclesPrincipaux: exercises.musclesPrincipaux,
+      // Les muscles seulement sollicités : ce sont eux qui distinguent un
+      // exercice qui VISE une zone gênée d'un exercice qui la traverse. Sans
+      // eux, une gêne au poignet retirerait tous les tirages.
+      musclesSecondaires: exercises.musclesSecondaires,
     })
     .from(sessionPlanItems)
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, sessionPlanItems.exerciseInstanceId))
@@ -555,6 +560,7 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         categorieRole: l.categorieRole,
         profilTension: l.profilTension,
         musclesPrincipaux: l.musclesPrincipaux ?? [],
+        musclesSecondaires: l.musclesSecondaires ?? [],
         slug: l.slug,
         seriesCibles: l.seriesCibles,
         seriesPrevuesAvantAjustement: l.seriesPrevuesAvantAjustement,
