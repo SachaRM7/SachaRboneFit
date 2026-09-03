@@ -16,16 +16,30 @@ export default async function GymsPage() {
   if (!userId) redirect("/login");
 
   /**
-   * Les lieux de CE compte.
+   * TOUTES les salles connues, et non « les miennes ».
    *
-   * La requête ne portait que `archive_le IS NULL` : l'écran listait les salles
-   * de tous les comptes de la base. Sur un compte partagé à deux, chacun voyait
-   * les lieux de l'autre — et pouvait ouvrir leur fiche.
+   * Une salle et son inventaire décrivent un lieu, pas un pratiquant : deux
+   * personnes qui s'entraînent au même endroit y trouvent le même matériel, et
+   * le parc physique n'a aucune raison d'être ressaisi une fois par compte.
+   * `gyms.user_id` dit qui tient ce lieu à jour — un droit de maintenance —,
+   * pas qui a le droit de le voir.
+   *
+   * Cet écran avait été filtré par compte pour corriger une fuite constatée
+   * ailleurs. Le raisonnement était faux ici : la fuite n'était pas la
+   * visibilité de la salle, c'était la DÉDUCTION de la salle du jour, qui
+   * s'attribuait le lieu d'un autre sans que personne l'ait choisi. Cette
+   * déduction est corrigée dans le moteur, et la lecture redevient commune.
+   *
+   * Trois notions distinctes, à ne plus confondre :
+   *
+   *   visibilité   partagée — tout le monde voit St-Martin si elle existe
+   *   utilisation  explicite — une préférence, ou un choix fait sur l'écran
+   *   maintenance  au mainteneur — `peutGererLaSalle`, appliqué par l'API
    *
    * Le compte des appareils est fait par la base, dans la même requête : le
    * faire ensuite, lieu par lieu, rendait l'écran linéaire en nombre de salles.
    */
-  const mesSalles = await db
+  const salles = await db
     .select({
       gym: gyms,
       appareils: sql<number>`cast(count(${exerciseInstances.id}) as int)`,
@@ -35,14 +49,16 @@ export default async function GymsPage() {
       exerciseInstances,
       and(eq(exerciseInstances.gymId, gyms.id), machinesUtilisablesAujourdhui()),
     )
-    .where(and(eq(gyms.userId, userId), isNull(gyms.archiveLe)))
+    .where(isNull(gyms.archiveLe))
     .groupBy(gyms.id)
     .orderBy(gyms.nom);
 
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-encre">Mes salles</h1>
+        {/* « Mes salles » sous-entendait une propriété personnelle qui n'existe
+            pas dans le modèle : le catalogue des lieux est commun. */}
+        <h1 className="text-xl font-bold text-encre">Salles</h1>
         {/* Un seul point d'ajout, lisible dans les deux thèmes. Il y en avait
             deux — ce bouton et un flottant en bas — et celui-ci était presque
             invisible en clair, faute de contraste sur son fond. */}
@@ -55,14 +71,14 @@ export default async function GymsPage() {
       </div>
 
       <div className="space-y-3">
-        {mesSalles.map(({ gym, appareils }) => (
+        {salles.map(({ gym, appareils }) => (
           <Link key={gym.id} href={`/gyms/${gym.id}`} className="block">
             <GymCard gym={gym} appareils={appareils} />
           </Link>
         ))}
       </div>
 
-      {mesSalles.length === 0 && (
+      {salles.length === 0 && (
         <p className="text-encre-3 text-center py-8">
           Aucune salle. Crée ta première salle pour commencer.
         </p>

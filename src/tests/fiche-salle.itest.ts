@@ -2,9 +2,7 @@ import { describe, it, expect, beforeAll, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 
 /**
- * La fiche d'une salle s'ouvre, et ne montre que les siennes.
- *
- * Deux défauts se cumulaient sur cet écran.
+ * La fiche d'une salle s'ouvre, et dit ce qu'on a le droit d'y faire.
  *
  * La fiche répondait 500 — Safari affichait « This page couldn't load ». Le
  * Server Component passait `onSuccess={() => {}}` à `<GymForm>`, un composant
@@ -12,8 +10,12 @@ import { randomUUID } from "node:crypto";
  * rendu. Ça ne se teste pas ici — c'est le typage et le build qui l'empêchent
  * désormais — mais la requête que la page exécute, si.
  *
- * Et la liste des salles ne filtrait que `archive_le IS NULL` : sur une base à
- * deux comptes, chacun voyait les lieux de l'autre.
+ * Ce fichier a d'abord verrouillé la règle inverse de la bonne. Ces deux
+ * écrans avaient été filtrés par `gyms.user_id` au motif que « chacun voyait
+ * les lieux de l'autre » — et ça fermait la consultation d'un lieu commun.
+ * Le modèle est explicite, jusque dans le commentaire de la colonne : une
+ * salle et son inventaire décrivent un LIEU, `user_id` désigne qui le tient à
+ * jour. La lecture est commune ; c'est l'écriture qui a un responsable.
  */
 
 const MOI = randomUUID();
@@ -24,12 +26,13 @@ const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
 const { and, eq, isNull, sql } = await import("drizzle-orm");
 const { machinesUtilisablesAujourdhui } = await import("@/db/archivage");
+const { peutGererLaSalle } = await import("@/lib/autorisations");
 
 let maSalle = "";
 let saSalle = "";
 
 /** Exactement la requête de `app/(app)/gyms/page.tsx`. */
-async function sallesDe(userId: string) {
+async function catalogueDesSalles() {
   return db
     .select({ gym: schema.gyms, appareils: sql<number>`cast(count(${schema.exerciseInstances.id}) as int)` })
     .from(schema.gyms)
@@ -37,13 +40,13 @@ async function sallesDe(userId: string) {
       schema.exerciseInstances,
       and(eq(schema.exerciseInstances.gymId, schema.gyms.id), machinesUtilisablesAujourdhui()),
     )
-    .where(and(eq(schema.gyms.userId, userId), isNull(schema.gyms.archiveLe)))
+    .where(isNull(schema.gyms.archiveLe))
     .groupBy(schema.gyms.id)
     .orderBy(schema.gyms.nom);
 }
 
 /** Exactement la requête de `app/(app)/gyms/[id]/page.tsx`. */
-async function fiche(gymId: string, userId: string) {
+async function fiche(gymId: string) {
   const [ligne] = await db
     .select({ gym: schema.gyms, appareils: sql<number>`cast(count(${schema.exerciseInstances.id}) as int)` })
     .from(schema.gyms)
@@ -51,7 +54,7 @@ async function fiche(gymId: string, userId: string) {
       schema.exerciseInstances,
       and(eq(schema.exerciseInstances.gymId, schema.gyms.id), machinesUtilisablesAujourdhui()),
     )
-    .where(and(eq(schema.gyms.id, gymId), eq(schema.gyms.userId, userId), isNull(schema.gyms.archiveLe)))
+    .where(and(eq(schema.gyms.id, gymId), isNull(schema.gyms.archiveLe)))
     .groupBy(schema.gyms.id)
     .limit(1);
   return ligne ?? null;
@@ -101,7 +104,7 @@ beforeAll(async () => {
 
 describe("16 — la fiche Saint-Martin se charge", () => {
   it("elle existe et porte son inventaire réel", async () => {
-    const page = await fiche(maSalle, MOI);
+    const page = await fiche(maSalle);
     expect(page).not.toBeNull();
     // Deux utilisables sur trois décrites : le hors-service ne compte pas.
     expect(page!.appareils).toBe(2);
@@ -109,7 +112,7 @@ describe("16 — la fiche Saint-Martin se charge", () => {
   });
 
   it("le statut d'inventaire ne vient plus de la note", async () => {
-    const page = await fiche(maSalle, MOI);
+    const page = await fiche(maSalle);
     // La note dit encore « à inventorier » — elle date de la création du lieu.
     // Ce n'est plus elle qui décide de ce que l'écran annonce.
     expect(page!.gym.notes).toContain("inventorier");
@@ -118,21 +121,25 @@ describe("16 — la fiche Saint-Martin se charge", () => {
   });
 });
 
-describe("20 — les données d'un autre compte restent isolées", () => {
-  it("ma liste ne contient que mes salles", async () => {
-    const miennes = await sallesDe(MOI);
-    expect(miennes).toHaveLength(1);
-    expect(miennes[0]!.gym.id).toBe(maSalle);
+describe("20 — visible par tous, tenue à jour par son mainteneur", () => {
+  it("l'écran des salles montre le catalogue entier, pas « les miennes »", async () => {
+    const ids = (await catalogueDesSalles()).map((s) => s.gym.id);
+    // La base de test est partagée entre les scénarios : on vérifie la
+    // présence des deux lieux, pas la longueur de la liste.
+    expect(ids).toContain(maSalle);
+    expect(ids).toContain(saSalle);
   });
 
-  it("la fiche d'une salle qui n'est pas la mienne est introuvable", async () => {
-    // Avant, l'identifiant suffisait : la fiche s'ouvrait, formulaire compris.
-    expect(await fiche(saSalle, MOI)).toBeNull();
+  it("la fiche d'une salle tenue par un autre compte s'ouvre", async () => {
+    const page = await fiche(saSalle);
+    expect(page).not.toBeNull();
+    // Et son inventaire est celui du lieu, pas une copie par compte.
+    expect(page!.appareils).toBe(1);
   });
 
-  it("et l'autre compte ne voit pas la mienne", async () => {
-    const siennes = await sallesDe(AUTRE);
-    expect(siennes.map((s) => s.gym.id)).toEqual([saSalle]);
+  it("mais le formulaire n'y est pas : la maintenance a un responsable", () => {
+    expect(peutGererLaSalle({ userId: AUTRE }, MOI)).toBe(false);
+    expect(peutGererLaSalle({ userId: MOI }, MOI)).toBe(true);
   });
 });
 
