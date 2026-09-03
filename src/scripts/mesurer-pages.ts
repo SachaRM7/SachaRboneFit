@@ -68,6 +68,25 @@ async function main() {
   const { eq } = await import("drizzle-orm");
   brancherCompteur(db);
 
+  /**
+   * Les modules sont chargés AVANT la première mesure.
+   *
+   * Ils l'étaient à l'intérieur, au premier `import()` dynamique de chaque
+   * chemin. Le premier mesuré payait donc le chargement de tout le graphe des
+   * services — transpilation comprise — et les suivants trouvaient le cache :
+   * l'écran Programme est ressorti à 273 ms pour huit requêtes sur une base
+   * locale minuscule, ce qui ne décrivait que le démarrage de `tsx`.
+   *
+   * Le nombre de requêtes, lui, n'a jamais été affecté : c'est la mesure qui
+   * porte la conclusion, et le temps qui sert d'indice.
+   */
+  const { and, isNull, sql: raw } = await import("drizzle-orm");
+  const { machinesUtilisablesAujourdhui, seancesRealisees } = await import("../db/archivage");
+  const { vueDuProgramme } = await import("../services/cycle");
+  const { alertes } = await import("../services/progression");
+  const { bilanDeProgression } = await import("../services/bilan");
+  const { donneesTableauDeBord } = await import("../services/tableau-de-bord");
+  const { lirePlan } = await import("../services/plan-seance");
 
   const lignes: Array<{ nom: string; ms: number; requetes: number }> = [];
 
@@ -81,8 +100,6 @@ async function main() {
 
   // --- Les pages serveur de « Plus » ---
   lignes.push(await chrono("salles : liste + inventaire", async () => {
-    const { and, isNull, sql: raw } = await import("drizzle-orm");
-    const { machinesUtilisablesAujourdhui } = await import("../db/archivage");
     await db
       .select({ gym: schema.gyms, appareils: raw<number>`cast(count(${schema.exerciseInstances.id}) as int)` })
       .from(schema.gyms)
@@ -93,23 +110,33 @@ async function main() {
   }));
 
   lignes.push(await chrono("programme : vue du cycle", async () => {
-    const { vueDuProgramme } = await import("../services/cycle");
     await vueDuProgramme(userId);
   }));
 
   lignes.push(await chrono("progression : alertes", async () => {
-    const { alertes } = await import("../services/progression");
     await alertes(userId);
+  }));
+
+  lignes.push(await chrono("progression : bilan (page)", async () => {
+    await bilanDeProgression(userId);
   }));
 
   // Le vrai service, celui que la page serveur appelle désormais.
   lignes.push(await chrono("dashboard : tout le contenu", async () => {
-    const { donneesTableauDeBord } = await import("../services/tableau-de-bord");
     await donneesTableauDeBord(userId);
   }));
 
+  // L'écran de séance : c'est lui qui lit un historique par exercice.
+  const [seanceRecente] = await sql`
+    select id from session_logs where user_id = ${userId} and duree_minutes is not null
+    order by date desc limit 1`;
+  if (seanceRecente) {
+    lignes.push(await chrono("séance live : lecture du plan", async () => {
+      await lirePlan(userId, seanceRecente.id as string);
+    }));
+  }
+
   lignes.push(await chrono("historique : séances réalisées", async () => {
-    const { seancesRealisees } = await import("../db/archivage");
     await db.query.sessionLogs.findMany({ where: seancesRealisees(userId), limit: 20 });
   }));
 

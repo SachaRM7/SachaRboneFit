@@ -1,12 +1,14 @@
 import { db } from "@/db/client";
-import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, programmeBlocs, precalcSessions, weeklyDebriefs, gyms, exerciseInstances, exercises } from "@/db/schema";
+import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, precalcSessions, weeklyDebriefs, gyms, exerciseInstances } from "@/db/schema";
 import { machinesUtilisablesAujourdhui, seancesRealisees } from "@/db/archivage";
 import { eq, desc, and, inArray, isNull, gte } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { alertes } from "@/services/progression";
 import { vueDuProgramme } from "@/services/cycle";
 import { prochaineSeance } from "@/services/programmes";
-import { etatDuJour } from "@/lib/engine/etat-du-jour";
+import { choisirSalleDuJour, etatDuJour } from "@/lib/engine/etat-du-jour";
+import { lireBlocs } from "@/services/blocs";
+import { memoireEmpechements } from "@/services/memoire";
 import { exercicesRealisables, statutInventaire } from "@/lib/engine/disponibilite";
 
 
@@ -38,6 +40,21 @@ export async function donneesTableauDeBord(userId: string) {
     const lastWeekStartStr = lastWeekStart.toISOString().slice(0, 10);
 
     /**
+     * Deux lectures que trois consommateurs se partagent.
+     *
+     * `vueDuProgramme` et `alertes` sont appelées côte à côte ci-dessous, et
+     * l'accueil lisait en plus le bloc actif pour son propre compte. Résultat :
+     * `programme_blocs` interrogée quatre fois et `session_plan_items` deux
+     * fois pour un seul affichage, avec les mêmes critères à chaque fois. On
+     * les lit ici, une fois, et on les passe.
+     */
+    const [blocs, memoire] = await Promise.all([
+      lireBlocs(userId),
+      memoireEmpechements(userId, todayStr),
+    ]);
+    const blocActif = blocs.actif;
+
+    /**
      * Tout ce qui ne dépend que de `userId`, d'un coup.
      *
      * Ces lectures étaient écrites l'une après l'autre, chacune précédée d'un
@@ -51,7 +68,7 @@ export async function donneesTableauDeBord(userId: string) {
      * interne ; ce qui change, c'est qu'ils ne s'attendent plus entre eux.
      */
     const [
-      user, lastWeight, blocActif, lastSession, suite, dailyStateToday,
+      user, lastWeight, lastSession, suite, dailyStateToday,
       poids30jours, precalcSession, weeklyDebrief, debriefSemainePrecedente,
       recentSessions, seancesDeLaSemaine, vueProgramme, alertesPreSeance,
     ] = await Promise.all([
@@ -59,9 +76,6 @@ export async function donneesTableauDeBord(userId: string) {
       db.query.bodyWeights.findFirst({
         where: eq(bodyWeights.userId, userId),
         orderBy: [desc(bodyWeights.date)],
-      }),
-      db.query.programmeBlocs.findFirst({
-        where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
       }),
       db.query.sessionLogs.findFirst({
         where: seancesRealisees(userId),
@@ -104,8 +118,8 @@ export async function donneesTableauDeBord(userId: string) {
           gte(sessionLogs.date, weekStartStr),
         ),
       }),
-      vueDuProgramme(userId),
-      alertes(userId),
+      vueDuProgramme(userId, todayStr, { blocs, memoire }),
+      alertes(userId, { blocs, memoire }),
     ]);
 
     const seanceSuivante = suite
@@ -160,13 +174,21 @@ export async function donneesTableauDeBord(userId: string) {
       };
     });
 
-    // Salle du jour : la préférence posée à l'onboarding, sinon l'unique salle
-    // active. L'accueil envoyait jusqu'ici `gymId=` vide, et la séance ne
-    // pouvait pas démarrer.
-    let salleDuJour = user?.prefSalleParDefautId
-      ? salleParId.get(user.prefSalleParDefautId) ?? null
-      : null;
-    if (!salleDuJour && sallesUtilisateur.length === 1) salleDuJour = sallesUtilisateur[0]!;
+    /**
+     * Salle du jour : la préférence posée à l'onboarding, sinon l'unique salle
+     * DU COMPTE. L'accueil envoyait jusqu'ici `gymId=` vide, et la séance ne
+     * pouvait pas démarrer.
+     *
+     * La règle vit désormais dans le moteur, avec sa démonstration. Ici, elle
+     * comptait toutes les salles lisibles — et la lecture est commune à tous
+     * les comptes, par décision de schéma : un compte sans aucun lieu pouvait
+     * donc hériter de celui d'un autre. La règle 1 (désigner explicitement la
+     * salle où l'on va, même tenue par quelqu'un d'autre) est intacte.
+     */
+    const salleDuJour = choisirSalleDuJour(
+      { id: userId, prefSalleParDefautId: user?.prefSalleParDefautId ?? null },
+      sallesUtilisateur,
+    );
 
     // Compter les appareils décrits sous-estimait ce qu'un lieu permet : une
     // salle dont le matériel est coché, ou une maison où l'on fait des pompes,

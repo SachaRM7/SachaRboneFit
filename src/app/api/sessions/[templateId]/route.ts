@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { seanceTemplates, exerciseInTemplate, programmeBlocs, exerciseInstances, exercises, gyms } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { derniereSeriesPour } from "@/services/plan-seance";
+import { dernieresSeriesPour } from "@/services/plan-seance";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { REPOS_PAR_DEFAUT_SECONDES } from "@/services/plan-seance";
 import { CHARGE_INCONNUE, configurationDe } from "@/lib/engine/charges";
@@ -68,10 +68,17 @@ export async function GET(
     // suggérée : le tableau de séries s'affichait alors avec une colonne kg
     // vide et « — » en face de chaque ligne, alors que les séries passées
     // existent. On applique ici la même double progression que le plan.
+    // Une lecture d'historique pour tout le gabarit, et non une par exercice :
+    // ce repli servait déjà six requêtes là où une suffit.
+    const references = await dernieresSeriesPour(
+      userId,
+      exercisesInTemplate.map((eit) => eit.exerciseInstanceId),
+    );
+
     const exercises = await Promise.all(
       exercisesInTemplate.map(async (eit) => {
         const inst = instanceMap.get(eit.exerciseInstanceId);
-        const derniere = inst ? await derniereSeriesPour(userId, inst.id) : null;
+        const derniere = inst ? references.get(inst.id) ?? null : null;
         const suggestion = computeNextSets(derniere, {
           fourchetteRepsMin: eit.fourchetteRepsMin,
           fourchetteRepsMax: eit.fourchetteRepsMax,

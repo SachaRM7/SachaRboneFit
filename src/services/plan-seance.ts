@@ -3,7 +3,7 @@ import {
   contraintes, dailyStates, exerciseInTemplate, exerciseInstances, exercises,
   programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs, users,
 } from "@/db/schema";
-import { and, asc, desc, eq, getTableName, isNull, or, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableName, inArray, isNull, or, gte, sql } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { contraintesActives } from "./contraintes";
 import { musclesSousContrainte } from "@/lib/engine/contraintes";
@@ -174,9 +174,37 @@ function seriesAttenduesDeLaReference() {
  * celle utilisée à la construction du plan, sinon la charge suggérée et la
  * colonne « Dernière » restent vides.
  */
-export async function derniereSeriesPour(userId: string, exerciseInstanceId: string) {
+export interface ReferenceExercice {
+  sets: Array<{ numero: number; reps: number; charge: number; rpe: number | null }>;
+  seriesAttendues: number | null;
+}
+
+/**
+ * Les dernières séries réalisées sur PLUSIEURS machines, en une requête.
+ *
+ * Elles étaient lues machine par machine : l'écran de séance appelait la
+ * version unitaire une fois par exercice, soit six allers-retours pour six
+ * exercices, et le coût grandissait avec la séance. Le pool applicatif
+ * n'ouvrant qu'UNE connexion, ces requêtes se sérialisaient — chacune payait
+ * sa latence l'une après l'autre, et un `Promise.all` n'y changeait rien.
+ *
+ * Le volume rapatrié reste petit : ce sont les séries faites sur ces machines-là
+ * seulement, soit quelques dizaines de lignes pour un historique ordinaire. Le
+ * tri est fait par la base ; le regroupement et le filtre de validité en
+ * mémoire, parce que ce dernier dépend des conventions de charge et ne
+ * s'exprimerait pas en SQL sans les y recopier.
+ */
+export async function dernieresSeriesPour(
+  userId: string,
+  exerciseInstanceIds: string[],
+): Promise<Map<string, ReferenceExercice>> {
+  const resultat = new Map<string, ReferenceExercice>();
+  const instances = [...new Set(exerciseInstanceIds)].filter(Boolean);
+  if (instances.length === 0) return resultat;
+
   const lignes = await db
     .select({
+      exerciseInstanceId: setLogs.exerciseInstanceId,
       sessionLogId: setLogs.sessionLogId,
       numero: setLogs.numeroSerie,
       reps: setLogs.repsEffectuees,
@@ -189,38 +217,68 @@ export async function derniereSeriesPour(userId: string, exerciseInstanceId: str
       // Sans le RPE, la séance précédente serait estimée sans réserve et la
       // séance en cours avec : les deux côtés ne mesureraient pas la même chose.
       rpe: setLogs.rpeEffectif,
-      date: sessionLogs.date,
       seriesAttendues: seriesAttenduesDeLaReference(),
     })
     .from(setLogs)
     .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
     .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
-    .where(and(eq(setLogs.exerciseInstanceId, exerciseInstanceId), and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe))))
+    .where(and(
+      inArray(setLogs.exerciseInstanceId, instances),
+      and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+    ))
     .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt), asc(setLogs.numeroSerie));
 
-  /**
-   * La référence ne retient que ce qui a eu lieu.
-   *
-   * Une séance de recette entièrement à 0 kg / 0 répétition servait de
-   * référence à la double progression : la fourchette haute était « atteinte »
-   * sur des séries vides, et l'accueil proposait +4,5 kg sur un exercice que
-   * personne n'avait fait. Les lignes restent en base — elles disent ce qui a
-   * été saisi — mais elles ne décident plus rien.
-   */
-  const valides = seriesRealisees(
-    lignes.map((l) => ({ ...l, repsEffectuees: l.reps })),
-    (l) => ({ conventionCharge: l.conventionCharge, natureCharge: l.natureCharge }),
-  );
-  if (valides.length === 0) return null;
+  const parInstance = new Map<string, typeof lignes>();
+  for (const ligne of lignes) {
+    const liste = parInstance.get(ligne.exerciseInstanceId) ?? [];
+    liste.push(ligne);
+    parInstance.set(ligne.exerciseInstanceId, liste);
+  }
 
-  const derniereSession = valides[0]!.sessionLogId;
-  const deLaReference = valides.filter((l) => l.sessionLogId === derniereSession);
-  return {
-    sets: deLaReference.map((l) => ({ numero: l.numero, reps: l.reps, charge: l.charge, rpe: l.rpe })),
-    // Identique sur toutes les lignes de la référence : la sous-requête ne
-    // dépend que de la séance et de la machine.
-    seriesAttendues: deLaReference[0]!.seriesAttendues ?? null,
-  };
+  for (const [instanceId, sesLignes] of parInstance) {
+    /**
+     * La référence ne retient que ce qui a eu lieu.
+     *
+     * Une séance de recette entièrement à 0 kg / 0 répétition servait de
+     * référence à la double progression : la fourchette haute était
+     * « atteinte » sur des séries vides, et l'accueil proposait +4,5 kg sur un
+     * exercice que personne n'avait fait. Les lignes restent en base — elles
+     * disent ce qui a été saisi — mais elles ne décident plus rien.
+     */
+    const valides = seriesRealisees(
+      sesLignes.map((l) => ({ ...l, repsEffectuees: l.reps })),
+      (l) => ({ conventionCharge: l.conventionCharge, natureCharge: l.natureCharge }),
+    );
+    if (valides.length === 0) continue;
+
+    const derniereSession = valides[0]!.sessionLogId;
+    const deLaReference = valides.filter((l) => l.sessionLogId === derniereSession);
+    resultat.set(instanceId, {
+      sets: deLaReference.map((l) => ({
+        numero: l.numero, reps: l.reps, charge: l.charge, rpe: l.rpe,
+      })),
+      // Identique sur toutes les lignes de la référence : la sous-requête ne
+      // dépend que de la séance et de la machine.
+      seriesAttendues: deLaReference[0]!.seriesAttendues ?? null,
+    });
+  }
+
+  return resultat;
+}
+
+/**
+ * La même chose, pour une seule machine.
+ *
+ * Conservée parce que deux chemins n'ont qu'un exercice à regarder — la
+ * substitution en cours de séance, et le repli du gabarit. Elle passe par la
+ * version groupée : une seule définition de « la dernière référence valable ».
+ */
+export async function derniereSeriesPour(
+  userId: string,
+  exerciseInstanceId: string,
+): Promise<ReferenceExercice | null> {
+  const parInstance = await dernieresSeriesPour(userId, [exerciseInstanceId]);
+  return parInstance.get(exerciseInstanceId) ?? null;
 }
 
 export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<ResultatConstruction> {
@@ -320,9 +378,14 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
   const seriesParLigne = new Map(ajustes.map((a) => [a.exerciseInTemplateId, a.seriesAjustees]));
 
   // --- Charge suggeree par double progression ---
+  //
+  // Les références de TOUS les exercices en une lecture : elles étaient prises
+  // une par une, donc autant d'allers-retours que d'exercices — et le pool
+  // n'ouvrant qu'une connexion, ils se suivaient au lieu de se superposer.
+  const references = await dernieresSeriesPour(ctx.userId, resolus.map((r) => r.instance.id));
   const suggestions = await Promise.all(
     resolus.map(async (r) => {
-      const derniere = await derniereSeriesPour(ctx.userId, r.instance.id);
+      const derniere = references.get(r.instance.id) ?? null;
       return computeNextSets(derniere, {
         fourchetteRepsMin: r.ligne.fourchetteRepsMin,
         fourchetteRepsMax: r.ligne.fourchetteRepsMax,
@@ -546,9 +609,14 @@ export async function lirePlan(userId: string, sessionLogId: string) {
     .where(eq(sessionPlanItems.sessionLogId, sessionLogId))
     .orderBy(asc(sessionPlanItems.ordre));
 
+  // Même lecture groupée que la construction : un plan de six exercices
+  // demandait six lectures d'historique, l'écran de séance les attendait
+  // toutes avant d'afficher quoi que ce soit.
+  const references = await dernieresSeriesPour(userId, lignes.map((l) => l.exerciseInstanceId));
+
   const items: ItemPlanEnrichi[] = await Promise.all(
     lignes.map(async (l) => {
-      const derniere = await derniereSeriesPour(userId, l.exerciseInstanceId);
+      const derniere = references.get(l.exerciseInstanceId) ?? null;
       return {
         motifProgression: motifDuMessagePersiste(l, derniere),
         id: l.exerciseInstanceId,

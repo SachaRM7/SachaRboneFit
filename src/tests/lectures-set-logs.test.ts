@@ -140,7 +140,15 @@ describe("les lectures enracinées sur une instance portent la règle", () => {
    * — `eq(exerciseInstances.id, setLogs.exerciseInstanceId)` —, donc ce motif
    * ne désigne que les requêtes qui partent vraiment d'un appareil.
    */
-  const ENRACINEE = /eq\(setLogs\.exerciseInstanceId,/g;
+  /**
+   * `inArray` autant que `eq` : grouper la lecture ne la sort pas de la règle.
+   *
+   * Le garde ne reconnaissait que la forme unitaire. Le jour où six lectures
+   * d'historique — une par exercice — ont été remplacées par une seule sur
+   * plusieurs instances, la requête a cessé d'être surveillée sans que rien ne
+   * le signale : le nombre de cas vérifiés a simplement baissé de un.
+   */
+  const ENRACINEE = /(?:eq|inArray)\(setLogs\.exerciseInstanceId,/g;
 
   /**
    * L'instruction qui contient ce point, et elle seule.

@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import { seancesRealisees, seancesActives } from "@/db/archivage";
 import type { Lecteur } from "@/db/lecteur";
 import {
-  exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
+  exerciseInstances, exercises, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
 import { and, asc, desc, eq, gte, inArray, isNull } from "drizzle-orm";
 import { computeAlerts, type Alert, type AlertsInput } from "@/lib/engine/alerts";
@@ -16,7 +16,8 @@ import {
 } from "@/lib/engine/records";
 import { reserveFiable } from "@/lib/engine/score-progression";
 import { SEUILS } from "@/lib/engine/bilan-progression";
-import { memoireEmpechements } from "./memoire";
+import { memoireEmpechements, type MemoireEmpechements } from "./memoire";
+import { lireBlocs, type BlocsDuProgramme } from "./blocs";
 
 /**
  * Agrégats de progression.
@@ -41,32 +42,49 @@ function semainesDepuis(dateISO: string): number {
  * a été fortement réduit (au moins -30 %). À défaut, on compte depuis le début
  * du bloc actif.
  */
+/**
+ * Ce que l'appelant a déjà lu et qu'il serait absurde de relire.
+ *
+ * Cette fonction faisait jusqu'à trois requêtes, dont deux que son appelant
+ * principal — `vueDuProgramme` via `mesurerCycle` — venait de faire pour son
+ * propre compte. Rien n'est mémorisé entre deux appels : ce sont les lectures
+ * d'un même traitement qui se passent la main, et un appelant qui ne fournit
+ * rien retrouve exactement le comportement d'avant.
+ */
+export interface PrealablesDeload {
+  blocs?: BlocsDuProgramme;
+  /**
+   * La séance réalisée la plus récente, avec au moins `date` et
+   * `volumeAjustePct`. `null` signifie « lue, et il n'y en a aucune » — c'est
+   * pourquoi `undefined` reste distinct : lui seul déclenche la lecture.
+   */
+  derniereSeance?: { date: string; volumeAjustePct: number | null } | null;
+}
+
 export async function semainesSansDeload(
   userId: string,
   executeur: Lecteur = db,
+  prealables: PrealablesDeload = {},
 ): Promise<number> {
-  const blocDeload = await executeur.query.programmeBlocs.findFirst({
-    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.typeCycle, "deload")),
-    orderBy: [desc(programmeBlocs.dateDebut)],
-  });
+  const blocs = prealables.blocs ?? (await lireBlocs(userId, executeur));
 
-  const seanceAllegee = await executeur.query.sessionLogs.findFirst({
-    where: seancesRealisees(userId),
-    orderBy: [desc(sessionLogs.date)],
-    columns: { date: true, volumeAjustePct: true },
-  });
+  const seanceAllegee =
+    prealables.derniereSeance !== undefined
+      ? prealables.derniereSeance
+      : ((await executeur.query.sessionLogs.findFirst({
+          where: seancesRealisees(userId),
+          orderBy: [desc(sessionLogs.date)],
+          columns: { date: true, volumeAjustePct: true },
+        })) ?? null);
 
   const candidats: string[] = [];
-  if (blocDeload) candidats.push(blocDeload.dateDebut);
+  if (blocs.dernierDeload) candidats.push(blocs.dernierDeload.dateDebut);
   if (seanceAllegee?.volumeAjustePct != null && seanceAllegee.volumeAjustePct <= -30) {
     candidats.push(seanceAllegee.date);
   }
 
   if (candidats.length === 0) {
-    const blocActif = await executeur.query.programmeBlocs.findFirst({
-      where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
-    });
-    return blocActif ? semainesDepuis(blocActif.dateDebut) : 0;
+    return blocs.actif ? semainesDepuis(blocs.actif.dateDebut) : 0;
   }
 
   return Math.min(...candidats.map(semainesDepuis));
@@ -350,14 +368,24 @@ export async function feuDeTendance(userId: string): Promise<FeuBiologique | nul
   return computeFeuTendance({ sessions }).feu;
 }
 
-/** Toutes les alertes de l'utilisateur, nourries de vraies valeurs. */
-export async function alertes(userId: string): Promise<Alert[]> {
+/**
+ * Toutes les alertes de l'utilisateur, nourries de vraies valeurs.
+ *
+ * `prealables` sert au tableau de bord, qui appelle `alertes` et
+ * `vueDuProgramme` côte à côte : sans lui, les deux relisent les mêmes blocs et
+ * la même mémoire d'empêchements dans le même rendu. Appelée seule, la fonction
+ * lit tout elle-même, comme avant.
+ */
+export async function alertes(
+  userId: string,
+  prealables: { blocs?: BlocsDuProgramme; memoire?: MemoireEmpechements } = {},
+): Promise<Alert[]> {
   const [completedRanges, listeStagnations, sansDeload, tendance, memoire] = await Promise.all([
     fourchettesCompletees(userId),
     stagnations(userId),
-    semainesSansDeload(userId),
+    semainesSansDeload(userId, db, { blocs: prealables.blocs }),
     feuDeTendance(userId),
-    memoireEmpechements(userId),
+    prealables.memoire ?? memoireEmpechements(userId),
   ]);
 
   const alertesCalculees = computeAlerts({

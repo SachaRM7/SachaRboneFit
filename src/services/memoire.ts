@@ -22,6 +22,21 @@ import {
 export interface MemoireEmpechements {
   classes: EmpechementClasse[];
   suggestions: SuggestionProgramme[];
+  /**
+   * Les séances où au moins un exercice prévu a été empêché.
+   *
+   * L'écran Programme relisait `session_plan_items` pour son propre compte,
+   * afin de marquer les séances adaptées de la semaine — la même table, le même
+   * tri, avec `empecheParLesCirconstances` appliqué une seconde fois. Ce
+   * décompte tombe de la lecture déjà faite ici : rien n'est calculé en plus,
+   * seulement retourné.
+   *
+   * La portée est celle de la mémoire — tout l'historique non archivé — donc
+   * plus large que ce qu'un appelant borné à un bloc regardera. Il n'y consulte
+   * que des identifiants qu'il possède déjà, un identifiant en trop ne lui dit
+   * donc rien de faux.
+   */
+  seancesAdaptees: Set<string>;
 }
 
 export async function memoireEmpechements(
@@ -30,6 +45,7 @@ export async function memoireEmpechements(
 ): Promise<MemoireEmpechements> {
   const lignes = await db
     .select({
+      sessionLogId: sessionPlanItems.sessionLogId,
       prevuInstanceId: sessionPlanItems.exerciseInstancePrevuId,
       faitInstanceId: sessionPlanItems.exerciseInstanceId,
       raison: sessionPlanItems.raisonSubstitution,
@@ -47,6 +63,7 @@ export async function memoireEmpechements(
     .where(and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)));
 
   const empechements: EmpechementBrut[] = [];
+  const seancesAdaptees = new Set<string>();
   for (const l of lignes) {
     const tracee = {
       exerciseInstanceId: l.faitInstanceId,
@@ -55,6 +72,7 @@ export async function memoireEmpechements(
       contexteAdaptation: l.contexte as ContexteAdaptation | null,
     };
     if (!empecheParLesCirconstances(tracee)) continue;
+    seancesAdaptees.add(l.sessionLogId);
     empechements.push({
       exerciceId: l.exerciceId,
       instanceId: l.prevuInstanceId!,
@@ -65,5 +83,5 @@ export async function memoireEmpechements(
   }
 
   const classes = classerEmpechements({ empechements, aujourdhui });
-  return { classes, suggestions: suggestionsProgramme(classes) };
+  return { classes, suggestions: suggestionsProgramme(classes), seancesAdaptees };
 }
