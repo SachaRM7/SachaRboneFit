@@ -69,3 +69,56 @@ describe("routes de l'application", () => {
     expect(toutes.map(cheminDeRoute)).toContain("/dashboard");
   });
 });
+
+/**
+ * Un segment dynamique porte le même nom pour tous ses voisins.
+ *
+ * `api/sessions/[templateId]` et `api/sessions/[id]/debrief` ont cohabité un
+ * lot entier. `next build` les compile sans rien dire ; c'est le SERVEUR qui
+ * refuse, au chargement du manifeste de routes, avec « You cannot use
+ * different slug names for the same dynamic path ». Le manifeste étant chargé
+ * une fois pour toutes, l'erreur ne frappe pas la route fautive : elle frappe
+ * toutes les requêtes, y compris `/login`.
+ *
+ * C'est le pire genre de panne — invisible à la compilation, totale à
+ * l'exécution. Elle se détecte pourtant en relisant des noms de dossiers.
+ */
+function dossiers(depuis: string, trouves: string[] = []): string[] {
+  for (const entree of readdirSync(depuis)) {
+    const complet = join(depuis, entree);
+    if (statSync(complet).isDirectory()) {
+      trouves.push(complet);
+      dossiers(complet, trouves);
+    }
+  }
+  return trouves;
+}
+
+describe("segments dynamiques", () => {
+  it("ne portent jamais deux noms différents à la même position", () => {
+    // La clé est le chemin PARENT, groupes de routes retirés : c'est la
+    // position que Next compare. La valeur, l'ensemble des noms trouvés.
+    const parPosition = new Map<string, Set<string>>();
+
+    for (const dossier of dossiers(APP)) {
+      const nom = dossier.slice(dossier.lastIndexOf("/") + 1);
+      if (!nom.startsWith("[")) continue;
+
+      const parent = dossier
+        .slice(APP.length, dossier.length - nom.length - 1)
+        .split("/")
+        .filter((s) => s && !(s.startsWith("(") && s.endsWith(")")))
+        .join("/");
+
+      const noms = parPosition.get(parent) ?? new Set<string>();
+      noms.add(nom);
+      parPosition.set(parent, noms);
+    }
+
+    const conflits = [...parPosition.entries()]
+      .filter(([, noms]) => noms.size > 1)
+      .map(([parent, noms]) => `/${parent} : ${[...noms].join(" et ")}`);
+
+    expect(conflits, "Le serveur refusera de servir la moindre route.").toEqual([]);
+  });
+});
