@@ -1,13 +1,11 @@
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ServiceWorkerRegister } from "@/components/layout/ServiceWorkerRegister";
 import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
 import { FournisseurCoach } from "@/components/coach/ContexteCoach";
 import { BoutonCoach } from "@/components/coach/BoutonCoach";
-import { createClient } from "@/lib/supabase/server";
-import { db } from "@/db/client";
-import { users } from "@/db/schema";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { onboardingTermine } from "@/services/profil-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -18,15 +16,9 @@ export const dynamic = "force-dynamic";
  * vide qui ne sait rien lui proposer.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const profil = await db.query.users.findFirst({
-    where: eq(users.id, user.id),
-    columns: { onboardingTermineLe: true },
-  });
-  if (!profil?.onboardingTermineLe) redirect("/bienvenue");
+  const userId = await getAuthenticatedUserId();
+  if (!userId) redirect("/login");
+  if (!(await onboardingTermine(userId))) redirect("/bienvenue");
 
   return (
     <FournisseurCoach>

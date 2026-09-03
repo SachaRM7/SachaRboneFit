@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { db } from "@/db/client";
 import { exercises, exerciseInstances } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
@@ -13,12 +13,10 @@ import { LIBELLES_CONVENTION } from "@/lib/validators/exercise-instance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function ExerciseDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  // Mémoïsé pour la durée du rendu : le layout vient de faire cet
+  // aller-retour vers le serveur d'authentification, inutile de le refaire.
+  const userId = await getAuthenticatedUserId();
+  if (!userId) redirect("/login");
 
   const { id } = await params;
 

@@ -9,6 +9,7 @@ import { GestionProgramme, type SeanceProgramme, type MachineDisponible } from "
 import { CreationBlocForm } from "@/components/programme/CreationBlocForm";
 import { VueCycle, OptionsAvancees } from "@/components/programme/VueCycle";
 import { vueDuProgramme } from "@/services/cycle";
+import { onboardingTermine } from "@/services/profil-cache";
 
 /**
  * Programme : comprendre et inspecter la programmation.
@@ -27,18 +28,23 @@ export default async function ProgrammePage() {
   if (!userId) redirect("/login");
 
   // Sans onboarding terminé, il n'y a rien à programmer : on y renvoie plutôt
-  // que d'afficher un écran vide expliquant qu'il n'y a rien.
-  const profil = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { onboardingTermineLe: true },
-  });
-  if (!profil?.onboardingTermineLe) redirect("/bienvenue");
+  // que d'afficher un écran vide expliquant qu'il n'y a rien. La réponse est
+  // celle que le layout vient d'obtenir — la question n'est pas reposée.
+  if (!(await onboardingTermine(userId))) redirect("/bienvenue");
 
-  const vue = await vueDuProgramme(userId);
-
-  const bloc = await db.query.programmeBlocs.findFirst({
-    where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
-  });
+  /**
+   * Deux lectures sans lien entre elles : elles n'ont pas à s'attendre.
+   *
+   * Sur une connexion unique, deux `await` successifs se sérialisent, et la
+   * seconde ne commence qu'une fois la première revenue. `Promise.all` les
+   * envoie ensemble ; c'est la seule chose qui change.
+   */
+  const [vue, bloc] = await Promise.all([
+    vueDuProgramme(userId),
+    db.query.programmeBlocs.findFirst({
+      where: and(and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)), eq(programmeBlocs.actif, true)),
+    }),
+  ]);
 
   const [instances, salles] = await Promise.all([
     db.query.exerciseInstances.findMany({

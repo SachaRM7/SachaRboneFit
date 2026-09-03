@@ -292,21 +292,32 @@ export async function feuDeTendance(userId: string): Promise<FeuBiologique | nul
     toutesLesSeries.map((x) => ({ date: "", charge: 1, reps: 1, rir: reserveDepuisRpe(x.rpe) })),
   );
 
+  /**
+   * Les séries des trois séances, en UNE requête.
+   *
+   * Elles étaient lues séance par séance, dans un `Promise.all` qui donnait
+   * l'illusion du parallélisme : le pool applicatif n'ouvre qu'UNE connexion,
+   * les trois requêtes se sérialisaient donc, chacune payant sa latence. Le
+   * `Promise.all` ne parallélise que ce qui peut l'être ailleurs qu'en base.
+   */
+  const toutesLesLignes = await db
+    .select({
+      sessionLogId: setLogs.sessionLogId,
+      exerciseInstanceId: setLogs.exerciseInstanceId,
+      exerciseName: exercises.nom,
+      charge: setLogs.charge,
+      reps: setLogs.repsEffectuees,
+      rpe: setLogs.rpeEffectif,
+      categorieRole: exercises.categorieRole,
+    })
+    .from(setLogs)
+    .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
+    .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+    .where(inArray(setLogs.sessionLogId, dernieres.map((s) => s.id)));
+
   const sessions = await Promise.all(
     dernieres.map(async (s) => {
-      const lignes = await db
-        .select({
-          exerciseInstanceId: setLogs.exerciseInstanceId,
-          exerciseName: exercises.nom,
-          charge: setLogs.charge,
-          reps: setLogs.repsEffectuees,
-          rpe: setLogs.rpeEffectif,
-          categorieRole: exercises.categorieRole,
-        })
-        .from(setLogs)
-        .innerJoin(exerciseInstances, eq(exerciseInstances.id, setLogs.exerciseInstanceId))
-        .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-        .where(eq(setLogs.sessionLogId, s.id));
+      const lignes = toutesLesLignes.filter((l) => l.sessionLogId === s.id);
 
       // Le feu de tendance ne regarde que les piliers : un accessoire varie trop.
       const meilleurs = new Map<string, SessionPilierPerf>();

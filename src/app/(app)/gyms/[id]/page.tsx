@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { db } from "@/db/client";
 import { exerciseInstances, gyms } from "@/db/schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -11,12 +11,10 @@ import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import Link from "next/link";
 
 export default async function GymDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    redirect("/login");
-  }
+  // Mémoïsé pour la durée du rendu : le layout vient de faire cet
+  // aller-retour vers le serveur d'authentification, inutile de le refaire.
+  const userId = await getAuthenticatedUserId();
+  if (!userId) redirect("/login");
 
   const { id } = await params;
 
@@ -37,7 +35,7 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
       exerciseInstances,
       and(eq(exerciseInstances.gymId, gyms.id), machinesUtilisablesAujourdhui()),
     )
-    .where(and(eq(gyms.id, id), eq(gyms.userId, user.id), isNull(gyms.archiveLe)))
+    .where(and(eq(gyms.id, id), eq(gyms.userId, userId), isNull(gyms.archiveLe)))
     .groupBy(gyms.id)
     .limit(1);
 
