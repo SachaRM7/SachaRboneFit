@@ -48,8 +48,24 @@ export default function LoginPage() {
     }
 
     toast.success("Connexion réussie");
-    router.push("/dashboard");
-    router.refresh();
+
+    /*
+     * UNE navigation, pas deux.
+     *
+     * `push` suivi de `refresh` demandait au serveur de rendre le tableau de
+     * bord DEUX FOIS : la première pour la navigation, la seconde parce que
+     * `refresh` invalide ce qui vient d'arriver et le redemande. Sur un écran
+     * qui coûte plusieurs secondes, la connexion en payait donc deux.
+     *
+     * Le rafraîchissement n'apporte rien ici : `/dashboard` est rendu
+     * dynamiquement à chaque requête, et cette navigation-là est la première —
+     * il n'y a aucun cache antérieur à invalider. Le cas qui en aurait besoin,
+     * la déconnexion, garde le sien.
+     *
+     * `replace` plutôt que `push` : revenir en arrière depuis le tableau de
+     * bord ne doit pas ramener sur un formulaire de connexion déjà utilisé.
+     */
+    router.replace("/dashboard");
   };
 
   return (

@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { ServiceWorkerRegister } from "@/components/layout/ServiceWorkerRegister";
@@ -6,6 +7,7 @@ import { FournisseurCoach } from "@/components/coach/ContexteCoach";
 import { BoutonCoach } from "@/components/coach/BoutonCoach";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { onboardingTermine } from "@/services/profil-cache";
+import { nommerTrace, phase, publier } from "@/lib/mesure/trace";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +18,20 @@ export const dynamic = "force-dynamic";
  * vide qui ne sait rien lui proposer.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Le nom de la route, transmis par le proxy sous forme réduite. C'est ce qui
+  // permet de regrouper les mesures par écran plutôt que par visite.
+  nommerTrace((await headers()).get("x-route-forme"));
+
   const userId = await getAuthenticatedUserId();
   if (!userId) redirect("/login");
-  if (!(await onboardingTermine(userId))) redirect("/bienvenue");
+  if (!(await phase("calcul", "onboardingTermine", () => onboardingTermine(userId)))) {
+    redirect("/bienvenue");
+  }
+
+  // Publié ICI, pendant la requête. Cette ligne isole le coût partagé par tous
+  // les écrans : la vérification d'identité et le garde d'onboarding, avant
+  // que la page n'ait commencé son propre travail.
+  publier("layout");
 
   return (
     <FournisseurCoach>

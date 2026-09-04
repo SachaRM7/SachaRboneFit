@@ -4,62 +4,48 @@ import { toast } from "sonner";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { FeuBiologique } from "@/components/ui/FeuBiologique";
 import { Sparkline } from "@/components/ui/Sparkline";
-import { Calendar, Dumbbell, Activity, TrendingDown, Play, ChevronRight } from "lucide-react";
+import { Activity, Play } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
-import type { Alert } from "@/lib/engine/alerts";
 import type { EtatDuJour } from "@/lib/engine/etat-du-jour";
 import { CarteAujourdhui } from "@/components/dashboard/CarteAujourdhui";
-import { AlertList } from "@/components/alerts/AlertList";
 
-interface DashboardData {
+interface DonneesEssentielles {
   user: { nom: string; poidsActuel: number | null };
-  blocActif: {
-    nom: string;
-    libelleCycle: string;
-    semaine: number;
-    semainesTotal: number | null;
-    enCalibration: boolean;
-    seancesFaites: number;
-    seancesDeLaSemaine: number;
-  } | null;
   etat: EtatDuJour;
   feuJour: "vert" | "orange" | "rouge" | null;
   feuTendance: "vert" | "orange" | "rouge" | null;
-  alertesPreSeance: Alert[];
   poids30jours: Array<{ date: string; poids: number }>;
-  precalcSession: { contenu: string } | null;
-  weeklyDebrief: { contenu: string; weekStart: string } | null;
-  recentSessions: Array<{
-    id: string;
-    date: string;
-    dureeMinutes: number | null;
-    energieFin: number | null;
-    templateNom: string | null;
-    templateLettre: string | null;
-    gymNom: string | null;
-  }>;
 }
 
 /**
- * L'accueil, rendu avec ses données.
+ * L'accueil, avec ce qui décide de la journée.
  *
- * Cet écran était un composant client qui appelait `/api/dashboard` APRÈS son
- * montage : HTML, puis JavaScript, puis requête, puis rendu — quatre étapes en
- * série avant le premier chiffre, et un squelette pendant tout ce temps.
+ * Cet écran attendait TOUT avant de s'afficher : les alertes, le programme,
+ * les débriefs, l'historique — une trentaine de requêtes sérialisées, dont
+ * aucune ne change ce que l'utilisateur va faire dans la minute qui suit.
  *
- * Les données arrivent maintenant par `props`, calculées par la page serveur.
- * Ce composant reste client parce qu'il en a besoin pour de vraies raisons :
- * le store de séance, la feuille d'abandon, la détection de séance périmée.
- * Ce qui a disparu, c'est l'attente.
+ * Il ne reçoit plus que l'essentiel, et deux emplacements. `carteProgramme` et
+ * `complement` sont rendus par le serveur et passés en `props` : un composant
+ * client peut recevoir des nœuds serveur, et c'est ce qui permet de streamer
+ * le reste sans transformer cet écran en une grappe de requêtes navigateur.
+ * Le composant reste client pour de vraies raisons — le store de séance, la
+ * feuille d'abandon, la détection de séance périmée.
  */
-export function ContenuTableauDeBord({ data }: { data: DashboardData }) {
+export function ContenuTableauDeBord({
+  data,
+  carteProgramme,
+  complement,
+}: {
+  data: DonneesEssentielles;
+  carteProgramme?: ReactNode;
+  complement?: ReactNode;
+}) {
   const router = useRouter();
   const { active, clear } = useSessionStore();
 
@@ -140,44 +126,10 @@ export function ContenuTableauDeBord({ data }: { data: DashboardData }) {
         </div>
       </div>
 
-      {/* Le programme n'a pas d'onglet — c'est une décision assumée : ce n'est
-          pas une destination quotidienne. Mais il ne doit pas être à deux
-          gestes pour autant. Toute la carte est le lien : un second gros bouton
-          entrerait en concurrence avec celui de la séance du jour. */}
-      {data.blocActif && (
-        <div className="px-4 pb-2">
-          <Link
-            href="/programme"
-            className="flex items-center gap-3 rounded-xl border border-filet bg-carte px-4 py-3"
-          >
-            <span className="min-w-0 flex-1">
-              <span className="block text-encre text-sm font-medium truncate">
-                {data.blocActif.libelleCycle}
-              </span>
-              <span className="block text-encre-3 text-xs mt-0.5">
-                {data.blocActif.enCalibration ? (
-                  <>
-                    <span className="chiffres">{data.blocActif.seancesFaites}</span> séance
-                    {data.blocActif.seancesFaites > 1 ? "s" : ""} mesurée
-                    {data.blocActif.seancesFaites > 1 ? "s" : ""}
-                  </>
-                ) : (
-                  <>
-                    Semaine <span className="chiffres">{data.blocActif.semaine}</span>
-                    {data.blocActif.semainesTotal !== null && (
-                      <> sur <span className="chiffres">{data.blocActif.semainesTotal}</span></>
-                    )}
-                  </>
-                )}
-                {" · "}
-                <span className="chiffres">{data.blocActif.seancesDeLaSemaine}</span> séance
-                {data.blocActif.seancesDeLaSemaine > 1 ? "s" : ""} cette semaine
-              </span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-encre-3 shrink-0" aria-hidden />
-          </Link>
-        </div>
-      )}
+      {/* Le raccourci vers le programme arrive du serveur, en différé : il
+          coûte à lui seul huit requêtes, et il n'aide personne à décider de
+          sa séance. Sa place, en revanche, ne bouge pas. */}
+      {carteProgramme}
 
       {/* Le dégagement de la barre de navigation est posé une fois, par le
           layout, marge du bas comprise. Le `pb-20` qui était ici s'y ajoutait
@@ -314,93 +266,10 @@ export function ContenuTableauDeBord({ data }: { data: DashboardData }) {
           </CardContent>
         </Card>
 
-        {/* Alertes — le composant existait mais n'était monté nulle part. */}
-        {data.alertesPreSeance && data.alertesPreSeance.length > 0 && (
-          <Card className="bg-carte border-filet">
-            <CardHeader>
-              <CardTitle className="text-encre-2 flex items-center gap-2">
-                <TrendingDown className="w-4 h-4" />
-                Alertes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <AlertList alerts={data.alertesPreSeance} />
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Precalc session preview */}
-        {data.precalcSession && (
-          <Card className="bg-carte border-filet">
-            <CardHeader>
-              <CardTitle className="text-encre-2 flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Séance de demain
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-encre-2 text-sm whitespace-pre-wrap">{data.precalcSession.contenu}</p>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Weekly debrief */}
-        {data.weeklyDebrief && (
-          <Card className="bg-carte border-filet">
-            <CardHeader>
-              <CardTitle className="text-encre-2 flex items-center gap-2">
-                <Activity className="w-4 h-4" />
-                Débrief hebdomadaire
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <details className="cursor-pointer">
-                <summary className="text-encre-2 text-sm font-medium">
-                  Semaine du {data.weeklyDebrief.weekStart}
-                </summary>
-                <p className="text-encre-2 text-sm mt-2 whitespace-pre-wrap">
-                  {data.weeklyDebrief.contenu}
-                </p>
-              </details>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Dernieres seances */}
-        {data.recentSessions && data.recentSessions.length > 0 && (
-          <Card className="bg-carte border-filet">
-            <CardHeader>
-              <CardTitle className="text-encre-2 flex items-center gap-2">
-                <Dumbbell className="w-4 h-4" />
-                Séances récentes
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {data.recentSessions.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => router.push(`/sessions/${s.id}?templateLettre=${encodeURIComponent(s.templateLettre || "")}&sessionDate=${encodeURIComponent(s.date)}`)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg bg-papier-2 hover:bg-papier-2 transition-colors text-left"
-                >
-                  <div>
-                    <p className="text-encre font-medium text-sm">
-                      {s.templateNom || "Séance libre"}
-                      {s.templateLettre && <span className="text-encre-3 ml-1">({s.templateLettre})</span>}
-                    </p>
-                    <p className="text-encre-3 text-xs">
-                      {s.date}
-                      {s.gymNom && ` — ${s.gymNom}`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    {s.dureeMinutes && <p className="text-encre-2 text-sm">{s.dureeMinutes} min</p>}
-                    {s.energieFin && <p className="text-encre-3 text-xs">Énergie {s.energieFin}/10</p>}
-                  </div>
-                </button>
-              ))}
-            </CardContent>
-          </Card>
-        )}
+        {/* Alertes, séance de demain, débriefs, historique récent : une
+            vingtaine de requêtes que le serveur envoie dès qu'elles sont
+            prêtes, sans retenir tout ce qui précède. */}
+        {complement}
       </div>
     </div>
   );

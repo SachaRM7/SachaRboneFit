@@ -37,7 +37,10 @@ export default async function NewSessionPage() {
 
       <div className="space-y-3">
         {templates.map((template) => (
-          <Link key={template.id} href={`/sessions/new/${template.id}?gymId=`}>
+          /* Chaque cible CONSTRUIT un plan de séance : résolution du parc,
+             charges, progression. Précharger la liste, c'est en construire
+             autant qu'il y a de gabarits, à chaque affichage. */
+          <Link key={template.id} href={`/sessions/new/${template.id}?gymId=`} prefetch={false}>
             <Card className="bg-carte border-filet hover:border-filet cursor-pointer">
               <CardContent className="flex items-center gap-4 p-4">
                 <div className="w-12 h-12 rounded-full bg-papier-2 flex items-center justify-center">

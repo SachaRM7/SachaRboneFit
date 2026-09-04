@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
  * Deux chemins mènent à cet écran, et ce fichier les tient tous les deux :
  *
  *   le PLAN      `construireSeanceDuJour` → `session_plan_items`
- *   le REPLI     `/api/sessions/[templateId]`, utilisé dès que le plan est vide
+ *   le REPLI     `/api/sessions/[id]`, utilisé dès que le plan est vide
  *
  * Le repli est la garantie de dernier recours : il ne consulte ni la salle, ni
  * l'état du jour, ni la résolution. Tant qu'il rend une ligne par exercice
@@ -25,7 +25,7 @@ vi.mock("@/lib/supabase/auth-helper", () => ({ getAuthenticatedUserId: async () 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
 const { construireSeanceDuJour } = await import("@/services/plan-seance");
-const { GET: lireGabarit } = await import("@/app/api/sessions/[templateId]/route");
+const { GET: lireGabarit } = await import("@/app/api/sessions/[id]/route");
 
 let gabarit = "";
 let salle = "";
@@ -109,7 +109,7 @@ describe("le plan du jour", () => {
 describe("le repli du gabarit ne peut pas rendre une séance vide", () => {
   it("rend une ligne par exercice programmé", async () => {
     const reponse = await lireGabarit(new Request("http://t/api/sessions/x"), {
-      params: Promise.resolve({ templateId: gabarit }),
+      params: Promise.resolve({ id: gabarit }),
     });
 
     // Le défaut : la route échouait en 500, l'écran lisait `t.exercises` sur un

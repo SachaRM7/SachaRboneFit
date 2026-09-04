@@ -9,14 +9,27 @@ import { REPOS_PAR_DEFAUT_SECONDES } from "@/services/plan-seance";
 import { CHARGE_INCONNUE, configurationDe } from "@/lib/engine/charges";
 import { detailErreur } from "@/lib/erreurs";
 
+/**
+ * Le repli du gabarit — et pourquoi le segment s'appelle `id`.
+ *
+ * Ce dossier s'appelait `[templateId]`, à côté de `[id]/debrief` ajouté plus
+ * tard. Next refuse deux noms de paramètre différents à la même position :
+ * `next build` passe, mais le serveur lève « You cannot use different slug
+ * names for the same dynamic path » au chargement du manifeste de routes,
+ * c'est-à-dire sur TOUTES les requêtes, pas seulement celles-ci.
+ *
+ * Les deux URL sont conservées telles quelles ; seul le nom du paramètre
+ * change. Il désigne bien ici un gabarit de séance, et le renommage local
+ * ci-dessous le dit, faute de pouvoir le dire dans le chemin.
+ */
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ templateId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const userId = await getAuthenticatedUserId();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { templateId } = await params;
+  const { id: templateId } = await params;
   try {
     const template = await db.query.seanceTemplates.findFirst({
       where: eq(seanceTemplates.id, templateId),
@@ -119,7 +132,7 @@ export async function GET(
 
     return NextResponse.json({ ...template, exercises });
   } catch (error) {
-    console.error("[sessions/templateId] error:", error);
+    console.error("[sessions/id] error:", error);
     return NextResponse.json({ error: `Lecture de la séance : ${detailErreur(error)}` }, { status: 500 });
   }
 }

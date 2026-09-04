@@ -8,6 +8,7 @@ import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { BORNES_DUREE, OBJECTIFS, SEXES } from "@/lib/validators/onboarding";
 import { MATERIEL_PORTABLE } from "@/lib/referentiels/capacites";
 import { createClient } from "@/lib/supabase/server";
+import { publier } from "@/lib/mesure/trace";
 
 export async function GET() {
   const userId = await getAuthenticatedUserId();
@@ -26,8 +27,28 @@ export async function POST(request: Request) {
   // Cree la ligne applicative users apres inscription Supabase.
   // L'identite vient de la session authentifiee, jamais du corps de la requete :
   // avant, cette route etait ouverte et acceptait un id et un email arbitraires.
+  /*
+   * Vérifier l'identité sans aller-retour réseau.
+   *
+   * Cette route est appelée par le formulaire de connexion, et ATTENDUE avant
+   * la navigation vers l'accueil : chaque milliseconde ici retarde l'écran.
+   * `getUser()` interrogeait le serveur d'authentification ; `getClaims()`
+   * vérifie la signature du jeton sur place quand le projet utilise une clé
+   * asymétrique. La garantie est la même — un jeton forgé, modifié ou expiré
+   * échoue — et les deux informations dont cette route a besoin, l'adresse et
+   * le prénom des métadonnées, sont dans le jeton signé.
+   */
   const supabase = await createClient();
-  const { data: { user: authUser } } = await supabase.auth.getUser();
+  const { data, error: erreurAuth } = await supabase.auth.getClaims();
+  const claims = erreurAuth ? null : data?.claims ?? null;
+
+  const authUser = typeof claims?.sub === "string" && claims.sub.length > 0
+    ? {
+        id: claims.sub,
+        email: typeof claims.email === "string" ? claims.email : undefined,
+        user_metadata: claims.user_metadata,
+      }
+    : null;
 
   if (!authUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -46,6 +67,9 @@ export async function POST(request: Request) {
   });
 
   if (existing) {
+    // La connexion attend cette route avant de naviguer : sa durée fait
+    // partie du temps de connexion ressenti, et doit donc se mesurer.
+    publier("api/user");
     return NextResponse.json({ user: existing });
   }
 
@@ -63,6 +87,7 @@ export async function POST(request: Request) {
     })
     .returning();
 
+  publier("api/user");
   return NextResponse.json({ user }, { status: 201 });
 }
 

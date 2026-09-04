@@ -29,7 +29,7 @@ export function ExerciseList({ exercises, salleId = null }: ExerciseListProps) {
   return (
     <div className="space-y-2 px-4">
       {exercises.map((ex) => (
-        <Link key={ex.id} href={`/exercises/${ex.id}`}>
+        <Link key={ex.id} href={`/exercises/${ex.id}`} prefetch={false}>
           <div className="bg-carte border border-filet rounded-lg p-3 hover:border-filet transition-colors">
             <div className="flex items-start gap-3">
               {ex.slug && CATALOGUE_PAR_SLUG.has(ex.slug) ? (
