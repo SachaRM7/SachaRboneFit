@@ -5,6 +5,7 @@ import { essentielTableauDeBord } from "@/services/tableau-de-bord";
 import { ContenuTableauDeBord } from "@/components/dashboard/ContenuTableauDeBord";
 import { CarteProgramme } from "@/components/dashboard/CarteProgramme";
 import { ComplementTableauDeBord } from "@/components/dashboard/ComplementTableauDeBord";
+import { phase, publier } from "@/lib/mesure/trace";
 
 /**
  * L'accueil, rendu par le serveur — et plus en une seule attente.
@@ -26,7 +27,19 @@ export default async function DashboardPage() {
   const userId = await getAuthenticatedUserId();
   if (!userId) redirect("/login");
 
-  const essentiel = await essentielTableauDeBord(userId);
+  const essentiel = await phase("calcul", "essentielTableauDeBord", () =>
+    essentielTableauDeBord(userId),
+  );
+
+  /*
+   * Le chemin critique s'arrête ici, et cette ligne le date.
+   *
+   * L'écart entre cette ligne et celle du complément EST la mesure du
+   * streaming : si les deux tombent au même instant, rien n'est streamé et la
+   * limite de suspension ne sert à rien. Vercel, lui, ne mesure que la fin de
+   * la réponse — il ne peut pas dire quand le premier contenu est parti.
+   */
+  publier("essentiel");
 
   return (
     <ContenuTableauDeBord

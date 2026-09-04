@@ -7,7 +7,7 @@ import { FournisseurCoach } from "@/components/coach/ContexteCoach";
 import { BoutonCoach } from "@/components/coach/BoutonCoach";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { onboardingTermine } from "@/services/profil-cache";
-import { nommerTrace } from "@/lib/mesure/trace";
+import { nommerTrace, phase, publier } from "@/lib/mesure/trace";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +24,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const userId = await getAuthenticatedUserId();
   if (!userId) redirect("/login");
-  if (!(await onboardingTermine(userId))) redirect("/bienvenue");
+  if (!(await phase("calcul", "onboardingTermine", () => onboardingTermine(userId)))) {
+    redirect("/bienvenue");
+  }
+
+  // Publié ICI, pendant la requête. Cette ligne isole le coût partagé par tous
+  // les écrans : la vérification d'identité et le garde d'onboarding, avant
+  // que la page n'ait commencé son propre travail.
+  publier("layout");
 
   return (
     <FournisseurCoach>

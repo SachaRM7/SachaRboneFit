@@ -1,29 +1,36 @@
 /**
  * Mesurer une navigation en production, sans rien apprendre sur la personne.
  *
- * Les chiffres qu'on avait jusqu'ici venaient d'une base locale, sur la même
- * machine que le code : ils disaient le NOMBRE de requêtes, jamais leur coût
- * réel. Or le coût réel d'une navigation est fait de trois choses qu'une
- * mesure locale annule toutes les trois — la latence vers l'authentification,
- * la latence vers la base, et le démarrage à froid d'une fonction.
+ * Première version : une ligne par requête, publiée par `after()`. Elle
+ * fonctionnait sous `next start` et **n'a rien produit sur Vercel** — l'onglet
+ * Logs d'une requête `/dashboard` affichait « No logs found for this
+ * request ». Deux raisons, toutes deux structurelles :
  *
- * D'où ce module. Il produit UNE ligne de journal par requête HTTP, en JSON
- * sur une seule ligne, préfixée `[perf]` : Vercel la range telle quelle, et on
- * peut la filtrer, la trier, la comparer d'un déploiement à l'autre.
+ *  1. `after()` s'exécute APRÈS l'envoi de la réponse. Ce qu'il journalise
+ *     n'appartient plus à la requête : Vercel range ces lignes ailleurs, quand
+ *     il les garde. Publier au sein de la requête est la seule façon d'être sûr
+ *     qu'une ligne soit rattachée à elle.
+ *  2. Le proxy s'exécute dans une INVOCATION SÉPARÉE de la fonction de page.
+ *     Ses lignes ne peuvent pas apparaître sous la requête `/dashboard`, quoi
+ *     qu'on écrive. Elles sortent par un en-tête de réponse, lisible sans
+ *     journal du tout.
+ *
+ * D'où cette version. Rien n'est différé : chaque point de mesure publie
+ * pendant la requête. Et la mesure ne dépend plus d'un seul canal — les mêmes
+ * chiffres sont servis par `/api/diagnostic/perf`, qui s'ouvre dans un
+ * navigateur et n'a besoin d'aucun accès aux journaux.
  *
  * Ce qui n'y figure jamais : aucun identifiant de compte, aucun courriel,
- * aucune donnée d'entraînement, aucun paramètre d'URL. Le chemin est réduit à
- * sa forme — `/sessions/[id]` et non `/sessions/9f3a…` — parce qu'un
- * identifiant de séance dans un journal est une donnée personnelle de plus, et
- * qu'il n'apprend rien qu'on ne sache déjà.
+ * aucune donnée d'entraînement, aucun paramètre d'URL, aucun texte de requête
+ * SQL. Le chemin est réduit à sa forme — `/sessions/[id]` et non
+ * `/sessions/9f3a…`. Les appels réseau ne gardent que leur CHEMIN : un jeton de
+ * rafraîchissement voyage en paramètre, il ne doit jamais être journalisé.
  *
- * L'instrumentation est ACTIVE PAR DÉFAUT et coûte quelques microsecondes :
- * des appels à `performance.now()` et un objet. Elle se coupe avec
- * `PERF_TRACE=off`, prévu pour le jour où le bruit dépasse l'usage.
+ * Se coupe avec `PERF_TRACE=off`.
  */
 
 import { cache } from "react";
-import { after } from "next/server";
+import { AsyncLocalStorage } from "node:async_hooks";
 
 export type Phase =
   | "proxy"
@@ -41,15 +48,28 @@ interface Mesure {
   ms: number;
 }
 
-interface Trace {
+/** Un aller-retour réseau vers Supabase, réellement parti. */
+export interface AppelReseau {
+  /** Le chemin seul. Jamais la requête complète : elle porte des jetons. */
+  chemin: string;
+  ms: number;
+}
+
+export interface Trace {
   route: string;
   debut: number;
   mesures: Mesure[];
   /** Requêtes SQL réellement parties, comptées à la source. */
   requetesSql: number;
   msSql: number;
-  /** Validations d'identité réellement effectuées dans cette requête HTTP. */
+  /** Appels à une méthode de vérification d'identité. */
   validationsAuth: number;
+  /**
+   * Allers-retours RÉSEAU vers Supabase. C'est le chiffre qui compte : une
+   * validation peut n'en provoquer aucun (vérification locale) ou deux (JWKS
+   * puis repli). Les compter est la seule façon de le savoir.
+   */
+  appelsSupabase: AppelReseau[];
   /** Vrai quand cette instance vient d'être créée : c'est un démarrage à froid. */
   froid: boolean;
 }
@@ -59,8 +79,8 @@ interface Trace {
  *
  * Le module est évalué une fois par instance de fonction. La première requête
  * qui le traverse paie donc l'initialisation complète — imports, connexion,
- * compilation — et les suivantes non. C'est exactement ce qu'on cherche à
- * distinguer, et ça ne se voit d'aucune autre façon depuis l'intérieur.
+ * compilation — et les suivantes non. Ça ne se voit d'aucune autre façon
+ * depuis l'intérieur.
  */
 let instanceDejaServie = false;
 
@@ -68,42 +88,39 @@ export function traceActive(): boolean {
   return process.env.PERF_TRACE !== "off";
 }
 
-/**
- * La trace de la requête en cours, créée à la première mesure.
- *
- * `cache()` de React donne exactement la portée voulue : une valeur par
- * requête HTTP servie, et rien qui survive à la réponse. Deux requêtes
- * concurrentes ne partagent pas leur trace, et aucune donnée ne franchit la
- * frontière — ce qui compte d'autant plus qu'on journalise.
- *
- * `after()` fournit la fin de requête, qu'aucun composant ne connaît sinon :
- * la ligne part une fois la réponse envoyée, donc sans rien lui coûter. Hors
- * d'une requête — un script, un test — il n'y a ni portée ni fin de requête :
- * `after()` refuse, on renvoie `null`, et toutes les mesures deviennent des
- * appels directs.
- */
-const traceCourante = cache((): Trace | null => {
-  if (!traceActive()) return null;
-
+function creer(route: string): Trace {
   const trace: Trace = {
-    route: "inconnue",
+    route,
     debut: performance.now(),
     mesures: [],
     requetesSql: 0,
     msSql: 0,
     validationsAuth: 0,
+    appelsSupabase: [],
     froid: !instanceDejaServie,
   };
-
-  try {
-    after(() => publier(trace));
-  } catch {
-    return null;
-  }
-
   instanceDejaServie = true;
   return trace;
-});
+}
+
+/**
+ * Deux portées, parce qu'il y a deux runtimes.
+ *
+ * Le rendu passe par `cache()` de React : une valeur par requête HTTP servie,
+ * rien qui survive à la réponse, et deux requêtes concurrentes qui ne
+ * partagent rien. Le proxy, lui, ne rend rien — il n'a pas de portée React —
+ * et s'enveloppe donc explicitement dans un stockage asynchrone.
+ *
+ * L'ordre compte : le stockage explicite l'emporte, sinon un appel fait depuis
+ * le proxy irait chercher une portée de rendu qui n'existe pas.
+ */
+const stockage = new AsyncLocalStorage<Trace>();
+const traceDuRendu = cache((): Trace => creer("rendu"));
+
+export function traceCourante(): Trace | null {
+  if (!traceActive()) return null;
+  return stockage.getStore() ?? traceDuRendu();
+}
 
 /**
  * Réduit un chemin à sa FORME.
@@ -123,13 +140,18 @@ export function formeDuChemin(chemin: string): string {
     .join("/");
 }
 
+/** Ouvre une trace explicite — le proxy, qui n'a pas de portée de rendu. */
+export function tracerHorsRendu<T>(route: string, travail: (trace: Trace) => T): T {
+  if (!traceActive()) return travail(creer(route));
+  const trace = creer(formeDuChemin(route));
+  return stockage.run(trace, () => travail(trace));
+}
+
 /**
  * Donne son nom à la trace en cours.
  *
  * Le rendu ne connaît pas le chemin demandé : c'est le proxy qui le sait, et
- * il le transmet par un en-tête de requête. Sans nom, la ligne reste lisible —
- * les journaux de Vercel portent déjà le chemin — mais elle ne se regroupe
- * plus par route.
+ * il le transmet par un en-tête de requête.
  */
 export function nommerTrace(route: string | null | undefined): void {
   if (!route) return;
@@ -146,13 +168,7 @@ export async function phase<T>(phase: Phase, quoi: string, travail: () => Promis
   try {
     return await travail();
   } finally {
-    const ms = performance.now() - debut;
-    trace.mesures.push({ phase, quoi, ms: arrondi(ms) });
-    if (phase === "db") {
-      trace.requetesSql += 1;
-      trace.msSql += ms;
-    }
-    if (phase === "auth") trace.validationsAuth += 1;
+    noterDans(trace, phase, quoi, performance.now() - debut);
   }
 }
 
@@ -165,7 +181,10 @@ export async function phase<T>(phase: Phase, quoi: string, travail: () => Promis
  */
 export function noter(phase: Phase, quoi: string, ms = 0): void {
   const trace = traceCourante();
-  if (!trace) return;
+  if (trace) noterDans(trace, phase, quoi, ms);
+}
+
+function noterDans(trace: Trace, phase: Phase, quoi: string, ms: number): void {
   trace.mesures.push({ phase, quoi, ms: arrondi(ms) });
   if (phase === "db") {
     trace.requetesSql += 1;
@@ -176,18 +195,83 @@ export function noter(phase: Phase, quoi: string, ms = 0): void {
 
 const arrondi = (ms: number) => Math.round(ms * 10) / 10;
 
-/**
- * Une ligne, en JSON, préfixée `[perf]`.
- *
- * Le format tient en une ligne parce que les journaux de Vercel découpent les
- * messages multilignes en entrées distinctes : une trace éclatée sur douze
- * lignes n'est plus une trace, c'est douze fragments à recoller à la main.
- */
-function publier(trace: Trace): void {
-  const total = performance.now() - trace.debut;
+/* ------------------------------------------------------------------ */
+/* La sonde réseau                                                     */
+/* ------------------------------------------------------------------ */
 
-  // Le détail est regroupé par phase : ce qu'on cherche d'abord, c'est
-  // « où sont passées les secondes », pas la liste des appels.
+/**
+ * Compter les allers-retours vers Supabase, plutôt que les supposer.
+ *
+ * `getClaims()` peut n'en provoquer aucun (signature vérifiée sur place), un
+ * (téléchargement du trousseau public, une fois par instance), ou deux (repli
+ * réseau, ou rafraîchissement de session). Aucune lecture de code ne tranche :
+ * ça dépend de la configuration du projet et de l'âge du jeton. La seule
+ * réponse fiable est de compter ce qui part vraiment.
+ *
+ * La sonde est posée une fois, sur `fetch` global, et attribue chaque appel à
+ * la trace COURANTE — pas à une variable partagée. C'est ce qui la rend sûre
+ * quand deux requêtes se chevauchent dans la même instance.
+ *
+ * Seul le chemin est retenu. Jamais la requête complète : un rafraîchissement
+ * de session porte son jeton en paramètre.
+ */
+let hoteSupabase: string | null | undefined;
+
+function estSupabase(hote: string): boolean {
+  if (hoteSupabase === undefined) {
+    try {
+      hoteSupabase = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").host;
+    } catch {
+      hoteSupabase = null;
+    }
+  }
+  return hoteSupabase !== null && hote === hoteSupabase;
+}
+
+interface FetchSonde {
+  (entree: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+  sonde?: true;
+}
+
+function poserLaSonde(): void {
+  if (!traceActive()) return;
+  const original = globalThis.fetch as FetchSonde | undefined;
+  if (!original || original.sonde) return;
+
+  const sonde: FetchSonde = async (entree, init) => {
+    const debut = performance.now();
+    try {
+      return await original(entree, init);
+    } finally {
+      try {
+        const brut =
+          typeof entree === "string" ? entree
+            : entree instanceof URL ? entree.href
+              : entree.url;
+        const url = new URL(brut);
+        if (estSupabase(url.host)) {
+          traceCourante()?.appelsSupabase.push({
+            chemin: url.pathname,
+            ms: arrondi(performance.now() - debut),
+          });
+        }
+      } catch {
+        // Une URL relative ou illisible n'est pas un appel Supabase.
+      }
+    }
+  };
+  sonde.sonde = true;
+  globalThis.fetch = sonde;
+}
+
+poserLaSonde();
+
+/* ------------------------------------------------------------------ */
+/* Publication                                                         */
+/* ------------------------------------------------------------------ */
+
+/** L'état d'une trace, prêt à être journalisé ou servi en JSON. */
+export function instantane(trace: Trace, point: string) {
   const parPhase: Record<string, { ms: number; n: number }> = {};
   for (const m of trace.mesures) {
     const entree = parPhase[m.phase] ?? { ms: 0, n: 0 };
@@ -200,24 +284,37 @@ function publier(trace: Trace): void {
   // pris deux secondes sans savoir laquelle des trente requêtes les a prises.
   const dominant = [...trace.mesures].sort((a, b) => b.ms - a.ms)[0];
 
-  console.log(
-    "[perf] " +
-      JSON.stringify({
-        route: trace.route,
-        // Où cette fonction s'est exécutée. Si la base vit à Francfort et la
-        // fonction à Washington, chacune des trente requêtes d'un écran paie
-        // un aller-retour transatlantique — et aucune optimisation de code ne
-        // rattrape ça. Vercel ne le dit nulle part dans les journaux ; il
-        // remplit cette variable, et c'est le seul endroit d'où on peut la
-        // lire. Elle ne désigne personne.
-        region: process.env.VERCEL_REGION ?? null,
-        total: arrondi(total),
-        froid: trace.froid,
-        auth: trace.validationsAuth,
-        sql: trace.requetesSql,
-        msSql: arrondi(trace.msSql),
-        phases: parPhase,
-        dominant: dominant ? { quoi: dominant.quoi, ms: dominant.ms } : null,
-      }),
-  );
+  return {
+    route: trace.route,
+    point,
+    // Où cette fonction s'est exécutée. Si la base vit en Europe et la
+    // fonction à Washington, chaque requête paie un aller-retour
+    // transatlantique — et aucune optimisation de code ne rattrape ça.
+    region: process.env.VERCEL_REGION ?? null,
+    depuisLeDebut: arrondi(performance.now() - trace.debut),
+    froid: trace.froid,
+    auth: trace.validationsAuth,
+    reseauSupabase: trace.appelsSupabase,
+    sql: trace.requetesSql,
+    msSql: arrondi(trace.msSql),
+    phases: parPhase,
+    dominant: dominant ? { quoi: dominant.quoi, ms: dominant.ms } : null,
+  };
+}
+
+/**
+ * Une ligne, en JSON, préfixée `[perf]`, PENDANT la requête.
+ *
+ * Le format tient en une ligne parce que les journaux de Vercel découpent les
+ * messages multilignes en entrées distinctes : une trace éclatée sur douze
+ * lignes n'est plus une trace, c'est douze fragments à recoller à la main.
+ *
+ * `point` dit à quel moment du rendu la ligne a été émise. Plusieurs lignes
+ * par requête, donc — et c'est voulu : l'écart entre « essentiel » et
+ * « complement » EST la mesure du streaming.
+ */
+export function publier(point: string): void {
+  const trace = traceCourante();
+  if (!trace) return;
+  console.log("[perf] " + JSON.stringify(instantane(trace, point)));
 }

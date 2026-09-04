@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Dumbbell, Activity, TrendingDown } from "lucide-react";
 import { AlertList } from "@/components/alerts/AlertList";
 import { complementTableauDeBord } from "@/services/tableau-de-bord";
+import { phase, publier } from "@/lib/mesure/trace";
 
 /**
  * Ce que l'accueil montre après coup.
@@ -18,7 +19,13 @@ import { complementTableauDeBord } from "@/services/tableau-de-bord";
  * pas.
  */
 export async function ComplementTableauDeBord({ userId }: { userId: string }) {
-  const data = await complementTableauDeBord(userId);
+  const data = await phase("calcul", "complementTableauDeBord", () =>
+    complementTableauDeBord(userId),
+  );
+
+  // La seconde borne du streaming. Comparée à « essentiel », elle dit combien
+  // de temps le complément a retenu la réponse après le premier contenu.
+  publier("complement");
 
   return (
     <>

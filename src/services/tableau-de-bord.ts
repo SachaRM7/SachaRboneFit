@@ -12,6 +12,7 @@ import { lireBlocs } from "@/services/blocs";
 import { memoireEmpechements } from "@/services/memoire";
 import { exercicesRealisables, statutInventaire } from "@/lib/engine/disponibilite";
 import { phase } from "@/lib/mesure/trace";
+import { contexteEssentiel, inventaireDuLieu } from "@/services/tableau-de-bord-lecture";
 
 /**
  * L'accueil, coupé en deux : ce qu'on attend, et ce qui peut arriver après.
@@ -102,117 +103,80 @@ export type ComplementTableauDeBord = Awaited<ReturnType<typeof complementTablea
  * Le critère n'est pas « ce qui est rapide » mais « ce dont dépend la décision
  * de l'utilisateur en ouvrant l'application » : son identité, l'état du jour,
  * la séance à faire, son feu. Tout le reste attend.
+ *
+ * Treize allers-retours vers la base, devenus DEUX. Le premier lit tout ce qui
+ * ne dépend que du compte ; le second le parc du lieu, une fois ce lieu choisi
+ * — et il ne part que s'il y a un lieu. Le découpage vient de là, pas d'une
+ * limite technique : `choisirSalleDuJour` est une règle métier, avec sa
+ * démonstration, et on ne la réécrit pas en SQL pour gagner un aller-retour.
+ *
+ * Toutes les règles restent en TypeScript. La base ne fait que lire.
  */
 export async function essentielTableauDeBord(userId: string) {
   const todayStr = aujourdhui();
   const { debut: weekStartStr } = bornesSemaine();
 
-  const { blocs } = await contexteCommun(userId, todayStr);
-  const blocActif = blocs.actif;
+  const contexte = await phase("calcul", "contexteEssentiel", () =>
+    contexteEssentiel(userId, todayStr, weekStartStr),
+  );
 
   /**
-   * Tout ce qui ne dépend que de `userId`, d'un coup.
+   * La rotation, à partir de ce qui vient d'être lu.
    *
-   * Ces lectures étaient écrites l'une après l'autre, chacune précédée d'un
-   * `await`. Aucune n'attendait la précédente : elles ne partageaient que
-   * l'identifiant de l'utilisateur, connu dès la première ligne.
-   *
-   * Une lecture a disparu au passage : le poids courant et la courbe des
-   * trente jours venaient de deux requêtes sur `body_weights`, avec le même
-   * filtre et le même tri, la première ne prenant que la première ligne de la
-   * seconde.
+   * `prochaineSeance()` faisait trois requêtes pour ça — le bloc actif (déjà
+   * lu), ses gabarits, et le dernier gabarit clos. La règle, elle, ne change
+   * pas : le gabarit suivant celui de la dernière séance close, dans l'ordre
+   * de la semaine, en repartant du premier une fois le tour fini.
    */
-  const [user, poids, lastSession, suite, dailyStateToday, seancesDeLaSemaine, salles] =
-    await Promise.all([
-      db.query.users.findFirst({ where: (users, { eq }) => eq(users.id, userId) }),
-      db.query.bodyWeights.findMany({
-        where: eq(bodyWeights.userId, userId),
-        orderBy: [desc(bodyWeights.date)],
-        limit: 30,
-      }),
-      db.query.sessionLogs.findFirst({
-        where: seancesRealisees(userId),
-        orderBy: [desc(sessionLogs.createdAt)],
-        columns: { feuBiologiqueTendance: true },
-      }),
-      // La rotation était dupliquée ici, avec le même défaut qu'ailleurs :
-      // lettres A/B/C en dur, cycle figé à trois séances. Elle passe par le
-      // service, qui s'appuie sur `ordreDansSemaine` et le nombre réel de
-      // séances du bloc.
-      prochaineSeance(userId),
-      db.query.dailyStates.findFirst({
-        where: and(eq(dailyStates.userId, userId), eq(dailyStates.date, todayStr)),
-      }),
-      db.query.sessionLogs.findMany({
-        columns: { date: true },
-        where: and(seancesRealisees(userId), gte(sessionLogs.date, weekStartStr)),
-      }),
-      lireSalles(),
-    ]);
+  const gabarits = contexte.gabarits;
+  const indexPrecedent = contexte.dernierGabaritId
+    ? gabarits.findIndex((g) => g.id === contexte.dernierGabaritId)
+    : -1;
+  const suivante = gabarits.length > 0
+    ? gabarits[(indexPrecedent + 1) % gabarits.length]!
+    : null;
 
-  const seanceSuivante = suite
-    ? { lettre: suite.template.lettre, templateId: suite.template.id, templateNom: suite.template.nom }
+  const seanceSuivante = suivante
+    ? { lettre: suivante.lettre ?? "", templateId: suivante.id, templateNom: suivante.nom }
     : { lettre: "", templateId: "", templateNom: "Aucune séance programmée" };
 
   let feuJour: "vert" | "orange" | "rouge" | null = null;
-  if (dailyStateToday) {
+  if (contexte.etatDuJour) {
     // Mêmes valeurs par défaut que le constructeur de séance : le tableau de
     // bord annonçait un feu que la séance pouvait ensuite contredire.
-    feuJour = computeFeuJour(etatPourLeMoteur(dailyStateToday)).feu;
+    feuJour = computeFeuJour(etatPourLeMoteur(contexte.etatDuJour)).feu;
   }
 
   let feuTendance: "vert" | "orange" | "rouge" | null = null;
-  if (lastSession?.feuBiologiqueTendance) {
-    const f = lastSession.feuBiologiqueTendance;
-    if (f === "vert" || f === "orange" || f === "rouge") {
-      feuTendance = f;
-    }
-  }
+  const f = contexte.feuTendance;
+  if (f === "vert" || f === "orange" || f === "rouge") feuTendance = f;
 
   /**
    * Salle du jour : la préférence posée à l'onboarding, sinon l'unique salle
    * DU COMPTE. L'accueil envoyait jusqu'ici `gymId=` vide, et la séance ne
    * pouvait pas démarrer.
    *
-   * La règle vit désormais dans le moteur, avec sa démonstration. Ici, elle
-   * comptait toutes les salles lisibles — et la lecture est commune à tous
-   * les comptes, par décision de schéma : un compte sans aucun lieu pouvait
-   * donc hériter de celui d'un autre. La règle 1 (désigner explicitement la
-   * salle où l'on va, même tenue par quelqu'un d'autre) est intacte.
+   * La règle vit dans le moteur, avec sa démonstration. La lecture des salles
+   * est commune à tous les comptes, par décision de schéma : un compte sans
+   * aucun lieu pouvait donc hériter de celui d'un autre. La règle 1 (désigner
+   * explicitement la salle où l'on va, même tenue par quelqu'un d'autre) est
+   * intacte.
    */
   const salleDuJour = choisirSalleDuJour(
-    { id: userId, prefSalleParDefautId: user?.prefSalleParDefautId ?? null },
-    salles,
+    { id: userId, prefSalleParDefautId: contexte.utilisateur?.prefSalleParDefautId ?? null },
+    contexte.salles,
   );
 
   // Compter les appareils décrits sous-estimait ce qu'un lieu permet : une
   // salle dont le matériel est coché, ou une maison où l'on fait des pompes,
   // s'affichait « vide » et renvoyait l'utilisateur saisir du matériel.
-  /**
-   * Combien d'exercices ce lieu permet, et a-t-on dit quoi que ce soit de lui.
-   *
-   * Le catalogue était lu avec sept colonnes — dont `muscles_principaux`, un
-   * tableau JSON — pour les cent vingt exercices, alors que seul le NOMBRE
-   * d'exercices faisables est renvoyé. Trois colonnes suffisent à compter.
-   */
-  const inventaireDuJour = salleDuJour
-    ? await Promise.all([
-        db.query.exercises.findMany({
-          columns: { id: true, equipement: true, slug: true },
-        }),
-        db.query.exerciseInstances.findMany({
-          where: and(
-            eq(exerciseInstances.gymId, salleDuJour.id),
-            machinesUtilisablesAujourdhui(),
-          ),
-          columns: { id: true, exerciseId: true, machineNom: true, incrementsPossibles: true },
-        }),
-      ])
+  const inventaire = salleDuJour
+    ? await phase("calcul", "inventaireDuLieu", () => inventaireDuLieu(salleDuJour.id))
     : null;
 
-  const exercicesRealisablesIci = salleDuJour && inventaireDuJour
+  const exercicesRealisablesIci = salleDuJour && inventaire
     ? exercicesRealisables({
-        catalogue: inventaireDuJour[0].map((e) => ({
+        catalogue: inventaire.catalogue.map((e) => ({
           ...e, nom: "", pilier: "", categorieRole: "", musclesPrincipaux: [],
         })),
         equipementsDuLieu: salleDuJour.equipementsDisponibles ?? [],
@@ -220,8 +184,8 @@ export async function essentielTableauDeBord(userId: string) {
         // Le matériel emporté aujourd'hui compte comme présent, sans être
         // inscrit au lieu : des élastiques dans un sac ne sont pas ceux de
         // la salle.
-        equipementsApportes: dailyStateToday?.materielApporte ?? [],
-        instances: inventaireDuJour[1].map((i) => ({
+        equipementsApportes: contexte.etatDuJour?.materielApporte ?? [],
+        instances: inventaire.instances.map((i) => ({
           ...i, incrementsPossibles: i.incrementsPossibles ?? [],
         })),
       }).length
@@ -230,32 +194,32 @@ export async function essentielTableauDeBord(userId: string) {
   // Décrit veut dire : quelqu'un s'est prononcé sur ce lieu — en cochant du
   // matériel, fût-ce aucun, ou en décrivant un appareil.
   const lieuRenseigne = salleDuJour
-    ? salleDuJour.equipementsDisponibles !== null || (inventaireDuJour?.[1].length ?? 0) > 0
+    ? salleDuJour.equipementsDisponibles !== null || (inventaire?.instances.length ?? 0) > 0
     : false;
 
   const etat = etatDuJour({
     salle: salleDuJour ? { id: salleDuJour.id, nom: salleDuJour.nom } : null,
     exercicesRealisablesIci,
     lieuRenseigne,
-    prochaineSeance: suite
-      ? { templateId: suite.template.id, lettre: suite.template.lettre, nom: suite.template.nom }
+    prochaineSeance: suivante
+      ? { templateId: suivante.id, lettre: suivante.lettre ?? "", nom: suivante.nom }
       : null,
-    seanceFaiteAujourdhui: seancesDeLaSemaine.some((s) => s.date === todayStr),
-    enCalibration: blocActif?.typeCycle === "calibration",
-    seancesCetteSemaine: seancesDeLaSemaine.length,
-    frequenceMaxParSemaine: user?.frequenceMaxParSemaine ?? null,
+    seanceFaiteAujourdhui: contexte.semaine.includes(todayStr),
+    enCalibration: contexte.blocActif?.typeCycle === "calibration",
+    seancesCetteSemaine: contexte.semaine.length,
+    frequenceMaxParSemaine: contexte.utilisateur?.frequenceMaxParSemaine ?? null,
   });
 
   return {
     etat,
     user: {
-      nom: user?.nom ?? "Sacha",
-      poidsActuel: poids[0]?.poids ?? null,
+      nom: contexte.utilisateur?.nom ?? "Sacha",
+      poidsActuel: contexte.poids[0]?.poids ?? null,
     },
     prochaineSeance: seanceSuivante,
     feuJour,
     feuTendance,
-    poids30jours: poids.map((bw) => ({ date: bw.date, poids: bw.poids })),
+    poids30jours: contexte.poids,
   };
 }
 

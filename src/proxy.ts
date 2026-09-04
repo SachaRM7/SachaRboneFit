@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { formeDuChemin } from '@/lib/mesure/trace';
+import { formeDuChemin, phase, traceActive, tracerHorsRendu } from '@/lib/mesure/trace';
 
 /**
  * Le garde d'entrée, et ce qu'il coûtait.
@@ -45,92 +45,125 @@ export const PROTEGES = [
 ] as const;
 
 export async function proxy(request: NextRequest) {
-  const debut = performance.now();
+  return tracerHorsRendu(request.nextUrl.pathname, async (trace) => {
+    const debut = performance.now();
 
-  /*
-   * Le rendu ne sait pas quel chemin a été demandé — il ne voit qu'un arbre de
-   * composants. Le proxy, lui, le sait. Il transmet la FORME du chemin, jamais
-   * le chemin lui-même : un identifiant de séance n'a rien à faire dans un
-   * en-tête recopié dans un journal.
-   */
-  const enTetes = new Headers(request.headers);
-  enTetes.set('x-route-forme', formeDuChemin(request.nextUrl.pathname));
+    /*
+     * Le rendu ne sait pas quel chemin a été demandé — il ne voit qu'un arbre
+     * de composants. Le proxy, lui, le sait. Il transmet la FORME du chemin,
+     * jamais le chemin lui-même : un identifiant de séance n'a rien à faire
+     * dans un en-tête recopié dans un journal.
+     */
+    const enTetes = new Headers(request.headers);
+    enTetes.set('x-route-forme', formeDuChemin(request.nextUrl.pathname));
 
-  const response = NextResponse.next({
-    request: { headers: enTetes },
-  });
+    const response = NextResponse.next({
+      request: { headers: enTetes },
+    });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value);
+              response.cookies.set(name, value, options);
+            });
+          },
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value);
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    }
-  );
-
-  /**
-   * UNE seule validation. Elle rafraîchit la session si nécessaire — c'est le
-   * client SSR qui s'en charge en lisant les cookies — et rend les
-   * revendications du jeton une fois sa signature vérifiée.
-   */
-  const debutAuth = performance.now();
-  const { data, error } = await supabase.auth.getClaims();
-  const msAuth = performance.now() - debutAuth;
-
-  const connecte = !error && typeof data?.claims?.sub === 'string';
-
-  const url = request.nextUrl.clone();
-  const chemin = url.pathname;
-
-  let redirection: NextResponse | null = null;
-
-  if (PROTEGES.some((prefixe) => chemin.startsWith(prefixe)) && !connecte) {
-    url.pathname = '/login';
-    redirection = NextResponse.redirect(url);
-  } else if ((chemin === '/login' || chemin === '/register') && connecte) {
-    url.pathname = '/dashboard';
-    redirection = NextResponse.redirect(url);
-  }
-
-  /*
-   * Une ligne par passage, sans identité.
-   *
-   * Le proxy s'exécute dans un runtime distinct du rendu : il ne partage ni la
-   * trace ni le stockage asynchrone du reste de l'application, et mesure donc
-   * son propre temps. C'est aussi ce qui explique qu'il ne PUISSE pas
-   * déduplifier sa validation avec celle du rendu.
-   *
-   * `authMs` proche de zéro = vérification locale. Plusieurs dizaines de
-   * millisecondes = le projet signe encore en symétrique, et `getClaims()` est
-   * reparti sur le réseau.
-   */
-  if (process.env.PERF_TRACE !== 'off') {
-    console.log(
-      '[perf-proxy] ' +
-        JSON.stringify({
-          route: formeDuChemin(chemin),
-          // Le proxy s'exécute en périphérie, souvent loin du rendu : comparer
-          // les deux régions dit si la latence vient de la géographie.
-          region: process.env.VERCEL_REGION ?? null,
-          total: Math.round((performance.now() - debut) * 10) / 10,
-          authMs: Math.round(msAuth * 10) / 10,
-          validations: 1,
-          redirige: redirection !== null,
-        }),
+      }
     );
-  }
 
-  return redirection ?? response;
+    /**
+     * UNE seule validation. Elle rafraîchit la session si nécessaire — c'est le
+     * client SSR qui s'en charge en lisant les cookies — et rend les
+     * revendications du jeton une fois sa signature vérifiée.
+     *
+     * UNE validation ne veut pas dire UN aller-retour : elle peut n'en
+     * provoquer aucun, ou plusieurs. La sonde réseau les compte, et ce sont eux
+     * qui apparaissent dans les requêtes sortantes de Vercel.
+     */
+    const { data, error } = await phase('auth', 'getClaims', () =>
+      supabase.auth.getClaims(),
+    );
+
+    const connecte = !error && typeof data?.claims?.sub === 'string';
+
+    const url = request.nextUrl.clone();
+    const chemin = url.pathname;
+
+    let redirection: NextResponse | null = null;
+
+    if (PROTEGES.some((prefixe) => chemin.startsWith(prefixe)) && !connecte) {
+      url.pathname = '/login';
+      redirection = NextResponse.redirect(url);
+    } else if ((chemin === '/login' || chemin === '/register') && connecte) {
+      url.pathname = '/dashboard';
+      redirection = NextResponse.redirect(url);
+    }
+
+    const sortie = redirection ?? response;
+
+    /*
+     * Deux canaux, parce que le premier n'a rien donné.
+     *
+     * Le proxy s'exécute dans une INVOCATION SÉPARÉE de la fonction de page :
+     * ses lignes de journal n'apparaîtront jamais sous la requête `/dashboard`,
+     * quoi qu'on écrive. C'est ce qui a fait croire que l'instrumentation ne
+     * fonctionnait pas.
+     *
+     * Elles sortent donc aussi par des en-têtes de réponse, qui n'ont besoin
+     * d'aucun journal : ils se lisent dans l'inspecteur du navigateur ou avec
+     * un `curl -I`. `Server-Timing` est le format standard pour ça, et les
+     * outils de développement l'affichent tels quels.
+     *
+     * Rien d'identifiant n'y passe : une durée, un compte, et le CHEMIN des
+     * appels réseau — jamais leur requête complète, qui porte des jetons.
+     */
+    if (traceActive()) {
+      const total = Math.round((performance.now() - debut) * 10) / 10;
+      const msAuth = trace.mesures.find((m) => m.phase === 'auth')?.ms ?? 0;
+      const appels = trace.appelsSupabase;
+
+      sortie.headers.set(
+        'Server-Timing',
+        [
+          `proxy;dur=${total}`,
+          `auth;dur=${msAuth}`,
+          `supabase;dur=${Math.round(appels.reduce((s, a) => s + a.ms, 0) * 10) / 10};desc="${appels.length} appel(s)"`,
+        ].join(', '),
+      );
+      // Le détail, pour savoir CE QUE sont ces appels : un trousseau public,
+      // un repli de validation, un rafraîchissement de session.
+      sortie.headers.set(
+        'x-perf-supabase',
+        appels.map((a) => `${a.chemin}=${a.ms}`).join(' ') || 'aucun',
+      );
+      sortie.headers.set('x-perf-region', process.env.VERCEL_REGION ?? 'inconnue');
+      sortie.headers.set('x-perf-froid', String(trace.froid));
+
+      console.log(
+        '[perf-proxy] ' +
+          JSON.stringify({
+            route: formeDuChemin(chemin),
+            region: process.env.VERCEL_REGION ?? null,
+            froid: trace.froid,
+            total,
+            authMs: msAuth,
+            validations: 1,
+            reseauSupabase: appels,
+            redirige: redirection !== null,
+          }),
+      );
+    }
+
+    return sortie;
+  });
 }
 
 export const config = {
