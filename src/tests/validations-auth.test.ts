@@ -80,15 +80,23 @@ const AUTORISES: Record<string, { appels: number; pourquoi: string }> = {
   "app/api/user/route.ts": {
     appels: 1,
     pourquoi:
-      "Création de la ligne applicative juste après l'inscription : elle a " +
-      "besoin de l'objet utilisateur complet (courriel, métadonnées), pas " +
-      "seulement de l'identifiant. Une fois par compte, jamais sur un écran.",
+      "Création de la ligne applicative après inscription ou connexion. Elle " +
+      "a besoin du courriel et des métadonnées, pas seulement de " +
+      "l'identifiant — les deux sont dans le jeton signé, donc lus sans " +
+      "réseau. Le formulaire de connexion l'ATTEND avant de naviguer.",
   },
   "app/api/onboarding/route.ts": {
     appels: 1,
     pourquoi:
       "Même cas : le courriel d'authentification est recopié dans le profil " +
       "au premier enregistrement. Une fois par compte.",
+  },
+  "app/api/diagnostic/perf/route.ts": {
+    appels: 1,
+    pourquoi:
+      "La route de diagnostic MESURE une vérification neuve : la mémoïsée ne " +
+      "dirait que le coût d'une lecture de mémoire. Elle n'est atteinte que " +
+      "quand on l'ouvre à la main.",
   },
   "app/(app)/settings/page.tsx": {
     appels: 1,

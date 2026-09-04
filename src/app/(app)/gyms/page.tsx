@@ -79,7 +79,7 @@ export default async function GymsPage() {
 
       <div className="space-y-3">
         {salles.map(({ gym, appareils }) => (
-          <Link key={gym.id} href={`/gyms/${gym.id}`} className="block">
+          <Link key={gym.id} href={`/gyms/${gym.id}`} prefetch={false} className="block">
             <GymCard gym={gym} appareils={appareils} />
           </Link>
         ))}

@@ -95,6 +95,7 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
               <Link
                 key={s.id}
                 href={`/sessions/${s.id}?templateLettre=${encodeURIComponent(s.templateLettre || "")}&sessionDate=${encodeURIComponent(s.date)}`}
+                prefetch={false}
                 className="w-full flex items-center justify-between p-3 rounded-lg bg-papier-2 transition-colors text-left"
               >
                 <div>

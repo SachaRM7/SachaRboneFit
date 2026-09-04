@@ -219,6 +219,9 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
               <li key={s.templateId}>
                 <Link
                   href={`/sessions/new/${s.templateId}`}
+                  /* Même raison que la liste des séances : ces cibles
+                     construisent un plan complet. On ne les anticipe pas. */
+                  prefetch={false}
                   className="w-full px-4 py-3.5 flex items-center gap-3"
                 >
                   <span className="min-w-0 flex-1">

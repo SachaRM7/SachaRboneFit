@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
+import { nommerTrace, publier } from "@/lib/mesure/trace";
 
 /**
  * La porte d'entrée, et elle est empruntée à chaque lancement.
@@ -15,6 +16,12 @@ import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
  * envoie sur `/login`.
  */
 export default async function Home() {
+  nommerTrace("/");
   const userId = await getAuthenticatedUserId();
+
+  // Ce redirect est franchi à chaque lancement : sa durée fait partie du temps
+  // d'ouverture ressenti, et elle se mesure ici comme ailleurs.
+  publier("racine");
+
   redirect(userId ? "/dashboard" : "/login");
 }

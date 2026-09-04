@@ -99,7 +99,7 @@ export default async function HistoriquePage() {
               const stats = statsParSeance.get(s.id);
               const template = s.seanceTemplateId ? nomTemplate.get(s.seanceTemplateId) : null;
               return (
-                <Link key={s.id} href={`/sessions/${s.id}`} className="block">
+                <Link key={s.id} href={`/sessions/${s.id}`} prefetch={false} className="block">
                   <div className="bg-carte border border-filet rounded-lg p-3 hover:border-filet transition-colors">
                     <div className="flex items-start gap-3">
                       {s.feuBiologiqueJour && (
