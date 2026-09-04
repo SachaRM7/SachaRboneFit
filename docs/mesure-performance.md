@@ -1,76 +1,122 @@
 # Lire les mesures de performance en production
 
-Ce document sert à une chose : transformer « le tableau de bord met huit
-secondes » en un chiffre par cause. Tout ce qui suit se lit dans les journaux
-Vercel, sans outil supplémentaire et sans rien installer sur le téléphone.
+Ce document sert à une chose : transformer « le tableau de bord met cinq
+secondes » en un chiffre par cause.
 
-## Les deux lignes
+## D'abord, ce qui n'a pas marché
 
-Chaque requête produit une ligne, parfois deux.
+La première instrumentation publiait une ligne par requête depuis `after()`.
+Elle fonctionnait sous `next start` et n'a **rien** produit sur Vercel :
+l'onglet Logs d'une requête `/dashboard` affichait « No logs found for this
+request ». Deux raisons, toutes deux structurelles :
+
+1. `after()` s'exécute **après l'envoi de la réponse**. Ce qu'il journalise
+   n'appartient plus à la requête — Vercel le range ailleurs, quand il le
+   garde.
+2. Le proxy s'exécute dans une **invocation séparée** de la fonction de page.
+   Ses lignes ne peuvent pas apparaître sous la requête `/dashboard`, quoi
+   qu'on écrive.
+
+D'où trois canaux plutôt qu'un, et aucun qui dépende d'`after()`.
+
+## Canal 1 — la route de diagnostic (le plus simple)
+
+Ouvre `/api/diagnostic/perf` dans le navigateur, connecté. Elle rend un JSON :
+
+```json
+{
+  "region": {
+    "fonction": "iad1",
+    "base": { "hote": "aws-0-eu-west-3.pooler.supabase.com", "region": "eu-west-3" },
+    "allerRetourBaseMs": 92.4,
+    "premierAllerRetourMs": 210.7
+  },
+  "instance": { "froide": true, "environnement": "preview" },
+  "auth": { "ms": 3.1, "appelsReseau": [{ "chemin": "/auth/v1/.well-known/jwks.json", "ms": 41 }] },
+  "accueil": {
+    "essentiel": { "ms": 190, "requetes": 2 },
+    "complement": { "ms": 1840, "requetes": 21 }
+  }
+}
+```
+
+Aucun accès aux journaux n'est nécessaire. Aucune donnée personnelle n'en
+sort : ni identifiant, ni courriel, ni contenu d'entraînement — des décomptes
+et des durées. La route exige une session.
+
+## Canal 2 — les en-têtes de réponse (pour le proxy)
+
+Le proxy pose sur **chaque réponse** :
 
 ```
-[perf-proxy] {"route":"/dashboard","region":"cdg1","total":4.3,"authMs":0.6,"validations":1,"redirige":false}
-[perf] {"route":"/dashboard","region":"cdg1","total":812.4,"froid":false,"auth":1,"sql":9,"msSql":640.2,
-        "phases":{"auth":{"ms":3.1,"n":1},"db":{"ms":640.2,"n":9},"calcul":{"ms":98,"n":2}},
-        "dominant":{"quoi":"requete","ms":214.9}}
+Server-Timing: proxy;dur=138, auth;dur=131, supabase;dur=128;desc="2 appel(s)"
+x-perf-supabase: /auth/v1/.well-known/jwks.json=44 /auth/v1/user=84
+x-perf-region: iad1
+x-perf-froid: true
 ```
 
-`[perf-proxy]` vient du garde d'entrée, qui s'exécute en périphérie.
-`[perf]` vient du rendu, qui s'exécute dans une fonction. Ce sont deux
-machines différentes, souvent dans deux régions différentes — c'est pour ça
-qu'elles comptent séparément.
+Ils se lisent dans l'inspecteur réseau de Safari ou avec `curl -I`. C'est le
+seul canal qui puisse répondre pour le proxy, puisque ses journaux vivent
+ailleurs.
 
-| Champ | Ce qu'il dit |
+## Canal 3 — les lignes de journal, publiées pendant la requête
+
+```
+[perf] {"route":"/dashboard","point":"essentiel","region":"iad1","depuisLeDebut":420.3,
+        "froid":false,"auth":1,"reseauSupabase":[],"sql":2,"msSql":190.2,
+        "phases":{...},"dominant":{"quoi":"contexteEssentiel","ms":170}}
+```
+
+Plusieurs lignes par requête, et c'est voulu. `point` dit à quel moment du
+rendu la ligne est sortie :
+
+| `point` | Ce qu'il borne |
 |---|---|
-| `route` | La FORME du chemin (`/sessions/[id]`), jamais le chemin réel |
-| `region` | Où la fonction a tourné (`cdg1`, `iad1`…) |
-| `total` | Durée complète, du premier octet reçu au dernier envoyé |
-| `froid` | `true` = cette instance venait d'être créée |
-| `auth` | Vérifications d'identité effectivement faites dans ce rendu |
-| `sql` | Requêtes réellement parties sur le réseau |
-| `msSql` | Temps passé à les attendre, cumulé |
-| `phases` | Le temps regroupé par nature de travail |
-| `dominant` | Le traitement le plus coûteux, nommé |
+| `layout` | Le coût partagé par tous les écrans : identité + garde d'onboarding |
+| `essentiel` | La fin du chemin critique de l'accueil — le premier contenu part ici |
+| `complement` | La fin du complément streamé |
+| `racine` | La redirection de lancement (`start_url` du manifeste) |
+| `api/user` | La route que la connexion attend avant de naviguer |
 
-Rien de personnel n'y figure : ni identifiant de compte, ni courriel, ni
-paramètre d'URL, ni texte de requête SQL. Pour couper l'instrumentation :
-variable d'environnement `PERF_TRACE=off`.
+L'écart entre `essentiel` et `complement` **est** la mesure du streaming. S'ils
+tombent au même instant, rien n'est streamé.
+
+Le chemin est réduit à sa forme (`/sessions/[id]`), les appels réseau ne
+gardent que leur **chemin** — jamais la requête complète, qui porte des jetons.
+Tout se coupe avec `PERF_TRACE=off`.
 
 ## Ce qu'il faut regarder, dans cet ordre
 
-### 1. `authMs` dans la ligne du proxy
+### 1. `auth.appelsReseau` — combien d'allers-retours pour une validation
 
-C'est la question la plus importante, et elle a une réponse binaire.
+C'est la question la plus importante, et elle ne se lit dans aucun code.
 
-- **`authMs` inférieur à ~5 ms** : la signature du jeton est vérifiée
-  localement, par WebCrypto. C'est le comportement attendu.
-- **`authMs` de plusieurs dizaines ou centaines de millisecondes** : le projet
-  Supabase signe encore ses jetons avec le secret **symétrique** historique
-  (HS256). Dans ce cas `getClaims()` ne peut pas vérifier sur place et repart
-  sur le réseau, exactement comme `getUser()`.
+| Ce qu'on voit | Ce que ça veut dire |
+|---|---|
+| liste vide | La signature est vérifiée sur place, par WebCrypto. C'est l'objectif. |
+| `/auth/v1/.well-known/jwks.json` | Le trousseau public est téléchargé. **Une fois par instance**, puis mis en cache : normal sur une ligne `froid: true`, anormal sur toutes. |
+| `/auth/v1/user` | Le projet signe encore avec le **secret symétrique** (HS256) : `getClaims()` ne peut pas vérifier localement et repart sur le réseau. |
+| `/auth/v1/token?...` | La session a été rafraîchie — le jeton arrivait à expiration. |
 
-Dans le second cas, le correctif n'est pas dans le code : il est dans le
-tableau de bord Supabase, **Authentication → JWT Keys**, en basculant vers une
-clé asymétrique (ECC/RSA). Tant que ce n'est pas fait, chaque navigation paie
-deux allers-retours vers le serveur d'authentification — un pour le proxy, un
-pour le rendu — quoi qu'on écrive ici.
+Le troisième cas se corrige dans le tableau de bord Supabase
+(**Authentication → JWT Keys**), en basculant vers une clé asymétrique
+(ECC/RSA). Pas dans ce dépôt. Tant que ce n'est pas fait, chaque navigation
+paie deux allers-retours d'authentification — un pour le proxy, un pour le
+rendu.
 
-Attention à ne pas confondre avec le tout premier appel d'une instance :
-`getClaims()` télécharge une fois le trousseau public du projet
-(`/.well-known/jwks.json`), le met en cache, et n'y revient plus. Une valeur
-élevée sur une ligne `froid: true` puis basse ensuite est donc normale ; une
-valeur élevée sur TOUTES les lignes signale la signature symétrique.
+Deux appels dans le proxy sur une instance froide (`jwks` + un autre) sont
+attendus une fois ; deux appels **à chaque passage** ne le sont pas.
 
-### 2. `region`, dans les deux lignes
+### 2. `region` — la géographie
 
-Comparer avec la région du projet Supabase (tableau de bord Supabase,
-**Project Settings → General → Region**).
+Comparer `region.fonction` (Vercel) et `region.base`. Le nom d'hôte du pooler
+Supabase porte sa région (`aws-0-eu-west-3.pooler.supabase.com`) ; la connexion
+directe (`db.<ref>.supabase.co`) ne la porte pas, et c'est alors
+`allerRetourBaseMs` qui tranche.
 
-Si les deux ne concordent pas, chaque requête SQL paie un aller-retour
-intercontinental. Avec `max: 1` sur le pool — réglage voulu, il évite la
-saturation du pooler — les requêtes d'un écran ne se recouvrent pas : elles
-s'additionnent. Neuf requêtes à 80 ms font 720 ms, et aucune réécriture de code
-ne les rattrape.
+- **moins de ~10 ms** : la base est à côté.
+- **50 ms et plus** : elle est sur un autre continent. Avec `max: 1`, chaque
+  requête de l'écran paie cette somme, l'une après l'autre.
 
 Le correctif est une ligne dans `vercel.json` :
 
@@ -78,78 +124,64 @@ Le correctif est une ligne dans `vercel.json` :
 { "regions": ["cdg1"] }
 ```
 
-en remplaçant `cdg1` par la région Vercel la plus proche de celle de Supabase
-(`cdg1` Paris, `fra1` Francfort, `iad1` Washington, `gru1` São Paulo…).
-Ne la fixer qu'après avoir lu les deux régions réelles : la deviner ne fait que
+`cdg1` Paris, `fra1` Francfort, `iad1` Washington, `gru1` São Paulo. **Ne la
+fixer qu'après avoir lu les deux régions réelles** : la deviner ne fait que
 déplacer le problème.
 
-### 3. `msSql` rapporté à `sql`
+### 3. `phases.db_connexion` — combien de réouvertures
 
-`msSql / sql` donne le coût moyen d'un aller-retour vers la base. C'est la
-mesure qui décide de la suite :
+Compte les fois où une requête a trouvé la connexion fermée et a dû l'ouvrir
+(TLS, authentification, `search_path`) avant le moindre octet utile.
 
-- **moins de ~15 ms** : la base est proche, le nombre de requêtes n'est pas le
-  problème. Chercher ailleurs.
-- **50 ms et plus** : soit la géographie (point 2), soit le pooler. C'est
-  seulement là que la question d'élargir `max: 1` se pose — et elle se pose
-  avec les chiffres du pooler sous les yeux, pas avant. Le réglage actuel a une
-  raison : au-delà, le pooler Supabase en mode session sature à quinze clients,
-  et deux instances concurrentes suffisaient à faire tomber le tableau de bord
-  sur `EMAXCONNSESSION`.
-
-### 3 bis. `phases.db_connexion` — combien de réouvertures
-
-`db_connexion` compte les fois où une requête a trouvé la connexion fermée et
-a dû l'ouvrir : poignée de main TLS, authentification, `search_path`, avant le
-moindre octet utile.
-
-- **`n: 1` sur une ligne `froid: true`, absent ensuite** : normal. L'instance a
-  payé son ouverture une fois et réutilise sa connexion.
-- **`n: 1` sur des lignes `froid: false`, régulièrement** : l'`idle_timeout`
-  (20 s) expire entre deux navigations, et chaque écran repaie une ouverture.
+- `n: 1` sur une ligne `froid: true` puis absent : normal.
+- `n: 1` récurrent sur des lignes `froid: false` : l'`idle_timeout` (20 s)
+  expire entre deux navigations.
 
 Le second cas est le seul qui justifierait d'allonger `idle_timeout`. Et il ne
 suffit pas : allonger la durée de vie d'une connexion augmente le nombre de
 connexions **ouvertes en même temps**, puisque c'est durée × nombre
-d'instances — or en serverless le second facteur n'est pas borné, et le
-préchargement de Next multiplie les instances concurrentes. C'est exactement ce
-qui avait produit l'`EMAXCONNSESSION` d'origine.
+d'instances — or en serverless le second facteur n'est pas borné. C'est ce qui
+avait produit l'`EMAXCONNSESSION` d'origine. La décision se prend avec les deux
+chiffres : celui-ci, **et** le nombre de connexions actives côté Supabase
+(Database → Connection pooling) en heure de pointe.
 
-La décision se prend donc avec les deux chiffres sous les yeux : la fréquence
-des réouvertures ici, **et** le nombre de connexions actives côté Supabase
-(tableau de bord, Database → Connection pooling), en heure de pointe. Pas l'un
-sans l'autre.
+### 4. TTFB, contenu visible, fin de réponse — trois choses différentes
 
-### 4. `froid`
+Le chiffre « Function Invocation » de Vercel mesure jusqu'à la **fin** de la
+réponse. Sur une page streamée, il inclut le complément qui arrive après que
+l'écran est déjà lisible : il ne peut donc pas diminuer, et il n'est pas
+comparable à celui d'une page qui rendait tout d'un bloc.
 
-Comparer le `total` des lignes `froid: true` et `froid: false` sur la même
-route. L'écart est le coût de démarrage d'une instance : imports, compilation,
-ouverture de connexion, premier téléchargement du trousseau.
+Ce qu'il faut mesurer à la place :
 
-Un écart important ne se corrige pas en optimisant l'écran ; il se corrige en
-réduisant ce qui est chargé au démarrage, ou en acceptant qu'il ne concerne que
-la première visite après une période d'inactivité. À ne pas confondre avec une
-lenteur permanente.
+```sh
+curl -s -o /dev/null -w 'connexion %{time_connect}  premier octet %{time_starttransfer}  fin %{time_total}\n' \
+  -H 'Cookie: <les cookies de session>' https://<preview>/dashboard
+```
 
-### 5. `dominant`
+- `time_starttransfer` — le premier octet : la coquille et le squelette.
+- la ligne `[perf] point:"essentiel"` — le moment où le contenu utile part.
+- `time_total` et la ligne `point:"complement"` — la fin.
 
-Le nom du traitement le plus long de la requête. C'est ce qui évite de
-conclure « la base a pris deux secondes » sans savoir laquelle des requêtes les
-a prises. Les calculs lourds sont nommés (`vueDuProgramme`, `alertes`).
+Une amélioration réelle se voit sur les deux premiers, pas sur le dernier.
+
+### 5. `froid`
+
+Comparer `depuisLeDebut` entre lignes `froid: true` et `froid: false` sur la
+même route. L'écart est le coût de démarrage d'une instance. Il ne se corrige
+pas en optimisant l'écran, et il ne concerne que la première visite après une
+période d'inactivité — à ne pas confondre avec une lenteur permanente.
 
 ## Compter les requêtes sans production
 
-Le compteur est aussi disponible en test, à la source :
-
 ```ts
 import { compterRequetes } from "@/db/client";
-
 const { requetes } = await compterRequetes(() => essentielTableauDeBord(id));
 ```
 
 `src/tests/cout-accueil.itest.ts` s'en sert pour tenir le chemin critique de
-l'accueil sous un plafond. Les seuils y sont des plafonds, pas des cibles : ils
-empêchent la dérive d'un commit à l'autre.
+l'accueil à deux allers-retours, et pour vérifier que la lecture composée dit
+exactement la même chose que le chemin ORM qu'elle remplace.
 
 ## Ce que la mesure locale ne dit pas
 
@@ -157,5 +189,5 @@ Une base locale répond en une fraction de milliseconde, sur la même machine qu
 le code. Elle donne le NOMBRE de requêtes — utile, et vérifié par les tests —
 mais jamais leur coût. Les trois causes qui font les secondes en production —
 latence d'authentification, latence de base, démarrage à froid — valent toutes
-zéro en local. Un chiffre mesuré sur `localhost` ne conclut donc rien sur la
+zéro en local. Un chiffre mesuré sur `localhost` ne conclut rien sur la
 production.
