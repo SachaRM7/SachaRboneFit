@@ -1,4 +1,5 @@
 {
+  "regions": ["cdg1"],
   "crons": [
     { "path": "/api/cron/precalc-session", "schedule": "0 20 * * *" },
     { "path": "/api/cron/weekly-debrief", "schedule": "0 20 * * 0" }

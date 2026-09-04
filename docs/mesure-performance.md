@@ -109,24 +109,45 @@ attendus une fois ; deux appels **à chaque passage** ne le sont pas.
 
 ### 2. `region` — la géographie
 
-Comparer `region.fonction` (Vercel) et `region.base`. Le nom d'hôte du pooler
-Supabase porte sa région (`aws-0-eu-west-3.pooler.supabase.com`) ; la connexion
-directe (`db.<ref>.supabase.co`) ne la porte pas, et c'est alors
-`allerRetourBaseMs` qui tranche.
+**Mesuré en Preview le 04/09/2026, et la réponse est nette :**
 
-- **moins de ~10 ms** : la base est à côté.
-- **50 ms et plus** : elle est sur un autre continent. Avec `max: 1`, chaque
-  requête de l'écran paie cette somme, l'une après l'autre.
+| | |
+|---|---|
+| Fonction Vercel | `iad1` — Washington |
+| Base Supabase | `eu-west-3` — Paris |
+| Aller-retour base, médian | **84,3 ms** |
+| Premier aller-retour (ouverture de connexion comprise) | 573,7 ms |
 
-Le correctif est une ligne dans `vercel.json` :
+Avec `max: 1`, les requêtes d'un écran ne se recouvrent pas : chacune paie ces
+84 ms, l'une après l'autre. C'est ce qui restait à traiter une fois
+l'authentification hors de cause (8,9 ms, zéro appel réseau) et le chemin
+critique ramené à deux lectures.
+
+`vercel.json` porte donc désormais :
 
 ```json
 { "regions": ["cdg1"] }
 ```
 
-`cdg1` Paris, `fra1` Francfort, `iad1` Washington, `gru1` São Paulo. **Ne la
-fixer qu'après avoir lu les deux régions réelles** : la deviner ne fait que
-déplacer le problème.
+`cdg1` est Paris, la région Vercel la plus proche de `eu-west-3`. Aucune autre
+valeur n'a été devinée : elle est choisie à partir de la mesure ci-dessus, pas
+avant.
+
+Comment relire ce champ ensuite : `region.fonction` doit passer à `cdg1`, et
+c'est **`allerRetourBaseMs` qui tranche**, pas le nom de la région. Quelques
+millisecondes = la base est à côté ; plusieurs dizaines = elle ne l'est pas.
+Les autres régions européennes, si le besoin se posait : `fra1` Francfort,
+`arn1` Stockholm, `dub1` Dublin.
+
+Deux réserves à connaître avant de conclure sur une comparaison avant/après :
+
+- le placement s'applique aux **fonctions**, pas à la périphérie. Le proxy
+  garde son propre lieu d'exécution, et sa ligne `x-perf-region` peut donc
+  différer de celle du rendu ;
+- déplacer la fonction rapproche la base **et éloigne** ce qui vit ailleurs.
+  Ici rien d'autre n'est appelé sur le chemin critique — l'authentification ne
+  fait plus aucun aller-retour réseau — mais un appel au modèle de langage,
+  lui, partirait de Paris.
 
 ### 3. `phases.db_connexion` — combien de réouvertures
 
