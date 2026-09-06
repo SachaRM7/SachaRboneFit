@@ -33,6 +33,10 @@ export async function GET(request: Request) {
           exerciseId: exerciseInstances.exerciseId,
           gymId: exerciseInstances.gymId,
           machineNom: exerciseInstances.machineNom,
+          // La nature de la charge voyage avec le nom : l'écran de fin en a
+          // besoin pour ne pas présenter une assistance comme une résistance.
+          natureCharge: exerciseInstances.natureCharge,
+          conventionCharge: exerciseInstances.conventionCharge,
           nom: exercises.nom,
           pilier: exercises.pilier,
         })

@@ -13,7 +13,8 @@ import { champEffortPropose, effortSaisi } from "./effort-propose";
 import { LIBELLES_MOTIF_INVALIDE, motifSerieInvalide } from "@/lib/engine/serie-realisee";
 import { toast } from "sonner";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
-import { chargeAEnregistrer, consigneDeSaisie } from "@/lib/validators/exercise-instance";
+import { chargeAEnregistrer, consigneDeSaisie, libelleChampCharge } from "@/lib/validators/exercise-instance";
+import { derniereLigneRetirable, nombreDeLignes } from "./lignes-de-series";
 
 interface Props {
   exercice: ExercicePrescrit;
@@ -61,12 +62,17 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
 
   // Des séries peuvent avoir été ajoutées au-delà de la prescription.
   const [seriesEnPlus, setSeriesEnPlus] = useState(0);
-  const consigne = consigneDeSaisie(exercice.conventionCharge, exercice.natureCharge);
-  const nbLignes = Math.max(
-    exercice.seriesCibles + seriesEnPlus,
-    ...seriesSaisies.map((s) => s.numeroSerie),
-    1,
+  const consigne = consigneDeSaisie(
+    exercice.conventionCharge,
+    exercice.natureCharge,
+    exercice.poidsNonCompte,
   );
+  const etatDesLignes = {
+    seriesCibles: exercice.seriesCibles,
+    seriesEnPlus,
+    numerosSaisis: seriesSaisies.map((s) => s.numeroSerie),
+  };
+  const nbLignes = nombreDeLignes(etatDesLignes);
 
   /**
    * La dernière ligne ajoutée à la main, s'il y en a une.
@@ -74,7 +80,7 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
    * `null` dès qu'on est revenu à la prescription : le bouton disparaît alors,
    * plutôt que de proposer d'enlever une série que le moteur a décidée.
    */
-  const derniereEnPlus = nbLignes > exercice.seriesCibles ? nbLignes : null;
+  const derniereEnPlus = derniereLigneRetirable(etatDesLignes);
 
   const supprimerDerniereEnPlus = () => {
     if (derniereEnPlus === null) return;
@@ -341,6 +347,20 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
         <p className="px-3.5 py-2 text-xs text-encre-2 border-b border-filet-doux">
           Après chaque série : combien de répétitions aurais-tu encore pu faire ?
           C&apos;est cette réponse qui fixera tes charges.
+          {/*
+            La permission qui manquait.
+            Sur l'Incline Dumbbell Press, la première série est sortie à quatre
+            répétitions de réserve au lieu de trois — trop facile. Rien ne
+            disait s'il était permis de monter la charge à la deuxième, et
+            c'est pourtant tout l'objet d'une calibration : converger vers la
+            cible, pas répéter deux fois la même erreur d'estimation. Rien
+            n'est modifié automatiquement — la mesure reste ce qui est saisi.
+          */}
+          {" "}
+          <span className="block mt-1 text-encre-3">
+            Tu peux ajuster la charge entre les séries pour viser ~3 répétitions en
+            réserve.
+          </span>
         </p>
       )}
 
@@ -366,7 +386,11 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
             <tr className="text-[10px] uppercase tracking-wide text-encre-3">
               <th scope="col" className="w-6 pb-1.5 text-left font-medium">#</th>
               <th scope="col" className="pb-1.5 text-left font-medium">Dernière</th>
-              <th scope="col" className="w-[4.5rem] pb-1.5 font-medium">kg</th>
+              {/* « kg » ne dit pas la même chose selon l'appareil : sur une
+                  machine d'assistance, le nombre allège au lieu de charger. */}
+              <th scope="col" className="w-[4.5rem] pb-1.5 font-medium">
+                {libelleChampCharge(exercice.natureCharge)}
+              </th>
               <th scope="col" className="w-[3.5rem] pb-1.5 font-medium">Reps</th>
               <th scope="col" className={`pb-1.5 font-medium ${modeReserve ? "w-[7.5rem]" : "w-[3.5rem]"}`}>
                 {modeReserve ? "Encore ?" : "RPE"}
