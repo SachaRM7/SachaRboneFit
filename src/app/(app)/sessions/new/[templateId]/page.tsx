@@ -14,6 +14,7 @@ import { initAudioContext, playBeep } from "@/lib/audio/beep";
 import { SOSBar } from "@/components/session/SOSBar";
 import { ChangerDeLieu } from "@/components/session/ChangerDeLieu";
 import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
+import { RemplacerExercice } from "@/components/session/RemplacerExercice";
 import { SOSDouleur } from "@/components/session/SOSDouleur";
 import { SOSEnergie } from "@/components/session/SOSEnergie";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
@@ -22,7 +23,7 @@ import { ObservateurSeance } from "@/components/session/ObservateurSeance";
 import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { Feu } from "@/components/carnet/Feu";
 import { modeSaisieEffort } from "@/lib/engine/reserve";
-import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
+import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
 import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
 
@@ -214,6 +215,64 @@ function ContenuSeanceLive() {
       setOuverture(false);
     }
   }, [ouverture, templateId, gymId, start]);
+
+  /**
+   * Le pilier et le profil de l'exercice affiché.
+   *
+   * Le plan ne les transporte pas — il décrit une prescription, pas un
+   * mouvement. On les retrouve dans le parc de la salle, qui les porte depuis
+   * que sa lecture joint `exercises`.
+   */
+  const pilierDe = (e: ExercicePrescrit) =>
+    parcSalle.find((i) => i.id === e.id)?.pilier ?? "";
+  const profilDe = (e: ExercicePrescrit) =>
+    parcSalle.find((i) => i.id === e.id)?.profilTension ?? "";
+
+  /**
+   * La carte devient le nouvel exercice, une fois le serveur d'accord.
+   *
+   * Ce qui SUIT la substitution : les séries, qui s'enregistreront sous la
+   * nouvelle instance — c'est tout l'objet du remplacement. Ce qui ne suit
+   * pas : la charge suggérée et l'historique. Ils appartiennent à l'appareil
+   * qu'on quitte, et les recopier ferait croire à une continuité qui n'existe
+   * pas entre deux machines.
+   *
+   * La prescription, elle, se conserve : on remplace un mouvement, pas un
+   * volume de travail.
+   */
+  const remplacer = (ancienId: string, choix: SubstituteResult) => {
+    const instance = parcSalle.find((i) => i.id === choix.exerciseInstanceId);
+    setSeance((s) =>
+      s
+        ? {
+            ...s,
+            exercices: s.exercices.map((e) =>
+              e.id !== ancienId
+                ? e
+                : {
+                    ...e,
+                    id: choix.exerciseInstanceId,
+                    exerciseId: instance?.exerciseId ?? null,
+                    nom: choix.exerciseName,
+                    machineNom: choix.machineName ?? "",
+                    slug: instance?.slug ?? null,
+                    musclesPrincipaux: instance?.musclesPrincipaux ?? [],
+                    conventionCharge: instance?.conventionCharge ?? null,
+                    natureCharge: instance?.natureCharge ?? null,
+                    incrementsPossibles: instance?.incrementsPossibles ?? [],
+                    poidsNonCompte: instance?.poidsNonCompte ?? null,
+                    chargeSuggeree: null,
+                    repsSuggerees: null,
+                    messageProgression: null,
+                    motifProgression: null,
+                    historique: [],
+                    raisonSubstitution: `À la place de ${e.nom}`,
+                  },
+            ),
+          }
+        : s,
+    );
+  };
 
   const interaction = useCallback(async () => {
     if (!audioPret) {
@@ -465,6 +524,22 @@ function ContenuSeanceLive() {
               rpeReduction={reductionsRPE[exercice.id] ?? 0}
               modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
               onSerieValidee={lancerRepos}
+              actions={
+                active?.id && gymId ? (
+                  <RemplacerExercice
+                    sessionLogId={active.id}
+                    exerciceId={exercice.id}
+                    exerciceNom={exercice.nom}
+                    pilier={pilierDe(exercice)}
+                    profilTension={profilDe(exercice)}
+                    gymId={gymId}
+                    parcSalle={parcSalle}
+                    dejaAuProgramme={visibles.map((e) => e.id)}
+                    musclesCourbatures={musclesCourbatures}
+                    onRemplace={(r) => remplacer(exercice.id, r)}
+                  />
+                ) : null
+              }
             />
           ))
         ) : (
@@ -533,9 +608,44 @@ function ContenuSeanceLive() {
           templateExerciseIds={visibles.map((e) => e.id)}
           musclesCourbatures={musclesCourbatures}
           onClose={() => setModaleSOS(null)}
-          onSubstitute={(_id, nom) => {
-            toast.success(`${nom} utilisé à la place`);
+          /*
+             Le remplacement s'APPLIQUE, maintenant.
+
+             Ce gestionnaire affichait une notification et refermait la
+             fenêtre : la carte ne changeait pas, et les séries continuaient de
+             s'enregistrer sous l'exercice qu'on venait de renoncer à faire.
+             Le dépannage passe par la même route que le bouton « Remplacer »
+             de la carte, avec la raison qui lui correspond.
+          */
+          onSubstitute={(id, nom) => {
+            const remplace = courant.id;
             setModaleSOS(null);
+            void (async () => {
+              try {
+                const res = await fetch("/api/seance-du-jour/substituer", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    sessionLogId: active?.id,
+                    remplaceInstanceId: remplace,
+                    remplacantInstanceId: id,
+                    raison: "occupee",
+                  }),
+                });
+                if (!res.ok) throw new Error();
+                const instance = parcSalle.find((i) => i.id === id);
+                remplacer(remplace, {
+                  exerciseInstanceId: id,
+                  exerciseName: nom,
+                  machineName: instance?.machineNom ?? null,
+                  categorieRole: instance?.categorieRole ?? "accessoire",
+                  profilTension: instance?.profilTension ?? "",
+                });
+                toast.success(`${nom} utilisé à la place`);
+              } catch {
+                toast.error("Remplacement non enregistré");
+              }
+            })();
           }}
         />
       )}

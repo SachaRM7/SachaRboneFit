@@ -43,16 +43,50 @@ export async function GET(request: Request) {
       return NextResponse.json(lignes);
     }
 
-    // Le parc d'une salle est commun, comme la salle elle-même : filtrer par
-    // propriétaire obligeait un deuxième compte à re-saisir des machines déjà
-    // renseignées. Les machines archivées restent écartées.
-    const allInstances = await db.query.exerciseInstances.findMany({
-      where: (ei, { and, eq, isNull }) =>
+    /*
+     * Le parc d'une salle, AVEC ce qui décrit le mouvement.
+     *
+     * La lecture ne rendait que les colonnes d'`exercise_instances` : ni nom,
+     * ni pilier, ni profil de tension — ceux-là vivent sur `exercises`. Or
+     * c'est exactement ce que lit le moteur de substitution, qui compare
+     * `inst.pilier` au pilier demandé. Sur des lignes où `pilier` valait
+     * `undefined`, le filtre écartait TOUT : « machine occupée » ne pouvait
+     * proposer aucun remplaçant, quelle que soit la salle.
+     *
+     * Le parc reste commun à tous les comptes, comme la salle elle-même :
+     * filtrer par propriétaire obligeait un deuxième compte à re-saisir des
+     * machines déjà renseignées. Les machines archivées restent écartées.
+     */
+    const allInstances = await db
+      .select({
+        id: exerciseInstances.id,
+        gymId: exerciseInstances.gymId,
+        exerciseId: exerciseInstances.exerciseId,
+        machineNom: exerciseInstances.machineNom,
+        etat: exerciseInstances.etat,
+        conventionCharge: exerciseInstances.conventionCharge,
+        natureCharge: exerciseInstances.natureCharge,
+        incrementsPossibles: exerciseInstances.incrementsPossibles,
+        poidsNonCompte: exerciseInstances.poidsNonCompte,
+        nom: exercises.nom,
+        slug: exercises.slug,
+        pilier: exercises.pilier,
+        profilTension: exercises.profilTension,
+        categorieRole: exercises.categorieRole,
+        type: exercises.type,
+        musclesPrincipaux: exercises.musclesPrincipaux,
+      })
+      .from(exerciseInstances)
+      .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
+      .where(
         gymId
-          ? and(eq(ei.gymId, gymId), isNull(ei.archiveLe))
-          : isNull(ei.archiveLe),
-    });
-    return NextResponse.json(allInstances);
+          ? and(eq(exerciseInstances.gymId, gymId), isNull(exerciseInstances.archiveLe))
+          : isNull(exerciseInstances.archiveLe),
+      );
+
+    return NextResponse.json(
+      allInstances.map((i) => ({ ...i, musclesPrincipaux: i.musclesPrincipaux ?? [] })),
+    );
   } catch (error) {
     console.error("[exercise-instances GET] error:", error);
     return NextResponse.json({ error: "Failed to fetch instances", details: String(error) }, { status: 500 });

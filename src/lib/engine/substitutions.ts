@@ -13,6 +13,19 @@ export interface ExerciseInstanceWithExercise {
   type?: string;
   musclesPrincipaux: string[];
   pilier: string;
+  /*
+   * Ce qu'il faut pour qu'une carte devienne réellement l'autre exercice.
+   *
+   * Le moteur de substitution ne s'en sert pas — il compare des mouvements.
+   * L'écran, lui, en a besoin au moment d'appliquer le remplacement : sans la
+   * convention de charge, la carte remplaçante demanderait de saisir un nombre
+   * sans dire ce qu'il représente.
+   */
+  slug?: string | null;
+  conventionCharge?: string | null;
+  natureCharge?: string | null;
+  incrementsPossibles?: number[] | null;
+  poidsNonCompte?: number | null;
 }
 
 export interface SubstitutionCriteria {
