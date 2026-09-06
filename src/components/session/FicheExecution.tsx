@@ -10,6 +10,9 @@ import {
 } from "./execution-client";
 import { LIMITE_NOTE_EXERCICE } from "@/lib/validators/exercise-instance";
 import { DeclarerReglage } from "./DeclarerReglage";
+import { Mannequin } from "@/components/anatomie/Mannequin";
+import { faceLaPlusParlante, type Face } from "@/lib/referentiels/anatomie";
+import { libelleMuscles } from "@/lib/referentiels/libelles";
 
 interface Props {
   contexte: ContexteExecutionClient;
@@ -85,6 +88,11 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
   const [erreur, setErreur] = useState<string | null>(null);
   const [enregistre, setEnregistre] = useState(false);
   const [expliqueTempo, setExpliqueTempo] = useState(false);
+  const [musclesOuverts, setMusclesOuverts] = useState(false);
+  /* La face d'ouverture est celle qui montre le plus de ce que l'exercice
+     travaille : ouvrir un rowing sur une vue de face n'apprendrait rien. */
+  const [faceMuscles, setFaceMuscles] = useState<Face>(() =>
+    faceLaPlusParlante(contexte.musclesPrincipaux, contexte.musclesSecondaires));
 
   /**
    * L'état courant, lisible depuis le démontage.
@@ -423,6 +431,56 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
                     onEnregistre({ ...contexte, reglages });
                   }}
                 />
+              )}
+            </section>
+          )}
+
+          {/*
+            Consultatif, et à sa place : dans la fiche, pas sur la carte de
+            saisie. Ce qui se lit à chaque série, c'est la charge et les
+            répétitions ; ce qui se regarde une fois, quand on se demande ce
+            qu'on est en train de travailler, vit ici, à un geste de distance.
+
+            Replié par défaut pour la même raison : la section n'a pas à
+            repousser la note et les réglages sous la ligne de flottaison.
+          */}
+          {(contexte.musclesPrincipaux.length > 0 || contexte.musclesSecondaires.length > 0) && (
+            <section>
+              <button
+                type="button"
+                onClick={() => setMusclesOuverts((v) => !v)}
+                aria-expanded={musclesOuverts}
+                className="w-full text-left"
+              >
+                <h3 className="text-xs uppercase tracking-wide text-encre-3">
+                  Muscles travaillés
+                  <span className="ml-2 normal-case tracking-normal underline underline-offset-4">
+                    {musclesOuverts ? "masquer" : "voir"}
+                  </span>
+                </h3>
+              </button>
+              <p className="text-sm text-encre-2 mt-1">
+                {libelleMuscles(contexte.musclesPrincipaux)}
+                {contexte.musclesSecondaires.length > 0 && (
+                  <span className="text-encre-3">
+                    {" · aussi "}{libelleMuscles(contexte.musclesSecondaires)}
+                  </span>
+                )}
+              </p>
+              {musclesOuverts && (
+                <div className="mt-3">
+                  <Mannequin
+                    mode="exercice"
+                    musclesPrincipaux={contexte.musclesPrincipaux}
+                    musclesSecondaires={contexte.musclesSecondaires}
+                    face={faceMuscles}
+                    onFaceChange={setFaceMuscles}
+                  />
+                  <p className="text-xs text-encre-3 mt-2">
+                    Teinte pleine : ce que l&apos;exercice vise. Teinte légère : ce qui
+                    participe sans être visé.
+                  </p>
+                </div>
               )}
             </section>
           )}
