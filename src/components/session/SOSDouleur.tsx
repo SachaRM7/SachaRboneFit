@@ -7,6 +7,7 @@ import { Mannequin } from "@/components/anatomie/Mannequin";
 import { musclesDesRegions, zonesDesRegions } from "@/lib/referentiels/anatomie";
 import { LIBELLES } from "@/lib/referentiels/muscles";
 import { MOMENTS_DOULEUR, type MomentDouleur } from "@/lib/engine/incident-douleur";
+import { arreterSurDouleur, type EnvoiSignalement } from "./arret-sur-douleur";
 import {
   evaluerDouleur,
   type ExerciceAvecMuscles,
@@ -97,34 +98,51 @@ export function SOSDouleur({
     bilan.exercices.filter((e) => e.proposition === p).map((e) => e.exercise_instance_id);
 
   /**
+   * Le corps du signalement, construit UNE fois.
+   *
+   * Les deux chemins — celui qui attend la réponse, celui qui n'attend rien —
+   * postent exactement la même chose. Les écrire deux fois les ferait diverger,
+   * et c'est le chemin de l'arrêt, le moins observé, qui aurait fini par
+   * omettre un champ.
+   */
+  const envoiDuSignalement = (decision: string): EnvoiSignalement => ({
+    url: "/api/douleur",
+    corps: {
+      session_log_id: sessionLogId,
+      regions,
+      niveau,
+      type_douleur: type,
+      moment,
+      arret_conseille: bilan.arretConseille,
+      a_retirer: idsPour("retirer"),
+      a_alleger: idsPour("alleger"),
+      decision,
+    },
+  });
+
+  /**
    * Consigne l'incident et récupère ce que la règle en dit.
    *
    * Le serveur retraduit lui-même les régions en zones : ce que le client
    * envoie sert à désigner, pas à décider. Un échec ne bloque pas l'adaptation
    * de la séance — elle est locale — mais il se dit, parce qu'un signalement
    * perdu est précisément ce qui empêchera la prochaine récurrence d'être vue.
+   *
+   * Réservé aux chemins qui RESTENT dans la séance : il attend la réponse et
+   * touche à l'état React ensuite. L'arrêt ne peut donc pas s'en servir.
    */
   const signaler = async (decision: string): Promise<{
     incidentId: string | null;
     propositions: PropositionProtection[];
   }> => {
+    const envoi = envoiDuSignalement(decision);
     setEnCours(true);
     setErreur(null);
     try {
-      const res = await fetch("/api/douleur", {
+      const res = await fetch(envoi.url, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          session_log_id: sessionLogId,
-          regions,
-          niveau,
-          type_douleur: type,
-          moment,
-          arret_conseille: bilan.arretConseille,
-          a_retirer: idsPour("retirer"),
-          a_alleger: idsPour("alleger"),
-          decision,
-        }),
+        body: JSON.stringify(envoi.corps),
       });
       if (!res.ok) throw new Error();
       const corps = await res.json();
@@ -177,14 +195,21 @@ export function SOSDouleur({
    * déjà persistée avec l'incident — elle se représentera dans « Ce que tu
    * ménages », qui est durable.
    *
-   * Le signalement est attendu avant de naviguer, mais il ne DÉCIDE de rien :
-   * même en cas d'échec réseau, l'arrêt a lieu.
+   * ET LE RÉSEAU NON PLUS NE LE RETARDE PAS. Une version intermédiaire faisait
+   * `await signaler(...)` avant de naviguer : ce `await` n'attendait pas une
+   * décision, il attendait le RÉSEAU. Sur une connexion de salle à dix secondes
+   * de latence, l'athlète restait dix secondes dans la séance qu'il venait
+   * d'arrêter. Une consigne prudente retient aussi sûrement qu'une question.
+   *
+   * `signaler` est donc écarté d'ici — il attend la réponse, écrit dans l'état
+   * React après retour, et suppose la feuille encore montée. Le chemin dédié
+   * poste en `keepalive` sans rien attendre : voir `arret-sur-douleur`.
    */
-  const arreter = async () => {
-    await signaler("Séance arrêtée sur douleur");
-    onStopSeance();
-    onClose();
-  };
+  const arreter = () => arreterSurDouleur({
+    envoi: envoiDuSignalement("Séance arrêtée sur douleur"),
+    onStopSeance,
+    onClose,
+  });
 
   /** Le « Oui » — le seul chemin de l'application vers une contrainte. */
   const repondreProtection = async (decision: "appliquer" | "refuser") => {
@@ -310,7 +335,7 @@ export function SOSDouleur({
           </Button>
           {bilan.arretConseille ? (
             <Button variant="destructive" className="flex-1" disabled={enCours}
-              onClick={() => void arreter()}>
+              onClick={arreter}>
               Arrêter la séance
             </Button>
           ) : idsPour("retirer").length + idsPour("alleger").length > 0 ? (

@@ -127,9 +127,18 @@ describe("la règle de suite a un appelant applicatif", () => {
   });
 
   it("et ces routes sont atteintes par un écran", () => {
+    /*
+     * Le chemin est cherché comme CHAÎNE dans un composant client, pas comme
+     * `fetch("…"` littéral. Les deux formes coexistent légitimement : la
+     * confirmation appelle `fetch` en direct, tandis que le signalement passe
+     * son URL au module d'arrêt non bloquant, qui poste pour lui.
+     *
+     * Ce qui compte reste vérifié : une route qu'aucun écran ne nomme est une
+     * route que personne ne peut atteindre.
+     */
     for (const chemin of ["/api/douleur", "/api/douleur/proteger"]) {
-      const atteinte = CLIENTS.some((c) => lire(c).includes(`fetch("${chemin}"`));
-      expect(atteinte, `${chemin} n'est appelée par aucun composant client`).toBe(true);
+      const atteinte = CLIENTS.some((c) => lire(c).includes(`"${chemin}"`));
+      expect(atteinte, `${chemin} n'est nommée par aucun composant client`).toBe(true);
     }
   });
 
@@ -229,27 +238,73 @@ describe("« Arrêter la séance » n'attend aucune décision secondaire", () =>
 
   const SOS = "components/session/SOSDouleur.tsx";
 
-  /** Le corps d'une fonction fléchée déclarée en `const`, jusqu'à sa fermeture. */
+  /**
+   * Le corps d'une fonction fléchée déclarée en `const`, jusqu'à la suivante.
+   *
+   * La borne est la PROCHAINE déclaration de même niveau, pas une accolade
+   * fermante : `arreter` s'écrit désormais en une expression qui se termine par
+   * `});`, et couper sur `};` avalait la fonction d'après — ce qui faisait
+   * échouer le garde sur du code qui n'était pas le sien.
+   */
   function corpsDe(source: string, nom: string): string {
     const debut = source.indexOf(`const ${nom} = `);
     expect(debut, `${nom} introuvable`).toBeGreaterThan(-1);
-    const reste = source.slice(debut);
-    const fin = reste.search(/\n  \};/);
+    const reste = source.slice(debut + 6);
+    const fin = reste.search(/\n  (?:const |return |\/\*\*)/);
     return fin === -1 ? reste : reste.slice(0, fin);
   }
 
-  it("l'arrêt a son propre chemin, qui appelle onStopSeance", () => {
+  it("l'arrêt a son propre chemin, qui délègue au module non bloquant", () => {
     const arreter = corpsDe(lire(SOS), "arreter");
-    expect(arreter).toMatch(/onStopSeance\(\)/);
+    expect(arreter).toMatch(/arreterSurDouleur\(/);
   });
 
   it("et ce chemin ne peut pas basculer sur l'écran de protection", () => {
-    // La forme exacte du défaut : un `setEtape("protection")` entre l'appui et
+    // Le premier défaut : un `setEtape("protection")` entre l'appui et
     // l'arrêt, ou une délégation à la fonction qui en contient un.
     const arreter = corpsDe(lire(SOS), "arreter");
     expect(arreter).not.toMatch(/setEtape/);
     expect(arreter).not.toMatch(/poursuivre\(/);
     expect(arreter).not.toMatch(/setPropositions/);
+  });
+
+  it("ni attendre quoi que ce soit avant d'arrêter", () => {
+    /*
+     * Le SECOND défaut, et le plus discret parce qu'il avait la forme d'une
+     * précaution :
+     *
+     *     const arreter = async () => {
+     *       await signaler("Séance arrêtée sur douleur");
+     *       onStopSeance();
+     *     };
+     *
+     * Ce `await` n'attendait pas une décision — il attendait le RÉSEAU. Sur
+     * une connexion de salle à dix secondes de latence, l'athlète restait dix
+     * secondes dans la séance qu'il venait d'arrêter.
+     */
+    const arreter = corpsDe(lire(SOS), "arreter");
+    expect(arreter, "l'arrêt attend une réponse avant de naviguer")
+      .not.toMatch(/\bawait\b/);
+    expect(arreter, "l'arrêt ne doit même pas être une fonction asynchrone")
+      .not.toMatch(/async/);
+    // `signaler` attend la réponse, écrit dans l'état React après retour et
+    // suppose la feuille encore montée : l'arrêt ne peut pas s'en servir.
+    expect(arreter).not.toMatch(/\bsignaler\(/);
+  });
+
+  it("le module d'arrêt ne rend aucune promesse à attendre", () => {
+    // Le défaut se réintroduirait par la porte de l'appelant : un
+    // `await arreter()` redeviendrait possible si la fonction rendait une
+    // promesse.
+    const source = lire("components/session/arret-sur-douleur.ts");
+    expect(source).toMatch(/export function arreterSurDouleur\([^)]*\): void/);
+    expect(source).toMatch(/keepalive: true/);
+  });
+
+  it("et le bouton l'appelle sans l'attendre", () => {
+    const source = lire(SOS);
+    expect(source).toMatch(/onClick=\{arreter\}/);
+    expect(source).not.toMatch(/void arreter\(\)/);
   });
 
   it("aucune décision de protection ne rappelle onStopSeance", () => {
