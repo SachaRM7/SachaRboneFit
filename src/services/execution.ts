@@ -2,12 +2,17 @@ import { db } from "@/db/client";
 import {
   exerciseInstances, exercises, instanceReglages, notesExercice, reglagesPersonnels,
 } from "@/db/schema";
-import { and, eq, isNull, sql, type Column, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNull, sql, type Column, type SQL } from "drizzle-orm";
 import {
   ficheRenseignee, messageDeRefus, reglagesAAfficher, resumeDesReglages, tempoEffectif,
   validerReglage,
   type DefinitionReglage, type FicheTechnique, type ReglageAffiche, type TempoResolu,
 } from "@/lib/engine/execution";
+import {
+  messageDeRefusDeclaration, validerDeclaration,
+  type DeclarationBrute, type RefusDeclaration,
+} from "@/lib/engine/declaration-reglage";
+import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
 
 /**
  * Ce qu'il faut charger pour exécuter un mouvement, et rien d'autre.
@@ -26,6 +31,20 @@ export interface ContexteExecution {
   reglages: ReglageAffiche[];
   resumeReglages: string | null;
   note: string | null;
+  /**
+   * Cette personne peut-elle DÉCRIRE les réglages de l'appareil ?
+   *
+   * Déclarer un réglage modifie la description partagée d'une machine — tous
+   * les comptes du lieu la liront. C'est donc la même règle que le reste du
+   * parc : lecture commune, écriture au responsable de la salle
+   * (`lib/autorisations`). Renseigner SA valeur sur un réglage déjà décrit
+   * reste ouvert à tout le monde ; ce champ ne parle que de la définition.
+   *
+   * Il est transmis pour que l'écran propose le geste plutôt que de laisser
+   * découvrir le refus après coup. Il ne remplace évidemment pas le contrôle
+   * serveur, qui a lieu à l'écriture.
+   */
+  peutDecrire: boolean;
 }
 
 /** Erreur métier : la valeur ne correspond pas à ce que la machine accepte. */
@@ -33,6 +52,36 @@ export class ReglageRefuse extends Error {
   constructor(readonly cle: string, message: string) {
     super(message);
     this.name = "ReglageRefuse";
+  }
+}
+
+/**
+ * Erreur métier : la déclaration d'un réglage n'est pas recevable.
+ *
+ * Distincte de `ReglageRefuse`, qui porte sur une VALEUR. Ici c'est la
+ * description de l'appareil qu'on refuse d'écrire — un nom vide, un choix sans
+ * options, une clé déjà prise.
+ */
+export class DeclarationRefusee extends Error {
+  constructor(readonly refus: RefusDeclaration) {
+    super(messageDeRefusDeclaration(refus));
+    this.name = "DeclarationRefusee";
+  }
+}
+
+/**
+ * Erreur métier : ce compte n'entretient pas cette salle.
+ *
+ * Décrire un réglage modifie un objet COMMUN. La règle est celle du reste du
+ * parc — `lib/autorisations` — et elle est appliquée ici, dans le service,
+ * plutôt que seulement dans la route : la route n'est pas son seul appelant, et
+ * une modification silencieuse du catalogue commun est précisément ce qu'on
+ * refuse.
+ */
+export class GestionSalleRefusee extends Error {
+  constructor() {
+    super(REFUS_GESTION_SALLE);
+    this.name = "GestionSalleRefusee";
   }
 }
 
@@ -94,7 +143,11 @@ async function appareilDeLExercice(exerciseInstanceId: string, exerciseId: strin
       eq(exerciseInstances.id, exerciseInstanceId),
       isNull(exerciseInstances.archiveLe),
     ),
-    columns: { id: true, exerciseId: true },
+    columns: { id: true, exerciseId: true, gymId: true },
+    // La salle voyage avec l'appareil, en une seule requête : c'est elle qui
+    // décide de qui peut DÉCRIRE ses réglages, et la lire séparément ajouterait
+    // un aller-retour sur un chemin déjà chaud.
+    with: { gym: { columns: { userId: true } } },
   });
   if (!instance) throw new InstanceIntrouvable();
   if (instance.exerciseId !== exerciseId) throw new IncoherenceExerciceAppareil();
@@ -230,7 +283,9 @@ export async function contexteExecution(entrees: {
 
   // Le couple d'abord : sans lui, on assemblerait la fiche d'un mouvement aux
   // réglages d'une machine qui en fait un autre.
-  if (exerciseInstanceId) await appareilDeLExercice(exerciseInstanceId, exerciseId);
+  const appareil = exerciseInstanceId
+    ? await appareilDeLExercice(exerciseInstanceId, exerciseId)
+    : null;
 
   const exercice = await db.query.exercises.findFirst({
     where: eq(exercises.id, exerciseId),
@@ -258,6 +313,8 @@ export async function contexteExecution(entrees: {
     return {
       exerciseInstanceId: null, exerciseId, fiche, tempo,
       reglages: [], resumeReglages: null, note: valeurOuRien(note?.texte),
+      // Sans appareil, il n'y a rien à décrire : les pompes n'ont pas de siège.
+      peutDecrire: false,
     };
   }
 
@@ -288,7 +345,97 @@ export async function contexteExecution(entrees: {
     reglages: affiches,
     resumeReglages: resumeDesReglages(affiches),
     note: valeurOuRien(note?.texte),
+    peutDecrire: peutGererLaSalle(appareil!.gym, userId),
   };
+}
+
+/**
+ * Déclare qu'un réglage EXISTE sur cet appareil.
+ *
+ * C'est le geste qui manquait. Toute la chaîne — validation d'une valeur,
+ * mémoire personnelle, résumé sur la carte, section de la fiche d'exécution —
+ * partait d'une définition que rien ne savait créer. Une salle entière pouvait
+ * donc être décrite jusqu'aux incréments de pile sans qu'aucun cran de siège
+ * puisse jamais être retenu.
+ *
+ * PORTÉE. Ce qui s'écrit ici décrit l'OBJET, pas la personne : la définition
+ * est commune à tous les comptes du lieu, comme l'instance qui la porte. D'où
+ * le contrôle d'autorisation, qui est celui du reste du parc — lecture
+ * commune, écriture au responsable de la salle. La valeur personnelle, elle,
+ * reste libre pour chacun et s'écrit par `enregistrerReglages`.
+ *
+ * `ordre` est posé à la suite : un réglage déclaré devant la machine arrive
+ * après ceux qui y sont déjà, ce qui est aussi l'ordre dans lequel on les a
+ * rencontrés. Aucun classement plus savant ne se justifierait.
+ *
+ * Renvoie l'état complet des réglages APRÈS coup, garni des valeurs de cette
+ * personne — l'écran peut donc enchaîner sur la saisie sans recharger.
+ */
+export async function declarerReglage(entrees: {
+  userId: string;
+  exerciseInstanceId: string;
+  /** Comme partout ici : le couple appareil × mouvement n'est jamais cru sur parole. */
+  exerciseId: string;
+  declaration: DeclarationBrute;
+}): Promise<ReglageAffiche[]> {
+  const { userId, exerciseInstanceId, exerciseId } = entrees;
+
+  const appareil = await appareilDeLExercice(exerciseInstanceId, exerciseId);
+  if (!peutGererLaSalle(appareil.gym, userId)) throw new GestionSalleRefusee();
+
+  const verdict = validerDeclaration(entrees.declaration);
+  if (!verdict.valide) throw new DeclarationRefusee(verdict.refus);
+  const d = verdict.declaration;
+
+  // Le rang le plus élevé, pour se placer à la suite. `desc` + limite 1 plutôt
+  // qu'un `max()` : la lecture complète suit de toute façon.
+  const [dernier] = await db.query.instanceReglages.findMany({
+    where: eq(instanceReglages.exerciseInstanceId, exerciseInstanceId),
+    columns: { ordre: true },
+    orderBy: [desc(instanceReglages.ordre)],
+    limit: 1,
+  });
+
+  /*
+   * `onConflictDoNothing` plutôt qu'une lecture préalable : c'est l'index
+   * unique `(instance, cle)` qui tranche, dans l'instruction même qui écrit.
+   * Deux personnes déclarant « Siège » au même instant ne peuvent donc pas
+   * produire deux définitions — et celle qui perd reçoit un refus explicite
+   * plutôt qu'une erreur 500 de contrainte violée.
+   */
+  const cree = await db.insert(instanceReglages)
+    .values({
+      exerciseInstanceId,
+      cle: d.cle,
+      libelle: d.libelle,
+      typeValeur: d.type,
+      min: d.min,
+      max: d.max,
+      options: d.options,
+      unite: d.unite,
+      ordre: (dernier?.ordre ?? -1) + 1,
+    })
+    .onConflictDoNothing({
+      target: [instanceReglages.exerciseInstanceId, instanceReglages.cle],
+    })
+    .returning({ id: instanceReglages.id });
+
+  if (cree.length === 0) {
+    throw new DeclarationRefusee({ motif: "cle_existante", libelle: d.libelle });
+  }
+
+  const [definitions, personnels] = await Promise.all([
+    db.query.instanceReglages.findMany({
+      where: eq(instanceReglages.exerciseInstanceId, exerciseInstanceId),
+    }),
+    db.query.reglagesPersonnels.findMany({
+      where: and(
+        eq(reglagesPersonnels.userId, userId),
+        eq(reglagesPersonnels.exerciseInstanceId, exerciseInstanceId),
+      ),
+    }),
+  ]);
+  return reglagesAAfficher(definitionsDe(definitions), valeursRenseignees(personnels));
 }
 
 /**
