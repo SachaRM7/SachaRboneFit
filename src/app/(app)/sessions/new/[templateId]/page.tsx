@@ -198,23 +198,68 @@ function ContenuSeanceLive() {
     if (ouverture) return;
     setOuverture(true);
     try {
+      const date = new Date().toISOString().slice(0, 10);
+
+      /*
+       * Ouvrir une séance, c'est CONSTRUIRE son plan — pas seulement écrire
+       * une ligne.
+       *
+       * Première version de ce bouton : un `POST /api/sessions`, qui ne crée
+       * que la ligne `session_logs`. La séance existait donc sans plan, et
+       * l'écran retombait sur la lecture du gabarit — le chemin de repli, sans
+       * charges suggérées ni prescription du jour. On avait remplacé une
+       * création non demandée par une création incomplète.
+       *
+       * Le chemin normal, `/session/start`, appelle le constructeur. Celui-ci
+       * fait la même chose, avec le même service : deux portes, une seule
+       * façon d'ouvrir une séance.
+       */
+      if (gymId) {
+        const res = await fetch("/api/seance-du-jour", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date, gymId, seanceTemplateId: templateId }),
+        });
+        if (!res.ok) throw new Error();
+        const resultat: { seance: { id: string } } = await res.json();
+        start({ id: resultat.seance.id, seanceTemplateId: templateId as string, gymId });
+
+        /*
+         * L'identifiant part dans l'URL, et ce n'est pas cosmétique.
+         *
+         * Sans lui, un rechargement ne retrouvait la séance que par le
+         * brouillon persisté dans le navigateur : vidé, expiré ou ouvert dans
+         * un autre onglet, l'écran aurait proposé de démarrer une seconde fois
+         * ce qui existait déjà. Et l'écran serait resté sur la lecture de
+         * repli, alors que le plan vient d'être construit.
+         *
+         * Avec l'identifiant dans l'adresse, la reprise ne dépend plus de rien
+         * d'autre — c'est ce que fait `/session/start` depuis toujours.
+         */
+        const params = new URLSearchParams({ gymId, sessionId: resultat.seance.id });
+        router.replace(`/sessions/new/${templateId}?${params.toString()}`);
+        return;
+      }
+
+      /*
+       * Sans lieu connu, on ne peut pas construire de plan : le parc décide de
+       * ce qui est faisable. On ouvre alors la séance telle quelle, comme
+       * avant — l'écran lira le gabarit, et rien n'est perdu.
+       */
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: new Date().toISOString().slice(0, 10),
-          seanceTemplateId: templateId,
-          gymId: gymId || null,
-        }),
+        body: JSON.stringify({ date, seanceTemplateId: templateId, gymId: null }),
       });
       if (!res.ok) throw new Error();
       const creee: { id: string } = await res.json();
       start({ id: creee.id, seanceTemplateId: templateId as string, gymId });
+      router.replace(`/sessions/new/${templateId}?sessionId=${creee.id}`);
     } catch {
       toast.error("Impossible de démarrer la séance");
       setOuverture(false);
     }
-  }, [ouverture, templateId, gymId, start]);
+  }, [ouverture, templateId, gymId, start, router]);
 
   /**
    * Le pilier et le profil de l'exercice affiché.
