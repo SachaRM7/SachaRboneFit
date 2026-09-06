@@ -63,10 +63,12 @@ interface SOSDouleurProps {
  *   saisie      où, combien, quelle nature, et — facultatif — à quel moment.
  *   résultat    ce que ça change pour la suite de la séance. Rien n'est
  *               appliqué avant que ce bouton-là soit touché.
- *   protection  n'apparaît QUE si la règle l'a dit, et après que l'incident a
- *               été consigné. « Arrêter la séance » n'est jamais enfoui
- *               derrière : quand l'arrêt est conseillé, il est pris d'abord et
- *               la proposition s'affiche par-dessus, avant la navigation.
+ *   protection  n'apparaît QUE si la règle l'a dit, et seulement sur les
+ *               chemins qui restent dans la séance.
+ *
+ * « ARRÊTER LA SÉANCE » N'ATTEND JAMAIS CETTE QUESTION. L'arrêt est engagé
+ * immédiatement, et la proposition — persistée avec l'incident — se représente
+ * dans « Ce que tu ménages ». Voir `arreter`.
  */
 export function SOSDouleur({
   exercicesRestants,
@@ -84,8 +86,8 @@ export function SOSDouleur({
   const [propositions, setPropositions] = useState<PropositionProtection[]>([]);
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
-  /** Ce qu'il reste à faire une fois la proposition tranchée. */
-  const [apres, setApres] = useState<"fermer" | "arreter">("fermer");
+  /** L'incident consigné : c'est LUI que la confirmation désigne. */
+  const [incidentId, setIncidentId] = useState<string | null>(null);
 
   // Les zones du référentiel viennent des régions touchées : c'est le seul
   // pont, et il est calculé au même endroit côté client et côté serveur.
@@ -102,7 +104,10 @@ export function SOSDouleur({
    * de la séance — elle est locale — mais il se dit, parce qu'un signalement
    * perdu est précisément ce qui empêchera la prochaine récurrence d'être vue.
    */
-  const signaler = async (decision: string): Promise<PropositionProtection[]> => {
+  const signaler = async (decision: string): Promise<{
+    incidentId: string | null;
+    propositions: PropositionProtection[];
+  }> => {
     setEnCours(true);
     setErreur(null);
     try {
@@ -123,30 +128,30 @@ export function SOSDouleur({
       });
       if (!res.ok) throw new Error();
       const corps = await res.json();
-      return corps.propositions ?? [];
+      return { incidentId: corps.incidentId ?? null, propositions: corps.propositions ?? [] };
     } catch {
       setErreur("Signalement non enregistré. L'adaptation de la séance reste appliquée.");
-      return [];
+      return { incidentId: null, propositions: [] };
     } finally {
       setEnCours(false);
     }
   };
 
-  /** Termine le geste : soit on ferme, soit on quitte la séance. */
-  const conclure = (suite: "fermer" | "arreter") => {
-    if (suite === "arreter") onStopSeance();
-    onClose();
-  };
-
-  const poursuivre = async (suite: "fermer" | "arreter", decision: string) => {
-    const propos = await signaler(decision);
-    if (propos.length > 0) {
+  /**
+   * Consigne, puis montre la proposition s'il y en a une.
+   *
+   * Réservé aux chemins qui NE quittent PAS la séance. L'arrêt a le sien, et
+   * c'est délibéré — voir `arreter`.
+   */
+  const poursuivre = async (decision: string) => {
+    const { incidentId: id, propositions: propos } = await signaler(decision);
+    if (propos.length > 0 && id) {
+      setIncidentId(id);
       setPropositions(propos);
-      setApres(suite);
       setEtape("protection");
       return;
     }
-    conclure(suite);
+    onClose();
   };
 
   const appliquer = async () => {
@@ -154,25 +159,48 @@ export function SOSDouleur({
     const alleger = idsPour("alleger");
     if (retirer.length > 0) onSkipExercices(retirer);
     if (alleger.length > 0) onAllegerExercices(alleger);
-    await poursuivre("fermer", bilan.message);
+    await poursuivre(bilan.message);
   };
 
-  const arreter = () => poursuivre("arreter", "Séance arrêtée sur douleur");
+  /**
+   * ARRÊTER LA SÉANCE — l'arrêt est engagé, point.
+   *
+   * Aucune décision secondaire ne le conditionne ni ne le retarde. La version
+   * précédente attendait la réponse à « Ménager cette zone ? » avant d'appeler
+   * `onStopSeance` : quelqu'un qui venait d'appuyer sur « Arrêter » devait
+   * encore répondre à une question avant que la séance s'arrête vraiment.
+   * C'était l'inverse de l'invariant.
+   *
+   * `onStopSeance` navigue (`router.push` vers l'écran de fin), ce qui démonte
+   * cette feuille : l'écran de protection ne peut pas lui survivre, et il n'est
+   * pas question de retarder l'arrêt pour le sauver. La proposition, elle, est
+   * déjà persistée avec l'incident — elle se représentera dans « Ce que tu
+   * ménages », qui est durable.
+   *
+   * Le signalement est attendu avant de naviguer, mais il ne DÉCIDE de rien :
+   * même en cas d'échec réseau, l'arrêt a lieu.
+   */
+  const arreter = async () => {
+    await signaler("Séance arrêtée sur douleur");
+    onStopSeance();
+    onClose();
+  };
 
   /** Le « Oui » — le seul chemin de l'application vers une contrainte. */
-  const proteger = async () => {
+  const repondreProtection = async (decision: "appliquer" | "refuser") => {
+    if (!incidentId) { onClose(); return; }
     setEnCours(true);
     setErreur(null);
     try {
+      // Ni zone, ni muscle, ni sévérité : le serveur relit ce que la règle
+      // avait décidé sur CET incident. Le client ne fait que trancher.
       const res = await fetch("/api/douleur/proteger", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          zones: propositions.map((p) => ({ zone: p.zone, severite: p.severite })),
-        }),
+        body: JSON.stringify({ incident_id: incidentId, decision }),
       });
       if (!res.ok) throw new Error();
-      conclure(apres);
+      onClose();
     } catch {
       setErreur("Impossible d'enregistrer. Tu pourras le redire depuis « Ce que tu ménages ».");
       setEnCours(false);
@@ -226,14 +254,14 @@ export function SOSDouleur({
           <Button
             variant="outline" className="flex-1 border-filet text-encre"
             disabled={enCours}
-            onClick={() => conclure(apres)}
+            onClick={() => void repondreProtection("refuser")}
           >
             Pas maintenant
           </Button>
           <Button
             className="flex-1 bg-encre text-papier"
             disabled={enCours}
-            onClick={() => void proteger()}
+            onClick={() => void repondreProtection("appliquer")}
           >
             {enCours ? "…" : "Oui, la ménager"}
           </Button>
@@ -296,7 +324,7 @@ export function SOSDouleur({
                prochaine gêne reconnaissable comme une répétition. */
             <Button variant="outline" className="flex-1 border-filet text-encre"
               disabled={enCours}
-              onClick={() => void poursuivre("fermer", bilan.message)}>
+              onClick={() => void poursuivre(bilan.message)}>
               Continuer
             </Button>
           )}
@@ -304,7 +332,7 @@ export function SOSDouleur({
 
         {bilan.arretConseille && (
           <button type="button" disabled={enCours}
-            onClick={() => void poursuivre("fermer", "Continue malgré l'arrêt conseillé")}
+            onClick={() => void poursuivre("Continue malgré l'arrêt conseillé")}
             className="w-full text-xs text-encre-3 underline underline-offset-4">
             Je préfère continuer malgré tout
           </button>

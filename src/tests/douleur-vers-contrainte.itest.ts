@@ -30,7 +30,8 @@ vi.mock("@/lib/supabase/auth-helper", () => ({
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
 const { eq, inArray } = await import("drizzle-orm");
-const { contraintesActives } = await import("@/services/contraintes");
+const { contraintesActives, creerContrainte } = await import("@/services/contraintes");
+const { propositionsEnAttente } = await import("@/services/douleur");
 const { validerSeanceComplete } = await import("@/services/validation");
 const { SEVERITE } = await import("@/lib/engine/contraintes");
 const douleur = await import("@/app/api/douleur/route");
@@ -43,6 +44,7 @@ let developpe = "";
 let instanceDeveloppe = "";
 let seanceDeSacha = "";
 let seanceDeMaria = "";
+let incidentDeMaria = "";
 
 const enTantQue = async <T>(qui: string, action: () => Promise<T>): Promise<T> => {
   const avant = courant;
@@ -215,16 +217,18 @@ describe("une douleur forte appelle une proposition, et rien de plus", () => {
 });
 
 describe("confirmer crée la contrainte, et elle boucle", () => {
-  it("le « Oui » écrit une contrainte par muscle de la zone", async () => {
+  it("le « Oui » écrit une contrainte par muscle PROPOSÉ", async () => {
     await purger(SACHA);
     const signalement = await signaler({ regions: ["face:epaule:droite"], niveau: 8 });
-    const { propositions } = await signalement.json();
+    const { incidentId, propositions } = await signalement.json();
 
-    const res = await proteger.POST(poste({
-      zones: propositions.map((p: { zone: string; severite: number }) =>
-        ({ zone: p.zone, severite: p.severite })),
-    }));
-    expect(res.status).toBe(201);
+    expect(propositions).toHaveLength(1);
+    expect(propositions[0].muscles.sort()).toEqual(["deltoide_posterieur", "epaules"]);
+
+    // Le corps ne porte QUE l'incident et le verbe : ni zone, ni muscle, ni
+    // sévérité. C'est le cliché serveur qui décide de ce qui est créé.
+    const res = await proteger.POST(poste({ incident_id: incidentId, decision: "appliquer" }));
+    expect(res.status).toBe(200);
 
     const actives = await contraintesActives(SACHA);
     expect(actives.map((c) => c.muscle).sort()).toEqual(["deltoide_posterieur", "epaules"]);
@@ -266,9 +270,18 @@ describe("confirmer crée la contrainte, et elle boucle", () => {
     expect(validation.seance.valide).toBe(false);
   });
 
-  it("une zone inconnue est refusée plutôt que traduite au hasard", async () => {
+  it("un incident inventé est refusé", async () => {
+    const res = await proteger.POST(poste({
+      incident_id: randomUUID(), decision: "appliquer",
+    }));
+    expect(res.status).toBe(404);
+  });
+
+  it("un corps qui prétend désigner une zone ou une sévérité est rejeté", async () => {
+    // L'ancien contrat, exactement : il n'existe plus, et il ne doit pas
+    // repasser en douce parce que le schéma serait devenu permissif.
     const res = await proteger.POST(poste({ zones: [{ zone: "Oreille", severite: 8 }] }));
-    expect(res.status).toBe(422);
+    expect(res.status).toBe(400);
   });
 
   it("une zone déjà couverte n'est plus proposée", async () => {
@@ -394,21 +407,216 @@ describe("deux comptes ne se voient jamais", () => {
         arret_conseille: false,
         decision: "Adapté",
       })));
-    const { propositions } = await res.json();
-    expect(propositions).toHaveLength(1);
-    expect(propositions[0].zone).toBe("Cheville");
+    const corps = await res.json();
+    expect(corps.propositions).toHaveLength(1);
+    expect(corps.propositions[0].zone).toBe("Cheville");
+    incidentDeMaria = corps.incidentId;
   });
 
   it("et une protection ne s'écrit que sur le compte qui l'a demandée", async () => {
     await enTantQue(MARIA, async () => {
       const res = await proteger.POST(poste({
-        zones: [{ zone: "Cheville", severite: SEVERITE.ecartement }],
+        incident_id: incidentDeMaria, decision: "appliquer",
       }));
-      expect(res.status).toBe(201);
+      expect(res.status).toBe(200);
     });
 
     expect((await contraintesActives(MARIA)).map((c) => c.muscle)).toEqual(["mollets"]);
     expect(await contraintesActives(SACHA)).toHaveLength(0);
+  });
+
+  it("et Sacha ne peut pas trancher l'incident de Maria", async () => {
+    // La jointure sur `session_logs.user_id` EST le contrôle d'accès : un
+    // incident ne porte pas de compte, c'est sa séance qui en porte un.
+    const res = await proteger.POST(poste({
+      incident_id: incidentDeMaria, decision: "appliquer",
+    }));
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("le sous-ensemble décidé par la règle fait autorité jusqu'au bout", () => {
+  /*
+   * LE DÉFAUT EXACT QUE CE BLOC COUVRE.
+   *
+   * « Épaule » vaut `epaules` + `deltoide_posterieur`. Quand l'un des deux est
+   * DÉJÀ couvert par une contrainte active, `verdictSignalement` répond
+   * « deja_couvert » pour lui, et la proposition ne retient que l'autre.
+   *
+   * La confirmation, elle, recalculait `musclesDeLaZone(zone)` à partir du nom
+   * de zone envoyé par le client — et recréait donc une contrainte sur les
+   * DEUX. Surprotection, et doublon sur le muscle déjà couvert.
+   *
+   * Le cliché persisté avec l'incident est désormais la seule autorité.
+   */
+
+  const musclesDeSacha = () =>
+    db.query.contraintes.findMany({ where: eq(schema.contraintes.userId, SACHA) });
+
+  let incidentPartiel = "";
+
+  it("un seul muscle de la zone est proposé quand l'autre est déjà couvert", async () => {
+    await purger(SACHA);
+    await db.delete(schema.sessionIncidents).where(
+      inArray(
+        schema.sessionIncidents.sessionLogId,
+        (await db.query.sessionLogs.findMany({
+          where: eq(schema.sessionLogs.userId, SACHA), columns: { id: true },
+        })).map((x) => x.id),
+      ),
+    );
+
+    // `deltoide_posterieur` est couvert ; `epaules` ne l'est pas.
+    await creerContrainte({
+      userId: SACHA, muscle: "deltoide_posterieur", severite: SEVERITE.ecartement,
+    });
+
+    const res = await signaler({ regions: ["face:epaule:droite"], niveau: 8 });
+    const { incidentId, propositions } = await res.json();
+    incidentPartiel = incidentId;
+
+    expect(propositions).toHaveLength(1);
+    expect(propositions[0].zone).toBe("Épaule");
+    // Le point : UN seul muscle, pas les deux de la zone.
+    expect(propositions[0].muscles).toEqual(["epaules"]);
+    expect(propositions[0].libelleMuscles).not.toMatch(/Arrière/);
+  });
+
+  it("le cliché persisté porte le même sous-ensemble, pas la zone entière", async () => {
+    const [ligne] = await db.query.sessionIncidents.findMany({
+      where: eq(schema.sessionIncidents.id, incidentPartiel),
+    });
+    const ctx = ligne!.contexte as { propositions: { muscles: string[] }[] };
+    expect(ctx.propositions).toHaveLength(1);
+    expect(ctx.propositions[0]!.muscles).toEqual(["epaules"]);
+  });
+
+  it("le « Oui » ne crée QUE ce muscle-là", async () => {
+    const res = await proteger.POST(poste({
+      incident_id: incidentPartiel, decision: "appliquer",
+    }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).muscles).toEqual(["epaules"]);
+  });
+
+  it("et le muscle déjà couvert n'a pas reçu de doublon", async () => {
+    const lignes = await musclesDeSacha();
+    const parMuscle = lignes.filter((c) => c.muscle === "deltoide_posterieur");
+    expect(parMuscle, "une seconde contrainte est née sur un muscle déjà couvert")
+      .toHaveLength(1);
+    expect(lignes).toHaveLength(2);
+  });
+
+  it("un renvoi du même « Oui » ne crée pas une deuxième contrainte", async () => {
+    const avant = (await musclesDeSacha()).length;
+
+    const res = await proteger.POST(poste({
+      incident_id: incidentPartiel, decision: "appliquer",
+    }));
+    expect(res.status).toBe(200);
+    const corps = await res.json();
+    expect(corps.dejaTranchee).toBe(true);
+    expect(corps.muscles).toEqual([]);
+
+    expect(await musclesDeSacha()).toHaveLength(avant);
+  });
+
+  it("un client ne peut inventer ni zone, ni muscle, ni sévérité", async () => {
+    /*
+     * Le corps ne porte que l'incident et le verbe. Tout le reste est ignoré
+     * par le schéma — et ce qui est créé vient du cliché serveur, pas d'ici.
+     */
+    await purger(SACHA);
+    const signalement = await signaler({ regions: ["dos:mollets:droite"], niveau: 8 });
+    const { incidentId } = await signalement.json();
+
+    const res = await proteger.POST(poste({
+      incident_id: incidentId,
+      decision: "appliquer",
+      // Tentatives : une autre zone, une autre sévérité, d'autres muscles.
+      zones: [{ zone: "Quadriceps", severite: 10 }],
+      muscles: ["quadriceps", "ischios", "fessiers"],
+      severite: 10,
+    }));
+    expect(res.status).toBe(200);
+
+    const lignes = await musclesDeSacha();
+    // Uniquement ce que la règle avait décidé pour « Mollets ».
+    expect(lignes.map((c) => c.muscle)).toEqual(["mollets"]);
+    expect(lignes[0]!.severite).toBe(8);
+  });
+
+  it("« Pas maintenant » n'écrit rien, et ne se repose plus", async () => {
+    await purger(SACHA);
+    const signalement = await signaler({ regions: ["face:quadriceps:droite"], niveau: 8 });
+    const { incidentId } = await signalement.json();
+
+    const res = await proteger.POST(poste({ incident_id: incidentId, decision: "refuser" }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).decision).toBe("refusee");
+    expect(await contraintesActives(SACHA)).toHaveLength(0);
+
+    const enAttente = await propositionsEnAttente(SACHA);
+    expect(enAttente.map((a) => a.incidentId)).not.toContain(incidentId);
+  });
+});
+
+describe("une proposition survit à l'arrêt de séance", () => {
+  /*
+   * `onStopSeance` navigue : la feuille est démontée, l'écran de protection ne
+   * peut pas lui survivre. Il n'est pas question de retarder l'arrêt pour le
+   * sauver — donc la proposition doit se retrouver ailleurs, sur un écran
+   * durable.
+   */
+  let incidentApresArret = "";
+
+  it("un signalement avec arrêt conseillé persiste quand même sa proposition", async () => {
+    await purger(SACHA);
+    await db.delete(schema.sessionIncidents).where(
+      inArray(
+        schema.sessionIncidents.sessionLogId,
+        (await db.query.sessionLogs.findMany({
+          where: eq(schema.sessionLogs.userId, SACHA), columns: { id: true },
+        })).map((x) => x.id),
+      ),
+    );
+
+    const res = await signaler({
+      regions: ["face:quadriceps:droite"],
+      niveau: 9,
+      type_douleur: "aiguë",
+      arret_conseille: true,
+      decision: "Séance arrêtée sur douleur",
+    });
+    const { incidentId, propositions } = await res.json();
+    incidentApresArret = incidentId;
+    expect(propositions).toHaveLength(1);
+
+    // Et rien n'a été créé : l'arrêt n'emporte aucune décision de protection.
+    expect(await contraintesActives(SACHA)).toHaveLength(0);
+  });
+
+  it("l'écran « Ce que tu ménages » la repose", async () => {
+    const res = await contraintesRoute.GET();
+    const { enAttente } = await res.json();
+    expect(enAttente.map((a: { incidentId: string }) => a.incidentId))
+      .toContain(incidentApresArret);
+    expect(enAttente[0].propositions[0].zone).toBe("Quadriceps");
+  });
+
+  it("et depuis cet écran, le « Oui » crée bien la contrainte", async () => {
+    const res = await proteger.POST(poste({
+      incident_id: incidentApresArret, decision: "appliquer",
+    }));
+    expect(res.status).toBe(200);
+    expect((await contraintesActives(SACHA)).map((c) => c.muscle)).toEqual(["quadriceps"]);
+  });
+
+  it("elle ne se repose plus une fois tranchée", async () => {
+    const res = await contraintesRoute.GET();
+    const { enAttente } = await res.json();
+    expect(enAttente.map((a: { incidentId: string }) => a.incidentId))
+      .not.toContain(incidentApresArret);
   });
 });
 

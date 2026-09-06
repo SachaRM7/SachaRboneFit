@@ -75,6 +75,33 @@ export function estMomentDouleur(valeur: unknown): valeur is MomentDouleur {
 /** Version du contexte écrit. Elle sert à la RELECTURE, pas à filtrer. */
 export const VERSION_CONTEXTE_DOULEUR = 2;
 
+/**
+ * Ce que la règle a décidé, au moment où elle l'a décidé — et qui fait foi.
+ *
+ * `muscles` est le SOUS-ENSEMBLE EXACT retenu, pas tous les muscles de la zone.
+ * La distinction est le défaut qu'on corrige : « Épaule » vaut `epaules` et
+ * `deltoide_posterieur`, mais si le second porte déjà une contrainte active, la
+ * règle n'a proposé que le premier. Recalculer `musclesDeLaZone(zone)` à la
+ * confirmation recréerait une contrainte sur le muscle déjà couvert — une
+ * surprotection que personne n'a demandée, et un doublon dans la liste.
+ *
+ * Ce cliché est donc persisté avec l'incident, et c'est lui, jamais le client
+ * ni un recalcul, que la confirmation relit.
+ */
+export interface PropositionPersistee {
+  zone: string;
+  /** Le sous-ensemble décidé par la règle. Autorité de la confirmation. */
+  muscles: Muscle[];
+  severite: number;
+  motif: string;
+}
+
+/** Ce que l'athlète a répondu à la proposition, et quand. */
+export interface DecisionProtection {
+  decision: "appliquee" | "refusee";
+  le: string;
+}
+
 export interface ContexteDouleur extends Record<string, unknown> {
   v: number;
   /** Zones du référentiel. Nom historique, conservé tel quel. */
@@ -103,6 +130,22 @@ export interface ContexteDouleur extends Record<string, unknown> {
   a_alleger: number;
   /** Les appareils que la décision a touchés, pour relire l'épisode. */
   exercices_concernes: string[];
+  /**
+   * Ce que la règle a proposé de ménager. Vide quand elle n'a rien proposé.
+   *
+   * Persisté parce que la confirmation peut arriver plus tard — après un arrêt
+   * de séance, depuis un autre écran — et parce qu'elle ne doit dépendre ni du
+   * client ni d'un recalcul. Voir `PropositionPersistee`.
+   */
+  propositions: PropositionPersistee[];
+  /**
+   * La réponse de l'athlète, ou `null` tant qu'il n'a pas tranché.
+   *
+   * Elle rend la confirmation IDEMPOTENTE — une seconde requête ne réécrit
+   * rien — et elle empêche une proposition refusée de revenir à chaque
+   * ouverture de l'écran des contraintes.
+   */
+  protection: DecisionProtection | null;
 }
 
 export interface EntreesContexteDouleur {
@@ -114,6 +157,8 @@ export interface EntreesContexteDouleur {
   arretConseille: boolean;
   aRetirer: string[];
   aAlleger: string[];
+  /** Ce que la règle vient de décider. Le cliché qui fera foi. */
+  propositions?: PropositionPersistee[];
 }
 
 /**
@@ -140,7 +185,51 @@ export function construireContexteDouleur(e: EntreesContexteDouleur): ContexteDo
     a_retirer: e.aRetirer.length,
     a_alleger: e.aAlleger.length,
     exercices_concernes: [...new Set([...e.aRetirer, ...e.aAlleger])],
+    propositions: e.propositions ?? [],
+    // Rien n'est tranché à l'écriture : une contrainte ne naît que d'un « Oui ».
+    protection: null,
   };
+}
+
+/**
+ * Les propositions persistées d'un incident, relues sans confiance.
+ *
+ * Le contexte est un `jsonb` écrit par une version antérieure du code, ou par
+ * un script : chaque champ est vérifié plutôt que casté. Une proposition dont
+ * la liste de muscles serait vide est écartée — elle ne pourrait rien créer, et
+ * la laisser passer afficherait une carte qui ne fait rien.
+ */
+export function propositionsDepuis(contexte: unknown): PropositionPersistee[] {
+  if (!contexte || typeof contexte !== "object") return [];
+  const brutes = (contexte as Record<string, unknown>).propositions;
+  if (!Array.isArray(brutes)) return [];
+
+  return brutes.flatMap((b) => {
+    if (!b || typeof b !== "object") return [];
+    const p = b as Record<string, unknown>;
+    const muscles = versMuscles(
+      Array.isArray(p.muscles) ? p.muscles.filter((m): m is string => typeof m === "string") : [],
+    );
+    const severite = nombreOuRien(p.severite);
+    if (typeof p.zone !== "string" || muscles.length === 0 || severite === null) return [];
+    return [{
+      zone: p.zone,
+      muscles,
+      severite,
+      motif: typeof p.motif === "string" ? p.motif : "",
+    }];
+  });
+}
+
+/** La décision déjà prise sur cet incident, ou `null` s'il en attend une. */
+export function decisionDepuis(contexte: unknown): DecisionProtection | null {
+  if (!contexte || typeof contexte !== "object") return null;
+  const brut = (contexte as Record<string, unknown>).protection;
+  if (!brut || typeof brut !== "object") return null;
+  const d = (brut as Record<string, unknown>).decision;
+  if (d !== "appliquee" && d !== "refusee") return null;
+  const le = (brut as Record<string, unknown>).le;
+  return { decision: d, le: typeof le === "string" ? le : "" };
 }
 
 // ---------------------------------------------------------------------------

@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { protegerZones, ZoneInconnue } from "@/services/douleur";
+import { deciderProtection, IncidentIntrouvable } from "@/services/douleur";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Le « Oui, ménage cette zone » de l'athlète.
+ * Le « Oui, ménage cette zone » — ou le « Pas maintenant » — de l'athlète.
  *
  * C'EST LE SEUL ENDROIT DE L'APPLICATION où une gêne signalée devient une
  * contrainte. Il n'y a pas de chemin automatique, pas de tâche de fond, pas de
@@ -15,18 +15,21 @@ export const dynamic = "force-dynamic";
  * n'existe que pour être appelée par un geste, et le geste est un bouton qui
  * dit ce qu'il fait.
  *
- * Le corps ne porte QUE la zone et la sévérité proposée. Pas de `userId` — il
- * vient du cookie vérifié —, pas de muscle — le référentiel le déduit —, pas de
- * date de fin ni d'échéance : le moteur les pose.
+ * LE CORPS NE PORTE AUCUNE AUTORITÉ. Un identifiant d'incident et un verbe,
+ * rien d'autre : ni zone, ni muscle, ni sévérité, ni compte. Ce que la
+ * confirmation crée est lu dans le cliché persisté avec l'incident au moment du
+ * signalement, et l'incident n'est relu qu'à travers une jointure sur la séance
+ * du compte authentifié.
+ *
+ * C'est ce qui corrige un défaut concret : la version précédente recevait
+ * `{ zone, severite }` du client et recalculait `musclesDeLaZone(zone)`. Sur
+ * « Épaule » dont seul `epaules` avait été proposé — `deltoide_posterieur`
+ * étant déjà couvert —, confirmer recréait une contrainte sur les deux.
  */
 
 const schema = z.object({
-  zones: z.array(z.object({
-    /** Une `ZoneDouleur` du référentiel. Le service refuse tout le reste. */
-    zone: z.string().min(1).max(64),
-    severite: z.number().int().min(1).max(10),
-  })).min(1).max(6),
-  note: z.string().max(300).nullable().optional(),
+  incident_id: z.string().uuid(),
+  decision: z.enum(["appliquer", "refuser"]),
 });
 
 export async function POST(request: Request) {
@@ -39,17 +42,19 @@ export async function POST(request: Request) {
   }
 
   try {
-    const protections = await protegerZones({
+    const resultat = await deciderProtection({
       userId,
-      zones: parsed.data.zones,
-      note: parsed.data.note ?? null,
+      incidentId: parsed.data.incident_id,
+      decision: parsed.data.decision,
     });
-    return NextResponse.json({ protections }, { status: 201 });
+    // 200 et non 201 : un renvoi réseau retombe ici sans rien créer, et
+    // annoncer « créé » une seconde fois serait faux.
+    return NextResponse.json(resultat);
   } catch (erreur) {
-    // 422 : la requête est bien formée, mais cette zone n'existe pas dans le
-    // référentiel — donc rien de ce qu'elle demande n'est traduisible.
-    if (erreur instanceof ZoneInconnue) {
-      return NextResponse.json({ error: erreur.message, zone: erreur.zone }, { status: 422 });
+    // 404 aussi bien pour un incident absent que pour celui d'un autre compte :
+    // distinguer les deux dirait à un inconnu que l'identifiant existe.
+    if (erreur instanceof IncidentIntrouvable) {
+      return NextResponse.json({ error: erreur.message }, { status: 404 });
     }
     console.error("[douleur proteger POST]", erreur);
     return NextResponse.json({ error: "Protection impossible" }, { status: 500 });

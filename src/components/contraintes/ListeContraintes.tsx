@@ -37,15 +37,64 @@ const NIVEAU = (severite: number) =>
       ? "Gêne modérée"
       : "Gêne légère";
 
+/**
+ * Une gêne qui a fait proposer quelque chose, sans réponse à ce jour.
+ *
+ * Elle arrive ici parce qu'on n'a pas toujours pu poser la question sur le
+ * moment : « Arrêter la séance » navigue aussitôt, et rien ne doit retarder cet
+ * arrêt. Ce que la règle avait décidé est persisté avec l'incident ; la
+ * confirmation ne fait que le désigner.
+ */
+interface EnAttente {
+  incidentId: string;
+  date: string;
+  propositions: {
+    zone: string;
+    libelleMuscles: string;
+    severite: number;
+    motif: string;
+    effets: string[];
+  }[];
+}
+
 export function ListeContraintes({
-  actives, passees,
+  actives, passees, enAttente = [],
 }: {
   actives: Affichee[];
   passees: Affichee[];
+  enAttente?: EnAttente[];
 }) {
   const router = useRouter();
   const [enCours, setEnCours] = useState<string | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+
+  /**
+   * Trancher une proposition en attente.
+   *
+   * Le corps ne porte ni zone, ni muscle, ni sévérité : le serveur relit ce que
+   * la règle avait décidé sur CET incident. Le client ne fait que dire oui ou
+   * non — il ne peut pas désigner autre chose.
+   */
+  async function decider(incidentId: string, decision: "appliquer" | "refuser") {
+    setEnCours(incidentId);
+    setErreur(null);
+    try {
+      const res = await fetch("/api/douleur/proteger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ incident_id: incidentId, decision }),
+      });
+      if (!res.ok) {
+        const corps = await res.json().catch(() => null);
+        throw new Error(messageErreur("répondre à cette proposition", corps?.error, res.status));
+      }
+      router.refresh();
+    } catch (e) {
+      setErreur(e instanceof Error ? e.message : "Mise à jour impossible");
+    } finally {
+      setEnCours(null);
+    }
+  }
 
   async function repondre(id: string, reponse: "toujours" | "un_peu_mieux" | "resolu") {
     setEnCours(id);
@@ -71,6 +120,44 @@ export function ListeContraintes({
   return (
     <div className="space-y-6">
       {erreur && <p className="text-perte text-sm">{erreur}</p>}
+
+      {/* Ce qui attend une réponse passe devant : c'est une question posée, pas
+          un état en cours. */}
+      {enAttente.map((a) => (
+        <div key={a.incidentId} className="rounded-2xl border border-encre bg-carte p-4 space-y-3">
+          <p className="text-encre-3 text-xs">Gêne signalée le {enClair(a.date)}</p>
+          {a.propositions.map((p) => (
+            <div key={p.zone} className="space-y-2">
+              <p className="text-encre">
+                Tu veux que RboneFit ménage {p.zone.toLowerCase()} dans les prochaines séances ?
+              </p>
+              <p className="text-encre-3 text-sm">{p.motif}</p>
+              <p className="text-encre-2 text-xs">
+                Zones musculaires concernées : {p.libelleMuscles}.
+              </p>
+              <ul className="text-encre-2 text-xs space-y-1">
+                {p.effets.map((e) => <li key={e}>{e}</li>)}
+              </ul>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <Button
+              variant="outline" disabled={enCours !== null}
+              onClick={() => void decider(a.incidentId, "refuser")}
+              className="flex-1 bg-carte border-filet text-encre rounded-full h-11"
+            >
+              Pas maintenant
+            </Button>
+            <Button
+              disabled={enCours !== null}
+              onClick={() => void decider(a.incidentId, "appliquer")}
+              className="flex-1 bg-encre text-papier hover:bg-filet rounded-full h-11"
+            >
+              {enCours === a.incidentId ? "Un instant…" : "Oui, la ménager"}
+            </Button>
+          </div>
+        </div>
+      ))}
 
       <div className="space-y-3">
         {actives.map((c) => (

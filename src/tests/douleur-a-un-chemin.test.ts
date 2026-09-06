@@ -118,9 +118,9 @@ describe("la règle de suite a un appelant applicatif", () => {
     const exportes = SOURCES.filter((f) => f.startsWith("services/douleur"))
       .flatMap((f) => [...lire(f).matchAll(/export async function (\w+)/g)].map((m) => m[1]!));
     expect(exportes).toContain("signalerDouleur");
-    expect(exportes).toContain("protegerZones");
+    expect(exportes).toContain("deciderProtection");
 
-    for (const nom of ["signalerDouleur", "protegerZones"]) {
+    for (const nom of ["signalerDouleur", "deciderProtection"]) {
       const routes = ROUTES.filter((r) => new RegExp(`\\b${nom}\\b`).test(lire(r)));
       expect(routes, `${nom} n'est appelée par aucune route`).not.toEqual([]);
     }
@@ -147,7 +147,7 @@ describe("aucune contrainte ne peut naître sans confirmation", () => {
     // branche du signalement qui crée un état. Les deux routes sont séparées
     // pour que ce test puisse être écrit.
     const source = lire("app/api/douleur/route.ts");
-    expect(source).not.toMatch(/creerContrainte|protegerZones/);
+    expect(source).not.toMatch(/creerContrainte|deciderProtection/);
   });
 
   it("le service qui signale non plus", () => {
@@ -205,5 +205,119 @@ describe("la compatibilité historique reste branchée", () => {
     for (const champ of ["intensite", "niveau", "muscle", "zones", "muscles", "moment"]) {
       expect(source, champ).toMatch(new RegExp(`${champ}:`));
     }
+  });
+});
+
+describe("« Arrêter la séance » n'attend aucune décision secondaire", () => {
+  /*
+   * L'INVARIANT, et la façon dont il a été enfreint.
+   *
+   * `arreter()` appelait `poursuivre("arreter", …)`, qui attendait le
+   * signalement puis, s'il existait une proposition, basculait sur l'écran
+   * « Ménager cette zone ? » et RETOURNAIT. `onStopSeance()` n'arrivait que
+   * plus tard, dans `conclure("arreter")`, après le « Oui » ou le
+   * « Pas maintenant ».
+   *
+   * Autrement dit : appuyer sur « Arrêter la séance » ne l'arrêtait pas. Il
+   * fallait d'abord répondre à une question sur les prochaines séances.
+   *
+   * `onStopSeance` navigue (`router.push` vers l'écran de fin) : la feuille est
+   * démontée, l'écran de protection ne peut pas lui survivre. On ne retarde
+   * donc pas l'arrêt pour le sauver — la proposition est persistée avec
+   * l'incident et se repose dans « Ce que tu ménages ».
+   */
+
+  const SOS = "components/session/SOSDouleur.tsx";
+
+  /** Le corps d'une fonction fléchée déclarée en `const`, jusqu'à sa fermeture. */
+  function corpsDe(source: string, nom: string): string {
+    const debut = source.indexOf(`const ${nom} = `);
+    expect(debut, `${nom} introuvable`).toBeGreaterThan(-1);
+    const reste = source.slice(debut);
+    const fin = reste.search(/\n  \};/);
+    return fin === -1 ? reste : reste.slice(0, fin);
+  }
+
+  it("l'arrêt a son propre chemin, qui appelle onStopSeance", () => {
+    const arreter = corpsDe(lire(SOS), "arreter");
+    expect(arreter).toMatch(/onStopSeance\(\)/);
+  });
+
+  it("et ce chemin ne peut pas basculer sur l'écran de protection", () => {
+    // La forme exacte du défaut : un `setEtape("protection")` entre l'appui et
+    // l'arrêt, ou une délégation à la fonction qui en contient un.
+    const arreter = corpsDe(lire(SOS), "arreter");
+    expect(arreter).not.toMatch(/setEtape/);
+    expect(arreter).not.toMatch(/poursuivre\(/);
+    expect(arreter).not.toMatch(/setPropositions/);
+  });
+
+  it("aucune décision de protection ne rappelle onStopSeance", () => {
+    // L'autre moitié de l'invariant : si le « Oui » ou le « Pas maintenant »
+    // arrêtait la séance, l'arrêt dépendrait de nouveau de la réponse.
+    const decision = corpsDe(lire(SOS), "repondreProtection");
+    expect(decision).not.toMatch(/onStopSeance/);
+  });
+
+  it("le chemin qui montre la proposition ne quitte jamais la séance", () => {
+    const poursuivre = corpsDe(lire(SOS), "poursuivre");
+    expect(poursuivre).toMatch(/setEtape\("protection"\)/);
+    expect(poursuivre).not.toMatch(/onStopSeance/);
+  });
+
+  it("la proposition perdue à l'arrêt se repose sur un écran durable", () => {
+    // Sans cela, arrêter la séance ferait disparaître la question pour
+    // toujours — et l'invariant se paierait d'une fonctionnalité muette.
+    expect(lire("services/douleur.ts")).toMatch(/export async function propositionsEnAttente/);
+    expect(lire("app/api/contraintes/route.ts")).toMatch(/propositionsEnAttente/);
+    expect(lire("app/(app)/contraintes/page.tsx")).toMatch(/propositionsEnAttente/);
+    expect(lire("components/contraintes/ListeContraintes.tsx"))
+      .toMatch(/fetch\("\/api\/douleur\/proteger"/);
+  });
+});
+
+describe("la confirmation ne fait confiance qu'au cliché serveur", () => {
+  it("le corps de /proteger ne porte ni zone, ni muscle, ni sévérité", () => {
+    /*
+     * Le défaut corrigé : la route recevait `{ zone, severite }` du client et
+     * recalculait `musclesDeLaZone(zone)`. Sur une zone dont un seul muscle
+     * avait été proposé — l'autre étant déjà couvert —, confirmer recréait une
+     * contrainte sur les deux.
+     */
+    const source = lire("app/api/douleur/proteger/route.ts");
+    const schema = source.slice(source.indexOf("const schema"), source.indexOf("export async function"));
+    expect(schema).toMatch(/incident_id/);
+    expect(schema).toMatch(/decision/);
+    for (const champ of ["zone", "severite", "muscle"]) {
+      expect(schema, `${champ} ne doit pas venir du client`).not.toMatch(new RegExp(`${champ}`));
+    }
+  });
+
+  it("le service relit les propositions persistées plutôt que la zone", () => {
+    const source = lire("services/douleur.ts");
+    const decision = source.slice(
+      source.indexOf("export async function deciderProtection"),
+      source.indexOf("async function marquerDecision"),
+    );
+    expect(decision.length).toBeGreaterThan(0);
+    expect(decision).toMatch(/propositionsDepuis/);
+    // Recalculer la zone est exactement ce qui produisait la surprotection.
+    expect(decision).not.toMatch(/musclesDeLaZone/);
+  });
+
+  it("et l'incident n'est relu qu'à travers la séance du compte", () => {
+    const source = lire("services/douleur.ts");
+    const acces = source.slice(
+      source.indexOf("async function incidentDuCompte"),
+      source.indexOf("export async function deciderProtection"),
+    );
+    expect(acces).toMatch(/innerJoin/);
+    expect(acces).toMatch(/sessionLogs\.userId, userId/);
+  });
+
+  it("la décision est inscrite, ce qui rend la confirmation idempotente", () => {
+    const source = lire("services/douleur.ts");
+    expect(source).toMatch(/decisionDepuis/);
+    expect(source).toMatch(/dejaTranchee/);
   });
 });
