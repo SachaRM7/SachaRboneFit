@@ -9,6 +9,7 @@ import {
   type ContexteExecutionClient,
 } from "./execution-client";
 import { LIMITE_NOTE_EXERCICE } from "@/lib/validators/exercise-instance";
+import { DeclarerReglage } from "./DeclarerReglage";
 
 interface Props {
   contexte: ContexteExecutionClient;
@@ -340,11 +341,29 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
             </section>
           )}
 
-          {contexte.reglages.length > 0 && (
+          {/*
+            La section reste, même vide — et c'est tout l'objet du lot.
+
+            Elle ne s'affichait qu'à partir d'un réglage décrit. Comme rien ne
+            savait en créer, la condition était fausse sur CHAQUE appareil du
+            parc : la section n'existait, en pratique, pour personne. Le vide
+            se dit maintenant à l'endroit où il se comble.
+
+            Sans appareil — les pompes — il n'y a toujours rien à décrire, et
+            la section disparaît pour de bon.
+          */}
+          {contexte.exerciseInstanceId && (
             <section>
               <h3 className="text-xs uppercase tracking-wide text-encre-3 mb-2">
                 Réglages de cet appareil
               </h3>
+              {contexte.reglages.length === 0 && (
+                <p className="text-sm text-encre-3">
+                  {contexte.peutDecrire
+                    ? "Aucun réglage décrit sur cet appareil."
+                    : "Aucun réglage décrit. Le compte qui tient cette salle à jour peut les décrire."}
+                </p>
+              )}
               <div className="space-y-3">
                 {contexte.reglages.map((r) => (
                   <div key={r.cle}>
@@ -387,6 +406,24 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
                   </div>
                 ))}
               </div>
+
+              {contexte.peutDecrire && (
+                <DeclarerReglage
+                  exerciseInstanceId={contexte.exerciseInstanceId}
+                  exerciseId={contexte.exerciseId}
+                  onDeclare={(reglages) => {
+                    // Le brouillon accueille la nouvelle clé sans valeur : le
+                    // champ est saisissable immédiatement, dans la foulée du
+                    // geste, sans recharger la fiche.
+                    setBrouillon((b) => {
+                      const suite = { ...b };
+                      for (const r of reglages) suite[r.cle] ??= r.valeur ?? "";
+                      return suite;
+                    });
+                    onEnregistre({ ...contexte, reglages });
+                  }}
+                />
+              )}
             </section>
           )}
 

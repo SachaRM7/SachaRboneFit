@@ -575,7 +575,14 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
           onClick={() => setFiche(true)}
           className="w-full px-3.5 pb-3 text-left text-xs text-encre-3 underline underline-offset-4"
         >
-          {contexte.reglages.length > 0 ? "Réglages et technique" : "Technique et note"}
+          {/* Le mot « Réglages » apparaît aussi quand il n'y en a AUCUN mais
+              qu'on peut en décrire : c'est derrière ce lien que se trouve le
+              geste, et un intitulé qui ne le nomme pas laisse croire qu'il
+              n'existe pas. Il disparaît en revanche pour qui ne tient pas la
+              salle — annoncer une porte fermée ne sert personne. */}
+          {contexte.reglages.length > 0 || contexte.peutDecrire
+            ? "Réglages et technique"
+            : "Technique et note"}
         </button>
       )}
 
