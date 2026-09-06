@@ -26,7 +26,7 @@ vi.mock("@/lib/supabase/auth-helper", () => ({
 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
-const { and, eq } = await import("drizzle-orm");
+const { and, eq, inArray } = await import("drizzle-orm");
 const substituer = await import("@/app/api/seance-du-jour/substituer/route");
 
 let salle = "";
@@ -221,5 +221,59 @@ describe("ce que la route refuse", () => {
       raison: "occupee",
     });
     expect(res.status).toBe(400);
+  });
+});
+
+/**
+ * La réparation de la séance du 6 septembre, et ce qu'elle ne doit pas toucher.
+ *
+ * Le diagnostic (`src/scripts/diagnostic-6-septembre.ts`) est en lecture seule
+ * et imprime le SQL plutôt que de l'exécuter. Ce qui se teste ici est la forme
+ * de ce SQL : qu'il déplace exactement les deux séries visées, qu'il laisse
+ * intactes celles d'une autre séance sur la même machine, et qu'il ne fasse
+ * rien de plus si on le relance.
+ */
+describe("la réparation ne déborde pas", () => {
+  it("déplace les deux séries visées, et elles seules", async () => {
+    // Une séance témoin, sur la MÊME instance mal attribuée, un autre jour.
+    const [temoin] = await db.insert(schema.sessionLogs).values({
+      userId: U, gymId: salle, date: "2026-08-30", dureeMinutes: 45,
+    }).returning();
+    await db.insert(schema.setLogs).values({
+      sessionLogId: temoin!.id, exerciseInstanceId: cableCrunch,
+      numeroSerie: 1, repsEffectuees: 8, charge: 27,
+    });
+
+    // Les deux séries à réparer, telles qu'elles ont été saisies ce jour-là.
+    const mal = await db.insert(schema.setLogs).values([
+      { sessionLogId: session, exerciseInstanceId: cableCrunch, numeroSerie: 1, repsEffectuees: 8, charge: 27 },
+      { sessionLogId: session, exerciseInstanceId: cableCrunch, numeroSerie: 2, repsEffectuees: 8, charge: 27 },
+    ]).returning();
+
+    const ids = mal.map((m) => m.id);
+    const reparer = () =>
+      db.update(schema.setLogs)
+        .set({ exerciseInstanceId: abdoMachine, updatedAt: new Date() })
+        .where(and(
+          inArray(schema.setLogs.id, ids),
+          // La condition porte sur l'instance de DÉPART : c'est elle qui rend
+          // la réparation idempotente.
+          eq(schema.setLogs.exerciseInstanceId, cableCrunch),
+        ))
+        .returning();
+
+    const premier = await reparer();
+    expect(premier).toHaveLength(2);
+
+    // La séance témoin n'a pas bougé.
+    const restee = await db.query.setLogs.findMany({
+      where: eq(schema.setLogs.sessionLogId, temoin!.id),
+    });
+    expect(restee).toHaveLength(1);
+    expect(restee[0]!.exerciseInstanceId).toBe(cableCrunch);
+
+    // Relancée, la réparation ne trouve plus rien : rien n'est écrit deux fois.
+    const second = await reparer();
+    expect(second).toHaveLength(0);
   });
 });
