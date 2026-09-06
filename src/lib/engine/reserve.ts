@@ -45,3 +45,22 @@ export function rpeVersReserve(rpe: number | null | undefined): number | null {
 export function reserveExploitable(reserve: number | null): boolean {
   return reserve !== null && reserve <= 4;
 }
+
+/**
+ * Ce qu'on demande à la fin d'une série : une réserve, ou un RPE.
+ *
+ * En calibration, la question est « combien aurais-tu pu en faire de plus ? ».
+ * Elle se répond sans avoir appris d'échelle, et c'est elle qui fixera les
+ * charges. Le RPE reste la forme interne — `reserveVersRpe` fait la
+ * conversion — mais il n'est jamais demandé tel quel pendant cette phase.
+ *
+ * La règle vit ici, en une fonction, parce qu'elle était jusqu'ici une
+ * comparaison écrite au milieu d'un rendu : le jour où la phase du cycle n'est
+ * pas parvenue jusqu'à cet écran, la colonne RPE est revenue sans que rien ne
+ * le signale. Une fonction se teste ; une comparaison inline, non.
+ */
+export function modeSaisieEffort(
+  phaseCycle: string | null | undefined,
+): "reserve" | "rpe" {
+  return phaseCycle === "calibration" ? "reserve" : "rpe";
+}

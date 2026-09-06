@@ -14,6 +14,7 @@ import { initAudioContext, playBeep } from "@/lib/audio/beep";
 import { SOSBar } from "@/components/session/SOSBar";
 import { ChangerDeLieu } from "@/components/session/ChangerDeLieu";
 import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
+import { RemplacerExercice } from "@/components/session/RemplacerExercice";
 import { SOSDouleur } from "@/components/session/SOSDouleur";
 import { SOSEnergie } from "@/components/session/SOSEnergie";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
@@ -21,7 +22,8 @@ import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
 import { ObservateurSeance } from "@/components/session/ObservateurSeance";
 import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { Feu } from "@/components/carnet/Feu";
-import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
+import { modeSaisieEffort } from "@/lib/engine/reserve";
+import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
 import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
 
@@ -125,7 +127,12 @@ function ContenuSeanceLive() {
           // serveur se présentait comme un programme vide, et c'est ce qui a
           // fait chercher la cause dans les données pendant des heures.
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`gabarit illisible (${r.status})`))))
-          .then((t) => ({ nom: t.nom, exercices: t.exercises ?? [] })),
+          .then((t) => ({
+            nom: t.nom,
+            // Sans elle, une calibration ouverte par le repli réclamait un RPE.
+            phaseCycle: t.phaseCycle ?? null,
+            exercices: t.exercises ?? [],
+          })),
       )
       .then((s: SeanceChargee) => {
         if (!annule) {
@@ -160,33 +167,157 @@ function ContenuSeanceLive() {
     return () => { annule = true; };
   }, [templateId, gymId, sessionId]);
 
-  // --- Le store doit porter l'identifiant réel de la ligne session_logs ---
+  /**
+   * Le store doit porter l'identifiant réel de la ligne `session_logs`.
+   *
+   * Il le CRÉAIT aussi, et c'est ce qui a produit la séance fantôme : arriver
+   * sur cet écran sans `sessionId` déclenchait un `POST /api/sessions` depuis
+   * un effet de rendu. Aucun geste, aucune intention — un simple affichage
+   * suffisait à ouvrir une séance en base. Après la clôture d'une vraie
+   * calibration, une redirection parasite est passée par ici et a créé une
+   * « Calibration B — 0/6 exercices » immédiatement après l'enregistrement.
+   *
+   * Il ne reste donc que le rattachement. La création demande un geste, plus
+   * bas, et rien ne naît d'un rendu.
+   */
   useEffect(() => {
-    if (active || !seance) return;
-
-    if (sessionId) {
-      start({ id: sessionId, seanceTemplateId: templateId as string, gymId });
-      return;
-    }
-
-    let annule = false;
-    fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: new Date().toISOString().slice(0, 10),
-        seanceTemplateId: templateId,
-        gymId: gymId || null,
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
-      .then((s: { id: string }) => {
-        if (!annule) start({ id: s.id, seanceTemplateId: templateId as string, gymId });
-      })
-      .catch(() => !annule && toast.error("Impossible de démarrer la séance"));
-
-    return () => { annule = true; };
+    if (active || !seance || !sessionId) return;
+    start({ id: sessionId, seanceTemplateId: templateId as string, gymId });
   }, [seance, active, sessionId, templateId, gymId, start]);
+
+  /**
+   * Ouvrir la séance, sur demande explicite.
+   *
+   * C'est le seul chemin de création restant depuis cet écran. Le chemin
+   * normal reste `/session/start`, qui construit le plan du jour et transmet
+   * l'identifiant dans l'URL ; celui-ci sert quand on atterrit ici sans être
+   * passé par là.
+   */
+  const [ouverture, setOuverture] = useState(false);
+  const demarrer = useCallback(async () => {
+    if (ouverture) return;
+    setOuverture(true);
+    try {
+      const date = new Date().toISOString().slice(0, 10);
+
+      /*
+       * Ouvrir une séance, c'est CONSTRUIRE son plan — pas seulement écrire
+       * une ligne.
+       *
+       * Première version de ce bouton : un `POST /api/sessions`, qui ne crée
+       * que la ligne `session_logs`. La séance existait donc sans plan, et
+       * l'écran retombait sur la lecture du gabarit — le chemin de repli, sans
+       * charges suggérées ni prescription du jour. On avait remplacé une
+       * création non demandée par une création incomplète.
+       *
+       * Le chemin normal, `/session/start`, appelle le constructeur. Celui-ci
+       * fait la même chose, avec le même service : deux portes, une seule
+       * façon d'ouvrir une séance.
+       */
+      if (gymId) {
+        const res = await fetch("/api/seance-du-jour", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date, gymId, seanceTemplateId: templateId }),
+        });
+        if (!res.ok) throw new Error();
+        const resultat: { seance: { id: string } } = await res.json();
+        start({ id: resultat.seance.id, seanceTemplateId: templateId as string, gymId });
+
+        /*
+         * L'identifiant part dans l'URL, et ce n'est pas cosmétique.
+         *
+         * Sans lui, un rechargement ne retrouvait la séance que par le
+         * brouillon persisté dans le navigateur : vidé, expiré ou ouvert dans
+         * un autre onglet, l'écran aurait proposé de démarrer une seconde fois
+         * ce qui existait déjà. Et l'écran serait resté sur la lecture de
+         * repli, alors que le plan vient d'être construit.
+         *
+         * Avec l'identifiant dans l'adresse, la reprise ne dépend plus de rien
+         * d'autre — c'est ce que fait `/session/start` depuis toujours.
+         */
+        const params = new URLSearchParams({ gymId, sessionId: resultat.seance.id });
+        router.replace(`/sessions/new/${templateId}?${params.toString()}`);
+        return;
+      }
+
+      /*
+       * Sans lieu connu, on ne peut pas construire de plan : le parc décide de
+       * ce qui est faisable. On ouvre alors la séance telle quelle, comme
+       * avant — l'écran lira le gabarit, et rien n'est perdu.
+       */
+      const res = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, seanceTemplateId: templateId, gymId: null }),
+      });
+      if (!res.ok) throw new Error();
+      const creee: { id: string } = await res.json();
+      start({ id: creee.id, seanceTemplateId: templateId as string, gymId });
+      router.replace(`/sessions/new/${templateId}?sessionId=${creee.id}`);
+    } catch {
+      toast.error("Impossible de démarrer la séance");
+      setOuverture(false);
+    }
+  }, [ouverture, templateId, gymId, start, router]);
+
+  /**
+   * Le pilier et le profil de l'exercice affiché.
+   *
+   * Le plan ne les transporte pas — il décrit une prescription, pas un
+   * mouvement. On les retrouve dans le parc de la salle, qui les porte depuis
+   * que sa lecture joint `exercises`.
+   */
+  const pilierDe = (e: ExercicePrescrit) =>
+    parcSalle.find((i) => i.id === e.id)?.pilier ?? "";
+  const profilDe = (e: ExercicePrescrit) =>
+    parcSalle.find((i) => i.id === e.id)?.profilTension ?? "";
+
+  /**
+   * La carte devient le nouvel exercice, une fois le serveur d'accord.
+   *
+   * Ce qui SUIT la substitution : les séries, qui s'enregistreront sous la
+   * nouvelle instance — c'est tout l'objet du remplacement. Ce qui ne suit
+   * pas : la charge suggérée et l'historique. Ils appartiennent à l'appareil
+   * qu'on quitte, et les recopier ferait croire à une continuité qui n'existe
+   * pas entre deux machines.
+   *
+   * La prescription, elle, se conserve : on remplace un mouvement, pas un
+   * volume de travail.
+   */
+  const remplacer = (ancienId: string, choix: SubstituteResult) => {
+    const instance = parcSalle.find((i) => i.id === choix.exerciseInstanceId);
+    setSeance((s) =>
+      s
+        ? {
+            ...s,
+            exercices: s.exercices.map((e) =>
+              e.id !== ancienId
+                ? e
+                : {
+                    ...e,
+                    id: choix.exerciseInstanceId,
+                    exerciseId: instance?.exerciseId ?? null,
+                    nom: choix.exerciseName,
+                    machineNom: choix.machineName ?? "",
+                    slug: instance?.slug ?? null,
+                    musclesPrincipaux: instance?.musclesPrincipaux ?? [],
+                    conventionCharge: instance?.conventionCharge ?? null,
+                    natureCharge: instance?.natureCharge ?? null,
+                    incrementsPossibles: instance?.incrementsPossibles ?? [],
+                    poidsNonCompte: instance?.poidsNonCompte ?? null,
+                    chargeSuggeree: null,
+                    repsSuggerees: null,
+                    messageProgression: null,
+                    motifProgression: null,
+                    historique: [],
+                    raisonSubstitution: `À la place de ${e.nom}`,
+                  },
+            ),
+          }
+        : s,
+    );
+  };
 
   const interaction = useCallback(async () => {
     if (!audioPret) {
@@ -258,6 +389,48 @@ function ContenuSeanceLive() {
     );
   }
   if (!seance) return <div className="p-4 text-encre-3">Séance introuvable</div>;
+
+  /*
+   * Rien n'a encore été ouvert : on demande, on ne décide pas.
+   *
+   * Ce que l'écran montre ici est le programme, pas une séance en cours — et
+   * la base ne porte aucune ligne tant que le bouton n'a pas été touché.
+   */
+  if (!active && !sessionId) {
+    return (
+      <div className="min-h-dvh bg-papier text-encre p-4 space-y-4">
+        <DeclarerContexte ecran="seance" />
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-wide text-encre-3">Prête à démarrer</p>
+          <h1 className="text-2xl font-bold">{seance.nom}</h1>
+          <p className="text-encre-2 text-sm">
+            <span className="chiffres">{seance.exercices.length}</span> exercice
+            {seance.exercices.length > 1 ? "s" : ""} au programme.
+          </p>
+        </div>
+
+        <ul className="rounded-xl border border-filet bg-carte divide-y divide-filet">
+          {seance.exercices.map((e) => (
+            <li key={e.id} className="px-4 py-3">
+              <p className="text-encre text-sm font-medium">{e.nom}</p>
+              {e.machineNom && <p className="text-encre-3 text-xs mt-0.5">{e.machineNom}</p>}
+            </li>
+          ))}
+        </ul>
+
+        <Button
+          className="w-full h-12 text-base bg-encre text-papier hover:bg-filet"
+          disabled={ouverture}
+          onClick={() => void demarrer()}
+        >
+          {ouverture ? "Ouverture…" : "Démarrer la séance"}
+        </Button>
+        <p className="text-encre-3 text-xs text-center">
+          Rien n&apos;est enregistré tant que tu n&apos;as pas commencé.
+        </p>
+      </div>
+    );
+  }
 
   const exercicesSkippes = active?.skippedExerciseIds ?? [];
   const reductionsRPE = active?.rpeReductions ?? {};
@@ -394,8 +567,24 @@ function ContenuSeanceLive() {
               key={exercice.id}
               exercice={exercice}
               rpeReduction={reductionsRPE[exercice.id] ?? 0}
-              modeReserve={seance.phaseCycle === "calibration"}
+              modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
               onSerieValidee={lancerRepos}
+              actions={
+                active?.id && gymId ? (
+                  <RemplacerExercice
+                    sessionLogId={active.id}
+                    exerciceId={exercice.id}
+                    exerciceNom={exercice.nom}
+                    pilier={pilierDe(exercice)}
+                    profilTension={profilDe(exercice)}
+                    gymId={gymId}
+                    parcSalle={parcSalle}
+                    dejaAuProgramme={visibles.map((e) => e.id)}
+                    musclesCourbatures={musclesCourbatures}
+                    onRemplace={(r) => remplacer(exercice.id, r)}
+                  />
+                ) : null
+              }
             />
           ))
         ) : (
@@ -464,9 +653,44 @@ function ContenuSeanceLive() {
           templateExerciseIds={visibles.map((e) => e.id)}
           musclesCourbatures={musclesCourbatures}
           onClose={() => setModaleSOS(null)}
-          onSubstitute={(_id, nom) => {
-            toast.success(`${nom} utilisé à la place`);
+          /*
+             Le remplacement s'APPLIQUE, maintenant.
+
+             Ce gestionnaire affichait une notification et refermait la
+             fenêtre : la carte ne changeait pas, et les séries continuaient de
+             s'enregistrer sous l'exercice qu'on venait de renoncer à faire.
+             Le dépannage passe par la même route que le bouton « Remplacer »
+             de la carte, avec la raison qui lui correspond.
+          */
+          onSubstitute={(id, nom) => {
+            const remplace = courant.id;
             setModaleSOS(null);
+            void (async () => {
+              try {
+                const res = await fetch("/api/seance-du-jour/substituer", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    sessionLogId: active?.id,
+                    remplaceInstanceId: remplace,
+                    remplacantInstanceId: id,
+                    raison: "occupee",
+                  }),
+                });
+                if (!res.ok) throw new Error();
+                const instance = parcSalle.find((i) => i.id === id);
+                remplacer(remplace, {
+                  exerciseInstanceId: id,
+                  exerciseName: nom,
+                  machineName: instance?.machineNom ?? null,
+                  categorieRole: instance?.categorieRole ?? "accessoire",
+                  profilTension: instance?.profilTension ?? "",
+                });
+                toast.success(`${nom} utilisé à la place`);
+              } catch {
+                toast.error("Remplacement non enregistré");
+              }
+            })();
           }}
         />
       )}

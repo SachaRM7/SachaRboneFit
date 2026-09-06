@@ -1,8 +1,8 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
-import { Check, Plus } from "lucide-react";
+import { Check, Minus, Plus } from "lucide-react";
 import { DemonstrationMouvement } from "./DemonstrationMouvement";
 import { FicheExecution } from "./FicheExecution";
 import { useContexteExecution } from "./useContexteExecution";
@@ -13,7 +13,8 @@ import { champEffortPropose, effortSaisi } from "./effort-propose";
 import { LIBELLES_MOTIF_INVALIDE, motifSerieInvalide } from "@/lib/engine/serie-realisee";
 import { toast } from "sonner";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
-import { chargeAEnregistrer, consigneDeSaisie } from "@/lib/validators/exercise-instance";
+import { chargeAEnregistrer, consigneDeSaisie, libelleChampCharge } from "@/lib/validators/exercise-instance";
+import { derniereLigneRetirable, nombreDeLignes } from "./lignes-de-series";
 
 interface Props {
   exercice: ExercicePrescrit;
@@ -26,6 +27,14 @@ interface Props {
    * d'échelle — et c'est cette réponse qui fixera les charges.
    */
   modeReserve?: boolean;
+  /**
+   * Ce qu'on peut faire À cet exercice, rendu par l'écran de séance.
+   *
+   * Le remplacement a besoin du parc de la salle et de la séance en cours,
+   * que ce composant n'a pas — et n'a pas à connaître. Il reçoit donc le
+   * bouton déjà monté et se contente de lui donner sa place.
+   */
+  actions?: ReactNode;
 }
 
 type Brouillon = { charge: string; reps: string; rpe: string };
@@ -43,7 +52,7 @@ type Brouillon = { charge: string; reps: string; rpe: string };
  * La colonne « Dernière » met l'historique en face de la décision, au lieu de
  * le reléguer dans un encadré séparé au-dessus.
  */
-export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeReserve = false }: Props) {
+export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeReserve = false, actions }: Props) {
   const { upsertSet, removeSet, active } = useSessionStore();
 
   const seriesSaisies = useMemo(
@@ -53,12 +62,39 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
 
   // Des séries peuvent avoir été ajoutées au-delà de la prescription.
   const [seriesEnPlus, setSeriesEnPlus] = useState(0);
-  const consigne = consigneDeSaisie(exercice.conventionCharge, exercice.natureCharge);
-  const nbLignes = Math.max(
-    exercice.seriesCibles + seriesEnPlus,
-    ...seriesSaisies.map((s) => s.numeroSerie),
-    1,
+  const consigne = consigneDeSaisie(
+    exercice.conventionCharge,
+    exercice.natureCharge,
+    exercice.poidsNonCompte,
   );
+  const etatDesLignes = {
+    seriesCibles: exercice.seriesCibles,
+    seriesEnPlus,
+    numerosSaisis: seriesSaisies.map((s) => s.numeroSerie),
+  };
+  const nbLignes = nombreDeLignes(etatDesLignes);
+
+  /**
+   * La dernière ligne ajoutée à la main, s'il y en a une.
+   *
+   * `null` dès qu'on est revenu à la prescription : le bouton disparaît alors,
+   * plutôt que de proposer d'enlever une série que le moteur a décidée.
+   */
+  const derniereEnPlus = derniereLigneRetirable(etatDesLignes);
+
+  const supprimerDerniereEnPlus = () => {
+    if (derniereEnPlus === null) return;
+    const validee = seriesSaisies.some((s) => s.numeroSerie === derniereEnPlus);
+    if (validee && !confirm(`Supprimer la série ${derniereEnPlus} déjà validée ?`)) return;
+
+    // L'ordre compte : retirer la série enregistrée AVANT de réduire le
+    // compteur, sinon `nbLignes` la fait réapparaître aussitôt.
+    if (validee) removeSet(exercice.id, derniereEnPlus);
+    setBrouillons(({ [derniereEnPlus]: _retiree, ...reste }) => reste);
+    // La prescription ne bouge pas : `seriesCibles` reste ce que le moteur a
+    // décidé, on ne touche qu'au nombre de lignes ajoutées.
+    setSeriesEnPlus((n) => Math.max(0, n - 1));
+  };
 
   // Vide quand aucun effort n'est prescrit : le champ pré-rempli à 8 partait
   // en base à la validation, sans que personne l'ait ressenti ni saisi.
@@ -273,9 +309,12 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
               l'application ou l'absence de consigne. */}
           <p className="text-encre-3 text-xs">{libelleCibleEffort(exercice.rpeCible)}</p>
         </div>
-        <span className="chiffres text-xs text-encre-3 shrink-0 tabular-nums">
-          {validees}/{exercice.seriesCibles}
-        </span>
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <span className="chiffres text-xs text-encre-3 tabular-nums">
+            {validees}/{exercice.seriesCibles}
+          </span>
+          {actions}
+        </div>
       </header>
 
       {/* Le strict nécessaire pour agir, sur une ligne. Le détail — technique,
@@ -308,6 +347,20 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
         <p className="px-3.5 py-2 text-xs text-encre-2 border-b border-filet-doux">
           Après chaque série : combien de répétitions aurais-tu encore pu faire ?
           C&apos;est cette réponse qui fixera tes charges.
+          {/*
+            La permission qui manquait.
+            Sur l'Incline Dumbbell Press, la première série est sortie à quatre
+            répétitions de réserve au lieu de trois — trop facile. Rien ne
+            disait s'il était permis de monter la charge à la deuxième, et
+            c'est pourtant tout l'objet d'une calibration : converger vers la
+            cible, pas répéter deux fois la même erreur d'estimation. Rien
+            n'est modifié automatiquement — la mesure reste ce qui est saisi.
+          */}
+          {" "}
+          <span className="block mt-1 text-encre-3">
+            Tu peux ajuster la charge entre les séries pour viser ~3 répétitions en
+            réserve.
+          </span>
         </p>
       )}
 
@@ -333,7 +386,11 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
             <tr className="text-[10px] uppercase tracking-wide text-encre-3">
               <th scope="col" className="w-6 pb-1.5 text-left font-medium">#</th>
               <th scope="col" className="pb-1.5 text-left font-medium">Dernière</th>
-              <th scope="col" className="w-[4.5rem] pb-1.5 font-medium">kg</th>
+              {/* « kg » ne dit pas la même chose selon l'appareil : sur une
+                  machine d'assistance, le nombre allège au lieu de charger. */}
+              <th scope="col" className="w-[4.5rem] pb-1.5 font-medium">
+                {libelleChampCharge(exercice.natureCharge)}
+              </th>
               <th scope="col" className="w-[3.5rem] pb-1.5 font-medium">Reps</th>
               <th scope="col" className={`pb-1.5 font-medium ${modeReserve ? "w-[7.5rem]" : "w-[3.5rem]"}`}>
                 {modeReserve ? "Encore ?" : "RPE"}
@@ -446,14 +503,34 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
           </tbody>
         </table>
 
-        <button
-          type="button"
-          onClick={() => setSeriesEnPlus((n) => n + 1)}
-          className="mt-2.5 flex items-center gap-1.5 text-xs text-encre-2 hover:text-encre"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Ajouter une série hors prescription
-        </button>
+        <div className="mt-2.5 flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setSeriesEnPlus((n) => n + 1)}
+            className="flex items-center gap-1.5 text-xs text-encre-2 hover:text-encre"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Ajouter une série hors prescription
+          </button>
+
+          {/*
+            Le geste inverse, qui n'existait pas.
+            Un appui de trop faisait apparaître une ligne vide que rien ne
+            pouvait retirer : elle restait là jusqu'à la fin de la séance.
+            Seule la DERNIÈRE ligne ajoutée s'enlève — supprimer une ligne du
+            milieu laisserait un trou dans la numérotation des séries.
+          */}
+          {derniereEnPlus !== null && (
+            <button
+              type="button"
+              onClick={supprimerDerniereEnPlus}
+              className="flex items-center gap-1.5 text-xs text-encre-2 hover:text-encre"
+            >
+              <Minus className="w-3.5 h-3.5" />
+              Retirer la série {derniereEnPlus}
+            </button>
+          )}
+        </div>
         {seriesEnPlus > 0 && (
           <p className="text-xs text-encre-3 mt-1">
             {exercice.seriesCibles} série{exercice.seriesCibles > 1 ? "s" : ""} prescrite

@@ -46,22 +46,74 @@ export const LIBELLES_CONVENTION: Record<(typeof CONVENTIONS_CHARGE)[number], st
 export const CONSIGNE_DE_SAISIE: Record<(typeof CONVENTIONS_CHARGE)[number], string> = {
   pile_affichee: "Note le nombre lu sur la pile.",
   pile_par_cote: "Note la valeur affichée sur un côté, avec les deux côtés réglés pareil.",
-  disques_ajoutes: "Note les disques ajoutés, sans le chariot.",
+  /*
+   * « Note les disques ajoutés, sans le chariot » n'a pas suffi.
+   *
+   * Devant le hack squat de St-Martin, avec 10 kg d'un côté et 10 kg de
+   * l'autre, la phrase ne répond pas à la seule question qui se pose : 10 ou
+   * 20 ? Elle dit ce qu'il ne faut PAS compter, jamais comment additionner ce
+   * qui reste. Un exemple chiffré le dit en une ligne, et une convention
+   * hésitante est pire qu'une convention arbitraire : deux séances saisies
+   * autrement font une courbe qui bouge sans effort supplémentaire.
+   */
+  disques_ajoutes:
+    "Charge ajoutée totale, les deux côtés additionnés — 10 kg + 10 kg = 20 kg.",
   poids_total: "Note le poids total déplacé, barre comprise.",
-  poids_par_main: "Note le poids d’un haltère, sans multiplier par deux.",
+  poids_par_main: "Note le poids d’UN haltère — ne multiplie pas par deux.",
   sans_charge: "Laisse la charge vide : seules les répétitions sont enregistrées.",
 };
 
-/** La même phrase, quand l'appareil aide au lieu de résister. */
-export const CONSIGNE_ASSISTANCE = "Note l'assistance affichée — moins, c'est mieux.";
+/**
+ * Quand l'appareil aide au lieu de résister.
+ *
+ * Le sens du nombre s'inverse, et rien ne le disait. Sur le Dip/Chin Assist,
+ * 64 kg d'assistance se sont révélés beaucoup trop faciles et ~50 kg
+ * nettement plus justes : la valeur qui monte est celle qui allège.
+ */
+export const CONSIGNE_ASSISTANCE =
+  "Assistance : plus la valeur est élevée, plus l’exercice est facile.";
+
+/**
+ * La longueur maximale d'une note d'exercice, côté champ ET côté serveur.
+ *
+ * Elle valait 280 des deux côtés, et c'était trop court : la note du hack
+ * squat du 6 septembre en fait 240. On écrivait donc au bord de la limite sans
+ * le savoir — le champ cessait d'accepter des caractères, en silence, ce qui
+ * se ressent exactement comme « impossible d'enregistrer ».
+ *
+ * Une seule constante parce que deux limites qui divergent produisent le pire
+ * des cas : un texte que l'écran accepte et que le serveur refuse.
+ */
+export const LIMITE_NOTE_EXERCICE = 500;
+
+/** L'unité affichée à côté du champ de charge. */
+export function libelleChampCharge(natureCharge: string | null | undefined): string {
+  return natureCharge === "assistance" ? "Assistance (kg)" : "kg";
+}
 
 export function consigneDeSaisie(
   conventionCharge: string | null | undefined,
   natureCharge: string | null | undefined,
+  /**
+   * Ce que l'appareil pèse sans disque — chariot, plateau, contrepoids.
+   *
+   * Quand la valeur est connue, la nommer coupe court à l'hésitation : on sait
+   * qu'elle existe, qu'elle n'est pas à saisir, et qu'elle n'a pas été
+   * oubliée.
+   */
+  poidsNonCompte?: number | null,
 ): string | null {
   if (natureCharge === "assistance") return CONSIGNE_ASSISTANCE;
   const cle = conventionCharge as (typeof CONVENTIONS_CHARGE)[number];
-  return CONSIGNE_DE_SAISIE[cle] ?? null;
+  const base = CONSIGNE_DE_SAISIE[cle];
+  if (!base) return null;
+  if (cle === "disques_ajoutes" && poidsNonCompte != null && poidsNonCompte > 0) {
+    const valeur = Number.isInteger(poidsNonCompte)
+      ? String(poidsNonCompte)
+      : String(poidsNonCompte).replace(".", ",");
+    return `${base} Le chariot (${valeur} kg) n’est pas compté.`;
+  }
+  return base;
 }
 
 /**
