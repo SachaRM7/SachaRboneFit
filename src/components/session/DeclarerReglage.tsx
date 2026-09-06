@@ -154,7 +154,9 @@ export function DeclarerReglage({ exerciseInstanceId, exerciseId, onDeclare }: P
               key={p.libelle}
               type="button"
               onClick={() => proposer(p.libelle, p.type)}
-              className="h-8 px-2.5 rounded-full border border-filet text-xs text-encre-3"
+              // h-10 comme les autres commandes secondaires de la fiche : une
+              // pastille plus petite se rate au pouce, et on est en salle.
+              className="h-10 px-3 rounded-full border border-filet text-xs text-encre-3"
             >
               {p.libelle}
             </button>
@@ -237,8 +239,7 @@ export function DeclarerReglage({ exerciseInstanceId, exerciseId, onDeclare }: P
               <input
                 // Les positions n'ont pas d'identité tant qu'elles sont vides :
                 // l'index est ici le seul repère stable, et la liste ne se
-                // réordonne jamais.
-                // eslint-disable-next-line react/no-array-index-key
+                // réordonne jamais — on n'y ajoute qu'à la fin.
                 key={i}
                 value={o}
                 maxLength={LIMITE_OPTION_REGLAGE}

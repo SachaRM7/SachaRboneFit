@@ -106,8 +106,8 @@ describe("instance_reglages a un chemin de création", () => {
 
       const atteinte = clients.some((c) => {
         const source = lire(c);
-        return [...source.matchAll(/fetch\(\s*[`"']([^`"']*)/g)].some(([, url]) =>
-          segments.every((s) => url.includes(s)),
+        return [...source.matchAll(/fetch\(\s*[`"']([^`"']*)/g)].some(
+          ([, url]) => segments.every((s) => (url ?? "").includes(s)),
         );
       });
 
