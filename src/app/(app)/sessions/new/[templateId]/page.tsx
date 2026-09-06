@@ -21,6 +21,7 @@ import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
 import { ObservateurSeance } from "@/components/session/ObservateurSeance";
 import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { Feu } from "@/components/carnet/Feu";
+import { modeSaisieEffort } from "@/lib/engine/reserve";
 import type { ExerciseInstanceWithExercise } from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
 import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
@@ -125,7 +126,12 @@ function ContenuSeanceLive() {
           // serveur se présentait comme un programme vide, et c'est ce qui a
           // fait chercher la cause dans les données pendant des heures.
           .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`gabarit illisible (${r.status})`))))
-          .then((t) => ({ nom: t.nom, exercices: t.exercises ?? [] })),
+          .then((t) => ({
+            nom: t.nom,
+            // Sans elle, une calibration ouverte par le repli réclamait un RPE.
+            phaseCycle: t.phaseCycle ?? null,
+            exercices: t.exercises ?? [],
+          })),
       )
       .then((s: SeanceChargee) => {
         if (!annule) {
@@ -160,33 +166,54 @@ function ContenuSeanceLive() {
     return () => { annule = true; };
   }, [templateId, gymId, sessionId]);
 
-  // --- Le store doit porter l'identifiant réel de la ligne session_logs ---
+  /**
+   * Le store doit porter l'identifiant réel de la ligne `session_logs`.
+   *
+   * Il le CRÉAIT aussi, et c'est ce qui a produit la séance fantôme : arriver
+   * sur cet écran sans `sessionId` déclenchait un `POST /api/sessions` depuis
+   * un effet de rendu. Aucun geste, aucune intention — un simple affichage
+   * suffisait à ouvrir une séance en base. Après la clôture d'une vraie
+   * calibration, une redirection parasite est passée par ici et a créé une
+   * « Calibration B — 0/6 exercices » immédiatement après l'enregistrement.
+   *
+   * Il ne reste donc que le rattachement. La création demande un geste, plus
+   * bas, et rien ne naît d'un rendu.
+   */
   useEffect(() => {
-    if (active || !seance) return;
-
-    if (sessionId) {
-      start({ id: sessionId, seanceTemplateId: templateId as string, gymId });
-      return;
-    }
-
-    let annule = false;
-    fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: new Date().toISOString().slice(0, 10),
-        seanceTemplateId: templateId,
-        gymId: gymId || null,
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error())))
-      .then((s: { id: string }) => {
-        if (!annule) start({ id: s.id, seanceTemplateId: templateId as string, gymId });
-      })
-      .catch(() => !annule && toast.error("Impossible de démarrer la séance"));
-
-    return () => { annule = true; };
+    if (active || !seance || !sessionId) return;
+    start({ id: sessionId, seanceTemplateId: templateId as string, gymId });
   }, [seance, active, sessionId, templateId, gymId, start]);
+
+  /**
+   * Ouvrir la séance, sur demande explicite.
+   *
+   * C'est le seul chemin de création restant depuis cet écran. Le chemin
+   * normal reste `/session/start`, qui construit le plan du jour et transmet
+   * l'identifiant dans l'URL ; celui-ci sert quand on atterrit ici sans être
+   * passé par là.
+   */
+  const [ouverture, setOuverture] = useState(false);
+  const demarrer = useCallback(async () => {
+    if (ouverture) return;
+    setOuverture(true);
+    try {
+      const res = await fetch("/api/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: new Date().toISOString().slice(0, 10),
+          seanceTemplateId: templateId,
+          gymId: gymId || null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const creee: { id: string } = await res.json();
+      start({ id: creee.id, seanceTemplateId: templateId as string, gymId });
+    } catch {
+      toast.error("Impossible de démarrer la séance");
+      setOuverture(false);
+    }
+  }, [ouverture, templateId, gymId, start]);
 
   const interaction = useCallback(async () => {
     if (!audioPret) {
@@ -258,6 +285,48 @@ function ContenuSeanceLive() {
     );
   }
   if (!seance) return <div className="p-4 text-encre-3">Séance introuvable</div>;
+
+  /*
+   * Rien n'a encore été ouvert : on demande, on ne décide pas.
+   *
+   * Ce que l'écran montre ici est le programme, pas une séance en cours — et
+   * la base ne porte aucune ligne tant que le bouton n'a pas été touché.
+   */
+  if (!active && !sessionId) {
+    return (
+      <div className="min-h-dvh bg-papier text-encre p-4 space-y-4">
+        <DeclarerContexte ecran="seance" />
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-wide text-encre-3">Prête à démarrer</p>
+          <h1 className="text-2xl font-bold">{seance.nom}</h1>
+          <p className="text-encre-2 text-sm">
+            <span className="chiffres">{seance.exercices.length}</span> exercice
+            {seance.exercices.length > 1 ? "s" : ""} au programme.
+          </p>
+        </div>
+
+        <ul className="rounded-xl border border-filet bg-carte divide-y divide-filet">
+          {seance.exercices.map((e) => (
+            <li key={e.id} className="px-4 py-3">
+              <p className="text-encre text-sm font-medium">{e.nom}</p>
+              {e.machineNom && <p className="text-encre-3 text-xs mt-0.5">{e.machineNom}</p>}
+            </li>
+          ))}
+        </ul>
+
+        <Button
+          className="w-full h-12 text-base bg-encre text-papier hover:bg-filet"
+          disabled={ouverture}
+          onClick={() => void demarrer()}
+        >
+          {ouverture ? "Ouverture…" : "Démarrer la séance"}
+        </Button>
+        <p className="text-encre-3 text-xs text-center">
+          Rien n&apos;est enregistré tant que tu n&apos;as pas commencé.
+        </p>
+      </div>
+    );
+  }
 
   const exercicesSkippes = active?.skippedExerciseIds ?? [];
   const reductionsRPE = active?.rpeReductions ?? {};
@@ -394,7 +463,7 @@ function ContenuSeanceLive() {
               key={exercice.id}
               exercice={exercice}
               rpeReduction={reductionsRPE[exercice.id] ?? 0}
-              modeReserve={seance.phaseCycle === "calibration"}
+              modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
               onSerieValidee={lancerRepos}
             />
           ))

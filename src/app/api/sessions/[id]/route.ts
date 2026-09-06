@@ -130,7 +130,16 @@ export async function GET(
       }),
     );
 
-    return NextResponse.json({ ...template, exercises });
+    /*
+     * La phase du cycle voyage avec le repli.
+     *
+     * Elle ne partait que par le plan du jour. Or c'est elle qui décide de la
+     * saisie : en calibration, l'écran demande « combien aurais-tu pu en faire
+     * de plus ? » plutôt qu'un RPE. Le repli l'omettait, et une calibration
+     * ouverte par ce chemin affichait une colonne RPE brute — une échelle que
+     * personne n'a apprise, au moment précis où l'on cherche des repères.
+     */
+    return NextResponse.json({ ...template, phaseCycle: bloc.typeCycle ?? null, exercises });
   } catch (error) {
     console.error("[sessions/id] error:", error);
     return NextResponse.json({ error: `Lecture de la séance : ${detailErreur(error)}` }, { status: 500 });

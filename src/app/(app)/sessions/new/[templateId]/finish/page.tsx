@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -44,8 +44,23 @@ export default function FinishSessionPage() {
   const [reserves, setReserves] = useState<Record<string, number>>({});
   const [noms, setNoms] = useState<Record<string, string>>({});
   const [envoi, setEnvoi] = useState(false);
+  /**
+   * La séance est close et on s'en va : le garde ci-dessous ne s'applique plus.
+   *
+   * C'est LA cause de la séance fantôme du 6 septembre. `enregistrer()` vidait
+   * le brouillon puis naviguait ; vider le brouillon provoquait un rendu où
+   * `active` valait `null`, le garde partait, et son `replace` l'emportait sur
+   * la navigation voulue. On retombait sur l'écran de séance SANS
+   * `sessionId` — lequel créait alors une nouvelle `session_log` vide, avec le
+   * nom de la séance qu'on venait de terminer.
+   *
+   * Un `ref` et non un `state` : la valeur doit être lue par l'effet du même
+   * rendu que celui déclenché par `clear()`, sans attendre un rendu de plus.
+   */
+  const sortieVolontaire = useRef(false);
 
   useEffect(() => {
+    if (sortieVolontaire.current) return;
     if (!active) router.replace(`/sessions/new/${templateId}`);
   }, [active, router, templateId]);
 
@@ -119,9 +134,12 @@ export default function FinishSessionPage() {
       if (!res.ok) throw new Error("clôture impossible");
 
       const sessionLogId = active.id;
+      // L'ordre compte : marquer la sortie AVANT de vider le brouillon, sinon
+      // le garde ci-dessus repart et recrée une séance.
+      sortieVolontaire.current = true;
       clear();
       toast.success("Séance enregistrée");
-      router.push(`/sessions/${sessionLogId}`);
+      router.replace(`/sessions/${sessionLogId}`);
     } catch {
       toast.error("Erreur lors de l'enregistrement");
       setEnvoi(false);
@@ -168,7 +186,7 @@ export default function FinishSessionPage() {
 
       <ReserveManquante
         aCompleter={recap.aCompleter}
-        nomDe={(id) => noms[id] ?? "Exercice"}
+        nomDe={(id) => noms[id] ?? "Cet exercice"}
         reponses={reserves}
         onRepondre={(id, r) => setReserves((etat) => ({ ...etat, [id]: r }))}
       />
