@@ -3,6 +3,7 @@ import {
   ecrireTempo, ficheRenseignee, lireTempo, messageDeRefus, PHASES_TEMPO,
   reglagesAAfficher, resumeDesReglages, secondesParRepetition, tempoEffectif,
   validerReglage, type DefinitionReglage,
+  TEMPO_CANONIQUE,
 } from "./execution";
 
 /**
@@ -212,5 +213,48 @@ describe("ce que l'écran montre", () => {
   it("porte l'unité, quand la machine en a une", () => {
     const r = reglagesAAfficher([BANC], [{ cle: "inclinaison", valeur: "30" }]);
     expect(resumeDesReglages(r)).toBe("Banc 30°");
+  });
+});
+
+/**
+ * Le tempo manquait partout, et rien n'était cassé.
+ *
+ * Pendant la séance du 6 septembre, il a fallu demander le tempo hors de
+ * l'application pour presque chaque exercice. La chaîne de résolution
+ * fonctionnait pourtant, et ses tests passaient : elle rendait `null` parce
+ * qu'aucun exercice du catalogue ne porte de tempo. Une donnée absente, pas un
+ * défaut de code — et c'est exactement pour ça que personne ne l'avait vu.
+ */
+describe("la politique canonique de tempo", () => {
+  it("s'applique quand rien de plus précis n'existe", () => {
+    const r = tempoEffectif({ typeExercice: "polyarticulaire" });
+    expect(r?.brut).toBe(TEMPO_CANONIQUE.polyarticulaire);
+    // Elle s'annonce comme une convention, pas comme une prescription.
+    expect(r?.origine).toBe("defaut");
+  });
+
+  it("distingue isolation et polyarticulaire", () => {
+    expect(tempoEffectif({ typeExercice: "isolation" })?.brut)
+      .toBe(TEMPO_CANONIQUE.isolation);
+    expect(tempoEffectif({ typeExercice: "isolation" })?.brut)
+      .not.toBe(tempoEffectif({ typeExercice: "polyarticulaire" })?.brut);
+  });
+
+  it("s'efface devant le moindre tempo réel", () => {
+    // L'ordre de priorité existant ne bouge pas : le repli est le DERNIER
+    // recours, jamais un concurrent.
+    expect(tempoEffectif({ exercice: "4-2-1-0", typeExercice: "isolation" })?.origine)
+      .toBe("exercice");
+    expect(tempoEffectif({ programme: "4-2-1-0", typeExercice: "isolation" })?.origine)
+      .toBe("programme");
+    expect(tempoEffectif({ seance: "4-2-1-0", typeExercice: "isolation" })?.origine)
+      .toBe("seance");
+  });
+
+  it("ne devine rien quand la famille est inconnue", () => {
+    // Sans savoir de quel mouvement il s'agit, une convention vaudrait moins
+    // que le silence.
+    expect(tempoEffectif({})).toBeNull();
+    expect(tempoEffectif({ typeExercice: null })).toBeNull();
   });
 });

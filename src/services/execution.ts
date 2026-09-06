@@ -234,13 +234,17 @@ export async function contexteExecution(entrees: {
 
   const exercice = await db.query.exercises.findFirst({
     where: eq(exercises.id, exerciseId),
-    columns: { ficheTechnique: true, tempoParDefaut: true },
+    columns: { ficheTechnique: true, tempoParDefaut: true, type: true },
   });
 
   const tempo = tempoEffectif({
     seance: entrees.tempoSeance,
     programme: entrees.tempoProgramme,
     exercice: exercice?.tempoParDefaut,
+    // Faute de prescription, la politique canonique plutôt que rien : le
+    // tempo était systématiquement absent, et il a fallu le demander hors de
+    // l'application pendant toute la séance du 6 septembre.
+    typeExercice: exercice?.type,
   });
 
   const fiche = ficheRenseignee(exercice?.ficheTechnique) ? exercice!.ficheTechnique! : null;

@@ -86,7 +86,15 @@ export function secondesParRepetition(t: Tempo): number {
 }
 
 /** D'où vient le tempo affiché — l'UI le dit quand on ouvre le détail. */
-export type OrigineTempo = "seance" | "programme" | "exercice";
+/**
+ * D'où vient le tempo affiché.
+ *
+ * `defaut` n'est pas une absence : c'est la politique canonique, appliquée
+ * faute de mieux et annoncée comme telle. La distinguer permet à l'écran de
+ * dire « repère général » plutôt que de faire passer une convention pour une
+ * prescription.
+ */
+export type OrigineTempo = "seance" | "programme" | "exercice" | "defaut";
 
 export interface TempoResolu {
   tempo: Tempo;
@@ -111,10 +119,36 @@ export interface TempoResolu {
  * est ignoré comme s'il était absent, et les niveaux inférieurs reprennent la
  * main. Une saisie fautive ne doit pas masquer une prescription valide.
  */
+/**
+ * Le tempo qu'on applique faute de prescription, et pourquoi il existe.
+ *
+ * Pendant toute la séance du 6 septembre, le tempo a dû être demandé ailleurs
+ * qu'à l'application : la chaîne de résolution fonctionne, elle est testée, et
+ * elle rendait `null` — parce qu'AUCUN des exercices du catalogue ne porte de
+ * tempo. Rien n'était cassé ; la donnée n'avait jamais été semée.
+ *
+ * Semer cent vingt tempos exacts n'est pas la réponse : ils seraient inventés
+ * pour la plupart. Une politique canonique, si — elle est explicite, elle vaut
+ * pour tout ce qui n'a rien de plus précis, et elle est remplacée dès qu'un
+ * exercice, un programme ou une séance dit mieux.
+ *
+ * Deux valeurs, parce que la distinction qui compte ici est celle du contrôle
+ * demandé : un mouvement polyarticulaire lourd se descend en trois secondes
+ * sans pause forcée en bas ; une isolation gagne à marquer la position courte.
+ * Aucune des deux ne prétend valoir pour tous les exercices de sa famille,
+ * et c'est précisément pour ça qu'elle porte l'origine « défaut ».
+ */
+export const TEMPO_CANONIQUE = {
+  polyarticulaire: "3-0-1-0",
+  isolation: "3-1-1-0",
+} as const;
+
 export function tempoEffectif(entrees: {
   seance?: string | null;
   programme?: string | null;
   exercice?: string | null;
+  /** `polyarticulaire` | `isolation`. Décide du repli canonique. */
+  typeExercice?: string | null;
 }): TempoResolu | null {
   const niveaux: Array<[OrigineTempo, string | null | undefined]> = [
     ["seance", entrees.seance],
@@ -125,7 +159,16 @@ export function tempoEffectif(entrees: {
     const tempo = lireTempo(brut);
     if (tempo) return { tempo, brut: ecrireTempo(tempo), origine };
   }
-  return null;
+
+  // Le repli n'est proposé que si l'on sait de quelle famille il s'agit :
+  // deviner sur rien vaudrait moins que ne rien dire.
+  const canonique = entrees.typeExercice === "polyarticulaire"
+    ? TEMPO_CANONIQUE.polyarticulaire
+    : entrees.typeExercice === "isolation"
+      ? TEMPO_CANONIQUE.isolation
+      : null;
+  const tempo = lireTempo(canonique);
+  return tempo ? { tempo, brut: ecrireTempo(tempo), origine: "defaut" } : null;
 }
 
 // ---------------------------------------------------------------------------

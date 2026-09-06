@@ -309,9 +309,13 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
                     </li>
                   ))}
                   <li className="text-xs text-encre-3 pt-1">
+                    {/* Une convention ne se présente pas comme une
+                        prescription : le repère général se dit tel quel. */}
                     {contexte.tempo.origine === "seance" ? "Prescrit pour aujourd'hui."
                       : contexte.tempo.origine === "programme" ? "Prescrit par ton programme."
-                      : "Tempo propre à ce mouvement."}
+                      : contexte.tempo.origine === "defaut"
+                        ? "Repère général, faute de consigne propre à ce mouvement."
+                        : "Tempo propre à ce mouvement."}
                   </li>
                 </ul>
               )}

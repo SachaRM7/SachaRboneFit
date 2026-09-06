@@ -107,7 +107,6 @@ describe("la fiche appartient au mouvement", () => {
   it("un exercice sans fiche reste parfaitement utilisable", async () => {
     const r = await lire(SACHA, null, pompes);
     expect(r.fiche).toBeNull();
-    expect(r.tempo).toBeNull();
     // Pas d'appareil : aucune section réglages ne doit apparaître.
     expect(r.reglages).toEqual([]);
     expect(r.resumeReglages).toBeNull();
@@ -130,9 +129,25 @@ describe("le tempo et ses priorités, contre la base", () => {
     expect(r.tempo?.origine).toBe("seance");
   });
 
-  it("aucun tempo n'est inventé sur un exercice qui n'en porte pas", async () => {
+  /**
+   * Arbitrage revu après la séance du 6 septembre.
+   *
+   * La règle était « aucun tempo n'est inventé » : un exercice sans tempo n'en
+   * affichait aucun. Elle se défendait — mieux vaut le silence qu'une consigne
+   * fabriquée. Sauf qu'AUCUN des exercices du catalogue n'en porte : la règle
+   * s'appliquait donc partout, et le tempo a dû être demandé hors de
+   * l'application pour presque chaque exercice de la séance.
+   *
+   * Ce qui remplace le silence n'est pas une invention par exercice, mais une
+   * politique canonique — deux valeurs, annoncées comme telles, effacées par
+   * la moindre consigne réelle. Ce qui reste vrai : sans savoir de quelle
+   * famille de mouvement il s'agit, on ne dit toujours rien.
+   */
+  it("applique la politique canonique plutôt que de se taire", async () => {
     const r = await lire(SACHA, null, pompes);
-    expect(r.tempo).toBeNull();
+    expect(r.tempo).not.toBeNull();
+    // Et elle s'annonce : l'écran dira « repère général », pas « prescrit ».
+    expect(r.tempo?.origine).toBe("defaut");
   });
 });
 
