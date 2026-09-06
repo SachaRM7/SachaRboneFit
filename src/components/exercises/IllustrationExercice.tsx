@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { urlIllustration } from "@/lib/referentiels/catalogue";
+import { imagesAffichables, sequenceAnimation } from "@/lib/referentiels/illustrations";
 
 interface Props {
   slug: string;
@@ -30,20 +31,24 @@ export function IllustrationExercice({
   vitesseMs = 700,
   className = "",
 }: Props) {
-  const [frame, setFrame] = useState(1);
+  /*
+   * Les images retenues, et elles seules.
+   *
+   * `cable-crunch` en fait alterner une qui vient d'un autre rendu du même
+   * mouvement : l'animation montrait deux dessins différents pour un seul
+   * exercice. Le manifeste dit lesquelles écarter, et pourquoi.
+   */
+  const images = imagesAffichables(slug, nbFrames);
+  const [frame, setFrame] = useState(images[0] ?? 1);
 
   useEffect(() => {
-    if (!anime || nbFrames < 2) return;
+    if (!anime || images.length < 2) return;
 
     // Respecte la preference systeme de mouvement reduit.
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (media.matches) return;
 
-    // Aller-retour 1 -> n -> 1 : la sequence decrit un mouvement, pas une boucle.
-    const sequence = [
-      ...Array.from({ length: nbFrames }, (_, i) => i + 1),
-      ...Array.from({ length: nbFrames - 2 }, (_, i) => nbFrames - 1 - i),
-    ];
+    const sequence = sequenceAnimation(images);
     let index = 0;
     const id = setInterval(() => {
       index = (index + 1) % sequence.length;
@@ -51,7 +56,13 @@ export function IllustrationExercice({
     }, vitesseMs);
 
     return () => clearInterval(id);
-  }, [anime, nbFrames, vitesseMs]);
+    // `images` se recalcule à chaque rendu : on dépend de sa forme, pas de son
+    // identité, sinon l'intervalle repartirait de zéro sans arrêt.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anime, images.join(","), vitesseMs]);
+
+  // Rien d'honnête à montrer : on n'affiche rien plutôt qu'un geste faux.
+  if (images.length === 0) return null;
 
   return (
     <span
