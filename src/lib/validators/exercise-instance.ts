@@ -73,6 +73,19 @@ export const CONSIGNE_DE_SAISIE: Record<(typeof CONVENTIONS_CHARGE)[number], str
 export const CONSIGNE_ASSISTANCE =
   "Assistance : plus la valeur est élevée, plus l’exercice est facile.";
 
+/**
+ * La longueur maximale d'une note d'exercice, côté champ ET côté serveur.
+ *
+ * Elle valait 280 des deux côtés, et c'était trop court : la note du hack
+ * squat du 6 septembre en fait 240. On écrivait donc au bord de la limite sans
+ * le savoir — le champ cessait d'accepter des caractères, en silence, ce qui
+ * se ressent exactement comme « impossible d'enregistrer ».
+ *
+ * Une seule constante parce que deux limites qui divergent produisent le pire
+ * des cas : un texte que l'écran accepte et que le serveur refuse.
+ */
+export const LIMITE_NOTE_EXERCICE = 500;
+
 /** L'unité affichée à côté du champ de charge. */
 export function libelleChampCharge(natureCharge: string | null | undefined): string {
   return natureCharge === "assistance" ? "Assistance (kg)" : "kg";

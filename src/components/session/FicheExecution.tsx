@@ -8,6 +8,7 @@ import {
   messageDeRefus, PHASES_TEMPO, validerReglage,
   type ContexteExecutionClient,
 } from "./execution-client";
+import { LIMITE_NOTE_EXERCICE } from "@/lib/validators/exercise-instance";
 
 interface Props {
   contexte: ContexteExecutionClient;
@@ -389,15 +390,27 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
             <label htmlFor="note-exo" className="block text-xs uppercase tracking-wide text-encre-3 mb-2">
               Ma note
             </label>
-            <input
+            {/* Une zone plutôt qu'une ligne : ce qu'on a à noter devant une
+                machine tient rarement en une phrase, et un champ d'une ligne
+                cache ce qu'on vient d'écrire. */}
+            <textarea
               id="note-exo"
               value={note}
-              maxLength={280}
+              maxLength={LIMITE_NOTE_EXERCICE}
+              rows={3}
               onChange={(e) => { setNote(e.target.value); setEnregistre(false); }}
               onBlur={quitterLaNote}
               placeholder="siège 6 parfait, poignée neutre mieux…"
-              className="w-full h-12 rounded-xl border border-filet bg-carte px-3 text-encre"
+              className="w-full rounded-xl border border-filet bg-carte px-3 py-2.5 text-encre resize-y"
             />
+            {/* Le champ s'arrêtait d'accepter des caractères sans rien dire.
+                Le compteur n'apparaît qu'à l'approche : le reste du temps, il
+                n'y a rien à surveiller. */}
+            {note.length > LIMITE_NOTE_EXERCICE - 60 && (
+              <p className="text-xs text-encre-3 mt-1 text-right chiffres tabular-nums">
+                {LIMITE_NOTE_EXERCICE - note.length} caractères restants
+              </p>
+            )}
           </section>
 
           {f?.description && <Bloc titre="En bref">{f.description}</Bloc>}
@@ -428,9 +441,27 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
             le contenu, pas le bouton d'enregistrement. */}
         {/* Rien à valider : tout est déjà enregistré. Le pied dit seulement
             où on en est, et referme. */}
-        <div className="shrink-0 px-4 pb-8 pt-3 border-t border-filet">
+        {/* Le dégagement du bas était fixe : sur un iPhone à indicateur
+            d'accueil, le bouton « Fermer » tombait dans la bande réservée au
+            geste système. Un appui sur deux atterrissait sur iOS plutôt que
+            sur le bouton — et la fiche restait ouverte, ce qui se ressent
+            comme « ça ne s'enregistre pas ». */}
+        <div
+          className="shrink-0 px-4 pt-3 border-t border-filet"
+          style={{ paddingBottom: "calc(1.5rem + var(--marge-bas))" }}
+        >
+          {/*
+            La ligne était vide tant qu'aucune écriture n'avait eu lieu.
+            Or c'est précisément à ce moment-là qu'on cherche le bouton
+            « Enregistrer » — et qu'on conclut qu'il manque. Elle dit
+            maintenant, en permanence, qu'il n'y a rien à presser.
+          */}
           <p aria-live="polite" className="text-xs text-encre-3 mb-2 h-4">
-            {enCours ? "Enregistrement…" : enregistre ? "Enregistré" : ""}
+            {enCours
+              ? "Enregistrement…"
+              : enregistre
+                ? "Enregistré"
+                : "Enregistré automatiquement"}
           </p>
           <button
             type="button"

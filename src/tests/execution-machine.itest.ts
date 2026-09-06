@@ -25,6 +25,7 @@ const {
   contexteExecution, ecrireNote, enregistrerReglages,
   IncoherenceExerciceAppareil, InstanceIntrouvable, IntentionInvalide, ReglageRefuse,
 } = await import("@/services/execution");
+const { LIMITE_NOTE_EXERCICE } = await import("@/lib/validators/exercise-instance");
 
 let salle = "";
 let legExtension = "";
@@ -319,6 +320,43 @@ describe("la note personnelle", () => {
  * appliquerait les requêtes, avec des intentions explicites : c'est ce que le
  * serveur voit réellement, et cela ne dépend d'aucun aléa d'ordonnancement.
  */
+/**
+ * Ce qui a fait croire, le 6 septembre, qu'une note ne pouvait pas être
+ * enregistrée.
+ *
+ * L'auto-enregistrement fonctionnait : sortie de champ, fermeture, filet
+ * `keepalive` au démontage. Ce qui manquait était plus banal — la note du
+ * hack squat approche les 240 caractères, la limite du champ était à 280, et
+ * il cessait simplement d'accepter des caractères sans rien dire. Taper et
+ * voir que plus rien ne s'inscrit se ressent exactement comme « ça ne
+ * s'enregistre pas ».
+ */
+describe("une note de terrain tient dans le champ", () => {
+  const NOTE_HACK_SQUAT =
+    "Les jambes supportent bien la charge, mais forte pression et gêne des pads " +
+    "sur les épaules. Pas de douleur vive. Probablement charge, positionnement " +
+    "ou morphologie à analyser avant d'envisager de remplacer l'exercice.";
+
+  it("la note réellement écrite ce jour-là fait le tour complet", async () => {
+    expect(NOTE_HACK_SQUAT.length).toBeGreaterThan(200);
+    await ecrireNote({
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension,
+      texte: NOTE_HACK_SQUAT,
+    });
+    expect((await lire(SACHA, matrixA)).note).toBe(NOTE_HACK_SQUAT);
+  });
+
+  it("une note longue survit à la relecture, sans troncature", async () => {
+    const longue = "a".repeat(LIMITE_NOTE_EXERCICE);
+    await ecrireNote({
+      userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte: longue,
+    });
+    const relue = (await lire(SACHA, matrixA)).note;
+    expect(relue).toHaveLength(LIMITE_NOTE_EXERCICE);
+    expect(relue).toBe(longue);
+  });
+});
+
 describe("une intention ancienne n'écrase jamais une plus récente", () => {
   const noteDe = async (texte: string, intention: number) => ecrireNote({
     userId: SACHA, exerciseInstanceId: matrixA, exerciseId: legExtension, texte, ordre: { intention },

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { LIMITE_NOTE_EXERCICE } from "@/lib/validators/exercise-instance";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import {
   contexteExecution, ecrireNote, enregistrerReglages,
@@ -22,7 +23,16 @@ export const dynamic = "force-dynamic";
 const majSchema = z.object({
   /** Clé → valeur. Une chaîne vide efface le réglage. */
   reglages: z.record(z.string(), z.string()).optional(),
-  note: z.string().max(280).optional(),
+  /*
+   * 280 caractères ne suffisaient pas à ce qu'on a réellement à noter.
+   *
+   * La note du hack squat — les jambes tiennent la charge, mais les pads
+   * pressent sur les épaules, sans douleur vive, à analyser avant de remplacer
+   * l'exercice — en fait 240. On écrivait donc au bord de la limite sans le
+   * savoir : le champ cessait simplement d'accepter des caractères, ce qui se
+   * ressent exactement comme « impossible d'enregistrer ».
+   */
+  note: z.string().max(LIMITE_NOTE_EXERCICE).optional(),
   /**
    * Toujours requis. Sans appareil, il porte la note ; avec, il sert à vérifier
    * que la machine visée fait bien cet exercice — le couple n'est jamais cru
