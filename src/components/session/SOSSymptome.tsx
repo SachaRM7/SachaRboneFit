@@ -7,6 +7,7 @@ import {
   SYMPTOMES_GENERAUX, NOTE_SYMPTOME_MAX, type SymptomeGeneral,
 } from "@/lib/referentiels/symptomes";
 import { prudenceSymptomes } from "@/lib/engine/symptome-general";
+import { arreterEnConsignant } from "./incident-en-vol";
 import type { ExerciceRestant } from "@/lib/sos/types";
 
 /**
@@ -96,11 +97,20 @@ export function SOSSymptome({
     onClose();
   };
 
-  const arreter = () => {
-    tracer("arreter");
-    onStopSeance();
-    onClose();
-  };
+  /*
+   * L'arrêt passe par le module, pas par trois lignes recopiées ici.
+   *
+   * L'ordre — consigner, puis quitter — et le fait que la persistance ne
+   * puisse ni retarder ni empêcher l'arrêt sont des INVARIANTS, pas un style
+   * d'écriture. Ils se prouvent dans `incident-en-vol.test.ts`, avec une
+   * requête qui ne se résout jamais ; ils ne se prouveraient pas sur un
+   * composant React sans rendu, clic et horloge.
+   */
+  const arreter = () => arreterEnConsignant({
+    consigner: () => tracer("arreter"),
+    onStopSeance,
+    onClose,
+  });
 
   return (
     <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">

@@ -186,6 +186,51 @@ describe("une seule règle, et elle vit dans le moteur", () => {
   });
 });
 
+describe("l'arrêt de séance ne peut pas perdre le signalement", () => {
+  it("la modale passe par le module d'arrêt, sans recopier l'ordre", () => {
+    /*
+     * L'invariant : consigner, puis quitter, sans jamais attendre le réseau.
+     * Trois lignes recopiées dans le composant se prouveraient mal — il
+     * faudrait un rendu, un clic et une horloge — et se remettraient dans le
+     * mauvais ordre à la première retouche.
+     */
+    const source = lire(MODALE_SEANCE);
+    expect(source).toMatch(/arreterEnConsignant\(/);
+    // La forme corrigée : un `await` devant la persistance, ou l'arrêt lancé
+    // avant elle.
+    expect(source, "l'arrêt attend la persistance").not.toMatch(/await\s+tracer/);
+  });
+
+  it("le gestionnaire de la page poste en keepalive, sans attendre", () => {
+    /*
+     * Le vrai défaut était là : un `fetch` ordinaire est lié au document qui
+     * l'a émis, et `router.push(".../finish")` l'annule — sur Safari mobile,
+     * presque toujours.
+     */
+    const page = lire("app/(app)/sessions/new/[templateId]/page.tsx");
+    expect(page).toMatch(/envoyerIncident\(/);
+    expect(page, "le gestionnaire refait un fetch à la main")
+      .not.toMatch(/fetch\("\/api\/incidents"/);
+    expect(page, "le gestionnaire est redevenu asynchrone")
+      .not.toMatch(/const enregistrerIncident = async/);
+  });
+
+  it("et le module poste toujours avec keepalive", () => {
+    const source = lire("components/session/incident-en-vol.ts");
+    expect(source).toMatch(/keepalive: true/);
+    // Une seule route : pas de contournement pour les symptômes.
+    expect(source).toMatch(/URL_INCIDENTS = "\/api\/incidents"/);
+  });
+
+  it("aucune des deux fonctions ne rend de promesse", () => {
+    // Le défaut se réintroduirait par la porte de l'appelant : un `await`
+    // redeviendrait possible, et l'arrêt réattendrait le réseau.
+    const source = lire("components/session/incident-en-vol.ts");
+    expect(source).toMatch(/export function envoyerIncident\([^)]*\)[^{]*: void/);
+    expect(source).toMatch(/export function arreterEnConsignant\([^)]*\): void/);
+  });
+});
+
 describe("rien de tout cela ne diagnostique", () => {
   it("aucun terme médical dans le référentiel ni dans la règle", () => {
     /*

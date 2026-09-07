@@ -18,6 +18,7 @@ import { RemplacerExercice } from "@/components/session/RemplacerExercice";
 import { SOSDouleur } from "@/components/session/SOSDouleur";
 import { SOSEnergie } from "@/components/session/SOSEnergie";
 import { SOSEtat } from "@/components/session/SOSEtat";
+import { envoyerIncident } from "@/components/session/incident-en-vol";
 import { SOSSymptome } from "@/components/session/SOSSymptome";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
@@ -360,25 +361,31 @@ function ContenuSeanceLive() {
     setTimerVisible(false);
   };
 
-  const enregistrerIncident = async (data: { type: string; contexte: Record<string, unknown>; decision: string }) => {
+  /*
+   * Consigner un incident, sans jamais retenir personne.
+   *
+   * La version précédente postait avec un `fetch` ORDINAIRE. Une requête
+   * ordinaire est liée au document qui l'a émise : quand le geste qui la
+   * déclenche est suivi d'une navigation — « Terminer la séance » pousse vers
+   * `/finish` — le navigateur l'annule, et sur Safari mobile presque toujours.
+   *
+   * Le symptôme le plus sérieux d'une séance était donc aussi le seul à pouvoir
+   * se perdre. `envoyerIncident` poste en `keepalive` et rend la main
+   * immédiatement : la requête survit au démontage, l'arrêt n'attend rien.
+   *
+   * Synchrone, et sans valeur de retour : aucun appelant ne peut l'attendre.
+   */
+  const enregistrerIncident = (data: { type: string; contexte: Record<string, unknown>; decision: string }): void => {
+    // Possible depuis que le store porte l'identifiant réel : cet appel
+    // renvoyait auparavant 403 à chaque fois, en silence.
     if (!active?.id) return;
-    try {
-      // Possible depuis que le store porte l'identifiant réel : cet appel
-      // renvoyait auparavant 403 à chaque fois, en silence.
-      const res = await fetch("/api/incidents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          session_log_id: active.id,
-          type: data.type,
-          contexte: data.contexte,
-          decision: data.decision,
-        }),
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      toast.error("Incident non enregistré");
-    }
+    envoyerIncident(
+      { sessionLogId: active.id, ...data },
+      // Les SOS qui ne naviguent pas restent à l'écran : ils peuvent encore
+      // être prévenus. Sur le chemin de l'arrêt, ce toast tombe après la
+      // navigation — et dire que le signalement n'est pas passé reste utile.
+      { onEchec: () => toast.error("Incident non enregistré") },
+    );
   };
 
   if (chargement) return <div className="p-4 text-encre-3">Chargement…</div>;
