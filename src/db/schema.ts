@@ -562,14 +562,24 @@ export const weeklyDebriefs = pgTable("weekly_debriefs", {
   weekStart: date("week_start").notNull(),
   weekEnd: date("week_end").notNull(),
   contenu: text("contenu").notNull(),
-  stats: jsonb("stats").$type<{
-    nbSeances: number;
-    volumeTotal: number;
-    feux: { vert: number; orange: number; rouge: number };
-    progressions: string[];
-    stagnations: string[];
-    incidentsNb: number;
-  }>(),
+  /**
+   * Les statistiques déterministes qui ont servi au débrief, et sa traçabilité.
+   *
+   * Le type figeait six champs, dont `progressions` et `stagnations` — deux
+   * tableaux que le cron déclarait, initialisait à vide et ne remplissait
+   * jamais. Ils avaient l'air de dire quelque chose ; ils obligeaient surtout à
+   * les écrire vides à chaque semaine.
+   *
+   * Le type est désormais ouvert : c'est le cron qui décide de ce qu'il sait
+   * calculer, et la colonne le porte tel quel. Aucune migration — un `jsonb`
+   * n'a jamais contraint sa forme côté base, seule cette annotation le faisait.
+   * Les lignes déjà écrites restent lisibles : rien n'est retiré de la base,
+   * seule la promesse de toujours écrire ces deux champs disparaît.
+   *
+   * `genereLe` et `modeleUtilise` y voyagent aussi. Deux colonnes de plus pour
+   * deux chaînes ne valaient pas une migration sur une base en service.
+   */
+  stats: jsonb("stats").$type<Record<string, unknown>>(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userWeekUnique: unique("weekly_debrief_user_week_unique").on(table.userId, table.weekStart),

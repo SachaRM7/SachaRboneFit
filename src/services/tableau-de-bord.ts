@@ -12,6 +12,8 @@ import { lireBlocs } from "@/services/blocs";
 import { memoireEmpechements } from "@/services/memoire";
 import { exercicesRealisables, statutInventaire } from "@/lib/engine/disponibilite";
 import { phase } from "@/lib/mesure/trace";
+import { recuperationMusculaire } from "./recuperation";
+import { contenuIAValide } from "./briefs-llm";
 import { contexteEssentiel, inventaireDuLieu } from "@/services/tableau-de-bord-lecture";
 
 /**
@@ -239,7 +241,7 @@ export async function complementTableauDeBord(userId: string) {
 
   const [
     precalcSession, weeklyDebrief, debriefSemainePrecedente,
-    recentSessions, vueProgramme, alertesPreSeance, salles,
+    recentSessions, vueProgramme, alertesPreSeance, salles, recuperation,
   ] = await Promise.all([
     db.query.precalcSessions.findFirst({
       where: and(eq(precalcSessions.userId, userId), eq(precalcSessions.targetDate, todayStr)),
@@ -262,9 +264,43 @@ export async function complementTableauDeBord(userId: string) {
     phase("calcul", "vueDuProgramme", () => vueDuProgramme(userId, todayStr, { blocs, memoire })),
     phase("calcul", "alertes", () => alertes(userId, { blocs, memoire })),
     lireSalles(),
+    /*
+     * La récupération est ici, dans le COMPLÉMENT, et pas dans l'essentiel.
+     *
+     * Elle coûte quatre lectures — activité musculaire, courbatures, cycle,
+     * contraintes — dont aucune ne change ce que l'athlète fait dans la minute.
+     * L'essentiel a été ramené de treize allers-retours à deux au lot 10 ; y
+     * remettre celles-ci annulerait ce travail.
+     *
+     * Menée dans le même `Promise.all` que le reste : elle ne s'ajoute pas au
+     * temps du complément, elle s'y range.
+     */
+    phase("calcul", "recuperation", () => recuperationMusculaire(userId)),
   ]);
 
-  const lastWeekDebrief = weeklyDebrief ? null : debriefSemainePrecedente;
+  /*
+   * Une ligne héritée d'avant le lot 15 est traitée comme ABSENTE.
+   *
+   * Les crons ont longtemps écrit un texte fixe finissant par « Configurez
+   * l'intégration LLM ». Ces lignes sont toujours en base — cette PR ne
+   * supprime aucune donnée — et l'écran affichait n'importe quelle ligne
+   * existante sans demander d'où elle venait. Corriger les crons sans filtrer
+   * ici aurait laissé le placeholder visible après le déploiement.
+   *
+   * Le filtre s'applique AVANT le repli sur la semaine précédente : sinon un
+   * débrief hérité de la semaine passée prendrait la place laissée vide.
+   */
+  const debriefSemaine = weeklyDebrief
+    && contenuIAValide(weeklyDebrief.contenu, weeklyDebrief.stats) ? weeklyDebrief : null;
+  const debriefPrecedent = debriefSemainePrecedente
+    && contenuIAValide(debriefSemainePrecedente.contenu, debriefSemainePrecedente.stats)
+    ? debriefSemainePrecedente : null;
+
+  const lastWeekDebrief = debriefSemaine ? null : debriefPrecedent;
+
+  const precalcAffichable = precalcSession
+    && contenuIAValide(precalcSession.contenu, precalcSession.contexteUtilise)
+    ? precalcSession : null;
 
   // Une requete par seance et par jointure : jusqu'a dix appels concurrents
   // pour cinq lignes, la ou deux lectures groupees suffisent.
@@ -294,6 +330,7 @@ export async function complementTableauDeBord(userId: string) {
   });
 
   return {
+    recuperation,
     // Le raccourci vers l'écran Programme, avec exactement ce qu'il faut
     // pour l'annoncer — et rien de plus. Les valeurs viennent du même
     // service que l'écran lui-même : les deux ne peuvent pas diverger.
@@ -311,9 +348,9 @@ export async function complementTableauDeBord(userId: string) {
     // Renvoyait un tableau vide en dur : le moteur d'alertes tournait dans le
     // vide, ses agrégats n'étant calculés nulle part.
     alertesPreSeance,
-    precalcSession: precalcSession ? { contenu: precalcSession.contenu } : null,
-    weeklyDebrief: weeklyDebrief
-      ? { contenu: weeklyDebrief.contenu, weekStart: weeklyDebrief.weekStart }
+    precalcSession: precalcAffichable ? { contenu: precalcAffichable.contenu } : null,
+    weeklyDebrief: debriefSemaine
+      ? { contenu: debriefSemaine.contenu, weekStart: debriefSemaine.weekStart }
       : (lastWeekDebrief ? { contenu: lastWeekDebrief.contenu, weekStart: lastWeekDebrief.weekStart } : null),
     recentSessions: recentSessionsWithData,
   };

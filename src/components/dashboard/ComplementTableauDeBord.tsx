@@ -4,6 +4,7 @@ import { Calendar, Dumbbell, Activity, TrendingDown } from "lucide-react";
 import { AlertList } from "@/components/alerts/AlertList";
 import { complementTableauDeBord } from "@/services/tableau-de-bord";
 import { phase, publier } from "@/lib/mesure/trace";
+import { CarteRecuperation } from "./CarteRecuperation";
 
 /**
  * Ce que l'accueil montre après coup.
@@ -43,6 +44,13 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
           </CardContent>
         </Card>
       )}
+
+      {/*
+        La récupération, juste après les alertes : c'est ce qui décide de
+        l'intensité du jour, avant même de savoir quelle séance vient. Elle est
+        dans le COMPLÉMENT et pas dans l'essentiel — voir le service.
+      */}
+      <CarteRecuperation etat={data.recuperation} />
 
       {/* Precalc session preview */}
       {data.precalcSession && (
