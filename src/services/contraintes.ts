@@ -4,6 +4,7 @@ import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import type { Lecteur } from "@/db/lecteur";
 import { versMuscle } from "@/lib/referentiels/muscles";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
+import { signalementsDepuis } from "@/lib/engine/incident-douleur";
 import {
   REEVALUATION_JOURS, SEVERITE, aReevaluer, decalerDe, effetSurLEntrainement,
   estActive, reevaluer, suiteASignalement,
@@ -127,13 +128,22 @@ export async function verdictSignalement(
     .orderBy(desc(sessionLogs.date))
     .limit(50);
 
-  const anterieurs: Signalement[] = passees.flatMap((p) => {
-    const ctx = (p.contexte ?? {}) as { muscle?: unknown; intensite?: unknown };
-    const m = typeof ctx.muscle === "string" ? versMuscle(ctx.muscle) : null;
-    const i = Number(ctx.intensite);
-    if (!m || !Number.isFinite(i)) return [];
-    return [{ muscle: m, intensite: i, dateISO: p.date }];
-  });
+  /*
+   * La relecture passe par `signalementsDepuis`, et c'est la correction
+   * centrale de ce lot.
+   *
+   * Ce bloc lisait `ctx.muscle` et `ctx.intensite`. L'écran de séance écrivait
+   * `zones` et `niveau`. Aucun des deux noms ne rencontrait l'autre : cette
+   * liste était TOUJOURS vide, et la détection de récurrence n'a jamais pu se
+   * déclencher une seule fois depuis qu'elle existe.
+   *
+   * Le lecteur commun accepte désormais les trois formes présentes en base, et
+   * rend un signalement par muscle canonique. Un incident de septembre compte
+   * donc dans une récurrence d'aujourd'hui, sans migration ni réécriture.
+   */
+  const anterieurs: Signalement[] = passees.flatMap((p) =>
+    signalementsDepuis(p.contexte, p.date),
+  );
 
   return suiteASignalement({
     signalement: { ...signalement, muscle },

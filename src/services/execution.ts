@@ -13,6 +13,7 @@ import {
   type DeclarationBrute, type RefusDeclaration,
 } from "@/lib/engine/declaration-reglage";
 import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
+import { versMuscles, type Muscle } from "@/lib/referentiels/muscles";
 
 /**
  * Ce qu'il faut charger pour exécuter un mouvement, et rien d'autre.
@@ -31,6 +32,17 @@ export interface ContexteExecution {
   reglages: ReglageAffiche[];
   resumeReglages: string | null;
   note: string | null;
+  /**
+   * Ce que le mouvement travaille, en muscles canoniques.
+   *
+   * Ils vivaient dans la base, servaient au calcul de volume et à l'adaptation
+   * sur douleur — et n'étaient montrés nulle part : la fiche d'exercice
+   * n'affichait que les principaux, en une ligne de texte, et la séance rien du
+   * tout. Ils voyagent maintenant avec le contexte pour que le mannequin puisse
+   * les peindre, sans requête de plus.
+   */
+  musclesPrincipaux: Muscle[];
+  musclesSecondaires: Muscle[];
   /**
    * Cette personne peut-elle DÉCRIRE les réglages de l'appareil ?
    *
@@ -289,7 +301,10 @@ export async function contexteExecution(entrees: {
 
   const exercice = await db.query.exercises.findFirst({
     where: eq(exercises.id, exerciseId),
-    columns: { ficheTechnique: true, tempoParDefaut: true, type: true },
+    columns: {
+      ficheTechnique: true, tempoParDefaut: true, type: true,
+      musclesPrincipaux: true, musclesSecondaires: true,
+    },
   });
 
   const tempo = tempoEffectif({
@@ -304,6 +319,12 @@ export async function contexteExecution(entrees: {
 
   const fiche = ficheRenseignee(exercice?.ficheTechnique) ? exercice!.ficheTechnique! : null;
 
+  // `versMuscles` plutôt que la valeur brute : la colonne porte encore, pour de
+  // vieilles lignes, le vocabulaire d'avant le référentiel unique. Une clé
+  // inconnue est écartée ici et n'atteint jamais le mannequin.
+  const musclesPrincipaux = versMuscles(exercice?.musclesPrincipaux);
+  const musclesSecondaires = versMuscles(exercice?.musclesSecondaires);
+
   if (!exerciseInstanceId) {
     // Sans appareil, la note se range sur le mouvement : c'est le seul objet
     // durable auquel la rattacher.
@@ -313,6 +334,7 @@ export async function contexteExecution(entrees: {
     return {
       exerciseInstanceId: null, exerciseId, fiche, tempo,
       reglages: [], resumeReglages: null, note: valeurOuRien(note?.texte),
+      musclesPrincipaux, musclesSecondaires,
       // Sans appareil, il n'y a rien à décrire : les pompes n'ont pas de siège.
       peutDecrire: false,
     };
@@ -345,6 +367,7 @@ export async function contexteExecution(entrees: {
     reglages: affiches,
     resumeReglages: resumeDesReglages(affiches),
     note: valeurOuRien(note?.texte),
+    musclesPrincipaux, musclesSecondaires,
     peutDecrire: peutGererLaSalle(appareil!.gym, userId),
   };
 }

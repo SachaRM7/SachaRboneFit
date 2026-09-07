@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { libelleProfilTension, libelleTypeMouvement, libelleMuscles } from "@/lib/referentiels/libelles";
 import { LIBELLES_CONVENTION } from "@/lib/validators/exercise-instance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Mannequin } from "@/components/anatomie/Mannequin";
+import { versMuscles } from "@/lib/referentiels/muscles";
 
 export default async function ExerciseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   // Mémoïsé pour la durée du rendu : le layout vient de faire cet
@@ -35,6 +37,11 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
   // d'un exercice, seul endroit ou l'on vient justement verifier un mouvement,
   // n'en montrait aucune.
   const fiche = exercise.slug ? CATALOGUE_PAR_SLUG.get(exercise.slug) : undefined;
+
+  // Passés par le référentiel : de vieilles lignes portent encore le
+  // vocabulaire d'avant, et une clé inconnue n'a rien à faire dans le dessin.
+  const principaux = versMuscles(exercise.musclesPrincipaux);
+  const secondaires = versMuscles(exercise.musclesSecondaires);
 
   return (
     <div className="p-4 space-y-4">
@@ -61,12 +68,41 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
           </Badge>
         </div>
         <h1 className="text-xl font-bold text-encre">{exercise.nom}</h1>
-        {exercise.musclesPrincipaux && exercise.musclesPrincipaux.length > 0 && (
-          <p className="text-encre-3 text-sm mt-1">
-            Muscles : {libelleMuscles(exercise.musclesPrincipaux)}
-          </p>
-        )}
       </div>
+
+      {/*
+        Le MÊME mannequin que la fiche d'exécution, pas une seconde
+        représentation. La bibliothèque et la séance doivent montrer la même
+        chose du même exercice : deux dessins finiraient par diverger, et
+        l'athlète ne saurait plus lequel croire.
+
+        Les muscles secondaires étaient renseignés pour 114 exercices sur 120,
+        consommés par le calcul de volume et par l'adaptation sur douleur — et
+        affichés nulle part. Cette fiche ne montrait que les principaux, en une
+        ligne de texte.
+      */}
+      {(principaux.length > 0 || secondaires.length > 0) && (
+        <section className="rounded-xl border border-filet bg-carte p-4">
+          <h2 className="text-lg font-semibold text-encre mb-1">Muscles travaillés</h2>
+          <p className="text-encre-2 text-sm">{libelleMuscles(principaux)}</p>
+          {secondaires.length > 0 && (
+            <p className="text-encre-3 text-sm">
+              Aussi sollicités : {libelleMuscles(secondaires)}
+            </p>
+          )}
+          <div className="mt-3">
+            <Mannequin
+              mode="exercice"
+              musclesPrincipaux={principaux}
+              musclesSecondaires={secondaires}
+            />
+          </div>
+          <p className="text-xs text-encre-3 mt-2">
+            Teinte pleine : ce que l&apos;exercice vise. Teinte légère : ce qui participe
+            sans être visé.
+          </p>
+        </section>
+      )}
 
       <div>
         <h2 className="text-lg font-semibold text-encre mb-3">Où le faire</h2>

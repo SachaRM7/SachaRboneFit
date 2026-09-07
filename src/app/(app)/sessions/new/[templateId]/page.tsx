@@ -709,7 +709,10 @@ function ContenuSeanceLive() {
             allegerExercises(ids);
             toast.success(`Effort allégé sur ${ids.length} exercice(s)`);
           }}
-          onIncident={enregistrerIncident}
+          /* Pas d'`onIncident` ici, et c'est la correction du lot : la douleur
+             passe par `/api/douleur`, qui consigne l'incident ET rend ce que la
+             règle en dit. La route générique `/api/incidents` n'a pas de suite
+             à rendre — elle reste celle des trois autres SOS. */
         />
       )}
 
