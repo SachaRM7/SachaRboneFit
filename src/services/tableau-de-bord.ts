@@ -12,6 +12,7 @@ import { lireBlocs } from "@/services/blocs";
 import { memoireEmpechements } from "@/services/memoire";
 import { exercicesRealisables, statutInventaire } from "@/lib/engine/disponibilite";
 import { phase } from "@/lib/mesure/trace";
+import { recuperationMusculaire } from "./recuperation";
 import { contexteEssentiel, inventaireDuLieu } from "@/services/tableau-de-bord-lecture";
 
 /**
@@ -239,7 +240,7 @@ export async function complementTableauDeBord(userId: string) {
 
   const [
     precalcSession, weeklyDebrief, debriefSemainePrecedente,
-    recentSessions, vueProgramme, alertesPreSeance, salles,
+    recentSessions, vueProgramme, alertesPreSeance, salles, recuperation,
   ] = await Promise.all([
     db.query.precalcSessions.findFirst({
       where: and(eq(precalcSessions.userId, userId), eq(precalcSessions.targetDate, todayStr)),
@@ -262,6 +263,18 @@ export async function complementTableauDeBord(userId: string) {
     phase("calcul", "vueDuProgramme", () => vueDuProgramme(userId, todayStr, { blocs, memoire })),
     phase("calcul", "alertes", () => alertes(userId, { blocs, memoire })),
     lireSalles(),
+    /*
+     * La récupération est ici, dans le COMPLÉMENT, et pas dans l'essentiel.
+     *
+     * Elle coûte quatre lectures — activité musculaire, courbatures, cycle,
+     * contraintes — dont aucune ne change ce que l'athlète fait dans la minute.
+     * L'essentiel a été ramené de treize allers-retours à deux au lot 10 ; y
+     * remettre celles-ci annulerait ce travail.
+     *
+     * Menée dans le même `Promise.all` que le reste : elle ne s'ajoute pas au
+     * temps du complément, elle s'y range.
+     */
+    phase("calcul", "recuperation", () => recuperationMusculaire(userId)),
   ]);
 
   const lastWeekDebrief = weeklyDebrief ? null : debriefSemainePrecedente;
@@ -294,6 +307,7 @@ export async function complementTableauDeBord(userId: string) {
   });
 
   return {
+    recuperation,
     // Le raccourci vers l'écran Programme, avec exactement ce qu'il faut
     // pour l'annoncer — et rien de plus. Les valeurs viennent du même
     // service que l'écran lui-même : les deux ne peuvent pas diverger.
