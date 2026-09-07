@@ -8,6 +8,7 @@ import { contraintesActives } from "@/services/contraintes";
 import { recuperationMusculaire, resumeRecuperation } from "@/services/recuperation";
 import { genererDebriefHebdo, contenuIAValide, raisonCourte } from "@/services/briefs-llm";
 import { signalementsDepuis } from "@/lib/engine/incident-douleur";
+import { agregerSymptomes, lireSymptomeIncident } from "@/lib/engine/symptome-general";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
 
 export const runtime = "nodejs";
@@ -248,6 +249,24 @@ async function statistiquesDeLaSemaine(
     }
   }
 
+  /*
+   * Les symptômes généraux de la semaine — comptés à part, et c'est le point.
+   *
+   * Un mal de tête n'est ni une douleur musculaire, ni une contrainte, ni une
+   * récupération insuffisante. Le ranger dans `zonesSignalees` aurait fait
+   * commenter au modèle une gêne d'épaule qui n'a jamais eu lieu.
+   *
+   * Le lecteur est celui du moteur, et il ne rend que le type, le nombre et
+   * l'intensité la plus haute : les notes libres restent dans l'incident, pour
+   * l'humain qui relit sa séance.
+   */
+  const symptomes = agregerSymptomes(
+    incidents
+      .filter((i) => i.type === "symptome_general")
+      .map((i) => lireSymptomeIncident(i.contexte))
+      .filter((s): s is NonNullable<typeof s> => s !== null),
+  );
+
   return {
     semaine,
     nbSeances: seances.length,
@@ -271,6 +290,14 @@ async function statistiquesDeLaSemaine(
     recuperation: recuperation.muscles
       .filter((m) => m.etat !== "pret")
       .map((m) => ({ muscle: m.libelle, etat: m.etat, detail: resumeRecuperation(m) })),
+    // Vide la plupart des semaines, et présent quand même : une rubrique
+    // absente et une rubrique vide se lisent pareil pour un modèle, mais pas
+    // pour la personne qui débogue le cron.
+    symptomesGeneraux: symptomes.map((s) => ({
+      symptome: s.libelle,
+      fois: s.fois,
+      intensiteMax: s.intensiteMax,
+    })),
     // NI `progressions` NI `stagnations` : voir l'en-tête. Deux tableaux
     // toujours vides invitaient le modèle à les remplir.
   };

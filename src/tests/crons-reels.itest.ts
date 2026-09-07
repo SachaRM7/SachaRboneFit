@@ -519,11 +519,33 @@ describe("les placeholders écrits avant ce lot ne survivent pas", () => {
       contexteUtilise: { nextLetter: "A" },
     });
 
+    /*
+     * Mesure DIFFÉRENTIELLE, et pas un compteur global.
+     *
+     * `conserves` compte tous les comptes actifs de la base de test, y compris
+     * ceux que d'autres suites y ont laissés. L'affirmer à zéro rendait ce test
+     * dépendant de ce qui tourne avant lui — il est passé jusqu'au jour où un
+     * autre fichier a ajouté deux comptes.
+     *
+     * On compare donc deux passages : l'un avec la ligne héritée de Sacha,
+     * l'autre sans aucune ligne pour lui. Si un placeholder était tenu pour un
+     * résultat utile, le premier passage compterait un `conserves` de plus.
+     */
     panne = "http503";
-    const bilan = await (await autorise(precalc)).json();
-    expect(bilan.conserves, "un placeholder a été tenu pour un résultat utile").toBe(0);
-    expect(bilan.ignores).toBeGreaterThanOrEqual(1);
-    expect(bilan.erreurs.length).toBeGreaterThanOrEqual(1);
+    const avecHeritee = await (await autorise(precalc)).json();
+
+    await db.delete(schema.precalcSessions)
+      .where(and(
+        eq(schema.precalcSessions.userId, SACHA),
+        eq(schema.precalcSessions.targetDate, DEMAIN),
+      ));
+    const sansRien = await (await autorise(precalc)).json();
+
+    expect(
+      avecHeritee.conserves,
+      "un placeholder a été tenu pour un résultat utile",
+    ).toBe(sansRien.conserves);
+    expect(avecHeritee.erreurs.length).toBeGreaterThanOrEqual(1);
   });
 
   it("une panne ne « conserve » jamais un débrief hérité", async () => {
@@ -532,16 +554,24 @@ describe("les placeholders écrits avant ce lot ne survivent pas", () => {
     // ferait compter SON `conserves` légitime et masquerait celui qu'on refuse.
     await db.delete(schema.weeklyDebriefs).where(eq(schema.weeklyDebriefs.userId, MARIA));
 
+    // Même mesure différentielle que pour le précalcul : voir plus haut.
     panne = "http503";
-    const bilan = await (await autorise(weekly)).json();
-    expect(bilan.conserves, "un placeholder a été tenu pour un résultat utile").toBe(0);
-    expect(bilan.erreurs.length).toBeGreaterThanOrEqual(1);
+    const avecHeritee = await (await autorise(weekly)).json();
 
-    // Et la ligne héritée est intacte : on ne supprime rien, on l'ignore.
+    // La ligne héritée est intacte : on ne supprime rien, on l'ignore.
     const ligne = (await db.query.weeklyDebriefs.findFirst({
       where: eq(schema.weeklyDebriefs.userId, SACHA),
     }))!;
     expect(ligne.contenu).toBe(WEEKLY_HERITE);
+
+    await db.delete(schema.weeklyDebriefs).where(eq(schema.weeklyDebriefs.userId, SACHA));
+    const sansRien = await (await autorise(weekly)).json();
+
+    expect(
+      avecHeritee.conserves,
+      "un placeholder a été tenu pour un résultat utile",
+    ).toBe(sansRien.conserves);
+    expect(avecHeritee.erreurs.length).toBeGreaterThanOrEqual(1);
   });
 
   it("mais une panne conserve bien un contenu réellement tracé", async () => {

@@ -16,6 +16,8 @@ import {
 } from "@/services/progression";
 import { libelleMuscle, libelleEquipement, libelleProfilTension, libelleTypeMouvement } from "@/lib/referentiels/libelles";
 import { versMuscle } from "@/lib/referentiels/muscles";
+import { libelleSymptome } from "@/lib/referentiels/symptomes";
+import { prudenceSymptomes } from "@/lib/engine/symptome-general";
 import type { CoachTool, RefsContexteOutil, ToolExecutor, ToolExecutionResult } from "./tools";
 
 /**
@@ -148,6 +150,24 @@ async function etatDuJour(_p: Record<string, unknown>, userId: string): Promise<
       muscle: libelleMuscle(c.muscle),
       intensite: c.intensite,
     })),
+    /*
+     * Les symptômes généraux — LUS, jamais interprétés.
+     *
+     * Le coach peut dire « tu as signalé un léger mal de tête ce matin ». Il
+     * ne peut ni en donner la cause, ni décider d'arrêter la séance : la
+     * conduite est calculée par `prudenceSymptomes`, et elle est jointe ici
+     * pour qu'il la relaie au lieu d'en inventer une.
+     *
+     * Séparé de `courbatures`, et pas fondu dedans : un mal de tête n'est pas
+     * un muscle, et le coach ne doit pas pouvoir le citer comme tel.
+     *
+     * Les notes libres ne sortent pas. Elles sont écrites pour un humain.
+     */
+    symptomesGeneraux: (etat.symptomesGeneraux ?? []).map((s) => ({
+      symptome: libelleSymptome(s.symptome),
+      intensite: s.intensite,
+    })),
+    conduiteSymptomes: prudenceSymptomes(etat.symptomesGeneraux ?? []).conduite,
   }));
 }
 

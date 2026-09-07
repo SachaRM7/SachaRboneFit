@@ -1,26 +1,34 @@
 "use client";
 
-import { AlertTriangle, RefreshCw, BatteryLow, Clock } from "lucide-react";
+import { AlertTriangle, RefreshCw, Activity, Clock } from "lucide-react";
 
 interface SOSBarProps {
   onMachineOccupee: () => void;
   onDouleur: () => void;
-  onEnergie: () => void;
+  /**
+   * « État ↓ » : baisse d'énergie OU symptôme général.
+   *
+   * La barre reste à QUATRE boutons. Un cinquième aurait rétréci les cinq, et
+   * c'est la cible tactile de « Douleur » — le geste le plus urgent — qui
+   * aurait payé la place du moins urgent. Le choix se fait donc derrière,
+   * dans `SOSEtat`. Les deux données restent distinctes en base.
+   */
+  onEtat: () => void;
   onTempsDepasse: () => void;
 }
 
 const sosButtons = [
   { label: "Occupée", icon: RefreshCw, onClick: (fn: () => void) => fn, key: "machine" },
   { label: "Douleur", icon: AlertTriangle, onClick: (fn: () => void) => fn, key: "douleur" },
-  { label: "Énergie ↓", icon: BatteryLow, onClick: (fn: () => void) => fn, key: "energie" },
+  { label: "État ↓", icon: Activity, onClick: (fn: () => void) => fn, key: "etat" },
   { label: "Temps ↑", icon: Clock, onClick: (fn: () => void) => fn, key: "temps" },
 ] as const;
 
-export function SOSBar({ onMachineOccupee, onDouleur, onEnergie, onTempsDepasse }: SOSBarProps) {
+export function SOSBar({ onMachineOccupee, onDouleur, onEtat, onTempsDepasse }: SOSBarProps) {
   const handlers = {
     machine: onMachineOccupee,
     douleur: onDouleur,
-    energie: onEnergie,
+    etat: onEtat,
     temps: onTempsDepasse,
   };
 
