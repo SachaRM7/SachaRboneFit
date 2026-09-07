@@ -7,6 +7,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { dailyStateSchema, type DailyStateInput } from "@/lib/validators/daily-state";
 import { CourbaturesModal, type Courbature } from "./CourbaturesModal";
+import { SymptomesModal } from "./SymptomesModal";
+import { prudenceSymptomes } from "@/lib/engine/symptome-general";
+import type { SymptomeDeclare } from "@/lib/referentiels/symptomes";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -24,6 +27,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [courbatures, setCourbatures] = useState<Courbature[]>([]);
+  const [symptomes, setSymptomes] = useState<SymptomeDeclare[]>([]);
   const [gyms, setGyms] = useState<{ id: string; nom: string }[]>([]);
   const [defaultGymId, setDefaultGymId] = useState<string>(preselectedGymId || "");
   const [sommeil, setSommeil] = useState(7);
@@ -85,12 +89,26 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
           setDernierRepas(data.dernierRepasHeure ?? null);
           setHorairePrevu(data.horaireSeancePrevu ?? null);
           if (data.courbatures) setCourbatures(data.courbatures);
+          // `null` sur toutes les lignes antérieures au lot 16 : la question
+          // n'avait jamais été posée. On le lit comme « aucun symptôme ».
+          if (Array.isArray(data.symptomesGeneraux)) setSymptomes(data.symptomesGeneraux);
           if (data.gymId) setDefaultGymId(data.gymId);
           // Un état déjà saisi aujourd'hui l'emporte sur les habitudes.
           if (Array.isArray(data.materielApporte)) setMaterielApporte(data.materielApporte);
         }
       });
   }, [initialDate]);
+
+  /*
+   * La même règle que pendant la séance, appelée ici pour AFFICHER, pas pour
+   * décider à la place de l'utilisateur.
+   *
+   * Deux barèmes — un pour l'état du jour, un pour la barre SOS — auraient
+   * divergé au premier ajustement, et l'application aurait dit « allège » le
+   * matin puis « rien à signaler » une heure plus tard, sur la même
+   * déclaration.
+   */
+  const prudence = prudenceSymptomes(symptomes);
 
   const onSubmit = async () => {
     if (!defaultGymId) {
@@ -108,6 +126,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
         shiftType: shiftRecent ? shiftType : "aucun",
         energieDepart: energie,
         courbatures,
+        symptomesGeneraux: symptomes,
         materielApporte,
         dernierRepasHeure: dernierRepas,
         horaireSeancePrevu: horairePrevu,
@@ -278,6 +297,31 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       <div>
         <Label className="text-encre-2 text-xs mb-2 block">Courbatures</Label>
         <CourbaturesModal value={courbatures} onChange={setCourbatures} />
+      </div>
+
+      {/*
+        Symptômes généraux — une notion distincte, à sa place.
+
+        Sous les courbatures, parce que le geste est le même ; mais SÉPARÉE
+        d'elles, parce qu'un mal de tête n'est pas un muscle. Les fondre en une
+        seule section aurait fait entrer un état global dans le score de
+        récupération musculaire.
+
+        Repliée par défaut : la plupart des jours il n'y a rien à déclarer, et
+        une section qui coûte un appui quand elle sert ne coûte rien quand elle
+        ne sert pas.
+      */}
+      <div>
+        <Label className="text-encre-2 text-xs mb-2 block">Symptômes généraux</Label>
+        <SymptomesModal value={symptomes} onChange={setSymptomes} />
+        {prudence.conduite !== "continuer" && (
+          /*
+            Ce que l'application propose, dit avant de commencer — et rien de
+            plus : le feu biologique n'est pas réécrit, aucune séance n'est
+            bloquée, et rien n'est appliqué sans geste de l'utilisateur.
+          */
+          <p className="text-feu-orange text-xs mt-2">{prudence.motif}</p>
+        )}
       </div>
 
       {/* Dernier repas */}

@@ -1,6 +1,7 @@
 import { pgTable, uuid, text, boolean, timestamp, real, integer, bigint, jsonb, date, unique, uniqueIndex, index, check } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import type { FicheTechnique, TypeReglage } from "@/lib/engine/execution";
+import type { SymptomeDeclare } from "@/lib/referentiels/symptomes";
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -413,6 +414,18 @@ export const dailyStates = pgTable("daily_states", {
   shiftType: text("shift_type"),
   energieDepart: integer("energie_depart"),
   courbatures: jsonb("courbatures").$type<{muscle: string; intensite: number}[]>(),
+  /**
+   * Les symptômes GÉNÉRAUX du jour — pas des courbatures, pas des douleurs.
+   *
+   * Une courbature porte un muscle et alimente la récupération musculaire ; une
+   * douleur porte une zone et peut créer une contrainte. Un mal de tête n'est
+   * ni l'un ni l'autre, et le ranger dans `courbatures` aurait fait entrer un
+   * état global dans un score musculaire.
+   *
+   * `NULL` sur toutes les lignes antérieures au lot 16 : la question n'avait
+   * jamais été posée. Le code le lit comme « aucun symptôme ».
+   */
+  symptomesGeneraux: jsonb("symptomes_generaux").$type<SymptomeDeclare[]>(),
   /**
    * Materiel personnel emporte ce jour-la. Il s'ajoute a celui du lieu sans
    * jamais le modifier : personne ne doit declarer que la salle possede ses

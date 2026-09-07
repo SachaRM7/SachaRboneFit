@@ -58,6 +58,9 @@ export async function POST(request: Request) {
           shiftType: data.shiftType,
           energieDepart: data.energieDepart,
           courbatures: data.courbatures,
+          // Absent ⇒ on n'écrase pas ce qui était déclaré : un appelant qui
+          // n'envoie pas le champ ne veut pas dire « plus aucun symptôme ».
+          ...(data.symptomesGeneraux ? { symptomesGeneraux: data.symptomesGeneraux } : {}),
         materielApporte: data.materielApporte ?? null,
           dernierRepasHeure: data.dernierRepasHeure ?? null,
           horaireSeancePrevu: data.horaireSeancePrevu ?? null,
@@ -77,6 +80,7 @@ export async function POST(request: Request) {
         shiftType: data.shiftType,
         energieDepart: data.energieDepart,
         courbatures: data.courbatures,
+        symptomesGeneraux: data.symptomesGeneraux ?? null,
         materielApporte: data.materielApporte ?? null,
         dernierRepasHeure: data.dernierRepasHeure ?? null,
         horaireSeancePrevu: data.horaireSeancePrevu ?? null,

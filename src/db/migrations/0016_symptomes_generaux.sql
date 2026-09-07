@@ -1,0 +1,21 @@
+-- ---------------------------------------------------------------------------
+-- Les symptômes généraux
+-- ---------------------------------------------------------------------------
+-- Le 6 septembre, pendant Calibration B, un léger mal de tête a été signalé.
+-- L'application n'avait aucun endroit où le mettre : `courbatures` porte un
+-- muscle, la douleur porte une zone anatomique et peut créer une contrainte,
+-- l'énergie est une seule dimension. Un état GLOBAL n'entrait dans aucune des
+-- trois, et le forcer dans l'une d'elles aurait produit une donnée fausse —
+-- une contrainte musculaire sur un mal de tête, par exemple.
+--
+-- D'où une colonne à part. `courbatures` n'est pas détournée : les deux notions
+-- alimentent des calculs différents, et les mélanger ferait entrer un symptôme
+-- général dans le score de récupération musculaire.
+--
+-- NULLABLE, ET SANS DÉFAUT. Les lignes déjà en base restent telles quelles :
+-- aucune réécriture, aucun `[]` posé rétroactivement. `NULL` veut dire « la
+-- question n'a jamais été posée », ce qui est exact pour tout l'historique ;
+-- un tableau vide voudra dire « demandé, rien à signaler ». Le code lit les
+-- deux comme « aucun symptôme », mais la base garde la différence.
+ALTER TABLE "daily_states"
+  ADD COLUMN IF NOT EXISTS "symptomes_generaux" jsonb;

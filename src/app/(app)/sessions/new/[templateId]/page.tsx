@@ -17,6 +17,8 @@ import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
 import { RemplacerExercice } from "@/components/session/RemplacerExercice";
 import { SOSDouleur } from "@/components/session/SOSDouleur";
 import { SOSEnergie } from "@/components/session/SOSEnergie";
+import { SOSEtat } from "@/components/session/SOSEtat";
+import { SOSSymptome } from "@/components/session/SOSSymptome";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
 import { ObservateurSeance } from "@/components/session/ObservateurSeance";
@@ -27,7 +29,14 @@ import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engin
 import type { ExerciceRestant } from "@/lib/sos/types";
 import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
 
-type ModaleSOS = "machine" | "douleur" | "energie" | "temps" | null;
+/*
+ * `etat` est le CHOISISSEUR, `energie` et `symptome` les deux destinations.
+ *
+ * Trois états plutôt que deux parce que les deux écrans d'arrivée restent
+ * distincts : une baisse d'énergie et une nausée ne se saisissent pas de la
+ * même façon, et ne s'enregistrent pas dans le même type d'incident.
+ */
+type ModaleSOS = "machine" | "douleur" | "etat" | "energie" | "symptome" | "temps" | null;
 
 /** Le rôle vient de la base en texte libre : on le ramène aux trois valeurs du moteur. */
 function normaliserRole(role: string | null | undefined): ExerciceRestant["categorie_role"] {
@@ -617,7 +626,7 @@ function ContenuSeanceLive() {
         <SOSBar
           onMachineOccupee={() => setModaleSOS("machine")}
           onDouleur={() => setModaleSOS("douleur")}
-          onEnergie={() => setModaleSOS("energie")}
+          onEtat={() => setModaleSOS("etat")}
           onTempsDepasse={() => {
             setDureeSOSMin(active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0);
             setModaleSOS("temps");
@@ -713,6 +722,36 @@ function ContenuSeanceLive() {
              passe par `/api/douleur`, qui consigne l'incident ET rend ce que la
              règle en dit. La route générique `/api/incidents` n'a pas de suite
              à rendre — elle reste celle des trois autres SOS. */
+        />
+      )}
+
+      {modaleSOS === "etat" && (
+        <SOSEtat
+          onEnergie={() => setModaleSOS("energie")}
+          onSymptome={() => setModaleSOS("symptome")}
+          onClose={() => setModaleSOS(null)}
+        />
+      )}
+
+      {/*
+        Le symptôme général — la troisième notion, distincte des deux autres.
+
+        Pas d'`onDouleur` ici, et c'est le point du lot : un mal de tête n'a
+        pas de muscle, donc pas de contrainte, pas de substitution et aucun
+        effet sur la récupération musculaire. Il ne passe jamais par
+        `/api/douleur`.
+      */}
+      {modaleSOS === "symptome" && (
+        <SOSSymptome
+          exercicesRestants={restants}
+          onClose={() => setModaleSOS(null)}
+          onStopSeance={() => router.push(`/sessions/new/${templateId}/finish`)}
+          onAlleger={(coupes) => {
+            const idParNom = new Map(visibles.map((e) => [e.nom, e.id]));
+            skipExercises(coupes.map((n) => idParNom.get(n)).filter((id): id is string => Boolean(id)));
+            toast.success("Séance allégée");
+          }}
+          onIncident={enregistrerIncident}
         />
       )}
 
