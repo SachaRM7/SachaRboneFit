@@ -56,6 +56,21 @@ describe("le contenu des fiches a un chemin jusqu'à la base", () => {
       .not.toMatch(/db\.insert\(/);
   });
 
+  it("la simulation ne modifie rien", () => {
+    /*
+     * Le mode par défaut. `--ecrire` est explicite, et c'est ce qui permet de
+     * lancer le script contre une base sensible pour LIRE ce qu'il ferait.
+     *
+     * Vérifié sur le texte parce que c'est un invariant de sûreté : l'écriture
+     * doit rester gardée par le drapeau, pas décidée ailleurs.
+     */
+    const sync = lire("scripts/synchroniser-fiches.ts");
+    expect(sync).toMatch(/const ecrire = process\.argv\.includes\("--ecrire"\)/);
+    expect(sync).toMatch(/if \(ecrire && Object\.keys\(maj\)\.length > 0\)/);
+    // Aucune autre écriture : celle du bloc gardé est la seule du fichier.
+    expect([...sync.matchAll(/db\.update\(/g)]).toHaveLength(1);
+  });
+
   it("il ne touche que les deux colonnes qui le regardent", () => {
     const sync = lire("scripts/synchroniser-fiches.ts");
     const ecriture = sync.slice(sync.indexOf("db.update(exercises)"));
@@ -63,6 +78,32 @@ describe("le contenu des fiches a un chemin jusqu'à la base", () => {
       expect(ecriture, `${colonne} ne doit pas être réécrit`).not.toMatch(
         new RegExp(`\\b${colonne}\\s*:`),
       );
+    }
+  });
+});
+
+describe("le rollout reste idempotent quand la fiche gagne un champ", () => {
+  it("la comparaison ne dépend pas de l'ordre des clés", () => {
+    /*
+     * PostgreSQL range les clés d'un `jsonb` dans son propre ordre. Une
+     * comparaison naïve verrait toutes les fiches comme différentes, et le
+     * script réécrirait tout à chaque passage — y compris le jour où on ajoute
+     * une rubrique, où plus personne ne saurait distinguer un vrai changement.
+     */
+    const sync = lire("scripts/synchroniser-fiches.ts");
+    expect(sync).toMatch(/function memeContenu/);
+    expect(sync).toMatch(/\.sort\(/);
+    expect(sync, "comparaison par chaîne brute : non idempotente")
+      .not.toMatch(/JSON\.stringify\(ligne\.ficheTechnique\) ===/);
+  });
+
+  it("il compare la fiche ENTIÈRE, sans énumérer ses rubriques", () => {
+    // Une liste de champs à comparer se périmerait au premier ajout — et
+    // `libellesPhasesTempo` en est justement un.
+    const sync = lire("scripts/synchroniser-fiches.ts");
+    expect(sync).toMatch(/memeContenu\(ligne\.ficheTechnique, fiche\)/);
+    for (const champ of ["installation", "sensation", "libellesPhasesTempo"]) {
+      expect(sync, `${champ} ne doit pas être comparé à la main`).not.toContain(champ);
     }
   });
 });

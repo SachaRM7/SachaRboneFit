@@ -8,10 +8,11 @@
  * savoir avant l'aller-retour.
  */
 export {
-  messageDeRefus, PHASES_TEMPO, validerReglage,
+  messageDeRefus, PHASES_TEMPO, phasesDuTempo, validerReglage,
 } from "@/lib/engine/execution";
 export type {
-  DefinitionReglage, FicheTechnique, ReglageAffiche, TempoResolu, TypeReglage,
+  DefinitionReglage, FicheTechnique, PhaseAffichee, PhaseTempo,
+  ReglageAffiche, TempoResolu, TypeReglage,
 } from "@/lib/engine/execution";
 
 /**

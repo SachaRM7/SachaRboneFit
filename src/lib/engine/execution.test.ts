@@ -24,10 +24,36 @@ describe("le tempo, lu et écrit", () => {
   });
 
   it("nomme ses quatre phases, pour que l'UI n'ait pas à les deviner", () => {
+    // L'ORDRE des chiffres est la sémantique du modèle : le changer
+    // réinterpréterait tous les tempos déjà écrits en base.
     expect(PHASES_TEMPO.map((p) => p.cle)).toEqual([
       "excentrique", "pause_etire", "concentrique", "pause_contracte",
     ]);
-    expect(PHASES_TEMPO[0]!.explication).toMatch(/retient/);
+    expect(PHASES_TEMPO[0]!.explication).toMatch(/freines/);
+  });
+
+  it("et ne les nomme JAMAIS par une direction universelle", () => {
+    /*
+     * Elles s'appelaient « Descente », « Pause basse », « Montée », « Pause
+     * haute ». C'est juste sur un squat et faux ailleurs — sur un cable crunch,
+     * l'effort produit descend et c'est le retour qui remonte. Un repli
+     * générique doit dire la phase, qui est vraie partout.
+     */
+    const texte = PHASES_TEMPO.map((p) => `${p.terme} ${p.explication}`).join(" ");
+    for (const direction of ["Descente", "Montée", "Pause basse", "Pause haute"]) {
+      expect(texte, `« ${direction} » n'est pas vrai de tous les mouvements`)
+        .not.toContain(direction);
+    }
+    expect(PHASES_TEMPO[0]!.terme).toBe("Excentrique");
+    expect(PHASES_TEMPO[2]!.terme).toBe("Concentrique");
+  });
+
+  it("le deuxième chiffre est la pause ÉTIRÉE, le quatrième la contractée", () => {
+    // Le commentaire de `TEMPO_CANONIQUE` disait l'inverse pour l'isolation.
+    expect(PHASES_TEMPO[1]!.terme).toMatch(/étirée/);
+    expect(PHASES_TEMPO[3]!.terme).toMatch(/contractée/);
+    expect(lireTempo("3-1-1-0")!.pauseEtire).toBe(1);
+    expect(lireTempo("3-1-1-0")!.pauseContracte).toBe(0);
   });
 
   it("refuse ce qui n'est pas un tempo, sans rien proposer à la place", () => {

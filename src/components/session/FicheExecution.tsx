@@ -5,7 +5,7 @@ import { MemoireDeSaisie } from "@/lib/engine/memoire-de-saisie";
 import { prochaineIntention } from "@/lib/engine/intention";
 import { useSessionStore } from "@/stores/sessionStore";
 import {
-  messageDeRefus, PHASES_TEMPO, validerReglage,
+  messageDeRefus, phasesDuTempo, validerReglage,
   type ContexteExecutionClient,
 } from "./execution-client";
 import { LIMITE_NOTE_EXERCICE } from "@/lib/validators/exercise-instance";
@@ -107,6 +107,13 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
   const memoire = useRef(new MemoireDeSaisie(contexte.note ?? ""));
 
   const f = contexte.fiche;
+  /*
+   * Les quatre phases, nommées par ce mouvement-là quand sa fiche le dit.
+   * L'assemblage vit dans le moteur : ce composant ne connaît aucun exercice.
+   */
+  const phases = contexte.tempo
+    ? phasesDuTempo(contexte.tempo.tempo, f?.libellesPhasesTempo)
+    : [];
 
   /**
    * Envoie une modification. Le corps ne porte QUE ce qui a changé : envoyer
@@ -512,12 +519,33 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
               </button>
               {expliqueTempo && (
                 <ul className="mt-2 space-y-1">
-                  {PHASES_TEMPO.map((p, i) => (
+                  {/*
+                    Le mot du MOUVEMENT d'abord, le terme du modèle ensuite.
+
+                    Les phases s'affichaient « Descente / Pause basse / Montée /
+                    Pause haute ». C'est juste sur un hack squat et faux sur un
+                    cable crunch, où l'effort produit descend et où c'est le
+                    retour qui remonte : on apprenait l'inverse du geste.
+
+                    D'où vient le mot : de `phasesDuTempo`, qui croise le tempo
+                    résolu avec les libellés de la FICHE. Aucun slug n'apparaît
+                    ici — un `if slug === "cable-crunch"` dans ce composant
+                    serait la même erreur, écrite ailleurs.
+                  */}
+                  {phases.map((p) => (
                     <li key={p.cle} className="text-sm text-encre-2 flex gap-2">
                       <span className="chiffres tabular-nums w-4 shrink-0 text-encre">
-                        {contexte.tempo!.brut.split("-")[i]}
+                        {p.secondes}
                       </span>
-                      <span>{p.explication}</span>
+                      <span>
+                        <span className="text-encre">{p.libelle}</span>
+                        {/* Le terme reste visible, en retrait : il s'apprend à
+                            force de le lire à côté du geste qu'il nomme. */}
+                        {p.propreAuMouvement && (
+                          <span className="text-encre-3"> · {p.terme.toLowerCase()}</span>
+                        )}
+                        <span className="text-encre-3"> — {p.explication}</span>
+                      </span>
                     </li>
                   ))}
                   <li className="text-xs text-encre-3 pt-1">

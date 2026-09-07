@@ -89,6 +89,12 @@ export const FICHES_TECHNIQUES: Record<string, FicheTechnique> = {
     securite:
       "Une pression sur les épaules est fréquente ; une douleur, non. Si ça "
       + "fait mal, signale-le plutôt que d'insister.",
+    // Le seul des trois où la direction visible coïncide avec la phase.
+    libellesPhasesTempo: {
+      excentrique: "Descente",
+      pause_etire: "Pause en bas",
+      concentrique: "Remontée",
+    },
   },
 
   "leg-press": {
@@ -206,6 +212,16 @@ export const FICHES_TECHNIQUES: Record<string, FicheTechnique> = {
       "Balancer le buste d'avant en arrière pour lancer la charge",
       "Tirer avec les bras en laissant les épaules s'enrouler",
     ],
+    /*
+     * Ni montée ni descente : c'est un mouvement horizontal. « Descente »
+     * n'aurait aucun sens, et « Montée » non plus. L'effort part vers
+     * l'arrière, le retour va vers l'avant.
+     */
+    libellesPhasesTempo: {
+      excentrique: "Laisse les bras revenir vers l'avant",
+      concentrique: "Tire les coudes vers l'arrière",
+      pause_contracte: "Tiens le dos contracté",
+    },
   },
 
   "machine-row": {
@@ -467,6 +483,16 @@ export const FICHES_TECHNIQUES: Record<string, FicheTechnique> = {
       + "passage. S'il reste inconfortable, un exercice de gainage ou une "
       + "machine à abdominaux fait le même travail — la substitution est là "
       + "pour ça.",
+    /*
+     * LE CAS QUI RENVERSE TOUT. L'effort produit descend — on enroule le buste
+     * vers le bas — et c'est le retour qui remonte. Un libellé « Descente » sur
+     * l'excentrique apprendrait ici l'exact contraire du geste.
+     */
+    libellesPhasesTempo: {
+      excentrique: "Retour vers le haut",
+      concentrique: "Enroule le buste vers le bas",
+      pause_contracte: "Tiens la contraction en bas",
+    },
   },
 };
 
@@ -484,13 +510,26 @@ export const FICHES_TECHNIQUES: Record<string, FicheTechnique> = {
  * et chacun a sa raison écrite.
  */
 export const TEMPOS_PAR_DEFAUT: Record<string, string> = {
-  // La pause basse est le sujet : c'est le rebond en position basse qu'on
-  // cherche à supprimer, et le retour terrain du 6 septembre le nommait.
+  /*
+   * 3 s de descente · 1 s de pause en bas · 1 s de remontée · pas de pause en
+   * haut. La pause étirée est le sujet : c'est le rebond en position basse
+   * qu'on cherche à supprimer, et le retour terrain du 6 septembre le nommait.
+   */
   "hack-squat": "3-1-1-0",
-  // Une seconde en position contractée, parce que sans elle le mouvement se
-  // fait au balancier — l'erreur fréquente de cet exercice.
+  /*
+   * 2 s pour laisser les bras revenir vers l'avant · aucune pause étirée · 1 s
+   * pour tirer les coudes en arrière · 1 s de dos contracté. C'est cette
+   * dernière seconde qui empêche le balancier, l'erreur fréquente de
+   * l'exercice — et elle porte bien sur le QUATRIÈME chiffre.
+   */
   "seated-row": "2-0-1-1",
-  // La descente longue est tout l'intérêt du mouvement ; la remontée rapide
-  // évite de s'asseoir sur les talons entre deux répétitions.
+  /*
+   * 3 s pour le retour vers le haut · aucune pause étirée · 1 s pour enrouler
+   * le buste vers le bas · 1 s de contraction tenue en bas.
+   *
+   * Le premier chiffre est bien l'EXCENTRIQUE, qui remonte ici : dire
+   * « descente longue » serait faux à l'envers. C'est le freinage du retour
+   * qui est long, et l'enroulement qui est court.
+   */
   "cable-crunch": "3-0-1-1",
 };
