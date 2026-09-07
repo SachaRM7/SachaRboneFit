@@ -43,12 +43,51 @@
  * la littérature pour « explosif » ; on ne l'accepte pas ici, faute de savoir
  * quoi en faire dans un décompte.
  */
+/**
+ * Les quatre phases, nommées par ce qu'elles SONT — pas par une direction.
+ *
+ * Elles s'appelaient « Descente », « Pause basse », « Montée », « Pause
+ * haute ». C'est juste sur un squat et faux ailleurs, parfois exactement à
+ * l'envers :
+ *
+ *   cable crunch   on enroule le buste VERS LE BAS pour produire l'effort —
+ *                  le concentrique descend, l'excentrique remonte.
+ *   seated row     rien ne monte ni ne descend : on tire vers l'arrière, on
+ *                  laisse revenir vers l'avant.
+ *   hack squat     là, oui : descente puis remontée.
+ *
+ * Un athlète qui lit « Montée — 1 s » sur un cable crunch apprend le contraire
+ * du geste. Le repli générique dit donc la phase biomécanique, qui est vraie
+ * partout, et la fiche de l'exercice fournit sa traduction concrète quand elle
+ * en a une — voir `libellesPhasesTempo`.
+ *
+ * `terme` et non `libelle` : le nom dit que c'est le mot du modèle, celui qui
+ * ne change pas d'un mouvement à l'autre. Le mot du geste, lui, vient d'ailleurs.
+ */
 export const PHASES_TEMPO = [
-  { cle: "excentrique", libelle: "Descente", explication: "Phase excentrique : on retient la charge" },
-  { cle: "pause_etire", libelle: "Pause basse", explication: "Pause en position étirée" },
-  { cle: "concentrique", libelle: "Montée", explication: "Phase concentrique : on soulève" },
-  { cle: "pause_contracte", libelle: "Pause haute", explication: "Pause en position contractée" },
+  {
+    cle: "excentrique",
+    terme: "Excentrique",
+    explication: "Tu freines la charge : le muscle s'allonge sous tension.",
+  },
+  {
+    cle: "pause_etire",
+    terme: "Pause en position étirée",
+    explication: "Le muscle est allongé, on marque un temps.",
+  },
+  {
+    cle: "concentrique",
+    terme: "Concentrique",
+    explication: "Tu produis l'effort : le muscle se raccourcit.",
+  },
+  {
+    cle: "pause_contracte",
+    terme: "Pause en position contractée",
+    explication: "Le muscle est raccourci, on marque un temps.",
+  },
 ] as const;
+
+export type PhaseTempo = (typeof PHASES_TEMPO)[number]["cle"];
 
 export interface Tempo {
   excentrique: number;
@@ -132,16 +171,87 @@ export interface TempoResolu {
  * pour tout ce qui n'a rien de plus précis, et elle est remplacée dès qu'un
  * exercice, un programme ou une séance dit mieux.
  *
- * Deux valeurs, parce que la distinction qui compte ici est celle du contrôle
- * demandé : un mouvement polyarticulaire lourd se descend en trois secondes
- * sans pause forcée en bas ; une isolation gagne à marquer la position courte.
- * Aucune des deux ne prétend valoir pour tous les exercices de sa famille,
- * et c'est précisément pour ça qu'elle porte l'origine « défaut ».
+ * Deux valeurs, et il faut lire les chiffres dans le bon ordre :
+ *
+ *     excentrique - pause ÉTIRÉE - concentrique - pause CONTRACTÉE
+ *
+ *   polyarticulaire  `3-0-1-0` — trois secondes de freinage, aucune pause. Un
+ *                    mouvement lourd s'enchaîne ; l'y arrêter en position
+ *                    allongée ajoute de la contrainte sans ajouter de travail.
+ *
+ *   isolation        `3-1-1-0` — trois secondes de freinage, puis UNE SECONDE
+ *                    EN POSITION ÉTIRÉE. C'est le deuxième chiffre, et il
+ *                    porte bien sur l'allongement.
+ *
+ * CE COMMENTAIRE ÉTAIT FAUX, et le rectifier valait mieux que de changer la
+ * valeur : il annonçait « marquer la position courte », c'est-à-dire la pause
+ * CONTRACTÉE — le quatrième chiffre, qui vaut zéro. Les deux techniques
+ * existent et se défendent pour une isolation ; celle que la valeur encode
+ * depuis le début est la pause en position étirée, et c'est elle qui est
+ * décrite ici. Déplacer la seconde sur le quatrième chiffre changerait le
+ * repli de plus de cent exercices, ce qui est une décision de politique et pas
+ * une correction de rédaction.
+ *
+ * Aucune des deux ne prétend valoir pour tous les exercices de sa famille, et
+ * c'est précisément pour ça qu'elle porte l'origine « défaut ».
  */
 export const TEMPO_CANONIQUE = {
   polyarticulaire: "3-0-1-0",
   isolation: "3-1-1-0",
 } as const;
+
+/**
+ * Une phase, prête à afficher : le mot du geste, le terme du modèle, la durée.
+ *
+ * L'assemblage vit ICI, avec les phases et le tempo, plutôt que dans l'écran.
+ * Mis dans le composant, il aurait pris la forme d'un `if slug === …` — et
+ * c'est exactement ce qu'on refuse : le mot d'un mouvement appartient à sa
+ * fiche, pas à un branchement dans du JSX.
+ */
+export interface PhaseAffichee {
+  cle: PhaseTempo;
+  /** Le mot du mouvement quand la fiche en donne un, le terme sinon. */
+  libelle: string;
+  /** Le terme biomécanique. Toujours là, pour apprendre. */
+  terme: string;
+  explication: string;
+  /** Secondes lues dans le tempo. */
+  secondes: number;
+  /** Vrai quand `libelle` vient de la fiche et non du repli générique. */
+  propreAuMouvement: boolean;
+}
+
+/**
+ * Les quatre phases d'un tempo, nommées par ce mouvement-là quand c'est possible.
+ *
+ * L'ordre des chiffres n'est jamais recalculé : il vient de `PHASES_TEMPO`, et
+ * `Tempo` porte les mêmes quatre valeurs. Une fiche ne peut donc pas renommer
+ * une phase en une autre — elle ne fournit qu'un mot.
+ */
+export function phasesDuTempo(
+  tempo: Tempo,
+  libelles?: Partial<Record<PhaseTempo, string>>,
+): PhaseAffichee[] {
+  const secondes: Record<PhaseTempo, number> = {
+    excentrique: tempo.excentrique,
+    pause_etire: tempo.pauseEtire,
+    concentrique: tempo.concentrique,
+    pause_contracte: tempo.pauseContracte,
+  };
+
+  return PHASES_TEMPO.map((p) => {
+    // Une chaîne vide n'est pas un libellé : elle laisserait la ligne muette.
+    const propre = libelles?.[p.cle]?.trim();
+    return {
+      cle: p.cle,
+      libelle: propre || p.terme,
+      terme: p.terme,
+      explication: p.explication,
+      secondes: secondes[p.cle],
+      propreAuMouvement: Boolean(propre),
+    };
+  });
+}
 
 export function tempoEffectif(entrees: {
   seance?: string | null;
@@ -189,13 +299,53 @@ export function tempoEffectif(entrees: {
  */
 export interface FicheTechnique {
   description?: string;
+  /**
+   * Ce qu'on fait AVANT de commencer : s'installer, orienter le siège, saisir
+   * la poignée, sortir de la machine.
+   *
+   * Séparé de `positionDepart` parce que ce sont deux moments distincts, et
+   * que c'est le premier qui manquait le plus devant un appareil inconnu. Sur
+   * une machine d'assistance, savoir comment monter dessus et en redescendre
+   * vaut plus qu'une consigne d'amplitude.
+   *
+   * Il décrit un GESTE, jamais un chiffre : « règle le siège pour que… » et
+   * non « siège 5 ». Un numéro de cran appartient à `instance_reglages`, et
+   * cette fiche est commune à toutes les machines qui font ce mouvement.
+   */
+  installation?: string;
   positionDepart?: string;
   execution?: string;
   amplitude?: string;
   respiration?: string;
+  /**
+   * Où le travail doit se faire sentir.
+   *
+   * Formulé comme un repère, jamais comme un diagnostic : « tu devrais surtout
+   * sentir… », et non « si tu ne le sens pas, tu exécutes mal ». Une sensation
+   * dépend du gabarit, de la fatigue et de l'habitude ; en faire un verdict
+   * ferait douter quelqu'un qui exécute correctement.
+   */
+  sensation?: string;
   pointsCles?: string[];
   erreursFrequentes?: string[];
   securite?: string;
+  /**
+   * Comment ce mouvement-là appelle ses quatre phases.
+   *
+   * « Excentrique » est vrai partout et ne dit rien à personne devant une
+   * machine. « Descente » parle, mais ment sur un cable crunch. La fiche
+   * apporte donc la traduction concrète, phase par phase, et le moteur garde
+   * sa sémantique : la clé reste `excentrique`, seul le mot change.
+   *
+   * Les clés sont EXACTEMENT celles de `PHASES_TEMPO`. Une table de
+   * correspondance en camelCase aurait créé un second vocabulaire à tenir
+   * d'accord avec le premier, et ces deux-là finissent toujours par diverger.
+   *
+   * Tout est facultatif, phase par phase : une pause à zéro seconde n'a pas
+   * besoin de nom, et un mouvement dont « descente » décrit bien l'excentrique
+   * peut ne renseigner que celui-là.
+   */
+  libellesPhasesTempo?: Partial<Record<PhaseTempo, string>>;
 }
 
 export const MAX_POINTS_CLES = 4;
@@ -205,8 +355,9 @@ export const MAX_ERREURS = 4;
 export function ficheRenseignee(f: FicheTechnique | null | undefined): boolean {
   if (!f) return false;
   return Boolean(
-    f.description || f.positionDepart || f.execution || f.amplitude || f.respiration
-    || f.securite || f.pointsCles?.length || f.erreursFrequentes?.length,
+    f.description || f.installation || f.positionDepart || f.execution || f.amplitude
+    || f.respiration || f.sensation || f.securite
+    || f.pointsCles?.length || f.erreursFrequentes?.length,
   );
 }
 

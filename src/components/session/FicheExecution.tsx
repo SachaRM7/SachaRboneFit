@@ -5,7 +5,7 @@ import { MemoireDeSaisie } from "@/lib/engine/memoire-de-saisie";
 import { prochaineIntention } from "@/lib/engine/intention";
 import { useSessionStore } from "@/stores/sessionStore";
 import {
-  messageDeRefus, PHASES_TEMPO, validerReglage,
+  messageDeRefus, phasesDuTempo, validerReglage,
   type ContexteExecutionClient,
 } from "./execution-client";
 import { LIMITE_NOTE_EXERCICE } from "@/lib/validators/exercise-instance";
@@ -89,6 +89,7 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
   const [enregistre, setEnregistre] = useState(false);
   const [expliqueTempo, setExpliqueTempo] = useState(false);
   const [musclesOuverts, setMusclesOuverts] = useState(false);
+  const [techniqueOuverte, setTechniqueOuverte] = useState(false);
   /* La face d'ouverture est celle qui montre le plus de ce que l'exercice
      travaille : ouvrir un rowing sur une vue de face n'apprendrait rien. */
   const [faceMuscles, setFaceMuscles] = useState<Face>(() =>
@@ -106,6 +107,13 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
   const memoire = useRef(new MemoireDeSaisie(contexte.note ?? ""));
 
   const f = contexte.fiche;
+  /*
+   * Les quatre phases, nommées par ce mouvement-là quand sa fiche le dit.
+   * L'assemblage vit dans le moteur : ce composant ne connaît aucun exercice.
+   */
+  const phases = contexte.tempo
+    ? phasesDuTempo(contexte.tempo.tempo, f?.libellesPhasesTempo)
+    : [];
 
   /**
    * Envoie une modification. Le corps ne porte QUE ce qui a changé : envoyer
@@ -291,75 +299,71 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
         </header>
 
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-          {contexte.tempo && (
+          {/*
+            L'ORDRE, et pourquoi celui-là.
+
+            Il commençait par le tempo et finissait par la technique, la note
+            coincée au milieu : il fallait faire défiler trois écrans pour
+            savoir comment exécuter le mouvement. Devant une machine, la
+            première question n'est jamais « quel tempo » — c'est « qu'est-ce
+            que je travaille », puis « comment je me règle », puis « comment je
+            fais ». Le tempo est un raffinement : il vient après avoir su faire
+            le geste.
+
+            Muscles · Réglages · Comment faire · Tempo · Ma note.
+          */}
+
+          {/*
+            Consultatif, et à sa place : dans la fiche, pas sur la carte de
+            saisie. Ce qui se lit à chaque série, c'est la charge et les
+            répétitions ; ce qui se regarde une fois, quand on se demande ce
+            qu'on est en train de travailler, vit ici, à un geste de distance.
+
+            En tête, parce que c'est la première question devant une machine :
+            qu'est-ce que je travaille. Le mannequin reste replié — la réponse
+            en clair tient sur une ligne.
+          */}
+          {(contexte.musclesPrincipaux.length > 0 || contexte.musclesSecondaires.length > 0) && (
             <section>
               <button
                 type="button"
-                onClick={() => setExpliqueTempo((v) => !v)}
-                aria-expanded={expliqueTempo}
-                className="text-left w-full"
+                onClick={() => setMusclesOuverts((v) => !v)}
+                aria-expanded={musclesOuverts}
+                className="w-full text-left"
               >
-                <h3 className="text-xs uppercase tracking-wide text-encre-3">Tempo</h3>
-                <p className="chiffres text-encre tabular-nums">
-                  {contexte.tempo.brut}
-                  <span className="text-encre-3 text-xs ml-2 underline underline-offset-4">
-                    {expliqueTempo ? "masquer" : "que veut dire ce nombre ?"}
+                <h3 className="text-xs uppercase tracking-wide text-encre-3">
+                  Muscles travaillés
+                  <span className="ml-2 normal-case tracking-normal underline underline-offset-4">
+                    {musclesOuverts ? "masquer" : "voir"}
                   </span>
-                </p>
+                </h3>
               </button>
-              {expliqueTempo && (
-                <ul className="mt-2 space-y-1">
-                  {PHASES_TEMPO.map((p, i) => (
-                    <li key={p.cle} className="text-sm text-encre-2 flex gap-2">
-                      <span className="chiffres tabular-nums w-4 shrink-0 text-encre">
-                        {contexte.tempo!.brut.split("-")[i]}
-                      </span>
-                      <span>{p.explication}</span>
-                    </li>
-                  ))}
-                  <li className="text-xs text-encre-3 pt-1">
-                    {/* Une convention ne se présente pas comme une
-                        prescription : le repère général se dit tel quel. */}
-                    {contexte.tempo.origine === "seance" ? "Prescrit pour aujourd'hui."
-                      : contexte.tempo.origine === "programme" ? "Prescrit par ton programme."
-                      : contexte.tempo.origine === "defaut"
-                        ? "Repère général, faute de consigne propre à ce mouvement."
-                        : "Tempo propre à ce mouvement."}
-                  </li>
-                </ul>
+              <p className="text-sm text-encre-2 mt-1">
+                {libelleMuscles(contexte.musclesPrincipaux)}
+                {contexte.musclesSecondaires.length > 0 && (
+                  <span className="text-encre-3">
+                    {" · aussi "}{libelleMuscles(contexte.musclesSecondaires)}
+                  </span>
+                )}
+              </p>
+              {musclesOuverts && (
+                <div className="mt-3">
+                  <Mannequin
+                    mode="exercice"
+                    musclesPrincipaux={contexte.musclesPrincipaux}
+                    musclesSecondaires={contexte.musclesSecondaires}
+                    face={faceMuscles}
+                    onFaceChange={setFaceMuscles}
+                  />
+                  <p className="text-xs text-encre-3 mt-2">
+                    Teinte pleine : ce que l&apos;exercice vise. Teinte légère : ce qui
+                    participe sans être visé.
+                  </p>
+                </div>
               )}
-
-              {/* Signalement, pas confirmation.
-                  Demander « as-tu respecté ? » à chaque série produirait des
-                  clics réflexes, c'est-à-dire de la donnée fausse. On offre
-                  seulement de dire que ça n'a PAS tenu — l'absence de réponse
-                  reste « inconnu », jamais « respecté ». */}
-              <button
-                type="button"
-                aria-pressed={tempoSignale}
-                onClick={() => signalerTempo(instanceId, tempoSignale ? null : false)}
-                className={`mt-3 h-10 px-3 rounded-lg border text-sm ${
-                  tempoSignale
-                    ? "border-perte bg-perte-fond text-perte font-medium"
-                    : "border-filet bg-carte text-encre-2"
-                }`}
-              >
-                {tempoSignale ? "Tempo non tenu — signalé" : "Je n'ai pas tenu ce tempo"}
-              </button>
             </section>
           )}
 
-          {/*
-            La section reste, même vide — et c'est tout l'objet du lot.
-
-            Elle ne s'affichait qu'à partir d'un réglage décrit. Comme rien ne
-            savait en créer, la condition était fausse sur CHAQUE appareil du
-            parc : la section n'existait, en pratique, pour personne. Le vide
-            se dit maintenant à l'endroit où il se comble.
-
-            Sans appareil — les pompes — il n'y a toujours rien à décrire, et
-            la section disparaît pour de bon.
-          */}
           {contexte.exerciseInstanceId && (
             <section>
               <h3 className="text-xs uppercase tracking-wide text-encre-3 mb-2">
@@ -436,52 +440,143 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
           )}
 
           {/*
-            Consultatif, et à sa place : dans la fiche, pas sur la carte de
-            saisie. Ce qui se lit à chaque série, c'est la charge et les
-            répétitions ; ce qui se regarde une fois, quand on se demande ce
-            qu'on est en train de travailler, vit ici, à un geste de distance.
+            « Comment faire » — une section, pas huit.
 
-            Replié par défaut pour la même raison : la section n'a pas à
-            repousser la note et les réglages sous la ligne de flottaison.
+            Les huit rubriques de la fiche s'affichaient à la suite, chacune
+            avec son titre, APRÈS la note : il fallait faire défiler trois
+            écrans avant d'atteindre l'exécution. Elles sont regroupées ici,
+            repliées, avec en aperçu la ligne qu'on cherche vraiment devant un
+            appareil inconnu — comment s'installer.
+
+            La section disparaît entièrement quand la fiche est vide. Aucun
+            titre creux, aucun « non renseigné » : cent quatre exercices du
+            catalogue n'ont pas encore de fiche, et le répéter à chaque
+            ouverture n'aiderait personne.
           */}
-          {(contexte.musclesPrincipaux.length > 0 || contexte.musclesSecondaires.length > 0) && (
+          {f && (
             <section>
               <button
                 type="button"
-                onClick={() => setMusclesOuverts((v) => !v)}
-                aria-expanded={musclesOuverts}
+                onClick={() => setTechniqueOuverte((v) => !v)}
+                aria-expanded={techniqueOuverte}
                 className="w-full text-left"
               >
                 <h3 className="text-xs uppercase tracking-wide text-encre-3">
-                  Muscles travaillés
+                  Comment faire
                   <span className="ml-2 normal-case tracking-normal underline underline-offset-4">
-                    {musclesOuverts ? "masquer" : "voir"}
+                    {techniqueOuverte ? "masquer" : "voir"}
                   </span>
                 </h3>
               </button>
-              <p className="text-sm text-encre-2 mt-1">
-                {libelleMuscles(contexte.musclesPrincipaux)}
-                {contexte.musclesSecondaires.length > 0 && (
-                  <span className="text-encre-3">
-                    {" · aussi "}{libelleMuscles(contexte.musclesSecondaires)}
-                  </span>
-                )}
-              </p>
-              {musclesOuverts && (
-                <div className="mt-3">
-                  <Mannequin
-                    mode="exercice"
-                    musclesPrincipaux={contexte.musclesPrincipaux}
-                    musclesSecondaires={contexte.musclesSecondaires}
-                    face={faceMuscles}
-                    onFaceChange={setFaceMuscles}
-                  />
-                  <p className="text-xs text-encre-3 mt-2">
-                    Teinte pleine : ce que l&apos;exercice vise. Teinte légère : ce qui
-                    participe sans être visé.
-                  </p>
+
+              {!techniqueOuverte && (f.installation || f.description) && (
+                <p className="text-sm text-encre-2 mt-1">{f.installation ?? f.description}</p>
+              )}
+
+              {techniqueOuverte && (
+                <div className="mt-2 space-y-4">
+                  {f.description && <Bloc titre="En bref">{f.description}</Bloc>}
+                  {f.installation && <Bloc titre="Installation">{f.installation}</Bloc>}
+                  {f.positionDepart && <Bloc titre="Position de départ">{f.positionDepart}</Bloc>}
+                  {f.execution && <Bloc titre="Exécution">{f.execution}</Bloc>}
+                  {f.amplitude && <Bloc titre="Amplitude">{f.amplitude}</Bloc>}
+                  {f.respiration && <Bloc titre="Respiration">{f.respiration}</Bloc>}
+                  {/* Un repère, jamais un verdict : voir `FicheTechnique`. */}
+                  {f.sensation && <Bloc titre="Ce que tu devrais sentir">{f.sensation}</Bloc>}
+
+                  {f.pointsCles && f.pointsCles.length > 0 && (
+                    <Liste titre="Points clés" items={f.pointsCles} />
+                  )}
+                  {f.erreursFrequentes && f.erreursFrequentes.length > 0 && (
+                    <Liste titre="Erreurs fréquentes" items={f.erreursFrequentes} />
+                  )}
+                  {f.securite && (
+                    <section>
+                      <h3 className="text-xs uppercase tracking-wide text-perte mb-1">Sécurité</h3>
+                      <p className="text-sm text-encre-2">{f.securite}</p>
+                    </section>
+                  )}
                 </div>
               )}
+            </section>
+          )}
+
+          {contexte.tempo && (
+            <section>
+              <button
+                type="button"
+                onClick={() => setExpliqueTempo((v) => !v)}
+                aria-expanded={expliqueTempo}
+                className="text-left w-full"
+              >
+                <h3 className="text-xs uppercase tracking-wide text-encre-3">Tempo</h3>
+                <p className="chiffres text-encre tabular-nums">
+                  {contexte.tempo.brut}
+                  <span className="text-encre-3 text-xs ml-2 underline underline-offset-4">
+                    {expliqueTempo ? "masquer" : "que veut dire ce nombre ?"}
+                  </span>
+                </p>
+              </button>
+              {expliqueTempo && (
+                <ul className="mt-2 space-y-1">
+                  {/*
+                    Le mot du MOUVEMENT d'abord, le terme du modèle ensuite.
+
+                    Les phases s'affichaient « Descente / Pause basse / Montée /
+                    Pause haute ». C'est juste sur un hack squat et faux sur un
+                    cable crunch, où l'effort produit descend et où c'est le
+                    retour qui remonte : on apprenait l'inverse du geste.
+
+                    D'où vient le mot : de `phasesDuTempo`, qui croise le tempo
+                    résolu avec les libellés de la FICHE. Aucun slug n'apparaît
+                    ici — un `if slug === "cable-crunch"` dans ce composant
+                    serait la même erreur, écrite ailleurs.
+                  */}
+                  {phases.map((p) => (
+                    <li key={p.cle} className="text-sm text-encre-2 flex gap-2">
+                      <span className="chiffres tabular-nums w-4 shrink-0 text-encre">
+                        {p.secondes}
+                      </span>
+                      <span>
+                        <span className="text-encre">{p.libelle}</span>
+                        {/* Le terme reste visible, en retrait : il s'apprend à
+                            force de le lire à côté du geste qu'il nomme. */}
+                        {p.propreAuMouvement && (
+                          <span className="text-encre-3"> · {p.terme.toLowerCase()}</span>
+                        )}
+                        <span className="text-encre-3"> — {p.explication}</span>
+                      </span>
+                    </li>
+                  ))}
+                  <li className="text-xs text-encre-3 pt-1">
+                    {/* Une convention ne se présente pas comme une
+                        prescription : le repère général se dit tel quel. */}
+                    {contexte.tempo.origine === "seance" ? "Prescrit pour aujourd'hui."
+                      : contexte.tempo.origine === "programme" ? "Prescrit par ton programme."
+                      : contexte.tempo.origine === "defaut"
+                        ? "Repère général, faute de consigne propre à ce mouvement."
+                        : "Tempo propre à ce mouvement."}
+                  </li>
+                </ul>
+              )}
+
+              {/* Signalement, pas confirmation.
+                  Demander « as-tu respecté ? » à chaque série produirait des
+                  clics réflexes, c'est-à-dire de la donnée fausse. On offre
+                  seulement de dire que ça n'a PAS tenu — l'absence de réponse
+                  reste « inconnu », jamais « respecté ». */}
+              <button
+                type="button"
+                aria-pressed={tempoSignale}
+                onClick={() => signalerTempo(instanceId, tempoSignale ? null : false)}
+                className={`mt-3 h-10 px-3 rounded-lg border text-sm ${
+                  tempoSignale
+                    ? "border-perte bg-perte-fond text-perte font-medium"
+                    : "border-filet bg-carte text-encre-2"
+                }`}
+              >
+                {tempoSignale ? "Tempo non tenu — signalé" : "Je n'ai pas tenu ce tempo"}
+              </button>
             </section>
           )}
 
@@ -511,25 +606,6 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
               </p>
             )}
           </section>
-
-          {f?.description && <Bloc titre="En bref">{f.description}</Bloc>}
-          {f?.positionDepart && <Bloc titre="Position de départ">{f.positionDepart}</Bloc>}
-          {f?.execution && <Bloc titre="Exécution">{f.execution}</Bloc>}
-          {f?.amplitude && <Bloc titre="Amplitude">{f.amplitude}</Bloc>}
-          {f?.respiration && <Bloc titre="Respiration">{f.respiration}</Bloc>}
-
-          {f?.pointsCles && f.pointsCles.length > 0 && (
-            <Liste titre="Points clés" items={f.pointsCles} />
-          )}
-          {f?.erreursFrequentes && f.erreursFrequentes.length > 0 && (
-            <Liste titre="Erreurs fréquentes" items={f.erreursFrequentes} />
-          )}
-          {f?.securite && (
-            <section>
-              <h3 className="text-xs uppercase tracking-wide text-perte mb-1">Sécurité</h3>
-              <p className="text-sm text-encre-2">{f.securite}</p>
-            </section>
-          )}
         </div>
 
         {erreur && (
