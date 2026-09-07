@@ -3,6 +3,7 @@ import path from "path";
 import postgres from "postgres";
 import { SEED_USER_EMAIL } from "@/lib/constants";
 import { CATALOGUE, CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
+import { FICHES_TECHNIQUES, TEMPOS_PAR_DEFAUT } from "@/lib/referentiels/fiches-techniques";
 
 const projectRoot = path.resolve(__dirname, "../..");
 config({ path: path.join(projectRoot, ".env.local") });
@@ -135,12 +136,19 @@ async function main() {
   // exercices programmes.
   const idParSlug = new Map<string, string>();
   for (const e of CATALOGUE) {
+    // La fiche et le tempo viennent de la MÊME source que le reste du
+    // catalogue, écrits ici plutôt que rattrapés ensuite : une base semée doit
+    // être complète, sans passe de rattrapage à ne pas oublier.
+    const fiche = FICHES_TECHNIQUES[e.slug] ?? null;
+    const tempo = TEMPOS_PAR_DEFAUT[e.slug] ?? null;
     const row = (await db`INSERT INTO exercises
       (user_id, nom, pilier, profil_tension, type, categorie_role,
-       muscles_principaux, muscles_secondaires, equipement, slug)
+       muscles_principaux, muscles_secondaires, equipement, slug,
+       fiche_technique, tempo_par_defaut)
       VALUES (${SEED_USER_ID}, ${e.nom}, ${e.pilier}, ${e.profilTension}, ${e.type},
         ${e.categorieRole}, ${JSON.stringify(e.musclesPrincipaux)}::jsonb,
-        ${JSON.stringify(e.musclesSecondaires)}::jsonb, ${e.equipement}, ${e.slug})
+        ${JSON.stringify(e.musclesSecondaires)}::jsonb, ${e.equipement}, ${e.slug},
+        ${fiche ? JSON.stringify(fiche) : null}::jsonb, ${tempo})
       RETURNING id`.then((r) => r[0] as unknown as SeedRow))!;
     idParSlug.set(e.slug, row.id);
   }

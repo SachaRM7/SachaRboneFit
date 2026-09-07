@@ -189,10 +189,33 @@ export function tempoEffectif(entrees: {
  */
 export interface FicheTechnique {
   description?: string;
+  /**
+   * Ce qu'on fait AVANT de commencer : s'installer, orienter le siège, saisir
+   * la poignée, sortir de la machine.
+   *
+   * Séparé de `positionDepart` parce que ce sont deux moments distincts, et
+   * que c'est le premier qui manquait le plus devant un appareil inconnu. Sur
+   * une machine d'assistance, savoir comment monter dessus et en redescendre
+   * vaut plus qu'une consigne d'amplitude.
+   *
+   * Il décrit un GESTE, jamais un chiffre : « règle le siège pour que… » et
+   * non « siège 5 ». Un numéro de cran appartient à `instance_reglages`, et
+   * cette fiche est commune à toutes les machines qui font ce mouvement.
+   */
+  installation?: string;
   positionDepart?: string;
   execution?: string;
   amplitude?: string;
   respiration?: string;
+  /**
+   * Où le travail doit se faire sentir.
+   *
+   * Formulé comme un repère, jamais comme un diagnostic : « tu devrais surtout
+   * sentir… », et non « si tu ne le sens pas, tu exécutes mal ». Une sensation
+   * dépend du gabarit, de la fatigue et de l'habitude ; en faire un verdict
+   * ferait douter quelqu'un qui exécute correctement.
+   */
+  sensation?: string;
   pointsCles?: string[];
   erreursFrequentes?: string[];
   securite?: string;
@@ -205,8 +228,9 @@ export const MAX_ERREURS = 4;
 export function ficheRenseignee(f: FicheTechnique | null | undefined): boolean {
   if (!f) return false;
   return Boolean(
-    f.description || f.positionDepart || f.execution || f.amplitude || f.respiration
-    || f.securite || f.pointsCles?.length || f.erreursFrequentes?.length,
+    f.description || f.installation || f.positionDepart || f.execution || f.amplitude
+    || f.respiration || f.sensation || f.securite
+    || f.pointsCles?.length || f.erreursFrequentes?.length,
   );
 }
 
