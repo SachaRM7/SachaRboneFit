@@ -6,7 +6,7 @@ import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { utilisateursActifsDepuis } from "@/services/seances";
 import { contraintesActives } from "@/services/contraintes";
 import { recuperationMusculaire, resumeRecuperation } from "@/services/recuperation";
-import { genererDebriefHebdo, BriefIndisponible } from "@/services/briefs-llm";
+import { genererDebriefHebdo, contenuIAValide, raisonCourte } from "@/services/briefs-llm";
 import { signalementsDepuis } from "@/lib/engine/incident-douleur";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
 
@@ -38,8 +38,12 @@ const CRON_SECRET = process.env.CRON_SECRET || "";
  * invité le modèle à les remplir. Elles reviendront quand un service saura
  * réellement les calculer.
  *
+ * Le total en kilos disparaît : il additionnait des résistances et des
+ * assistances. Voir `statistiquesDeLaSemaine`.
+ *
  * Un échec du modèle ne produit plus de faux texte : le débrief précédent est
- * conservé s'il existe, sinon rien n'est écrit.
+ * conservé s'il vient réellement d'un modèle, sinon rien n'est écrit — et
+ * l'échec apparaît dans `erreurs` au lieu de passer pour une semaine calme.
  */
 
 /** Lundi et dimanche de la semaine qui contient `date`. */
@@ -53,11 +57,25 @@ function bornesSemaine(date: Date): { debut: string; fin: string } {
   return { debut: debut.toISOString().slice(0, 10), fin: fin.toISOString().slice(0, 10) };
 }
 
+/**
+ * L'état des DONNÉES et l'état des APPELS, séparés — voir `precalc-session`.
+ *
+ * Une panne du modèle ne doit pas se lire comme une semaine calme.
+ */
 interface Bilan {
   generes: number;
+  /** Le modèle a échoué, un débrief VALIDE existait : il est laissé en place. */
   conserves: number;
   ignores: number;
+  /** `userId: raison courte`. Jamais les statistiques envoyées au modèle. */
   erreurs: string[];
+}
+
+interface Issue {
+  donnees: "generes" | "conserves" | "ignores";
+  /** Une panne du modèle, et rien d'autre : une semaine sans séance n'en est
+   *  pas une. */
+  erreur?: string;
 }
 
 export async function GET(request: NextRequest) {
@@ -78,15 +96,18 @@ export async function GET(request: NextRequest) {
     for (const userId of userIds) {
       try {
         const issue = await debrieferPour(userId, semaine);
-        bilan[issue] += 1;
+        bilan[issue.donnees] += 1;
+        if (issue.erreur) bilan.erreurs.push(`${userId}: ${issue.erreur}`);
       } catch (e) {
-        bilan.erreurs.push(`${userId}: ${e instanceof Error ? e.message : "erreur inconnue"}`);
+        bilan.erreurs.push(`${userId}: ${raisonCourte(e)}`);
       }
     }
 
     return NextResponse.json(bilan);
   } catch (e) {
-    console.error("[cron weekly-debrief]", e instanceof Error ? e.message : e);
+    // Le TYPE de la panne, pas son message : voir `precalc-session`. Une erreur
+    // du pilote Postgres reprend la requête et ses paramètres.
+    console.error("[cron weekly-debrief] échec global :", e instanceof Error ? e.name : typeof e);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
@@ -94,23 +115,29 @@ export async function GET(request: NextRequest) {
 async function debrieferPour(
   userId: string,
   semaine: { debut: string; fin: string },
-): Promise<"generes" | "conserves" | "ignores"> {
+): Promise<Issue> {
   const stats = await statistiquesDeLaSemaine(userId, semaine);
 
   const existant = await db.query.weeklyDebriefs.findFirst({
     where: and(eq(weeklyDebriefs.userId, userId), eq(weeklyDebriefs.weekStart, semaine.debut)),
   });
+  const dejaValide = Boolean(existant) && contenuIAValide(existant!.contenu, existant!.stats);
 
-  // Une semaine sans la moindre séance n'a rien à commenter. Faire écrire un
-  // texte dessus produirait de la morale, pas un débrief.
-  if (stats.nbSeances === 0) return existant ? "conserves" : "ignores";
+  /*
+   * Une semaine sans la moindre séance n'a rien à commenter. Faire écrire un
+   * texte dessus produirait de la morale, pas un débrief.
+   *
+   * Et ce n'est pas une panne : aucune erreur n'est déclarée. Le modèle n'a
+   * même pas été appelé.
+   */
+  if (stats.nbSeances === 0) return { donnees: dejaValide ? "conserves" : "ignores" };
 
   let debrief;
   try {
     debrief = await genererDebriefHebdo(stats);
   } catch (e) {
-    if (!(e instanceof BriefIndisponible) && !(e instanceof Error)) throw e;
-    return existant ? "conserves" : "ignores";
+    // Un débrief hérité d'avant ce lot n'est pas un résultat à conserver.
+    return { donnees: dejaValide ? "conserves" : "ignores", erreur: raisonCourte(e) };
   }
 
   /*
@@ -139,15 +166,34 @@ async function debrieferPour(
     });
   }
 
-  return "generes";
+  // Un succès remplace aussi une ligne héritée : rien à supprimer.
+  return { donnees: "generes" };
 }
 
 /**
  * Ce que la semaine a réellement contenu.
  *
- * Tout est compté, rien n'est estimé. Les séries et le volume viennent d'UNE
- * requête agrégée sur les séances de la semaine : la version précédente en
- * faisait une par séance, mises bout à bout.
+ * Tout est compté, rien n'est estimé. Les séries viennent d'UNE requête sur
+ * les séances de la semaine : la version précédente en faisait une par séance,
+ * mises bout à bout.
+ *
+ * PAS DE VOLUME EN KILOS. `sum(charge × reps)` sur toute la semaine additionne
+ * des nombres qui ne mesurent pas la même chose. `charge` n'a pas de sémantique
+ * homogène dans cette application : `natureCharge` distingue déjà une
+ * résistance d'une ASSISTANCE, où le nombre saisi est une aide — 64 kg
+ * d'assistance pèseraient donc plus « lourd » que 50, alors que la seconde
+ * séance est la meilleure des deux. S'y ajoutent les conventions de charge :
+ * poids d'un haltère, poids total, pile affichée, disques ajoutés.
+ *
+ * Le total obtenu était précis et faux, et le modèle le recevait comme un fait.
+ * Il est retiré. La charge de travail de la semaine s'exprime avec ce qui est
+ * réellement comparable : des séances, des séries, des minutes, des feux, des
+ * zones signalées et un état de récupération.
+ *
+ * Le volume garde tout son sens À L'ÉCHELLE D'UN EXERCICE, où le service de
+ * progression connaît la convention et écarte les assistances de ce qu'elles
+ * fausseraient. Rien n'y est touché : normaliser un tonnage inter-exercices
+ * serait un autre sujet, pas une ligne de cette route.
  */
 async function statistiquesDeLaSemaine(
   userId: string,
@@ -165,10 +211,12 @@ async function statistiquesDeLaSemaine(
   const ids = seances.map((s) => s.id);
 
   const [series, incidents, contraintes, recuperation] = await Promise.all([
+    // On ne lit plus ni `charge` ni `repsEffectuees` : seul le NOMBRE de
+    // séries se compare d'un exercice à l'autre.
     ids.length
       ? db.query.setLogs.findMany({
         where: inArray(setLogs.sessionLogId, ids),
-        columns: { charge: true, repsEffectuees: true },
+        columns: { id: true },
       })
       : Promise.resolve([]),
     ids.length
@@ -184,10 +232,6 @@ async function statistiquesDeLaSemaine(
     else if (s.feuBiologiqueJour === "orange") feux.orange += 1;
     else if (s.feuBiologiqueJour === "rouge") feux.rouge += 1;
   }
-
-  const volumeTotal = Math.round(
-    series.reduce((total, s) => total + s.charge * s.repsEffectuees, 0),
-  );
 
   /*
    * Les zones réellement signalées, relues par le lecteur commun du lot 13.
@@ -209,7 +253,8 @@ async function statistiquesDeLaSemaine(
     nbSeances: seances.length,
     dureeTotaleMinutes: seances.reduce((t, s) => t + (s.dureeMinutes ?? 0), 0),
     nbSeries: series.length,
-    volumeTotal,
+    // NI `volumeTotal` : voir l'en-tête. Un total en kilos sur une semaine
+    // entière additionne des résistances et des assistances.
     feux,
     incidentsNb: incidents.length,
     zonesSignalees: [...zonesSignalees].map(([muscle, fois]) => ({

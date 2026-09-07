@@ -7,7 +7,7 @@ import { prochaineSeance } from "@/services/programmes";
 import { contraintesActives } from "@/services/contraintes";
 import { recuperationMusculaire, resumeRecuperation } from "@/services/recuperation";
 import { mesurerCycle } from "@/services/cycle";
-import { genererBriefPreSeance, BriefIndisponible } from "@/services/briefs-llm";
+import { genererBriefPreSeance, contenuIAValide, raisonCourte } from "@/services/briefs-llm";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
 
 export const runtime = "nodejs";
@@ -38,8 +38,14 @@ const CRON_SECRET = process.env.CRON_SECRET || "";
  *    demain.
  *
  * 3. UN ÉCHEC N'ÉCRIT PLUS DE FAUX CONTENU. Le précalcul précédent est conservé
- *    s'il existe, sinon rien n'est écrit. Un placeholder présenté comme un
- *    résultat est pire qu'une absence : l'absence se remarque.
+ *    s'il est réellement issu d'un modèle, sinon rien n'est écrit. Un
+ *    placeholder présenté comme un résultat est pire qu'une absence :
+ *    l'absence se remarque.
+ *
+ * 4. ET L'ÉCHEC SE VOIT. Conserver sans le dire produisait un rapport
+ *    rassurant — `conserves: 1, erreurs: []` — pour un cron qui n'avait rien
+ *    produit depuis des jours. L'état des données et l'état de l'appel sont
+ *    désormais deux choses distinctes.
  *
  * ISOLATION. Chaque service reçoit explicitement `userId`, et `prochaineSeance`
  * ne lit que le bloc actif de ce compte. Le rapport d'erreur ne porte que
@@ -50,15 +56,35 @@ function demain(): string {
   return new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 }
 
-/** Ce que le cron rend : quatre issues distinctes, jamais confondues. */
+/**
+ * Ce que le cron rend : l'état des DONNÉES et l'état des APPELS, séparés.
+ *
+ * Les trois compteurs disent ce qu'il y a en base. `erreurs` dit si l'IA a
+ * répondu. Les confondre rendait une panne muette : clé absente, quota atteint
+ * ou 503 donnaient `conserves: 1, erreurs: []` — un rapport rassurant pour un
+ * cron qui n'avait rien produit depuis des jours. Ne pas écraser un contenu
+ * valide est le bon comportement ; le taire ne l'est pas.
+ *
+ * Les deux dimensions sont indépendantes : une panne peut aboutir à
+ * `conserves` comme à `ignores`, et les deux s'accompagnent alors d'une erreur.
+ */
 interface Bilan {
   /** Un texte a été produit par le modèle et écrit. */
   generes: number;
-  /** Le modèle a échoué, un précalcul existait : il a été laissé en place. */
+  /** Le modèle a échoué, un précalcul VALIDE existait : il est laissé en place. */
   conserves: number;
-  /** Rien à écrire — pas de séance suivante, ou échec sans précalcul antérieur. */
+  /** Rien à écrire — pas de séance suivante, ou échec sans précalcul valide. */
   ignores: number;
+  /** Les appels qui ont échoué, `userId: raison courte`. Jamais le contexte. */
   erreurs: string[];
+}
+
+/** Ce qu'un compte a produit : un état de données, et peut-être une panne. */
+interface Issue {
+  donnees: "generes" | "conserves" | "ignores";
+  /** Renseigné UNIQUEMENT sur une panne du modèle. Un compte sans programme
+   *  est `ignores` sans erreur : il n'y a rien d'anormal à signaler. */
+  erreur?: string;
 }
 
 export async function GET(request: NextRequest) {
@@ -79,29 +105,37 @@ export async function GET(request: NextRequest) {
     for (const userId of userIds) {
       try {
         const issue = await precalculerPour(userId, cible);
-        bilan[issue] += 1;
+        bilan[issue.donnees] += 1;
+        if (issue.erreur) bilan.erreurs.push(`${userId}: ${issue.erreur}`);
       } catch (e) {
-        // L'identifiant et le message, rien d'autre : le contexte envoyé au
-        // modèle contient l'entraînement d'une personne et n'a rien à faire
+        // L'identifiant et une raison courte, rien d'autre : le contexte envoyé
+        // au modèle contient l'entraînement d'une personne et n'a rien à faire
         // dans un journal.
-        bilan.erreurs.push(`${userId}: ${e instanceof Error ? e.message : "erreur inconnue"}`);
+        bilan.erreurs.push(`${userId}: ${raisonCourte(e)}`);
       }
     }
 
     return NextResponse.json(bilan);
   } catch (e) {
-    console.error("[cron precalc-session]", e instanceof Error ? e.message : e);
+    /*
+     * Le TYPE de la panne, pas son message.
+     *
+     * Cette branche n'attrape que ce qui casse hors de la boucle — la lecture
+     * des comptes actifs, essentiellement. Or le message d'une erreur du pilote
+     * Postgres reprend la requête ET SES PARAMÈTRES : identifiants, adresses
+     * e-mail. Le journal d'une plateforme tierce n'est pas l'endroit pour ça.
+     */
+    console.error("[cron precalc-session] échec global :", e instanceof Error ? e.name : typeof e);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
 
-async function precalculerPour(
-  userId: string,
-  cible: string,
-): Promise<"generes" | "conserves" | "ignores"> {
+async function precalculerPour(userId: string, cible: string): Promise<Issue> {
   // LA rotation, celle du tableau de bord. Pas une seconde règle.
   const suite = await prochaineSeance(userId);
-  if (!suite) return "ignores";
+  // Pas de bloc actif : il n'y a rien à précalculer, et rien d'anormal non
+  // plus. Une erreur ici noierait les vraies pannes sous les comptes au repos.
+  if (!suite) return { donnees: "ignores" };
 
   const existant = await db.query.precalcSessions.findFirst({
     where: and(eq(precalcSessions.userId, userId), eq(precalcSessions.targetDate, cible)),
@@ -113,10 +147,15 @@ async function precalculerPour(
   try {
     brief = await genererBriefPreSeance(contexte);
   } catch (e) {
-    if (!(e instanceof BriefIndisponible) && !(e instanceof Error)) throw e;
-    // Ni placeholder, ni écrasement : ce qui existait vaut mieux que rien, et
-    // rien vaut mieux qu'un faux texte.
-    return existant ? "conserves" : "ignores";
+    /*
+     * Ni placeholder, ni écrasement — mais le silence non plus.
+     *
+     * « Conserver » n'a de sens que si ce qui existe vient réellement d'un
+     * modèle. Un texte hérité d'avant ce lot est un placeholder : le tenir pour
+     * un résultat utile ferait durer précisément ce que la PR corrige.
+     */
+    const valide = existant && contenuIAValide(existant.contenu, existant.contexteUtilise);
+    return { donnees: valide ? "conserves" : "ignores", erreur: raisonCourte(e) };
   }
 
   const trace = {
@@ -143,7 +182,9 @@ async function precalculerPour(
     });
   }
 
-  return "generes";
+  // L'`update` ci-dessus vaut aussi pour une ligne héritée : un succès la
+  // remplace par le vrai texte, sans qu'aucune suppression soit nécessaire.
+  return { donnees: "generes" };
 }
 
 /**

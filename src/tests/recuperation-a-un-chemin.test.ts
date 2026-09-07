@@ -199,6 +199,111 @@ describe("les crons écrivent ce que le modèle a produit, ou rien", () => {
   });
 });
 
+describe("les contenus hérités ne peuvent pas redevenir visibles", () => {
+  it("la lecture du tableau de bord filtre les deux colonnes", () => {
+    /*
+     * Le défaut à empêcher : rebrancher `precalcSession.contenu` directement
+     * sur la sortie. Les lignes d'avant le lot 15 sont toujours en base — la PR
+     * n'en supprime aucune — et elles ont exactement la forme d'un résultat.
+     */
+    const source = lire(ASSEMBLAGE);
+    expect(source).toMatch(/contenuIAValide\(precalcSession\.contenu, precalcSession\.contexteUtilise\)/);
+    expect(source).toMatch(/contenuIAValide\(weeklyDebrief\.contenu, weeklyDebrief\.stats\)/);
+    // Le repli sur la semaine précédente passe par le même filtre : sinon un
+    // débrief hérité prendrait la place laissée vide par le filtre du dessus.
+    expect(source).toMatch(/contenuIAValide\(\s*debriefSemainePrecedente\.contenu/);
+    expect(source, "la ligne brute est encore rendue")
+      .not.toMatch(/precalcSession: precalcSession \?/);
+  });
+
+  it("la reconnaissance vit à un seul endroit", () => {
+    // Deux listes de signatures divergeraient : l'écran cacherait ce que les
+    // crons conserveraient, ou l'inverse.
+    const service = lire("services/briefs-llm.ts");
+    expect(service).toMatch(/export function contenuIAValide/);
+    expect(service).toMatch(/Configurez l'intégration LLM/);
+    for (const f of [ASSEMBLAGE, PRECALC, WEEKLY]) {
+      expect(lire(f), `${f} porte sa propre liste de signatures`)
+        .not.toMatch(/Configurez l'intégration LLM/);
+    }
+  });
+
+  it("aucune suppression de données n'a été glissée dans les crons", () => {
+    // Une ligne héritée s'ignore ; elle ne s'efface pas. Le prochain succès la
+    // remplace par l'`upsert` ordinaire.
+    for (const route of [PRECALC, WEEKLY]) {
+      expect(lire(route), `${route} supprime des lignes`).not.toMatch(/db\.delete\(/);
+    }
+  });
+
+  it("« conserver » suppose un contenu valide, dans les deux crons", () => {
+    for (const route of [PRECALC, WEEKLY]) {
+      const source = lire(route);
+      expect(source).toMatch(/contenuIAValide\(/);
+      // La forme corrigée : `existant ? "conserves" : "ignores"` tenait un
+      // placeholder pour un résultat utile.
+      expect(source, `${route} conserve sans vérifier`)
+        .not.toMatch(/existant \? "conserves"/);
+    }
+  });
+});
+
+describe("une panne du modèle ne peut plus être silencieuse", () => {
+  it("les deux crons séparent l'état des données de l'état de l'appel", () => {
+    for (const route of [PRECALC, WEEKLY]) {
+      const source = lire(route);
+      expect(source).toMatch(/interface Issue/);
+      expect(source).toMatch(/donnees: "generes" \| "conserves" \| "ignores"/);
+      expect(source).toMatch(/if \(issue\.erreur\) bilan\.erreurs\.push/);
+    }
+  });
+
+  it("l'erreur journalisée passe par le réducteur commun", () => {
+    /*
+     * `e.message` traverse le fournisseur : `Groq 400 : {…}` reporte le corps
+     * de la réponse, qui peut reprendre la requête. `raisonCourte` rend une
+     * catégorie et un code HTTP, rien d'autre.
+     */
+    for (const route of [PRECALC, WEEKLY]) {
+      const source = lire(route);
+      expect(source).toMatch(/raisonCourte\(e\)/);
+      expect(source, `${route} relaie le message du fournisseur`)
+        .not.toMatch(/e instanceof Error \? e\.message/);
+    }
+  });
+
+  it("un compte au repos n'est pas compté comme une panne", () => {
+    // `ignores` sans `erreur` : le modèle n'a même pas été appelé. L'inverse
+    // noierait les vraies pannes sous les comptes inactifs.
+    expect(lire(PRECALC)).toMatch(/if \(!suite\) return \{ donnees: "ignores" \};/);
+    expect(lire(WEEKLY)).toMatch(/if \(stats\.nbSeances === 0\) return \{ donnees:/);
+  });
+});
+
+describe("la semaine ne s'exprime pas en kilos", () => {
+  it("le cron hebdomadaire ne calcule plus de tonnage global", () => {
+    /*
+     * `sum(charge × reps)` sur toute la semaine additionne des nombres qui ne
+     * mesurent pas la même chose : `natureCharge` distingue une résistance
+     * d'une ASSISTANCE, où le nombre saisi est une aide. 64 kg d'assistance
+     * pèseraient plus que 50, alors que la seconde séance est la meilleure.
+     */
+    const source = lire(WEEKLY);
+    expect(source, "le volume global est revenu").not.toMatch(/volumeTotal/);
+    expect(source).not.toMatch(/charge \* s?\.?repsEffectuees/);
+    expect(source, "la charge est encore lue pour être totalisée")
+      .not.toMatch(/columns: \{ charge: true/);
+  });
+
+  it("mais le volume par exercice, lui, n'est pas touché", () => {
+    // Il garde son sens là où la convention est connue. Normaliser un tonnage
+    // inter-exercices serait un autre sujet, pas une ligne de cette route.
+    const bilan = lire("lib/engine/bilan-progression.ts");
+    expect(bilan).toMatch(/natureCharge !== "assistance"/);
+    expect(bilan).toMatch(/poidsMuscleSecondaire/);
+  });
+});
+
 describe("le feu biologique et la récupération musculaire restent distincts", () => {
   it("le service de récupération ne lit pas le feu du jour", () => {
     /*
