@@ -85,10 +85,26 @@ export function ecrire(nom: string, titre: string, corps: string, largeur: numbe
 export function rendre(element: React.ReactElement): string {
   const hote = document.createElement("div");
   document.body.appendChild(hote);
-  const racine = createRoot(hote);
+  /*
+   * UN RENDU QUI ÉCHOUE DOIT ARRÊTER LE SCRIPT.
+   *
+   * React attrape l'exception d'un composant, démonte la branche et continue.
+   * L'aperçu sortait donc VIDE — ou pire, amputé d'un seul élément — sans que
+   * rien ne l'indique : c'est ainsi qu'une série de captures a été produite
+   * sans aucune illustration, à cause d'un `window.matchMedia` absent de jsdom.
+   * Un outil de contrôle visuel qui ment en silence est pire que pas d'outil.
+   */
+  const erreurs: unknown[] = [];
+  const racine = createRoot(hote, {
+    onUncaughtError: (e) => erreurs.push(e),
+    onCaughtError: (e) => erreurs.push(e),
+  });
   flushSync(() => racine.render(element));
   const html = hote.innerHTML;
   racine.unmount();
   hote.remove();
+
+  if (erreurs.length > 0) throw erreurs[0];
+  if (html.trim() === "") throw new Error("rendu vide : le composant n'a rien produit");
   return html;
 }

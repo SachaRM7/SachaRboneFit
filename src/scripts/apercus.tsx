@@ -22,7 +22,7 @@ const DEADLIFT = {
   id: A,
   nom: "Deadlift",
   machineNom: "Barre olympique",
-  slug: null,
+  slug: "deadlift",
   seriesCibles: 3,
   fourchetteRepsMin: 8,
   fourchetteRepsMax: 12,
@@ -40,6 +40,7 @@ const DEADLIFT = {
 const PRESSE = {
   ...DEADLIFT,
   id: "instance-presse",
+  slug: "machine-shoulder-press",
   nom: "Shoulder Press",
   machineNom: "Technogym Pure",
   seriesCibles: 3,
@@ -51,6 +52,7 @@ const PRESSE = {
 const TIRAGE = {
   ...DEADLIFT,
   id: "instance-tirage",
+  slug: "seated-row",
   nom: "Tirage horizontal",
   machineNom: "Hammer Strength",
   seriesCibles: 2,

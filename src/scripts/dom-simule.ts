@@ -39,12 +39,26 @@ for (const cle of [
   });
 }
 
-// jsdom ne fournit pas `matchMedia` ; des composants d'interface le lisent.
-global.matchMedia ??= (query: string) => ({
+/*
+ * `matchMedia`, posé sur la FENÊTRE et pas seulement sur le global.
+ *
+ * jsdom ne l'implémente pas, et les composants l'appellent en `window.matchMedia`
+ * — `IllustrationExercice` s'en sert pour respecter « mouvement réduit ». Le
+ * poser uniquement sur `globalThis` ne suffisait donc pas : l'illustration
+ * levait une exception dans son effet, React démontait la branche, et les
+ * aperçus sortaient sans le moindre dessin.
+ */
+const matchMedia = (query: string) => ({
   matches: false,
   media: query,
+  onchange: null,
+  addListener: () => {},
+  removeListener: () => {},
   addEventListener: () => {},
   removeEventListener: () => {},
+  dispatchEvent: () => false,
 });
+if (!fenetre.matchMedia) fenetre.matchMedia = matchMedia;
+global.matchMedia ??= matchMedia;
 
 export {};
