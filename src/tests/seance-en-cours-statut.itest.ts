@@ -27,8 +27,12 @@ it("accueil et programme attendent la clôture, même après trois séries", asy
         const counts = [];
         for (const query of queries) {
           const compiled = dialect.sqlToQuery(query);
-          const rows = await tx.unsafe(compiled.sql, compiled.params);
-          counts.push(rows[0].n);
+          const params = compiled.params.map((value) => {
+            if (typeof value !== "string") throw new Error("Paramètre inattendu");
+            return value;
+          });
+          const rows = await tx.unsafe(compiled.sql, params);
+          counts.push(rows[0]?.n);
         }
         return counts;
       };
