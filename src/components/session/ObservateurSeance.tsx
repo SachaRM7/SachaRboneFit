@@ -78,7 +78,7 @@ export function ObservateurSeance({
   const fait = libelleFactuel(evenement);
 
   return (
-    <div className="px-4 pb-2">
+    <div className="px-4 pb-1">
       <div className="coach-constat">
         {/*
           Le Coach qui lève l'index : « j'ai remarqué quelque chose ».

@@ -110,9 +110,19 @@ const entete = `
   </nav>
 </header>`;
 
-const enveloppe = (contenu: string, pad = true) =>
+/**
+ * La coque du Live, dans l'ordre exact de la page.
+ *
+ * `avantMain` reçoit ce que la page rend ENTRE l'en-tête et `<main>` — le
+ * bandeau d'adaptation, le constat de séance. L'empiler dans `main` donnerait
+ * des interlignes que l'application n'a pas, et ferait mesurer une hauteur
+ * fausse : c'est exactement le genre d'écart qui pousse à corriger un défaut
+ * qui n'existe que dans le harnais.
+ */
+const enveloppe = (contenu: string, pad = true, avantMain = "") =>
   `<div class="live-session min-h-screen bg-papier" style="padding-top:var(--marge-haut)">
      ${entete}
+     ${avantMain}
      <main class="${pad ? "px-4 py-4 space-y-3" : ""}">${contenu}</main>
    </div>`;
 
@@ -398,7 +408,17 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
     rendu: () => {
       seance([fait(A, 1, 60, 10, 7)]);
       return enveloppe(
-        `<div class="px-4 pb-2"><div class="coach-constat">${rendre(
+        rendre(
+          <LecteurExercice
+            exercice={DEADLIFT as never}
+            rpeReduction={0}
+            modeReserve={false}
+            onSerieValidee={rien}
+            onSuivant={rien}
+          />,
+        ),
+        true,
+        `<div class="px-4 pb-1"><div class="coach-constat">${rendre(
           <MascotteCoach etat="intervention" taille="compact" presence="discrete" />,
         )}
           <div class="min-w-0 flex-1">
@@ -407,16 +427,7 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
             <button class="coach-constat-action">En parler au coach</button>
           </div>
           <button class="coach-constat-fermer" aria-label="Masquer ce constat">×</button>
-        </div></div>`
-          + rendre(
-            <LecteurExercice
-              exercice={DEADLIFT as never}
-              rpeReduction={0}
-              modeReserve={false}
-              onSerieValidee={rien}
-              onSuivant={rien}
-            />,
-          ),
+        </div></div>`,
       );
     },
   },
