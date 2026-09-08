@@ -83,7 +83,7 @@ export function VueFocus({
           onClick={() => precedent !== null && aller(precedent)}
           disabled={precedent === null}
           aria-label="Exercice précédent"
-          className="shrink-0 rounded-lg border border-filet bg-papier-2 p-2.5 disabled:opacity-30 active:bg-filet"
+          className="shrink-0 rounded-2xl border border-filet-doux bg-carte p-2.5 disabled:opacity-30 active:bg-filet"
         >
           <ChevronLeft className="w-5 h-5 text-encre-2" aria-hidden />
         </button>
@@ -91,7 +91,7 @@ export function VueFocus({
         <button
           onClick={() => setListeOuverte((v) => !v)}
           aria-expanded={listeOuverte}
-          className="flex-1 min-w-0 rounded-lg border border-filet bg-papier-2 px-3 py-2 active:bg-filet"
+          className="flex-1 min-w-0 rounded-2xl border border-filet-doux bg-carte px-3 py-2 active:bg-filet"
         >
           <span className="flex items-center justify-center gap-2">
             <List className="w-4 h-4 text-encre-3 shrink-0" aria-hidden />
@@ -108,7 +108,7 @@ export function VueFocus({
           onClick={() => suivant !== null && aller(suivant)}
           disabled={suivant === null}
           aria-label="Exercice suivant"
-          className="shrink-0 rounded-lg border border-filet bg-papier-2 p-2.5 disabled:opacity-30 active:bg-filet"
+          className="shrink-0 rounded-2xl border border-filet-doux bg-carte p-2.5 disabled:opacity-30 active:bg-filet"
         >
           <ChevronRight className="w-5 h-5 text-encre-2" aria-hidden />
         </button>
@@ -119,7 +119,7 @@ export function VueFocus({
         pas à occuper l'écran pendant qu'on soulève.
       */}
       {listeOuverte && (
-        <div className="rounded-xl border border-filet bg-carte p-2">
+        <div className="rounded-3xl border border-filet-doux bg-carte p-3">
           <ListeCompacte etats={etats} courant={courant} onChoisir={aller} />
         </div>
       )}

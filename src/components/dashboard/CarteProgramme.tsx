@@ -18,14 +18,14 @@ export async function CarteProgramme({ userId }: { userId: string }) {
   if (!blocActif) return null;
 
   return (
-    <div className="px-4 pb-2">
+    <div className="px-4 pb-5">
       {/* Le programme n'a pas d'onglet — c'est une décision assumée : ce n'est
           pas une destination quotidienne. Mais il ne doit pas être à deux
           gestes pour autant. Toute la carte est le lien : un second gros bouton
           entrerait en concurrence avec celui de la séance du jour. */}
       <Link
         href="/programme"
-        className="flex items-center gap-3 rounded-xl border border-filet bg-carte px-4 py-3"
+        className="programme-link flex items-center gap-3 rounded-2xl bg-carte px-5 py-4"
       >
         <span className="min-w-0 flex-1">
           <span className="block text-encre text-sm font-medium truncate">

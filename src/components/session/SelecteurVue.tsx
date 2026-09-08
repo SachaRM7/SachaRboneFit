@@ -29,7 +29,7 @@ export function SelecteurVue({ vue, onChanger }: Props) {
     <div
       role="group"
       aria-label="Affichage de la séance"
-      className="inline-flex rounded-lg border border-filet bg-papier-2 p-0.5"
+      className="inline-flex rounded-2xl bg-papier-2 p-1"
     >
       {VUES_LIVE.map((v) => {
         const { texte, Icone } = LIBELLES[v];
@@ -39,8 +39,8 @@ export function SelecteurVue({ vue, onChanger }: Props) {
             key={v}
             onClick={() => onChanger(v)}
             aria-pressed={actif}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-              actif ? "bg-carte text-encre shadow-sm" : "text-encre-3"
+            className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-medium transition-colors ${
+              actif ? "bg-carte text-primary shadow-sm" : "text-encre-3"
             }`}
           >
             <Icone className="w-3.5 h-3.5" aria-hidden />

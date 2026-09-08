@@ -367,7 +367,7 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
               <Button
                 onClick={() => void handleSend()}
                 disabled={loading || !input.trim()}
-                className="w-12 h-12 rounded-full bg-encre text-papier hover:bg-filet p-0"
+                className="w-12 h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 p-0"
               >
                 <Send className="w-5 h-5" />
               </Button>

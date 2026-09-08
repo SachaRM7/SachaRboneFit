@@ -48,7 +48,7 @@ const estDuProduit = (f: string) =>
   /\.tsx?$/.test(f) && !/\.(test|itest)\.tsx?$/.test(f) && !f.includes("/scripts/");
 
 const SOURCES = ["services", "app", "lib", "components"].flatMap((d) =>
-  fichiers(d, estDuProduit).map((f) => path.relative(RACINE, f)),
+  fichiers(d, estDuProduit).map((f) => path.relative(RACINE, f).split(path.sep).join("/")),
 );
 
 const ROUTES = SOURCES.filter((f) => f.startsWith("app/api") && f.endsWith("route.ts"));

@@ -26,7 +26,7 @@ export function BoutonCoach() {
           type="button"
           onClick={() => ouvrir()}
           aria-label="Demander au coach"
-          className="fixed right-4 z-40 h-10 pl-3 pr-4 rounded-full bg-encre text-papier
+          className="coach-trigger fixed right-4 z-40 h-12 pl-4 pr-5 rounded-full bg-primary text-primary-foreground
                      flex items-center gap-1.5 text-sm font-medium shadow-sm
                      active:scale-[0.98] transition-transform"
           /* Posée au-dessus de la barre, à partir de sa hauteur réelle. Le

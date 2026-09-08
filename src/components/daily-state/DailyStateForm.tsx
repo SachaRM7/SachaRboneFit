@@ -359,7 +359,7 @@ export function DailyStateForm({ initialDate, preselectedGymId }: DailyStateForm
       <Button
         onClick={onSubmit}
         disabled={loading}
-        className="w-full h-14 text-base bg-encre text-papier hover:bg-filet"
+        className="w-full h-14 text-base bg-primary text-primary-foreground hover:bg-primary/90"
       >
         {loading ? "Enregistrement..." : "Valider → Voir la séance ajustée"}
       </Button>

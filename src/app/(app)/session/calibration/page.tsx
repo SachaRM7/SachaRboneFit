@@ -117,14 +117,14 @@ export default function PreparationCalibrationPage() {
       {salleId ? (
         <Link
           href={lienDemarrage(salleId)}
-          className={buttonVariants({ className: "w-full h-11 text-base bg-encre text-papier hover:bg-filet" })}
+          className={buttonVariants({ className: "w-full h-11 text-base bg-primary text-primary-foreground hover:bg-primary/90" })}
         >
           Commencer ma première séance
         </Link>
       ) : (
         <Link
           href="/dashboard"
-          className={buttonVariants({ className: "w-full h-11 text-base bg-encre text-papier hover:bg-filet" })}
+          className={buttonVariants({ className: "w-full h-11 text-base bg-primary text-primary-foreground hover:bg-primary/90" })}
         >
           Retour à l&apos;accueil
         </Link>

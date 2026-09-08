@@ -1,3 +1,4 @@
+import { Activity } from "lucide-react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -48,12 +49,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         Les en-têtes collants, eux, gèrent leur propre marge haute : ils se
         placent à `--marge-haut` pour ne pas glisser sous l'encoche.
       */}
+      <a href="#contenu" className="skip-link">Aller au contenu</a>
       <main
+        id="contenu"
+        className="app-main"
         style={{
           paddingTop: "var(--marge-haut)",
-          paddingBottom: "calc(var(--barre-nav) + 1rem)",
+          paddingBottom: "calc(var(--barre-nav) + 5rem)",
         }}
       >
+        <div className="app-brand"><span className="brand-symbol"><Activity size={18} aria-hidden /></span>Sport Perso<span>TON ESPACE TRAINING</span></div>
         {children}
       </main>
       <BottomNav />

@@ -39,7 +39,7 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
     icone: Ruler,
     titre: (e) => (e.seance ? `Séance ${e.seance.lettre} — calibration` : "Ta première séance"),
     texte:
-      "On ne cherche pas la performance aujourd'hui, on mesure. Après chaque série, tu diras combien tu aurais pu en faire de plus — c'est ce qui me permettra de fixer tes charges.",
+      "On mesure tes premières charges. Après chaque série, indique combien de répétitions tu aurais pu faire en plus.",
     bouton: "Commencer",
   },
   prete: {
@@ -74,15 +74,11 @@ export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
 
   return (
     <Card
-      className={
-        etat.enAttenteDeDonnees
-          ? "bg-carte border-filet"
-          : "bg-carte border-encre/20 shadow-sm"
-      }
+      className="today-card"
     >
       <CardContent className="py-5 space-y-4">
         <div className="flex items-start gap-3">
-          <Icone className="w-5 h-5 mt-0.5 shrink-0 text-encre-2" aria-hidden />
+          <Icone className="today-icon shrink-0" aria-hidden />
           <div className="space-y-1 min-w-0">
             <p className="text-xs uppercase tracking-wide text-encre-3">Aujourd&apos;hui</p>
             <h2 className="text-xl font-bold text-encre leading-tight">{f.titre(etat)}</h2>
@@ -93,7 +89,7 @@ export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
         <Link
           href={etat.action.href}
           className={buttonVariants({
-            className: "w-full h-11 text-base bg-encre text-papier hover:bg-filet",
+            className: "w-full h-12 text-base bg-primary text-primary-foreground hover:bg-primary/90",
           })}
         >
           {f.bouton}

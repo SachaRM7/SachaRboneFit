@@ -3,14 +3,7 @@
 import { useTheme } from "next-themes";
 import { Sun, Moon, SunMoon } from "lucide-react";
 
-/**
- * Choix du thème.
- *
- * L'application suivait le réglage du système sans laisser aucun moyen d'en
- * sortir : un téléphone en mode sombre ne pouvait jamais afficher le papier
- * crème, qui est pourtant l'identité de la direction Carnet. Le réglage système
- * reste disponible, mais il se choisit.
- */
+/** Thème clair par défaut ; le choix sombre ou système reste mémorisé. */
 
 const OPTIONS = [
   { valeur: "light", libelle: "Clair", Icone: Sun },

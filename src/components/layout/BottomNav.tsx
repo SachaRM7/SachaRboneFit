@@ -27,6 +27,8 @@ const RATTACHEMENTS: Record<string, string> = {
   "/historique": "/settings",
   "/programme": "/settings",
   "/bodyweight": "/settings",
+  "/contraintes": "/settings",
+  "/session": "/sessions/new",
 };
 
 export function BottomNav() {
@@ -40,6 +42,7 @@ export function BottomNav() {
 
   const actif = (href: string) => {
     if (rattachement) return href === rattachement;
+    if (href === "/sessions/new") return chemin.startsWith("/sessions");
     if (href === "/dashboard") return chemin === "/dashboard" || chemin === "/";
     return chemin.startsWith(href);
   };
@@ -55,7 +58,8 @@ export function BottomNav() {
      * plutôt que la navigation.
      */
     <nav
-      className="fixed bottom-0 left-0 right-0 bg-papier border-t border-filet z-50"
+      aria-label="Navigation principale"
+      className="app-nav fixed bottom-0 left-0 right-0 z-50"
       style={{ height: "var(--barre-nav)", paddingBottom: "var(--marge-bas)" }}
     >
       <div
@@ -69,7 +73,7 @@ export function BottomNav() {
               key={href}
               href={href}
               aria-current={estActif ? "page" : undefined}
-              className={`flex flex-col items-center justify-center w-20 h-14 rounded-lg transition-colors ${
+              className={`nav-item flex flex-col items-center justify-center w-20 h-14 rounded-2xl ${
                 estActif ? "text-encre" : "text-encre-3"
               }`}
             >

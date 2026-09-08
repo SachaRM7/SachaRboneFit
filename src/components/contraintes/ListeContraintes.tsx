@@ -151,7 +151,7 @@ export function ListeContraintes({
             <Button
               disabled={enCours !== null}
               onClick={() => void decider(a.incidentId, "appliquer")}
-              className="flex-1 bg-encre text-papier hover:bg-filet rounded-full h-11"
+              className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full h-11"
             >
               {enCours === a.incidentId ? "Un instant…" : "Oui, la ménager"}
             </Button>
@@ -210,7 +210,7 @@ export function ListeContraintes({
               <Button
                 disabled={enCours !== null}
                 onClick={() => void repondre(c.id, "resolu")}
-                className="w-full bg-encre text-papier hover:bg-filet rounded-full h-11"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90 rounded-full h-11"
               >
                 {enCours === c.id ? "Un instant…" : "Ça va mieux"}
               </Button>

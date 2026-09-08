@@ -70,7 +70,7 @@ export default function PageNouveauMotDePasse() {
 
   if (sessionValide === false) {
     return (
-      <div className="min-h-screen bg-papier text-encre flex items-center justify-center p-4">
+      <div className="auth-page min-h-dvh bg-papier text-encre flex items-center justify-center p-4">
         <Card className="w-full max-w-sm bg-carte border-filet">
           <CardHeader>
             <CardTitle className="text-encre">Lien expiré</CardTitle>
@@ -92,7 +92,7 @@ export default function PageNouveauMotDePasse() {
   }
 
   return (
-    <div className="min-h-screen bg-papier text-encre flex items-center justify-center p-4">
+    <div className="auth-page min-h-dvh bg-papier text-encre flex items-center justify-center p-4">
       <Card className="w-full max-w-sm bg-carte border-filet">
         <CardHeader>
           <CardTitle className="text-encre">Nouveau mot de passe</CardTitle>

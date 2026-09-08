@@ -27,15 +27,15 @@ export function EnTeteSecondaire({
   action?: React.ReactNode;
 }) {
   return (
-    <header className="flex items-center gap-1 -ml-2">
+    <header className="flex items-center gap-3 py-3">
       <Link
         href={vers}
         aria-label={libelleRetour}
-        className="shrink-0 p-2 rounded-lg text-encre-2 hover:text-encre active:bg-papier-2"
+        className="shrink-0 p-3 rounded-2xl bg-carte shadow-sm text-encre-2 hover:text-encre active:bg-papier-2"
       >
         <ArrowLeft className="w-5 h-5" aria-hidden />
       </Link>
-      <h1 className="text-xl font-bold text-encre min-w-0 flex-1 truncate">{titre}</h1>
+      <h1 className="text-xl font-bold text-encre min-w-0 flex-1">{titre}</h1>
       {action}
     </header>
   );

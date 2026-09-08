@@ -4,10 +4,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* OLED black override */
-:root {
-  --background: 0 0% 0%;
-}
 
 @theme inline {
   --color-background: var(--background);
@@ -16,7 +12,7 @@
      circulaire, donc invalide, et l'application heritait des polices par
      defaut du navigateur. Les variables viennent maintenant de next/font. */
   --font-sans: var(--police-texte), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--police-titre), ui-serif, Georgia, serif;
+  --font-heading: var(--police-titre), ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -80,7 +76,7 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
+  --radius: 1rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -136,40 +132,28 @@
     @apply font-sans;
   }
 }
-/* ===========================================================================
-   Carnet — système de design de l'application
-   ---------------------------------------------------------------------------
-   Direction retenue : le carnet d'entraînement plutôt que la console.
-   La règle qui tient tout : LA COULEUR NE DÉCORE JAMAIS. Tout ce qui n'est pas
-   un signal est encre sur papier. Une couleur qui apparaît veut donc toujours
-   dire quelque chose, ce qui la rend lisible d'un coup d'œil même en petit.
-
-   Cinq couleurs autorisées : gain, perte, et les trois feux du jour.
-
-   Ces tokens remplacent les couleurs écrites en dur (bg-zinc-900, text-white…)
-   qui court-circuitaient le design system dans chaque écran.
-   =========================================================================== */
+/* Palette de surfaces ; les couleurs métier et graphiques restent sémantiques. */
 
 :root {
   /* Surfaces */
-  --papier: #FBFAF7;
-  --papier-2: #F4F2ED;
+  --papier: #F3F6F6;
+  --papier-2: #EAF0EF;
   --carte: #FFFFFF;
-  --filet: #E4E0D8;
-  --filet-doux: #EFECE5;
+  --filet: #DCE5E3;
+  --filet-doux: #E8EEEC;
 
   /* Encre */
-  --encre: #1A1D22;
-  --encre-2: #4A505A;
-  --encre-3: #868C95;
+  --encre: #182B2C;
+  --encre-2: #526667;
+  --encre-3: #697B7C;
 
   /* Sémantique — signaux uniquement */
   --gain: #2C6B47;
   --gain-fond: #E6F0E8;
   --perte: #A8402E;
   --perte-fond: #F8E8E4;
-  --neutre: #868C95;
-  --neutre-fond: #EFECE5;
+  --neutre: #697B7C;
+  --neutre-fond: #E8EEEC;
 
   /* Feu biologique */
   --feu-vert: #3F7A4A;
@@ -196,15 +180,15 @@
    query gagnait toujours et le choix « Clair » restait sans effet. */
 @media (prefers-color-scheme: dark) {
   :root:not(.light):not([data-theme="light"]) {
-    --papier: #16181C;
-    --papier-2: #1D2025;
-    --carte: #1F2228;
-    --filet: #31353D;
-    --filet-doux: #272B31;
+    --papier: #111A1C;
+    --papier-2: #182426;
+    --carte: #1D2C2E;
+    --filet: #344547;
+    --filet-doux: #293A3C;
 
-    --encre: #EDEBE7;
-    --encre-2: #B4BAC2;
-    --encre-3: #838A94;
+    --encre: #ECF4F2;
+    --encre-2: #B8C9C7;
+    --encre-3: #91A7A5;
 
     --gain: #6FBF87;
     --gain-fond: #1A2A20;
@@ -231,15 +215,15 @@
 
 :root[data-theme="dark"],
 .dark {
-  --papier: #16181C;
-  --papier-2: #1D2025;
-  --carte: #1F2228;
-  --filet: #31353D;
-  --filet-doux: #272B31;
+  --papier: #111A1C;
+  --papier-2: #182426;
+  --carte: #1D2C2E;
+  --filet: #344547;
+  --filet-doux: #293A3C;
 
-  --encre: #EDEBE7;
-  --encre-2: #B4BAC2;
-  --encre-3: #838A94;
+  --encre: #ECF4F2;
+  --encre-2: #B8C9C7;
+  --encre-3: #91A7A5;
 
   --gain: #6FBF87;
   --gain-fond: #1A2A20;
@@ -335,9 +319,7 @@
 
 /* Tout chiffre susceptible de changer doit être tabulaire : sans ça, la charge
    saute latéralement à chaque appui sur +/−, et on rate le bouton. */
-/* Les chiffres sont le sujet de cette application : ils portent la serif de
-   titre, et des chasses fixes pour qu'une charge qui change ne fasse pas
-   sauter la ligne. */
+/* La chasse fixe garde les charges stables pendant la saisie. */
 .chiffres {
   font-family: var(--font-heading);
   font-variant-numeric: tabular-nums;
@@ -348,4 +330,90 @@ h1, h2, h3,
 [data-slot="card-title"] {
   font-family: var(--font-heading);
   letter-spacing: -0.01em;
+}
+
+/* Un seul thème pour les composants Base UI et les écrans métier. */
+:root, .dark {
+  --background: var(--papier);
+  --foreground: var(--encre);
+  --card: var(--carte);
+  --card-foreground: var(--encre);
+  --popover: var(--carte);
+  --popover-foreground: var(--encre);
+  --primary: #176D68;
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--papier-2);
+  --secondary-foreground: var(--encre);
+  --muted: var(--papier-2);
+  --muted-foreground: var(--encre-3);
+  --accent: var(--papier-2);
+  --accent-foreground: var(--encre);
+  --border: var(--filet);
+  --input: var(--filet);
+  --ring: #39978F;
+  --brand-soft: #E1F0EB;
+}
+.dark { --primary: #90D7C8; --primary-foreground: #102E2B; --brand-soft: #233F3B; }
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not([data-theme="light"]) {
+    --primary: #90D7C8; --primary-foreground: #102E2B; --brand-soft: #233F3B;
+  }
+}
+@layer base {
+  body { min-height: 100dvh; }
+  h1, h2, h3 { text-wrap: balance; }
+  h1 { letter-spacing: -0.035em; }
+  button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+  button:not(:disabled), a { touch-action: manipulation; }
+  :focus-visible { outline: 3px solid var(--ring); outline-offset: 4px; }
+  ::selection { background: var(--brand-soft); color: var(--encre); }
+}
+.app-main { max-width: 960px; margin-inline: auto; min-height: 100dvh; }
+.app-brand { display: flex; align-items: center; gap: .65rem; padding: 1.5rem 1rem 0; color: var(--encre); font-weight: 650; font-size: .9rem; letter-spacing: -.025em; }
+.brand-symbol { width: 32px; height: 32px; display: inline-grid; place-items: center; border-radius: 11px; background: var(--primary); color: var(--primary-foreground); }
+.app-brand span:last-child { margin-left: auto; color: var(--encre-3); font-size: .7rem; font-weight: 450; letter-spacing: .02em; }
+.skip-link { position: fixed; top: -100px; left: 1rem; z-index: 100; padding: .75rem 1rem; background: var(--carte); border-radius: 12px; }
+.skip-link:focus { top: 1rem; }
+.dashboard-header { padding: 2rem 1rem 1.5rem; }
+.dashboard-header h1 { font-size: clamp(2rem, 5vw, 3rem); line-height: 1.12; font-weight: 600; }
+.dashboard-header .eyebrow { font-size: .7rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--primary); margin-bottom: .6rem; }
+.today-card { position: relative; background: var(--brand-soft); box-shadow: none; border: 1px solid color-mix(in srgb, var(--primary) 15%, transparent); }
+.today-card h2 { font-size: clamp(1.65rem, 4vw, 2.25rem); font-weight: 600; }
+.today-card .today-icon { width: 48px; height: 48px; padding: 12px; border-radius: 16px; background: var(--carte); color: var(--primary); }
+.today-card [data-slot="card-content"] { padding: 1.5rem; }
+.programme-link { transition: background .2s, transform .2s; }
+.programme-link:hover { background: var(--papier-2); transform: translateY(-2px); }
+.app-nav { background: color-mix(in srgb, var(--carte) 92%, transparent); backdrop-filter: blur(20px); border-top: 1px solid var(--filet-doux); box-shadow: 0 -8px 32px #132D2910; }
+.nav-item { gap: .15rem; color: var(--encre-3); transition: color .2s, background .2s; }
+.nav-item:hover { background: var(--papier-2); color: var(--encre); }
+.nav-item[aria-current="page"] { color: var(--primary); background: var(--brand-soft); }
+.coach-trigger { box-shadow: 0 8px 24px #102F2926; }
+.auth-page { background: radial-gradient(ellipse at 20% 0%, var(--brand-soft), transparent 65%), var(--papier); }
+.auth-page > div { max-width: 420px; }
+.auth-page h1 { font-size: 2.6rem; font-weight: 600; letter-spacing: -.05em; }
+.auth-page [data-slot="card"] { padding: 1rem .5rem; }
+@media (min-width: 768px) {
+  .app-main { padding-inline: 2rem; }
+  .app-brand { padding-top: 2rem; }
+  .app-main > div > h1, .app-main > div > header h1 { font-size: 1.85rem; }
+  .app-nav { left: 50%; right: auto; width: min(560px, calc(100% - 3rem)); transform: translateX(-50%); border: 1px solid var(--filet); border-radius: 24px 24px 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+.dashboard-body { display: grid; gap: 1.25rem; align-items: start; }
+.dashboard-body > * { min-width: 0; }
+@media (min-width: 900px) {
+  .dashboard-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-body > .today-card, .dashboard-body > .bg-gain-fond,
+  .dashboard-body > .bg-feu-orange\/10 { grid-column: 1 / -1; }
+}
+
+/* Les actions d'une séance interrompue ne compriment jamais son message. */
+.session-banner { display: grid; gap: 1rem; }
+.session-banner > div:last-child { display: flex; flex-wrap: wrap; gap: .5rem; }
+.session-banner > div:last-child > button { min-height: 44px; }
+@media (min-width: 600px) {
+  .session-banner { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
 }

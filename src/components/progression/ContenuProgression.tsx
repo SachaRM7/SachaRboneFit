@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, Dumbbell, ChartNoAxesCombined, Trophy, Scale } from "lucide-react";
 import { ExerciseProgressionChart } from "@/components/progression/ExerciseProgressionChart";
 import { PillarVolumeChart } from "@/components/progression/PillarVolumeChart";
 import { BodyWeightChart } from "@/components/progression/BodyWeightChart";
@@ -22,6 +22,8 @@ import { DeclarerContexte } from "@/components/coach/ContexteCoach";
  */
 
 type Vue = "exercice" | "pilier" | "records" | "poids";
+
+const ICONES = { exercice: Dumbbell, pilier: ChartNoAxesCombined, records: Trophy, poids: Scale };
 
 const VUES: { cle: Vue; libelle: string; description: string }[] = [
   { cle: "exercice", libelle: "Par exercice", description: "Charges séance après séance" },
@@ -146,7 +148,7 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
   return (
     <div className="min-h-dvh bg-papier text-encre">
       <DeclarerContexte ecran="progression" />
-      <header className="px-4 pt-8 pb-4">
+      <header className="dashboard-header">
         <h1 className="text-2xl font-bold">Progression</h1>
         {bilan?.periode && (
           <p className="text-encre-2 text-sm mt-0.5">
@@ -170,22 +172,26 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
             <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">
               Entrer dans le détail
             </h2>
-            <ul className="rounded-xl border border-filet bg-carte divide-y divide-filet">
-              {VUES.map((v) => (
-                <li key={v.cle}>
-                  <button
-                    type="button"
-                    onClick={() => setVue(v.cle)}
-                    className="w-full text-left px-4 py-3.5 flex items-center gap-3"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-encre text-sm font-medium">{v.libelle}</span>
-                      <span className="block text-encre-3 text-xs">{v.description}</span>
-                    </span>
-                    <ChevronLeft className="w-4 h-4 text-encre-3 rotate-180 shrink-0" aria-hidden />
-                  </button>
-                </li>
-              ))}
+            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {VUES.map((v) => {
+                const Icone = ICONES[v.cle];
+                return (
+                  <li key={v.cle}>
+                    <button
+                      type="button"
+                      onClick={() => setVue(v.cle)}
+                      className="w-full h-full text-left p-5 flex items-center gap-4 rounded-3xl bg-carte hover:bg-papier-2 transition-colors shadow-sm"
+                    >
+                      <Icone className="w-10 h-10 p-2.5 bg-papier-2 rounded-xl text-primary shrink-0" aria-hidden />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-encre text-sm font-medium">{v.libelle}</span>
+                        <span className="block text-encre-3 text-xs">{v.description}</span>
+                      </span>
+                      <ChevronLeft className="w-4 h-4 text-encre-3 rotate-180 shrink-0" aria-hidden />
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}

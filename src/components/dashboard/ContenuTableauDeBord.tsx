@@ -114,7 +114,8 @@ export function ContenuTableauDeBord({
     <div className="min-h-screen bg-papier text-encre">
       <DeclarerContexte ecran="accueil" />
       {/* Header */}
-      <div className="px-4 pt-8 pb-4">
+      <div className="dashboard-header">
+        <p className="eyebrow">Un peu plus fort, chaque jour</p>
         <h1 className="text-2xl font-bold">Salut {data.user.nom ?? "Sacha"}</h1>
         <div className="flex items-center gap-3 mt-1">
           {data.user.poidsActuel && (
@@ -134,14 +135,14 @@ export function ContenuTableauDeBord({
       {/* Le dégagement de la barre de navigation est posé une fois, par le
           layout, marge du bas comprise. Le `pb-20` qui était ici s'y ajoutait
           en pure perte : 5 rem de vide à faire défiler sous le dernier bloc. */}
-      <div className="px-4 space-y-4">
+      <div className="dashboard-body px-4">
         {/* Plus de squelette : les données sont rendues avec la page. Ce qui
             s'affichait pendant deux à trois secondes n'attendait plus rien. */}
         {/* In-progress session banner */}
         {canResume && (
           <Card className="bg-gain-fond border-gain/30">
             <CardContent className="py-4">
-              <div className="flex items-center justify-between">
+              <div className="session-banner">
                 <div>
                   <p className="text-gain font-semibold flex items-center gap-2">
                     <Play className="w-4 h-4" />
@@ -177,11 +178,11 @@ export function ContenuTableauDeBord({
         {active && isSessionStale && (
           <Card className="bg-feu-orange/10 border-feu-orange/30">
             <CardContent className="py-4">
-              <div className="flex items-center justify-between">
+              <div className="session-banner">
                 <div>
                   <p className="text-feu-orange font-semibold">Séance interrompue</p>
                   <p className="text-encre-2 text-sm">
-                    Il y a plus de 6h — terminer ou abandonner ?
+                    En pause depuis plus de 6 h.
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -245,7 +246,7 @@ export function ContenuTableauDeBord({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-6">
+            <div className="flex flex-wrap gap-x-8 gap-y-4">
               <div className="flex items-center gap-3">
                 <span className="text-encre-3 text-sm">Aujourd&apos;hui</span>
                 {data.feuJour ? (

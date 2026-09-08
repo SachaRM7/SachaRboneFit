@@ -312,17 +312,17 @@ export function TableauSeries({
   const validees = seriesSaisies.length;
 
   const champ =
-    "w-full min-w-0 rounded-md border border-filet bg-papier-2 px-1.5 py-2 text-center " +
+    "w-full min-w-0 rounded-xl border border-filet bg-papier-2 px-1.5 py-2 text-center " +
     "chiffres text-base font-semibold text-encre focus:border-encre focus:outline-none " +
     "focus:ring-2 focus:ring-encre/20";
 
   /** Une série validée se lit, elle ne se corrige qu'après l'avoir rouverte. */
   const champVerrouille =
-    "w-full min-w-0 rounded-md border border-transparent bg-transparent px-1.5 py-2 " +
+    "w-full min-w-0 rounded-xl border border-transparent bg-transparent px-1.5 py-2 " +
     "text-center chiffres text-base font-semibold text-encre-2 cursor-default";
 
   return (
-    <section className="border border-filet rounded-xl bg-carte overflow-hidden">
+    <section className="border border-filet-doux rounded-3xl bg-carte overflow-hidden shadow-sm">
       <header className="flex items-start gap-3 p-3.5 border-b border-filet-doux">
         {exercice.slug && (
           /* L'illustration devient la porte d'entrée de la démonstration : la
@@ -558,7 +558,7 @@ export function TableauSeries({
               const horsPrescription = numero > exercice.seriesCibles;
 
               return (
-                <tr key={numero} className="border-t border-filet-doux">
+                <tr key={numero} className={`border-t border-filet-doux ${validee ? "bg-gain-fond/60" : numero === serieCourante ? "bg-primary/5" : ""}`}>
                   <td className="chiffres text-xs text-encre-3 py-1.5">
                     {numero}
                     {horsPrescription && (
@@ -631,7 +631,7 @@ export function TableauSeries({
                       onClick={() => basculer(numero)}
                       aria-pressed={validee}
                       aria-label={validee ? `Modifier la série ${numero}` : `Valider la série ${numero}`}
-                      className={`w-9 h-9 rounded-md border grid place-items-center transition-colors ${
+                      className={`w-10 h-11 rounded-xl border grid place-items-center transition-colors ${
                         validee
                           ? "bg-gain border-gain text-papier"
                           : "border-filet bg-papier-2 text-encre-3 hover:text-encre"
