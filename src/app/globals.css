@@ -292,6 +292,17 @@
   /* La zone tactile seule : c'est elle qui doit faire 4 rem, jamais moins. */
   --rangee-nav: 4rem;
   --barre-nav: calc(var(--rangee-nav) + var(--marge-bas));
+  /*
+     La rangée SOS de la séance — quatre boutons, icône puis libellé.
+     Mesurée, pas devinée : `py-2` sur la rangée (16 px) + `py-2` sur les
+     boutons (16 px) + icône 20 px + `gap-1` 4 px + libellé ~16 px + le filet
+     du haut. `pb-16` la réservait à 4 rem : la dernière série d'une séance
+     longue passait de quelques pixels sous la barre — exactement à l'endroit
+     où elle compte le plus.
+     La barre elle-même se pose au-dessus de la navigation ; ce qui défile
+     derrière doit donc dégager les DEUX. */
+  --rangee-sos: 4.75rem;
+  --degagement-live: calc(var(--rangee-sos) + var(--barre-nav));
 }
 
 @theme inline {

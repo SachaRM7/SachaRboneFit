@@ -298,7 +298,10 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
+        {/* Le corps défile, et c'est LUI qui doit dégager la barre de gestes :
+            la feuille est collée au bas de l'écran, donc la dernière ligne de
+            technique tombait sous le home indicator. */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-5">
           {/*
             L'ORDRE, et pourquoi celui-là.
 

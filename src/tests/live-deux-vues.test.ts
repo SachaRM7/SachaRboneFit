@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 /**
@@ -33,6 +33,15 @@ const sansCommentaires = (s: string) =>
     .replace(/^\s*\/\/.*$/gm, "");
 
 const lire = (f: string) => sansCommentaires(readFileSync(path.join(RACINE, f), "utf8"));
+
+/** Tous les fichiers d'un dossier, récursivement. */
+function fichiers(relatif: string, suffixes: string[]): string[] {
+  return readdirSync(path.join(RACINE, relatif), { withFileTypes: true }).flatMap((e) => {
+    const chemin = path.join(relatif, e.name);
+    if (e.isDirectory()) return fichiers(chemin, suffixes);
+    return suffixes.some((suffixe) => e.name.endsWith(suffixe)) ? [chemin] : [];
+  });
+}
 
 const PAGE = "app/(app)/sessions/new/[templateId]/page.tsx";
 const FOCUS = "components/session/VueFocus.tsx";
@@ -264,5 +273,81 @@ describe("les acquis des lots précédents ne sont pas défaits", () => {
     // Pas de seconde fiche pour la vue Focus : elle passe par TableauSeries.
     expect(lire("components/session/TableauSeries.tsx")).toMatch(/<FicheExecution/);
     expect(lire(FOCUS)).not.toMatch(/FicheExecution/);
+  });
+});
+
+describe("le Live dégage les zones réservées d'iOS", () => {
+  /*
+   * CE QUE CE BLOC EST, ET CE QU'IL N'EST PAS
+   *
+   * Il lit des classes et des variables CSS. Il ne remplace pas un essai sur un
+   * vrai iPhone, et personne ne devrait le croire : il ne mesure rien à
+   * l'écran. Ce qu'il empêche, c'est la régression la plus banale — une valeur
+   * recopiée en dur qui cesse d'être juste, ou une feuille ajoutée sans marge
+   * basse.
+   *
+   * Aucun essai physique n'a été fait dans ce lot.
+   */
+  const GLOBALS = "app/globals.css";
+
+  it("le dégagement du bas est calculé, pas recopié", () => {
+    /*
+     * `pb-16` valait 4 rem quand la rangée SOS en mesure 4,75 : la dernière
+     * série d'une séance longue passait de quelques pixels sous la barre —
+     * exactement à l'endroit où elle compte le plus. Et le nombre était le même
+     * sur un appareil sans encoche et sur un iPhone.
+     */
+    const css = lire(GLOBALS);
+    expect(css).toMatch(/--rangee-sos:/);
+    expect(css).toMatch(/--degagement-live: calc\(var\(--rangee-sos\) \+ var\(--barre-nav\)\)/);
+    // Et la barre de navigation inclut déjà la marge basse du système.
+    expect(css).toMatch(/--barre-nav: calc\(var\(--rangee-nav\) \+ var\(--marge-bas\)\)/);
+
+    const page = lire(PAGE);
+    expect(page).toMatch(/var\(--degagement-live\)/);
+    expect(page, "le dégagement est de nouveau écrit en dur")
+      .not.toMatch(/className="min-h-screen bg-papier pb-\d+"/);
+  });
+
+  it("l'en-tête collant se pose sous l'encoche, pas dessous", () => {
+    // À `top-0`, il glissait derrière la barre d'état dès le premier
+    // défilement — nom de la séance, chrono et bouton quitter compris.
+    const page = lire(PAGE);
+    expect(page).toMatch(/top: "var\(--marge-haut\)"/);
+  });
+
+  it("la barre SOS se pose au-dessus de la navigation basse", () => {
+    // À `bottom-0`, elle passait sous une barre de navigation fixée au même
+    // endroit et de z-index supérieur.
+    const page = lire(PAGE);
+    expect(page).toMatch(/bottom: "var\(--barre-nav\)"/);
+  });
+
+  it("toutes les feuilles du Live dégagent le home indicator", () => {
+    /*
+     * `SOSMachineOccupee` et `RemplacerExercice` ne le faisaient pas : leur
+     * dernier bouton — « Remplacer », celui qu'on vient chercher — tombait sous
+     * la barre de gestes de l'iPhone.
+     *
+     * Une feuille se reconnaît à `rounded-t-2xl` : elle est collée au bas de
+     * l'écran, donc elle doit dégager.
+     */
+    const feuilles = fichiers("components/session", [".tsx"])
+      .filter((f) => lire(f).includes("rounded-t-2xl"));
+    expect(feuilles.length, "aucune feuille trouvée : le garde ne surveille rien")
+      .toBeGreaterThan(4);
+
+    for (const f of feuilles) {
+      expect(lire(f), `${f} ne dégage pas le home indicator`)
+        .toMatch(/pb-\[max\(1rem,env\(safe-area-inset-bottom\)\)\]/);
+    }
+  });
+
+  it("les contrôles de saisie gardent une cible tactile suffisante", () => {
+    // 44 px est le minimum d'iOS. Des boutons plus petits se ratent avec les
+    // mains moites, entre deux séries.
+    const stepper = lire("components/session/PasDeCharge.tsx");
+    expect(stepper).toMatch(/w-11 h-11/);
+    expect(lire("components/session/TableauSeries.tsx")).toMatch(/w-11 h-11/);
   });
 });

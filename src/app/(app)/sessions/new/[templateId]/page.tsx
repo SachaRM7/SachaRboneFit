@@ -621,7 +621,16 @@ function ContenuSeanceLive() {
      * est exactement le moment où elle compte.
      */
     <div
-      className="min-h-screen bg-papier pb-16"
+      className="min-h-screen bg-papier"
+      /*
+       * Le dégagement vient d'une variable partagée, pas d'un `pb-16`.
+       *
+       * `pb-16` valait 4 rem quand la rangée SOS en mesure 4,75 : la dernière
+       * série d'une séance longue passait sous la barre. Et la valeur était
+       * recopiée là plutôt que calculée — sur un appareil sans encoche comme
+       * sur un iPhone, c'était le même nombre pour deux réalités.
+       */
+      style={{ paddingBottom: "var(--degagement-live)" }}
       onPointerDown={interaction}
     >
       {/* Déclaré pour que l'entrée du coach s'efface : pendant la séance, ce
