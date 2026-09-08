@@ -2,13 +2,18 @@
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useSessionStore } from "@/stores/sessionStore";
+import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
 import { RestTimer } from "@/components/session/RestTimer";
 import { type ExercicePrescrit } from "@/components/session/types";
 import { TableauSeries } from "@/components/session/TableauSeries";
+import { VueFocus } from "@/components/session/VueFocus";
+import { SelecteurVue } from "@/components/session/SelecteurVue";
+import {
+  avancement, exerciceAffiche, CLE_VUE_LIVE, vueParDefaut, type VueLive,
+} from "@/lib/live/vue-live";
 import { BandeauAdaptation } from "@/components/session/BandeauAdaptation";
 import { initAudioContext, playBeep } from "@/lib/audio/beep";
 import { SOSBar } from "@/components/session/SOSBar";
@@ -81,7 +86,7 @@ function ContenuSeanceLive() {
   const router = useRouter();
 
   const {
-    active, start,
+    active, start, hydraterSets, setCurrentExerciseIndex,
     startRest, clearRest, skipRest, extendRest, skipExercises, allegerExercises,
   } = useSessionStore();
 
@@ -94,6 +99,36 @@ function ContenuSeanceLive() {
   const [timerVisible, setTimerVisible] = useState(false);
   const [audioPret, setAudioPret] = useState(false);
   const [modaleSOS, setModaleSOS] = useState<ModaleSOS>(null);
+
+  /*
+   * La vue choisie — Focus par défaut, retenue localement.
+   *
+   * Localement, parce qu'elle décrit un APPAREIL et un moment, pas une
+   * personne : on veut Focus sur le téléphone en salle et souvent Liste sur un
+   * écran large. En faire un réglage de compte imposerait de le synchroniser
+   * et de le migrer pour une valeur qui change en changeant d'écran.
+   *
+   * `useState` avec initialisation paresseuse : `localStorage` n'existe pas au
+   * rendu serveur, et le lire pendant le rendu produirait une hydratation
+   * incohérente.
+   */
+  const [vue, setVue] = useState<VueLive>("focus");
+  useEffect(() => {
+    try {
+      setVue(vueParDefaut(window.localStorage.getItem(CLE_VUE_LIVE)));
+    } catch {
+      // Navigation privée, stockage refusé : Focus reste le défaut.
+    }
+  }, []);
+
+  const choisirVue = (v: VueLive) => {
+    setVue(v);
+    try {
+      window.localStorage.setItem(CLE_VUE_LIVE, v);
+    } catch {
+      // La préférence ne survivra pas au rechargement, la séance si.
+    }
+  };
   // Changer de lieu se décide avant de commencer, pas en pleine série : le
   // panneau reste replié tant qu'on ne le demande pas.
   const [changementDeLieu, setChangementDeLieu] = useState(false);
@@ -375,6 +410,34 @@ function ContenuSeanceLive() {
    *
    * Synchrone, et sans valeur de retour : aucun appelant ne peut l'attendre.
    */
+  /*
+   * La reprise : ce que la BASE porte fait autorité.
+   *
+   * Le brouillon local protège déjà d'un rafraîchissement. Il ne protège pas
+   * d'un `localStorage` vidé — navigation privée, nettoyage iOS sous pression
+   * mémoire, autre appareil. On relit donc les séries déjà persistées et on
+   * complète le brouillon avec celles qu'il ignore.
+   *
+   * Une seule requête, après le premier rendu : elle ne retarde pas l'accès à
+   * la première série.
+   */
+  useEffect(() => {
+    if (!active?.id) return;
+    let annule = false;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/session-logs/${active.id}/series`);
+        if (!res.ok || annule) return;
+        const lignes: DraftSet[] = await res.json();
+        if (Array.isArray(lignes) && lignes.length > 0) hydraterSets(lignes);
+      } catch {
+        // Hors ligne : le brouillon local reste, et la clôture réécrira tout.
+      }
+    })();
+    return () => { annule = true; };
+    // Une seule fois par séance : `active.id` ne change pas en cours de route.
+  }, [active?.id, hydraterSets]);
+
   const enregistrerIncident = (data: { type: string; contexte: Record<string, unknown>; decision: string }): void => {
     // Possible depuis que le store porte l'identifiant réel : cet appel
     // renvoyait auparavant 403 à chaque fois, en silence.
@@ -451,15 +514,55 @@ function ContenuSeanceLive() {
   const exercicesSkippes = active?.skippedExerciseIds ?? [];
   const reductionsRPE = active?.rpeReductions ?? {};
   const visibles = seance.exercices.filter((e) => !exercicesSkippes.includes(e.id));
-  // Toute la séance étant affichée, il n'y a plus d'exercice « courant » au sens
-  // d'une navigation. Celui qui compte pour les SOS et le décompte est le
-  // premier dont les séries ne sont pas toutes validées.
-  const seriesValidees = (id: string) =>
-    (active?.sets ?? []).filter((s) => s.exerciseInstanceId === id).length;
-  const premierNonTermine = visibles.findIndex((e) => seriesValidees(e.id) < e.seriesCibles);
-  const index = premierNonTermine === -1 ? Math.max(0, visibles.length - 1) : premierNonTermine;
+
+  /*
+   * L'avancement est calculé UNE fois, et les deux vues le lisent.
+   *
+   * Focus et Liste montrent la même séance : si chacune déduisait de son côté
+   * « où en est-on », elles finiraient par se contredire — 2/3 ici, 3/3 là.
+   * Toute cette logique vit dans `lib/live/vue-live.ts`, hors de React et
+   * testée pour elle-même.
+   */
+  const etats = avancement(
+    visibles.map((e) => ({ id: e.id, nom: e.nom, seriesCibles: e.seriesCibles })),
+    active?.sets ?? [],
+  );
+
+  /*
+   * `currentExerciseIndex` redevient une VRAIE navigation.
+   *
+   * Il disait auparavant « le premier exercice non terminé », recalculé à
+   * chaque rendu : ouvrir le 4 pour préparer sa machine renvoyait au 2 dès la
+   * série suivante. Il porte maintenant ce que la personne a choisi de
+   * regarder, et `exerciceAffiche` ne le corrige que s'il ne désigne plus rien.
+   */
+  const index = exerciceAffiche(etats, active?.currentExerciseIndex ?? null);
   const courant = visibles[index];
-  const termines = visibles.filter((e) => seriesValidees(e.id) >= e.seriesCibles).length;
+  const termines = etats.filter((e) => e.statut === "termine").length;
+
+  /*
+   * Les actions d'un exercice — montées UNE fois, employées par les deux vues.
+   *
+   * Le remplacement a besoin du parc de la salle et de la séance en cours, que
+   * `TableauSeries` ne connaît pas et n'a pas à connaître. Écrire ce bloc deux
+   * fois — une par vue — aurait suffi à ce que les deux divergent : une
+   * substitution possible en Liste et pas en Focus, sans que rien ne le dise.
+   */
+  const actionsDeLExercice = (exercice: (typeof visibles)[number]) =>
+    active?.id && gymId ? (
+      <RemplacerExercice
+        sessionLogId={active.id}
+        exerciceId={exercice.id}
+        exerciceNom={exercice.nom}
+        pilier={pilierDe(exercice)}
+        profilTension={profilDe(exercice)}
+        gymId={gymId}
+        parcSalle={parcSalle}
+        dejaAuProgramme={visibles.map((e) => e.id)}
+        musclesCourbatures={musclesCourbatures}
+        onRemplace={(r) => remplacer(exercice.id, r)}
+      />
+    ) : null;
 
   const restants: ExerciceAvecMuscles[] = visibles.slice(index).map((e, i) => ({
     exercise_instance_id: e.id,
@@ -577,7 +680,32 @@ function ContenuSeanceLive() {
           sans naviguer, et corriger une série faite plus tôt ne demande pas de
           revenir en arrière. */}
       <main className="px-4 py-4 space-y-3">
-        {visibles.length > 0 ? (
+        {/*
+          Le sélecteur ne change pas d'écran : il change ce qui est rendu. Rien
+          n'est rechargé, aucun brouillon ne se perd, le minuteur continue.
+        */}
+        {visibles.length > 0 && (
+          <div className="flex justify-end">
+            <SelecteurVue vue={vue} onChanger={choisirVue} />
+          </div>
+        )}
+
+        {visibles.length === 0 ? (
+          <p className="text-encre-3">Aucun exercice dans cette séance.</p>
+        ) : vue === "focus" ? (
+          <VueFocus
+            exercices={visibles}
+            etats={etats}
+            courant={index}
+            onNaviguer={setCurrentExerciseIndex}
+            rpeReduction={(id) => reductionsRPE[id] ?? 0}
+            modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
+            onSerieValidee={lancerRepos}
+            actions={actionsDeLExercice}
+          />
+        ) : (
+          /* La vue Liste, inchangée : toute la séance d'un coup, pour scanner
+             ce qui reste ou corriger plusieurs séries d'affilée. */
           visibles.map((exercice) => (
             <TableauSeries
               key={exercice.id}
@@ -585,26 +713,9 @@ function ContenuSeanceLive() {
               rpeReduction={reductionsRPE[exercice.id] ?? 0}
               modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
               onSerieValidee={lancerRepos}
-              actions={
-                active?.id && gymId ? (
-                  <RemplacerExercice
-                    sessionLogId={active.id}
-                    exerciceId={exercice.id}
-                    exerciceNom={exercice.nom}
-                    pilier={pilierDe(exercice)}
-                    profilTension={profilDe(exercice)}
-                    gymId={gymId}
-                    parcSalle={parcSalle}
-                    dejaAuProgramme={visibles.map((e) => e.id)}
-                    musclesCourbatures={musclesCourbatures}
-                    onRemplace={(r) => remplacer(exercice.id, r)}
-                  />
-                ) : null
-              }
+              actions={actionsDeLExercice(exercice)}
             />
           ))
-        ) : (
-          <p className="text-encre-3">Aucun exercice dans cette séance.</p>
         )}
       </main>
 

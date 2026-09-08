@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
 import { chargeAEnregistrer, consigneDeSaisie, libelleChampCharge } from "@/lib/validators/exercise-instance";
 import { derniereLigneRetirable, nombreDeLignes } from "./lignes-de-series";
+import { PasDeCharge, alerteChargeIrrealisable } from "./PasDeCharge";
 
 interface Props {
   exercice: ExercicePrescrit;
@@ -260,6 +261,25 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
   };
 
   const lignes = Array.from({ length: nbLignes }, (_, i) => i + 1);
+
+  /**
+   * La série qu'on est en train de faire — la première non validée.
+   *
+   * C'est la seule que la saisie rapide manipule. `null` quand tout est
+   * validé : il n'y a alors plus de « prochaine série », et afficher des
+   * boutons qui modifient une ligne verrouillée serait un mensonge.
+   */
+  const serieCourante = lignes.find(
+    (n) => !seriesSaisies.some((s) => s.numeroSerie === n),
+  ) ?? null;
+
+  const repsCourantes = serieCourante === null
+    ? 0
+    : Number.parseInt(valeurs(serieCourante).reps, 10) || 0;
+
+  const alerte = serieCourante === null
+    ? null
+    : alerteChargeIrrealisable(exercice, valeurs(serieCourante).charge);
   const validees = seriesSaisies.length;
 
   const champ =
@@ -378,6 +398,81 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
             </span>
           )}
         </p>
+      )}
+
+      {/*
+        La saisie rapide, sur la SÉRIE COURANTE seulement.
+
+        Un stepper par ligne aurait mis six boutons sur un tableau déjà dense.
+        Celui-ci ne sert qu'à la prochaine série à faire — la seule qu'on
+        manipule entre deux efforts — et les crans viennent du moteur, jamais
+        d'un incrément écrit dans l'écran.
+
+        La saisie directe reste là : toucher la valeur ouvre le clavier. Le
+        parcours normal n'en a pas besoin, les cas particuliers oui.
+      */}
+      {serieCourante !== null && (
+        <div className="px-3.5 pt-3 flex items-center gap-2">
+          <span className="text-xs text-encre-3 shrink-0">
+            Série <span className="chiffres">{serieCourante}</span>
+          </span>
+          <PasDeCharge
+            exercice={exercice}
+            valeur={valeurs(serieCourante).charge}
+            onChanger={(val) => ecrire(serieCourante, "charge", val)}
+          />
+          <span className="chiffres text-sm text-encre tabular-nums min-w-[3.5rem] text-center">
+            {valeurs(serieCourante).charge || "—"}
+          </span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            {/* Les répétitions n'ont pas de grille matérielle : un cran est un
+                cran. C'est la seule différence avec la charge. */}
+            <button
+              type="button"
+              onClick={() => ecrire(serieCourante, "reps", String(Math.max(0, repsCourantes - 1)))}
+              aria-label="Une répétition de moins"
+              className="shrink-0 w-11 h-11 rounded-lg border border-filet bg-papier-2 flex items-center justify-center active:bg-filet"
+            >
+              <Minus className="w-4 h-4 text-encre-2" aria-hidden />
+            </button>
+            <span className="chiffres text-sm text-encre tabular-nums min-w-[2.5rem] text-center">
+              {valeurs(serieCourante).reps || "—"}
+            </span>
+            <button
+              type="button"
+              onClick={() => ecrire(serieCourante, "reps", String(repsCourantes + 1))}
+              aria-label="Une répétition de plus"
+              className="shrink-0 w-11 h-11 rounded-lg border border-filet bg-papier-2 flex items-center justify-center active:bg-filet"
+            >
+              <Plus className="w-4 h-4 text-encre-2" aria-hidden />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/*
+        Une charge que l'appareil ne produit pas.
+
+        Elle n'est PAS remplacée en silence : la corriger d'autorité ferait
+        enregistrer autre chose que ce qui a été soulevé. L'écran dit ce qui
+        existe autour, et laisse choisir.
+      */}
+      {alerte && serieCourante !== null && (
+        <div className="px-3.5 pt-2">
+          <p className="text-xs text-feu-orange">{alerte.message}</p>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {alerte.choix.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => ecrire(serieCourante, "charge", String(c))}
+                className="chiffres rounded-md border border-filet bg-papier-2 px-3 py-1.5 text-sm text-encre active:bg-filet"
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="p-3.5">

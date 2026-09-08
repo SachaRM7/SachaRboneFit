@@ -411,3 +411,153 @@ export async function abandonnerSeance(userId: string, sessionLogId: string): Pr
     await tx.delete(sessionLogs).where(eq(sessionLogs.id, sessionLogId));
   });
 }
+
+// ---------------------------------------------------------------------------
+// Persistance série par série
+// ---------------------------------------------------------------------------
+
+/**
+ * Une série validée arrive en base TOUT DE SUITE — et non à la clôture.
+ *
+ * CE QUI SE PASSAIT
+ *
+ * Le brouillon vivait dans `localStorage`, et rien n'atteignait Postgres avant
+ * l'écran de fin. Une séance d'une heure tenait donc entièrement dans le
+ * navigateur : un crash de Safari, un onglet fermé par le système sous pression
+ * mémoire, un `localStorage` purgé, et l'entraînement n'avait jamais eu lieu.
+ * C'est le genre de perte qu'on ne découvre qu'une fois, et qui suffit à ne
+ * plus faire confiance à l'application.
+ *
+ * L'ÉCRITURE EST IDEMPOTENTE, SANS MIGRATION
+ *
+ * Une série est identifiée par (séance, entrée, numéro) — le même triplet que
+ * le brouillon emploie déjà comme clé. On supprime puis on insère, dans une
+ * transaction : rejouer l'appel après un échec réseau ne crée pas de doublon,
+ * et revalider une série corrigée met à jour la bonne ligne.
+ *
+ * Pas de contrainte d'unicité ajoutée en base : elle donnerait un `ON CONFLICT`
+ * plus élégant, mais imposerait une migration sur une table en service dont
+ * l'historique n'a jamais été vérifié contre ce triplet. Le coût ne vaut pas le
+ * gain, et la transaction offre la même garantie.
+ *
+ * LA CLÔTURE RESTE L'AUTORITÉ. `terminerSeance` efface les séries de la séance
+ * et réécrit la liste complète : ce qui a été persisté en route est donc
+ * remplacé par l'état final du brouillon, sans conflit possible entre les deux
+ * chemins.
+ */
+export async function enregistrerSerie(donnees: {
+  userId: string;
+  sessionLogId: string;
+  serie: SerieASauver;
+}): Promise<void> {
+  const existante = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.id, donnees.sessionLogId),
+      eq(sessionLogs.userId, donnees.userId),
+      isNull(sessionLogs.archiveLe),
+    ),
+  });
+  if (!existante) throw new SeanceIntrouvable();
+
+  const s = donnees.serie;
+
+  // Les mêmes exigences qu'à la clôture, au même endroit du moteur : une série
+  // acceptée en route ne doit pas être refusée à la fin.
+  const [convention] = await db
+    .select({
+      id: exerciseInstances.id,
+      conventionCharge: exerciseInstances.conventionCharge,
+      natureCharge: exerciseInstances.natureCharge,
+    })
+    .from(exerciseInstances)
+    .where(eq(exerciseInstances.id, s.exerciseInstanceId));
+
+  const motif = motifSerieInvalide(s, convention ?? {}, {
+    effortRequis: effortRequisPour(await phaseDuCycle(existante.seanceTemplateId)),
+  });
+  if (motif) throw new SerieInvalide(s.numeroSerie, motif);
+
+  await db.transaction(async (tx) => {
+    await tx.delete(setLogs).where(and(
+      eq(setLogs.sessionLogId, donnees.sessionLogId),
+      eq(setLogs.exerciseInstanceId, s.exerciseInstanceId),
+      eq(setLogs.numeroSerie, s.numeroSerie),
+    ));
+    await tx.insert(setLogs).values({
+      sessionLogId: donnees.sessionLogId,
+      exerciseInstanceId: s.exerciseInstanceId,
+      numeroSerie: s.numeroSerie,
+      repsEffectuees: s.repsEffectuees,
+      charge: s.charge,
+      rpeEffectif: s.rpeEffectif ?? null,
+      tempoRespecte: s.tempoRespecte ?? null,
+      reposReelSecondes: s.reposReelSecondes ?? null,
+      notes: s.notes ?? null,
+    });
+  });
+}
+
+/**
+ * Retirer une série décochée par erreur, du même triplet.
+ *
+ * Sans ce chemin, décocher une série pendant la séance la laisserait en base
+ * jusqu'à la clôture — et si le navigateur tombait entre les deux, elle
+ * ressusciterait à la reprise.
+ */
+export async function retirerSerie(donnees: {
+  userId: string;
+  sessionLogId: string;
+  exerciseInstanceId: string;
+  numeroSerie: number;
+}): Promise<void> {
+  const existante = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.id, donnees.sessionLogId),
+      eq(sessionLogs.userId, donnees.userId),
+      isNull(sessionLogs.archiveLe),
+    ),
+  });
+  if (!existante) throw new SeanceIntrouvable();
+
+  await db.delete(setLogs).where(and(
+    eq(setLogs.sessionLogId, donnees.sessionLogId),
+    eq(setLogs.exerciseInstanceId, donnees.exerciseInstanceId),
+    eq(setLogs.numeroSerie, donnees.numeroSerie),
+  ));
+}
+
+/**
+ * Les séries déjà en base pour une séance — ce qui permet la reprise.
+ *
+ * C'est la BASE qui fait autorité : au chargement, l'écran repart de ce qu'elle
+ * porte. Un `localStorage` disparu ne doit plus faire perdre une séance, et il
+ * ne doit surtout pas faire recréer une `session_logs`.
+ */
+export async function seriesDeLaSeance(
+  userId: string,
+  sessionLogId: string,
+): Promise<SerieASauver[]> {
+  const existante = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.id, sessionLogId),
+      eq(sessionLogs.userId, userId),
+      isNull(sessionLogs.archiveLe),
+    ),
+  });
+  if (!existante) throw new SeanceIntrouvable();
+
+  const lignes = await db.select().from(setLogs)
+    .where(eq(setLogs.sessionLogId, sessionLogId))
+    .orderBy(setLogs.numeroSerie);
+
+  return lignes.map((l) => ({
+    exerciseInstanceId: l.exerciseInstanceId,
+    numeroSerie: l.numeroSerie,
+    repsEffectuees: l.repsEffectuees,
+    charge: l.charge,
+    rpeEffectif: l.rpeEffectif,
+    tempoRespecte: l.tempoRespecte,
+    reposReelSecondes: l.reposReelSecondes,
+    notes: l.notes,
+  }));
+}

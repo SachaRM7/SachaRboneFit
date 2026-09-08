@@ -68,6 +68,24 @@ const LECTURE = /\.from\(setLogs\)|query\.setLogs\.find|[a-zA-Z]+Join\(setLogs\b
 const PORTE_LA_REGLE =
   /seriesActives|seriesNonArchivees|seancesActives|seancesRealisees|estUneSeanceRealisee|sessionLogs\.archiveLe/;
 
+/**
+ * La seconde forme sûre : une instruction ÉPINGLÉE À UNE SEULE SÉANCE.
+ *
+ * Ce que le garde-fou craint d'une requête enracinée sur une instance, c'est
+ * qu'elle traverse les séances — et ramasse au passage celles qui ont été
+ * archivées, donc retirées du calcul. Une instruction qui porte AUSSI
+ * `eq(setLogs.sessionLogId, …)` ne peut atteindre qu'une séance, celle-là et
+ * pas une autre : elle est strictement plus étroite que le filtre d'archivage,
+ * pas plus permissive.
+ *
+ * Ce n'est pas une échappatoire. Elle a été ajoutée au lot 17, où la
+ * persistance série par série écrit sur le triplet (séance, entrée, numéro) —
+ * la séance ayant été relue juste avant avec `isNull(archiveLe)` et
+ * appartenance vérifiée. Retirer ce `sessionLogId` d'une de ces instructions
+ * la fait immédiatement échouer ici, ce que le contrôle négatif a vérifié.
+ */
+const EPINGLEE_A_UNE_SEANCE = /eq\(setLogs\.sessionLogId,/;
+
 function compter(texte: string, motif: RegExp): number {
   return texte.match(new RegExp(motif.source, "g"))?.length ?? 0;
 }
@@ -96,9 +114,13 @@ const LECTEURS: Record<string, { lectures: number; pourquoi: Justification; note
   },
   "services/bilan.ts": { lectures: 2, pourquoi: "regle-dans-la-requete" },
   "services/seances.ts": {
-    lectures: 1, pourquoi: "bornee-par-des-seances",
+    lectures: 2, pourquoi: "bornee-par-des-seances",
     note: "abandonner : compte les séries d'UNE séance déjà relue et vérifiée non archivée, "
-      + "pour refuser d'effacer une séance où quelque chose a eu lieu",
+      + "pour refuser d'effacer une séance où quelque chose a eu lieu. "
+      + "seriesDeLaSeance (lot 17) : relit les séries persistées en cours de séance "
+      + "pour la reprise après un crash. La séance est relue juste avant avec "
+      + "`isNull(archiveLe)` et appartenance vérifiée — une séance archivée lève "
+      + "`SeanceIntrouvable` et n'atteint jamais cette lecture.",
   },
   "services/debrief-seance.ts": {
     lectures: 2, pourquoi: "bornee-par-des-seances",
@@ -188,7 +210,8 @@ describe("les lectures enracinées sur une instance portent la règle", () => {
 
   for (const [fichier, requete] of concernes) {
     it(`${fichier} exclut les séances archivées dans sa propre requête`, () => {
-      expect(PORTE_LA_REGLE.test(requete), requete.trim()).toBe(true);
+      const sure = PORTE_LA_REGLE.test(requete) || EPINGLEE_A_UNE_SEANCE.test(requete);
+      expect(sure, requete.trim()).toBe(true);
     });
   }
 });

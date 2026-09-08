@@ -29,6 +29,10 @@ export interface ExercicePrescrit {
   tempo?: string | null;
   reposSecondes?: number | null;
   incrementsPossibles: number[];
+  /** La grille complète de l'appareil : les paliers priment sur les incréments. */
+  paliersCharges?: number[] | null;
+  chargeMinimale?: number | null;
+  chargeMax?: number | null;
   poidsNonCompte?: number | null;
   /** Ce que le nombre saisi signifie sur cet appareil. */
   /** Muscles seulement sollicités : ils distinguent une zone visée d'une zone traversée. */

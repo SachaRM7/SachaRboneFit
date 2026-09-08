@@ -291,6 +291,82 @@ export function prochaineCharge(
   return resultat(depuis, vise, "atteignable", null, "cran suivant de l'appareil");
 }
 
+/**
+ * La charge voisine dans un sens PHYSIQUE — le cran au-dessus, celui en dessous.
+ *
+ * Sœur de `prochaineCharge`, et volontairement distincte d'elle. Celle-là
+ * répond « quelle est la charge SUIVANTE quand on progresse », ce qui descend
+ * sur une assistance. Celle-ci répond « qu'y a-t-il un cran plus haut sur cet
+ * appareil », ce qui est la question que pose un bouton `+`.
+ *
+ * Les deux sont nécessaires, et les confondre produirait un stepper dont le `+`
+ * allège l'exercice sur une machine d'assistance — sans que rien ne le signale.
+ *
+ * Elle vit ICI, dans le moteur, et pas dans le composant. Un `valeur + 2.5`
+ * écrit dans React serait un second moteur d'arrondi : il transformerait
+ * `[5, 10, 17.5, 25]` en 5, 7.5, 10 — des charges que l'appareil ne produit
+ * pas. Le stepper ne doit proposer que ce qui existe réellement.
+ */
+export function voisineCharge(
+  config: ConfigurationCharge,
+  depuis: number,
+  sens: "haut" | "bas",
+): ResolutionCharge {
+  const versLeHaut = sens === "haut";
+  const paliers = paliersUtilisables(config.paliersCharges);
+  const { min, max } = bornes(config);
+
+  if (paliers) {
+    const admissibles = paliers.filter(
+      (p) => (min === null || p >= min - EPSILON) && (max === null || p <= max + EPSILON),
+    );
+    if (admissibles.length === 0) {
+      return indeterminable("aucun palier ne tient dans les bornes déclarées");
+    }
+    const voisin = versLeHaut
+      ? admissibles.find((p) => p > depuis + EPSILON)
+      : [...admissibles].reverse().find((p) => p < depuis - EPSILON);
+
+    if (voisin === undefined) {
+      const butee = versLeHaut ? admissibles[admissibles.length - 1]! : admissibles[0]!;
+      return resultat(
+        depuis, butee, "butee",
+        versLeHaut ? "maximum" : "minimum",
+        versLeHaut ? "dernier palier de la collection" : "premier palier de la collection",
+      );
+    }
+    return resultat(depuis, voisin, "atteignable", null, "palier voisin");
+  }
+
+  const pas = pasDeLaGrille(config.incrementsPossibles);
+  if (pas === null) {
+    return indeterminable("incréments inconnus sur cet appareil");
+  }
+
+  // La grille est ancrée sur le plancher : une pile qui commence à 5 et monte
+  // par 5 donne 5, 10, 15 — jamais 7,5 parce qu'on est parti de 2,5.
+  const ancre = min ?? 0;
+  const crans = (depuis - ancre) / pas;
+  const cible = versLeHaut
+    ? ancre + (Math.floor(crans + EPSILON) + 1) * pas
+    : ancre + (Math.ceil(crans - EPSILON) - 1) * pas;
+
+  if (versLeHaut && max !== null && cible > max + EPSILON) {
+    const dernier = ancre + Math.floor((max - ancre) / pas + EPSILON) * pas;
+    return resultat(depuis, dernier, "butee", "maximum", "dernier cran de l'appareil");
+  }
+  if (!versLeHaut && min !== null && cible < min - EPSILON) {
+    return resultat(depuis, min, "butee", "minimum", "premier cran de l'appareil");
+  }
+  // Rien en dessous de zéro : ni une pile négative, ni une assistance qui
+  // aiderait à l'envers.
+  if (!versLeHaut && min === null && cible < -EPSILON) {
+    return resultat(depuis, 0, "butee", "minimum", "premier cran de l'appareil");
+  }
+
+  return resultat(depuis, arrondiPropre(cible), "atteignable", null, "cran voisin");
+}
+
 // ---------------------------------------------------------------------------
 // Ce que la charge d'un appareil autorise comme lecture
 // ---------------------------------------------------------------------------

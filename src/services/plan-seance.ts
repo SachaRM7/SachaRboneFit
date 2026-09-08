@@ -653,6 +653,13 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         tempo: l.tempo,
         reposSecondes: l.reposSecondes,
         incrementsPossibles: l.incrementsPossibles ?? [],
+        // La grille COMPLÈTE de l'appareil, pour le stepper du Live : une
+        // collection de paliers prime sur les incréments, et les bornes disent
+        // où elle s'arrête. Sans elles, un râtelier [2, 4, 6, 10] serait
+        // proposé de 2 en 2 — et le cran à 8 n'existe pas.
+        paliersCharges: l.paliersCharges ?? null,
+        chargeMinimale: l.chargeMinimale ?? null,
+        chargeMax: l.chargeMax ?? null,
         poidsNonCompte: l.poidsNonCompte,
         conventionCharge: l.conventionCharge,
         natureCharge: l.natureCharge,

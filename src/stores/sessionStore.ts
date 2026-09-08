@@ -1,5 +1,26 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { pousserSerie, retirerSerieEnVol } from "@/components/session/serie-en-vol";
+
+/**
+ * La persistance serveur est branchée ICI, et pas dans les écrans.
+ *
+ * Le store est le seul endroit que Focus, Liste et les SOS traversent tous.
+ * Brancher l'envoi dans `TableauSeries` aurait marché tant qu'une seule vue
+ * existait ; avec deux, il aurait fallu l'écrire deux fois, et la première
+ * divergence aurait été silencieuse — une série validée en Focus persistée,
+ * la même corrigée en Liste non.
+ *
+ * L'envoi ne bloque rien : `pousserSerie` ne rend même pas de promesse. Le
+ * store écrit d'abord en local, l'écran se met à jour, et la requête part
+ * derrière avec `keepalive`. Voir `components/session/serie-en-vol.ts`.
+ */
+const envoiDesactive = { actif: true };
+
+/** Permet aux tests de couper le réseau sans mocker tout le module. */
+export function suspendrePersistanceSerie(suspendu: boolean) {
+  envoiDesactive.actif = !suspendu;
+}
 
 export type DraftSet = {
   exerciseInstanceId: string;
@@ -67,6 +88,8 @@ type SessionStore = {
    */
   start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "tempoParExercice" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
+  /** Remplace le brouillon par ce que la base porte — voir `hydraterDepuisServeur`. */
+  hydraterSets: (sets: DraftSet[]) => void;
   removeSet: (exerciseInstanceId: string, numeroSerie: number) => void;
   setCurrentExerciseIndex: (i: number) => void;
   setNotes: (notes: string) => void;
@@ -118,6 +141,30 @@ export const useSessionStore = create<SessionStore>()(
         const sets = [...state.active.sets];
         if (existing >= 0) sets[existing] = newSet;
         else sets.push(newSet);
+
+        /*
+         * La base apprend la série tout de suite.
+         *
+         * Avant, rien n'atteignait Postgres avant l'écran de fin : une heure
+         * d'entraînement tenait dans le `localStorage`, et un crash de Safari
+         * l'effaçait entièrement. Seules les séries qui MESURENT quelque chose
+         * partent — une ligne à moitié saisie n'a rien à persister, et le
+         * serveur la refuserait.
+         */
+        if (envoiDesactive.actif
+          && newSet.repsEffectuees !== null && newSet.charge !== null) {
+          pousserSerie(state.active.id, {
+            exerciseInstanceId: newSet.exerciseInstanceId,
+            numeroSerie: newSet.numeroSerie,
+            repsEffectuees: newSet.repsEffectuees,
+            charge: newSet.charge,
+            rpeEffectif: newSet.rpeEffectif,
+            tempoRespecte: newSet.tempoRespecte,
+            reposReelSecondes: newSet.reposReelSecondes,
+            notes: newSet.notes ?? null,
+          });
+        }
+
         return { active: { ...state.active, sets, lastActionTimestamp: Date.now() } };
       }),
       // Decocher une serie validee par erreur n'etait pas possible : le store
@@ -127,7 +174,29 @@ export const useSessionStore = create<SessionStore>()(
         const sets = state.active.sets.filter(
           (s) => !(s.exerciseInstanceId === exerciseInstanceId && s.numeroSerie === numeroSerie),
         );
+        // Décocher retire aussi la ligne en base : sans cela, elle
+        // ressusciterait à la reprise après un crash.
+        if (envoiDesactive.actif) {
+          retirerSerieEnVol(state.active.id, { exerciseInstanceId, numeroSerie });
+        }
         return { active: { ...state.active, sets, lastActionTimestamp: Date.now() } };
+      }),
+      /*
+       * La reprise : ce que la BASE porte fait autorité.
+       *
+       * Une série absente du brouillon mais présente en base — l'onglet est
+       * tombé après l'envoi — est restaurée. Une série présente des deux côtés
+       * garde la version LOCALE : c'est la plus récente, l'envoi part après
+       * l'écriture locale. Rien n'est supprimé : une série locale que le
+       * serveur n'a pas encore reçue survit à la fusion.
+       */
+      hydraterSets: (duServeur) => set((state) => {
+        if (!state.active) return state;
+        const cle = (s: DraftSet) => `${s.exerciseInstanceId}#${s.numeroSerie}`;
+        const connues = new Set(state.active.sets.map(cle));
+        const manquantes = duServeur.filter((s) => !connues.has(cle(s)));
+        if (manquantes.length === 0) return state;
+        return { active: { ...state.active, sets: [...state.active.sets, ...manquantes] } };
       }),
       setCurrentExerciseIndex: (i) => set((state) =>
         state.active ? { active: { ...state.active, currentExerciseIndex: i } } : state
