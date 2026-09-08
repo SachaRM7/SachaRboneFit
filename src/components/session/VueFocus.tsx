@@ -44,11 +44,14 @@ interface Props {
   modeReserve?: boolean;
   /** Les actions propres à un exercice — remplacement, réglages — déjà montées. */
   actions?: (exercice: ExercicePrescrit) => ReactNode;
+  /** Les slots de prescription restants — voir `TableauSeries`. */
+  slotsDe?: (exercice: ExercicePrescrit) => number[];
+  avancementDe?: (exercice: ExercicePrescrit) => { faites: number; cibles: number };
 }
 
 export function VueFocus({
   exercices, etats, courant, onNaviguer, rpeReduction,
-  onSerieValidee, modeReserve = false, actions,
+  onSerieValidee, modeReserve = false, actions, slotsDe, avancementDe,
 }: Props) {
   const [listeOuverte, setListeOuverte] = useState(false);
   const exercice = exercices[courant];
@@ -131,6 +134,8 @@ export function VueFocus({
         onSerieValidee={onSerieValidee}
         modeReserve={modeReserve}
         actions={actions?.(exercice)}
+        slots={slotsDe?.(exercice)}
+        avancementSlot={avancementDe?.(exercice)}
       />
     </div>
   );

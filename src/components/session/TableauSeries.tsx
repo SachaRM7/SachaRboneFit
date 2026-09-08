@@ -36,6 +36,19 @@ interface Props {
    * bouton déjà monté et se contente de lui donner sa place.
    */
   actions?: ReactNode;
+  /**
+   * Les numéros de série que CETTE entrée doit encore demander.
+   *
+   * Après une substitution, ce n'est plus « 1 à seriesCibles » : les slots de
+   * prescription consommés sur l'ancienne machine en sont retirés. Sans ça,
+   * trois séries prescrites dont une faite sur A donnaient trois séries de plus
+   * sur B — quatre au total.
+   *
+   * Absent : comportement d'avant, tous les numéros de 1 à `seriesCibles`.
+   */
+  slots?: number[];
+  /** L'avancement du slot, toutes machines confondues. */
+  avancementSlot?: { faites: number; cibles: number };
 }
 
 type Brouillon = { charge: string; reps: string; rpe: string };
@@ -53,7 +66,10 @@ type Brouillon = { charge: string; reps: string; rpe: string };
  * La colonne « Dernière » met l'historique en face de la décision, au lieu de
  * le reléguer dans un encadré séparé au-dessus.
  */
-export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeReserve = false, actions }: Props) {
+export function TableauSeries({
+  exercice, rpeReduction, onSerieValidee, modeReserve = false, actions,
+  slots, avancementSlot,
+}: Props) {
   const { upsertSet, removeSet, active } = useSessionStore();
 
   const seriesSaisies = useMemo(
@@ -260,7 +276,20 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
     onSerieValidee(exercice.reposSecondes ?? null);
   };
 
-  const lignes = Array.from({ length: nbLignes }, (_, i) => i + 1);
+  /*
+   * Les lignes à afficher.
+   *
+   * `slots` prime quand il est fourni : après une substitution, la nouvelle
+   * machine ne redemande que les numéros restants — et elle les garde tels
+   * quels, la série 2 reste la série 2. Les séries ajoutées à la main au-delà
+   * de la prescription s'ajoutent après, comme avant.
+   */
+  const lignes = slots
+    ? [...slots, ...Array.from(
+        { length: Math.max(0, nbLignes - exercice.seriesCibles) },
+        (_, i) => exercice.seriesCibles + i + 1,
+      )]
+    : Array.from({ length: nbLignes }, (_, i) => i + 1);
 
   /**
    * La série qu'on est en train de faire — la première non validée.
@@ -330,8 +359,12 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
           <p className="text-encre-3 text-xs">{libelleCibleEffort(exercice.rpeCible)}</p>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
+          {/* L'avancement du SLOT : après substitution, il compte aussi ce qui
+              a été fait sur l'ancienne machine — sinon la séance semble
+              repartir de zéro alors qu'une série a bien été soulevée. */}
           <span className="chiffres text-xs text-encre-3 tabular-nums">
-            {validees}/{exercice.seriesCibles}
+            {avancementSlot ? avancementSlot.faites : validees}/
+            {avancementSlot ? avancementSlot.cibles : exercice.seriesCibles}
           </span>
           {actions}
         </div>

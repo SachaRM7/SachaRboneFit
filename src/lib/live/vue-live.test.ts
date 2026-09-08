@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   avancement, exerciceAffiche, premierNonTermine, progressionSeance,
   prochainNumeroSerie, serieCompte, vueParDefaut,
+  slotsARemplir, ligneeDe, noterSubstitution, avancementDeLaLignee,
   type ExercicePourLaVue, type SerieSaisie,
 } from "./vue-live";
 
@@ -163,5 +164,108 @@ describe("la vue par défaut", () => {
     expect(vueParDefaut("liste")).toBe("liste");
     // Une valeur abîmée ne doit pas ouvrir une vue inconnue.
     expect(vueParDefaut("n'importe quoi")).toBe("focus");
+  });
+});
+
+describe("une substitution ne rouvre pas les slots déjà consommés", () => {
+  /*
+   * LE DÉFAUT FERMÉ ICI
+   *
+   * Substituer gardait `seriesCibles` intact, et la nouvelle machine n'ayant
+   * aucune série, l'écran redemandait S1, S2, S3. Trois séries prescrites, une
+   * faite sur A, trois demandées sur B : quatre au total.
+   *
+   * Compter les séries de la NOUVELLE entrée ne corrige rien — elle en a zéro.
+   * Ce qui se compte, c'est le slot de prescription, quelle que soit la machine
+   * qui l'a rempli.
+   */
+  const lignee = { origine: "A", instances: ["A", "B"] };
+  const fait = (id: string, n: number): SerieSaisie => serie(id, n);
+
+  it("0/3 : la nouvelle machine fait les trois séries", () => {
+    expect(slotsARemplir(lignee, [], 3)).toEqual([1, 2, 3]);
+  });
+
+  it("1/3 sur A : la nouvelle machine ne fait que S2 et S3", () => {
+    // Le cas exact du cahier des charges. Historique final : A→S1, B→S2/S3.
+    expect(slotsARemplir(lignee, [fait("A", 1)], 3)).toEqual([2, 3]);
+  });
+
+  it("2/3 sur A : il ne reste que S3", () => {
+    expect(slotsARemplir(lignee, [fait("A", 1), fait("A", 2)], 3)).toEqual([3]);
+  });
+
+  it("3/3 sur A : plus rien à demander", () => {
+    // Aucune série supplémentaire artificielle sur la nouvelle machine.
+    expect(slotsARemplir(lignee, [fait("A", 1), fait("A", 2), fait("A", 3)], 3)).toEqual([]);
+  });
+
+  it("les numéros sont conservés, jamais renumérotés", () => {
+    /*
+     * S2 faite sur B reste la série 2. Renuméroter à partir de 1 créerait deux
+     * « série 1 » dans la séance — et la clé (séance, entrée, numéro) resterait
+     * unique, mais l'historique cesserait de se lire.
+     */
+    const restants = slotsARemplir(lignee, [fait("A", 1)], 3);
+    expect(restants[0]).toBe(2);
+  });
+
+  it("les séries des DEUX machines comptent pour le même slot", () => {
+    // A a fait S1, B a fait S2 : il ne reste que S3, et ce sur l'une ou
+    // l'autre des deux entrées.
+    expect(slotsARemplir(lignee, [fait("A", 1), fait("B", 2)], 3)).toEqual([3]);
+  });
+
+  it("une série à moitié saisie ne consomme aucun slot", () => {
+    const brouillon: SerieSaisie = {
+      exerciseInstanceId: "A", numeroSerie: 1, repsEffectuees: 10, charge: null,
+    };
+    expect(slotsARemplir(lignee, [brouillon], 3)).toEqual([1, 2, 3]);
+  });
+
+  it("les séries d'un AUTRE exercice ne consomment rien", () => {
+    // Le slot appartient à sa lignée, pas à la séance entière.
+    expect(slotsARemplir(lignee, [fait("autre-machine", 1)], 3)).toEqual([1, 2, 3]);
+  });
+
+  it("l'avancement affiché tient compte de ce qui a été fait ailleurs", () => {
+    /*
+     * Après substitution, l'écran doit dire « 1/3 » même si la nouvelle machine
+     * n'a encore rien fait — sinon la séance semble repartir de zéro alors
+     * qu'une série a bien été soulevée.
+     */
+    expect(avancementDeLaLignee(lignee, [fait("A", 1)], 3)).toEqual({ faites: 1, cibles: 3 });
+    expect(avancementDeLaLignee(lignee, [], 3)).toEqual({ faites: 0, cibles: 3 });
+  });
+});
+
+describe("la lignée d'un slot se construit substitution après substitution", () => {
+  it("une entrée jamais substituée est sa propre lignée", () => {
+    expect(ligneeDe([], "A")).toEqual({ origine: "A", instances: ["A"] });
+  });
+
+  it("substituer ajoute la nouvelle entrée sans retirer l'ancienne", () => {
+    // L'ancienne porte les séries déjà faites : la retirer les sortirait du
+    // décompte des slots, et l'exercice repartirait de zéro.
+    const apres = noterSubstitution([], "A", "B");
+    expect(apres).toEqual([{ origine: "A", instances: ["A", "B"] }]);
+  });
+
+  it("une seconde substitution allonge la même lignée", () => {
+    const apres = noterSubstitution(noterSubstitution([], "A", "B"), "B", "C");
+    expect(apres).toEqual([{ origine: "A", instances: ["A", "B", "C"] }]);
+    expect(ligneeDe(apres, "C").origine).toBe("A");
+  });
+
+  it("revenir sur une machine déjà employée ne la duplique pas", () => {
+    const apres = noterSubstitution(noterSubstitution([], "A", "B"), "B", "A");
+    expect(apres[0]!.instances).toEqual(["A", "B"]);
+  });
+
+  it("et deux slots distincts ne se mélangent pas", () => {
+    const apres = noterSubstitution(noterSubstitution([], "A", "B"), "X", "Y");
+    expect(apres).toHaveLength(2);
+    expect(ligneeDe(apres, "Y").origine).toBe("X");
+    expect(ligneeDe(apres, "B").origine).toBe("A");
   });
 });

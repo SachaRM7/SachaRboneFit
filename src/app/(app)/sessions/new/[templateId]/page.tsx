@@ -12,7 +12,8 @@ import { TableauSeries } from "@/components/session/TableauSeries";
 import { VueFocus } from "@/components/session/VueFocus";
 import { SelecteurVue } from "@/components/session/SelecteurVue";
 import {
-  avancement, exerciceAffiche, CLE_VUE_LIVE, vueParDefaut, type VueLive,
+  avancement, exerciceAffiche, CLE_VUE_LIVE, vueParDefaut,
+  ligneeDe, slotsARemplir, avancementDeLaLignee, type VueLive,
 } from "@/lib/live/vue-live";
 import { BandeauAdaptation } from "@/components/session/BandeauAdaptation";
 import { initAudioContext, playBeep } from "@/lib/audio/beep";
@@ -86,7 +87,7 @@ function ContenuSeanceLive() {
   const router = useRouter();
 
   const {
-    active, start, hydraterSets, setCurrentExerciseIndex,
+    active, start, hydraterSets, setCurrentExerciseIndex, noterSubstitution,
     startRest, clearRest, skipRest, extendRest, skipExercises, allegerExercises,
   } = useSessionStore();
 
@@ -332,6 +333,15 @@ function ContenuSeanceLive() {
    */
   const remplacer = (ancienId: string, choix: SubstituteResult) => {
     const instance = parcSalle.find((i) => i.id === choix.exerciseInstanceId);
+    /*
+     * La lignée d'abord : elle retient que ce SLOT de prescription a déjà été
+     * occupé par l'ancienne machine.
+     *
+     * Sans elle, la nouvelle repartait à 0/3 alors qu'une série avait été
+     * soulevée — trois séries prescrites, quatre réalisées. Et comme elle vit
+     * dans le store persisté, un rafraîchissement ne la perd pas.
+     */
+    noterSubstitution(ancienId, choix.exerciseInstanceId);
     setSeance((s) =>
       s
         ? {
@@ -526,6 +536,9 @@ function ContenuSeanceLive() {
   const etats = avancement(
     visibles.map((e) => ({ id: e.id, nom: e.nom, seriesCibles: e.seriesCibles })),
     active?.sets ?? [],
+    // Après substitution, les séries faites sur l'ancienne machine comptent
+    // pour le slot : la liste compacte doit dire 1/3, pas 0/3.
+    active?.lignees ?? [],
   );
 
   /*
@@ -548,6 +561,28 @@ function ContenuSeanceLive() {
    * fois — une par vue — aurait suffi à ce que les deux divergent : une
    * substitution possible en Liste et pas en Focus, sans que rien ne le dise.
    */
+  /*
+   * Les numéros de série que CETTE entrée doit encore demander.
+   *
+   * Après une substitution, ce n'est plus « 1 à seriesCibles » : les slots
+   * consommés sur l'ancienne machine sont retirés, et les numéros restants
+   * gardent leur valeur d'origine — la série 2 reste la série 2.
+   */
+  const slotsDe = (exercice: (typeof visibles)[number]) =>
+    slotsARemplir(
+      ligneeDe(active?.lignees ?? [], exercice.id),
+      active?.sets ?? [],
+      exercice.seriesCibles,
+    );
+
+  /** L'avancement du slot, toutes machines confondues. */
+  const avancementDe = (exercice: (typeof visibles)[number]) =>
+    avancementDeLaLignee(
+      ligneeDe(active?.lignees ?? [], exercice.id),
+      active?.sets ?? [],
+      exercice.seriesCibles,
+    );
+
   const actionsDeLExercice = (exercice: (typeof visibles)[number]) =>
     active?.id && gymId ? (
       <RemplacerExercice
@@ -702,6 +737,8 @@ function ContenuSeanceLive() {
             modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
             onSerieValidee={lancerRepos}
             actions={actionsDeLExercice}
+            slotsDe={slotsDe}
+            avancementDe={avancementDe}
           />
         ) : (
           /* La vue Liste, inchangée : toute la séance d'un coup, pour scanner
@@ -714,6 +751,8 @@ function ContenuSeanceLive() {
               modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
               onSerieValidee={lancerRepos}
               actions={actionsDeLExercice(exercice)}
+              slots={slotsDe(exercice)}
+              avancementSlot={avancementDe(exercice)}
             />
           ))
         )}

@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { pousserSerie, retirerSerieEnVol, revisionSuivante } from "@/components/session/serie-en-vol";
+import {
+  noterSubstitution as noterSubstitutionDansLignees, type LigneeSlot,
+} from "@/lib/live/vue-live";
 
 /**
  * La persistance serveur est branchée ICI, et pas dans les écrans.
@@ -71,6 +74,17 @@ export type ActiveSession = {
   // RPE reductions (exerciseInstanceId -> rpe reduction amount)
   rpeReductions: Record<string, number>;
   /**
+   * Les lignées de slots de prescription — voir `lib/live/vue-live.ts`.
+   *
+   * Persistées avec le reste du brouillon : sans elles, un rafraîchissement
+   * après substitution perdrait la mémoire du slot, et la nouvelle machine
+   * redemanderait les séries déjà faites sur l'ancienne.
+   *
+   * Facultatif à la lecture : un brouillon écrit avant ce lot n'en a pas, et
+   * doit continuer de s'ouvrir.
+   */
+  lignees?: LigneeSlot[];
+  /**
    * Tempo signalé par exercice. Absent = rien n'a été dit, et c'est le cas
    * courant : on ne demande pas confirmation, on offre de signaler un écart.
    */
@@ -86,7 +100,7 @@ type SessionStore = {
    * Le store generait auparavant un UUID local, decorrele de la base : tout
    * appel utilisant cet id (enregistrement d'incident, cloture) echouait en 403.
    */
-  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "tempoParExercice" | "shownProactiveAlerts">) => void;
+  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "lignees" | "tempoParExercice" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
   /** Remplace le brouillon par ce que la base porte — voir `hydraterDepuisServeur`. */
   hydraterSets: (sets: DraftSet[]) => void;
@@ -105,6 +119,8 @@ type SessionStore = {
   /** Propage un signalement de tempo à toutes les séries déjà saisies d'un exercice. */
   signalerTempo: (exerciseInstanceId: string, respecte: boolean | null) => void;
   skipExercises: (ids: string[]) => void;
+  /** Enregistre une substitution : l'ancienne entrée garde ses séries. */
+  noterSubstitution: (ancienId: string, nouveauId: string) => void;
   allegerExercises: (ids: string[]) => void;
   updateLastAction: () => void;
   addProactiveAlertShown: (type: string) => void;
@@ -278,6 +294,24 @@ export const useSessionStore = create<SessionStore>()(
         else carte[exerciseInstanceId] = respecte;
         return { active: { ...state.active, tempoParExercice: carte, lastActionTimestamp: Date.now() } };
       }),
+      /*
+       * Une substitution ne remplace pas l'exercice : elle ALLONGE sa lignée.
+       *
+       * L'ancienne entrée porte les séries déjà faites et continue d'occuper
+       * les slots qu'elle a consommés. C'est ce qui empêche la nouvelle machine
+       * de redemander S1 quand S1 a déjà été soulevée sur l'ancienne.
+       */
+      noterSubstitution: (ancienId, nouveauId) => set((state) =>
+        state.active ? {
+          active: {
+            ...state.active,
+            lignees: noterSubstitutionDansLignees(
+              state.active.lignees ?? [], ancienId, nouveauId,
+            ),
+            lastActionTimestamp: Date.now(),
+          },
+        } : state
+      ),
       // SOS actions
       skipExercises: (ids) => set((state) =>
         state.active ? {

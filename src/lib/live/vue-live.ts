@@ -66,6 +66,15 @@ export function serieCompte(s: SerieSaisie): boolean {
 export function avancement(
   exercices: ExercicePourLaVue[],
   series: SerieSaisie[],
+  /**
+   * Les lignées de slots, quand des substitutions ont eu lieu.
+   *
+   * Sans elles, l'exercice substitué afficherait « 0/3 » alors qu'une série a
+   * été soulevée sur l'ancienne machine — et il contredirait l'en-tête du
+   * tableau, qui compte le slot. Deux nombres pour la même chose, c'est
+   * exactement ce que ce module existe pour empêcher.
+   */
+  lignees: LigneeSlot[] = [],
 ): AvancementExercice[] {
   const parInstance = new Map<string, number>();
   for (const s of series) {
@@ -74,7 +83,10 @@ export function avancement(
   }
 
   return exercices.map((e) => {
-    const faites = parInstance.get(e.id) ?? 0;
+    // Les séries de TOUTE la lignée comptent pour ce slot : celles de la
+    // machine actuelle, et celles des machines qu'elle a remplacées.
+    const membres = ligneeDe(lignees, e.id).instances;
+    const faites = membres.reduce((t, id) => t + (parInstance.get(id) ?? 0), 0);
     const statut: StatutExercice = e.seriesCibles > 0 && faites >= e.seriesCibles
       ? "termine"
       : faites > 0 ? "en_cours" : "a_faire";
@@ -176,4 +188,113 @@ export const CLE_VUE_LIVE = "rbonefit:vue-live";
  */
 export function vueParDefaut(preferenceLue: string | null | undefined): VueLive {
   return preferenceLue === "liste" ? "liste" : "focus";
+}
+
+// ---------------------------------------------------------------------------
+// Les slots de prescription, et ce qu'une substitution en fait
+// ---------------------------------------------------------------------------
+
+/**
+ * La LIGNÉE d'un slot de prescription : les entrées qui l'ont occupé, dans
+ * l'ordre.
+ *
+ * LE DÉFAUT QUE CETTE NOTION FERME
+ *
+ * Substituer remplaçait l'entrée affichée en gardant `seriesCibles` intact. Avec
+ * trois séries prescrites, une faite sur A puis un passage sur B, l'écran
+ * redemandait S1, S2, S3 sur B : quatre séries réalisées pour trois prescrites.
+ *
+ * Compter les séries de la nouvelle entrée ne suffit pas à corriger ça — B n'en
+ * a aucune, il repart donc à zéro. Ce qu'il faut compter, ce sont les SLOTS DE
+ * PRESCRIPTION déjà consommés, quelle que soit la machine qui les a remplis.
+ *
+ * La lignée est donc la clé : un slot vaut « l'exercice 2 de cette séance »,
+ * pas « la machine A ». Les séries déjà faites restent attachées à leur entrée
+ * réelle — l'historique dit la vérité — mais elles occupent le slot.
+ */
+export interface LigneeSlot {
+  /** L'entrée d'origine : elle nomme le slot, et ne change jamais. */
+  origine: string;
+  /** Toutes les entrées ayant occupé ce slot, `origine` comprise, dans l'ordre. */
+  instances: string[];
+}
+
+/** La lignée qui contient cette entrée, ou une lignée d'un seul élément. */
+export function ligneeDe(lignees: LigneeSlot[], instanceId: string): LigneeSlot {
+  return lignees.find((l) => l.instances.includes(instanceId))
+    ?? { origine: instanceId, instances: [instanceId] };
+}
+
+/**
+ * Les numéros de série que la machine COURANTE doit encore demander.
+ *
+ * Un slot est consommé dès qu'une série qui mesure quelque chose porte ce
+ * numéro, sur n'importe quelle entrée de la lignée. On rend donc les numéros
+ * libres, dans l'ordre, bornés par la prescription.
+ *
+ *   0/3 sur A, passage à B   → B demande 1, 2, 3
+ *   1/3 sur A, passage à B   → B demande 2, 3
+ *   2/3 sur A, passage à B   → B demande 3
+ *   3/3 sur A, passage à B   → B ne demande rien
+ *
+ * Les numéros sont CONSERVÉS, pas renumérotés : la série 2 faite sur B reste la
+ * série 2 de la prescription. Renuméroter à partir de 1 créerait deux « série
+ * 1 » dans la même séance, et l'historique cesserait de se lire.
+ */
+export function slotsARemplir(
+  lignee: LigneeSlot,
+  series: SerieSaisie[],
+  seriesCibles: number,
+): number[] {
+  const membres = new Set(lignee.instances);
+  const consommes = new Set(
+    series
+      .filter((s) => membres.has(s.exerciseInstanceId) && serieCompte(s))
+      .map((s) => s.numeroSerie),
+  );
+
+  const libres: number[] = [];
+  for (let n = 1; n <= seriesCibles; n += 1) {
+    if (!consommes.has(n)) libres.push(n);
+  }
+  return libres;
+}
+
+/**
+ * Enregistrer une substitution dans les lignées.
+ *
+ * L'ancienne entrée n'est PAS retirée : elle porte les séries déjà faites, et
+ * elle continue d'occuper les slots qu'elle a consommés. Repasser sur une
+ * machine déjà employée ne la duplique pas dans la lignée.
+ */
+export function noterSubstitution(
+  lignees: LigneeSlot[],
+  ancienId: string,
+  nouveauId: string,
+): LigneeSlot[] {
+  const existante = lignees.find((l) => l.instances.includes(ancienId));
+  if (!existante) {
+    return [...lignees, { origine: ancienId, instances: [ancienId, nouveauId] }];
+  }
+  if (existante.instances.includes(nouveauId)) return lignees;
+  return lignees.map((l) =>
+    l === existante ? { ...l, instances: [...l.instances, nouveauId] } : l,
+  );
+}
+
+/**
+ * L'avancement d'un slot, toutes entrées confondues.
+ *
+ * `avancement` compte par ENTRÉE, ce qui est juste tant qu'aucune substitution
+ * n'a eu lieu. Après une substitution, l'exercice affiché doit dire « 1/3 »
+ * même si la nouvelle machine n'a encore rien fait — sinon la séance semble
+ * repartir de zéro alors qu'une série a bien été soulevée.
+ */
+export function avancementDeLaLignee(
+  lignee: LigneeSlot,
+  series: SerieSaisie[],
+  seriesCibles: number,
+): { faites: number; cibles: number } {
+  const restants = slotsARemplir(lignee, series, seriesCibles);
+  return { faites: seriesCibles - restants.length, cibles: seriesCibles };
 }
