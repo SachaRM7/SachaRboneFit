@@ -7,13 +7,24 @@ import { DemonstrationMouvement } from "./DemonstrationMouvement";
 import { FicheExecution } from "./FicheExecution";
 import { useContexteExecution } from "./useContexteExecution";
 import type { ExercicePrescrit } from "./types";
-import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
+import {
+  CHOIX_RESERVE,
+  reserveVersRpe,
+  rpeVersReserve,
+} from "@/lib/engine/reserve";
 import { classeDuMotif } from "./motif-progression";
 import { champEffortPropose, effortSaisi } from "./effort-propose";
-import { LIBELLES_MOTIF_INVALIDE, motifSerieInvalide } from "@/lib/engine/serie-realisee";
+import {
+  LIBELLES_MOTIF_INVALIDE,
+  motifSerieInvalide,
+} from "@/lib/engine/serie-realisee";
 import { toast } from "sonner";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
-import { chargeAEnregistrer, consigneDeSaisie, libelleChampCharge } from "@/lib/validators/exercise-instance";
+import {
+  chargeAEnregistrer,
+  consigneDeSaisie,
+  libelleChampCharge,
+} from "@/lib/validators/exercise-instance";
 import { derniereLigneRetirable, nombreDeLignes } from "./lignes-de-series";
 import { PasDeCharge, alerteChargeIrrealisable } from "./PasDeCharge";
 
@@ -67,13 +78,19 @@ type Brouillon = { charge: string; reps: string; rpe: string };
  * le reléguer dans un encadré séparé au-dessus.
  */
 export function TableauSeries({
-  exercice, rpeReduction, onSerieValidee, modeReserve = false, actions,
-  slots, avancementSlot,
+  exercice,
+  rpeReduction,
+  onSerieValidee,
+  modeReserve = false,
+  actions,
+  slots,
+  avancementSlot,
 }: Props) {
   const { upsertSet, removeSet, active } = useSessionStore();
 
   const seriesSaisies = useMemo(
-    () => (active?.sets ?? []).filter((s) => s.exerciseInstanceId === exercice.id),
+    () =>
+      (active?.sets ?? []).filter((s) => s.exerciseInstanceId === exercice.id),
     [active?.sets, exercice.id],
   );
 
@@ -102,7 +119,11 @@ export function TableauSeries({
   const supprimerDerniereEnPlus = () => {
     if (derniereEnPlus === null) return;
     const validee = seriesSaisies.some((s) => s.numeroSerie === derniereEnPlus);
-    if (validee && !confirm(`Supprimer la série ${derniereEnPlus} déjà validée ?`)) return;
+    if (
+      validee &&
+      !confirm(`Supprimer la série ${derniereEnPlus} déjà validée ?`)
+    )
+      return;
 
     // L'ordre compte : retirer la série enregistrée AVANT de réduire le
     // compteur, sinon `nbLignes` la fait réapparaître aussitôt.
@@ -116,12 +137,15 @@ export function TableauSeries({
   // Vide quand aucun effort n'est prescrit : le champ pré-rempli à 8 partait
   // en base à la validation, sans que personne l'ait ressenti ni saisi.
   const rpeParDefaut = champEffortPropose(exercice.rpeCible, rpeReduction);
-  const chargeParDefaut = exercice.chargeSuggeree ?? exercice.historique?.[0]?.charge ?? null;
+  const chargeParDefaut =
+    exercice.chargeSuggeree ?? exercice.historique?.[0]?.charge ?? null;
 
   /** Valeurs proposées pour une ligne, avant toute saisie de l'utilisateur. */
   const proposition = (numero: number): Brouillon => ({
     charge: chargeParDefaut != null ? String(chargeParDefaut) : "",
-    reps: String(exercice.repsSuggerees?.[numero - 1] ?? exercice.fourchetteRepsMin),
+    reps: String(
+      exercice.repsSuggerees?.[numero - 1] ?? exercice.fourchetteRepsMin,
+    ),
     rpe: rpeParDefaut,
   });
 
@@ -158,7 +182,8 @@ export function TableauSeries({
     if (saisie) {
       return {
         charge: saisie.charge != null ? String(saisie.charge) : "",
-        reps: saisie.repsEffectuees != null ? String(saisie.repsEffectuees) : "",
+        reps:
+          saisie.repsEffectuees != null ? String(saisie.repsEffectuees) : "",
         rpe: saisie.rpeEffectif != null ? String(saisie.rpeEffectif) : "",
       };
     }
@@ -167,7 +192,10 @@ export function TableauSeries({
   };
 
   const ecrire = (numero: number, champ: keyof Brouillon, valeur: string) =>
-    setBrouillons((b) => ({ ...b, [numero]: { ...valeurs(numero), [champ]: valeur } }));
+    setBrouillons((b) => ({
+      ...b,
+      [numero]: { ...valeurs(numero), [champ]: valeur },
+    }));
 
   /**
    * Le temps écoulé depuis la validation de la série précédente.
@@ -210,8 +238,14 @@ export function TableauSeries({
         ...b,
         [numero]: {
           charge: enregistree.charge != null ? String(enregistree.charge) : "",
-          reps: enregistree.repsEffectuees != null ? String(enregistree.repsEffectuees) : "",
-          rpe: enregistree.rpeEffectif != null ? String(enregistree.rpeEffectif) : "",
+          reps:
+            enregistree.repsEffectuees != null
+              ? String(enregistree.repsEffectuees)
+              : "",
+          rpe:
+            enregistree.rpeEffectif != null
+              ? String(enregistree.rpeEffectif)
+              : "",
         },
       }));
       removeSet(exercice.id, numero);
@@ -285,10 +319,13 @@ export function TableauSeries({
    * de la prescription s'ajoutent après, comme avant.
    */
   const lignes = slots
-    ? [...slots, ...Array.from(
-        { length: Math.max(0, nbLignes - exercice.seriesCibles) },
-        (_, i) => exercice.seriesCibles + i + 1,
-      )]
+    ? [
+        ...slots,
+        ...Array.from(
+          { length: Math.max(0, nbLignes - exercice.seriesCibles) },
+          (_, i) => exercice.seriesCibles + i + 1,
+        ),
+      ]
     : Array.from({ length: nbLignes }, (_, i) => i + 1);
 
   /**
@@ -298,31 +335,32 @@ export function TableauSeries({
    * validé : il n'y a alors plus de « prochaine série », et afficher des
    * boutons qui modifient une ligne verrouillée serait un mensonge.
    */
-  const serieCourante = lignes.find(
-    (n) => !seriesSaisies.some((s) => s.numeroSerie === n),
-  ) ?? null;
+  const serieCourante =
+    lignes.find((n) => !seriesSaisies.some((s) => s.numeroSerie === n)) ?? null;
 
-  const repsCourantes = serieCourante === null
-    ? 0
-    : Number.parseInt(valeurs(serieCourante).reps, 10) || 0;
+  const repsCourantes =
+    serieCourante === null
+      ? 0
+      : Number.parseInt(valeurs(serieCourante).reps, 10) || 0;
 
-  const alerte = serieCourante === null
-    ? null
-    : alerteChargeIrrealisable(exercice, valeurs(serieCourante).charge);
+  const alerte =
+    serieCourante === null
+      ? null
+      : alerteChargeIrrealisable(exercice, valeurs(serieCourante).charge);
   const validees = seriesSaisies.length;
 
   const champ =
-    "w-full min-w-0 rounded-md border border-filet bg-papier-2 px-1.5 py-2 text-center " +
+    "w-full min-w-0 rounded-xl border border-filet bg-papier-2 px-1.5 py-2 text-center " +
     "chiffres text-base font-semibold text-encre focus:border-encre focus:outline-none " +
     "focus:ring-2 focus:ring-encre/20";
 
   /** Une série validée se lit, elle ne se corrige qu'après l'avoir rouverte. */
   const champVerrouille =
-    "w-full min-w-0 rounded-md border border-transparent bg-transparent px-1.5 py-2 " +
+    "w-full min-w-0 rounded-xl border border-transparent bg-transparent px-1.5 py-2 " +
     "text-center chiffres text-base font-semibold text-encre-2 cursor-default";
 
   return (
-    <section className="border border-filet rounded-xl bg-carte overflow-hidden">
+    <section className="live-exercise-card border border-filet-doux rounded-3xl bg-carte overflow-hidden shadow-sm">
       <header className="flex items-start gap-3 p-3.5 border-b border-filet-doux">
         {exercice.slug && (
           /* L'illustration devient la porte d'entrée de la démonstration : la
@@ -343,20 +381,27 @@ export function TableauSeries({
           </button>
         )}
         <div className="min-w-0 flex-1">
-          <h2 className="font-semibold text-encre leading-tight">{exercice.nom}</h2>
+          <h2 className="font-semibold text-encre leading-tight">
+            {exercice.nom}
+          </h2>
           {/* La machine porte souvent le nom de l'exercice : le répéter sous le
               titre n'apprend rien et allonge la ligne pour rien. */}
           <p className="text-encre-3 text-xs mt-0.5">
             {exercice.machineNom && exercice.machineNom !== exercice.nom
               ? `${exercice.machineNom} · `
               : ""}
-            {exercice.seriesCibles} × {exercice.fourchetteRepsMin}-{exercice.fourchetteRepsMax}
-            {exercice.reposSecondes ? ` · repos ${exercice.reposSecondes} s` : ""}
+            {exercice.seriesCibles} × {exercice.fourchetteRepsMin}-
+            {exercice.fourchetteRepsMax}
+            {exercice.reposSecondes
+              ? ` · repos ${exercice.reposSecondes} s`
+              : ""}
           </p>
           {/* Dit dans la même ligne discrète que le reste : la colonne RPE
               pouvait être vide sans qu'on sache si c'était un oubli de
               l'application ou l'absence de consigne. */}
-          <p className="text-encre-3 text-xs">{libelleCibleEffort(exercice.rpeCible)}</p>
+          <p className="text-encre-3 text-xs">
+            {libelleCibleEffort(exercice.rpeCible)}
+          </p>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           {/* L'avancement du SLOT : après substitution, il compte aussi ce qui
@@ -366,40 +411,49 @@ export function TableauSeries({
             {avancementSlot ? avancementSlot.faites : validees}/
             {avancementSlot ? avancementSlot.cibles : exercice.seriesCibles}
           </span>
-          {actions}
         </div>
       </header>
+      {actions && <div className="live-exercise-actions">{actions}</div>}
 
       {/* Le strict nécessaire pour agir, sur une ligne. Le détail — technique,
           erreurs, respiration, réglages complets — s'ouvre d'un geste. Rien ne
           s'affiche pour dire qu'une information manque : ce qui est absent est
           absent, et se renseigne dans la fiche. */}
-      {contexte && (contexte.tempo || contexte.resumeReglages || contexte.note) && (
-        <button
-          type="button"
-          onClick={() => setFiche(true)}
-          className="w-full text-left px-3.5 py-2 border-b border-filet-doux active:bg-papier-2"
-        >
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-            {contexte.tempo && (
-              <span className="text-encre-2">
-                Tempo <span className="chiffres tabular-nums">{contexte.tempo.brut}</span>
-              </span>
-            )}
-            {contexte.resumeReglages && (
-              <span className="text-encre-2">{contexte.resumeReglages}</span>
-            )}
-            {contexte.note && (
-              <span className="text-encre-3 italic truncate max-w-full">{contexte.note}</span>
-            )}
-          </span>
-        </button>
-      )}
+      {contexte &&
+        (contexte.tempo || contexte.resumeReglages || contexte.note) && (
+          <button
+            type="button"
+            onClick={() => setFiche(true)}
+            className="w-full text-left px-3.5 py-2 border-b border-filet-doux active:bg-papier-2"
+          >
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {contexte.tempo && (
+                <span className="text-encre-2">
+                  Tempo{" "}
+                  <span className="chiffres tabular-nums">
+                    {contexte.tempo.brut}
+                  </span>
+                </span>
+              )}
+              {contexte.resumeReglages && (
+                <span className="text-encre-2">{contexte.resumeReglages}</span>
+              )}
+              {contexte.note && (
+                <span className="text-encre-3 italic truncate max-w-full">
+                  {contexte.note}
+                </span>
+              )}
+            </span>
+          </button>
+        )}
 
       {modeReserve && (
-        <p className="px-3.5 py-2 text-xs text-encre-2 border-b border-filet-doux">
-          Après chaque série : combien de répétitions aurais-tu encore pu faire ?
-          C&apos;est cette réponse qui fixera tes charges.
+        <details className="px-3.5 py-2 text-xs text-encre-2 border-b border-filet-doux">
+          <summary className="cursor-pointer font-medium">
+            Calibration : indique les répétitions en réserve
+          </summary>
+          Après chaque série : combien de répétitions aurais-tu encore pu faire
+          ? C&apos;est cette réponse qui fixera tes charges.
           {/*
             La permission qui manquait.
             Sur l'Incline Dumbbell Press, la première série est sortie à quatre
@@ -408,13 +462,12 @@ export function TableauSeries({
             c'est pourtant tout l'objet d'une calibration : converger vers la
             cible, pas répéter deux fois la même erreur d'estimation. Rien
             n'est modifié automatiquement — la mesure reste ce qui est saisi.
-          */}
-          {" "}
+          */}{" "}
           <span className="block mt-1 text-encre-3">
-            Tu peux ajuster la charge entre les séries pour viser ~3 répétitions en
-            réserve.
+            Tu peux ajuster la charge entre les séries pour viser ~3 répétitions
+            en réserve.
           </span>
-        </p>
+        </details>
       )}
 
       {/*
@@ -460,7 +513,7 @@ export function TableauSeries({
         parcours normal n'en a pas besoin, les cas particuliers oui.
       */}
       {serieCourante !== null && (
-        <div className="px-3.5 pt-3 flex items-center gap-2">
+        <div className="live-quick-entry px-3.5 pt-3 flex items-center gap-2">
           <span className="text-xs text-encre-3 shrink-0">
             Série <span className="chiffres">{serieCourante}</span>
           </span>
@@ -477,7 +530,13 @@ export function TableauSeries({
                 cran. C'est la seule différence avec la charge. */}
             <button
               type="button"
-              onClick={() => ecrire(serieCourante, "reps", String(Math.max(0, repsCourantes - 1)))}
+              onClick={() =>
+                ecrire(
+                  serieCourante,
+                  "reps",
+                  String(Math.max(0, repsCourantes - 1)),
+                )
+              }
               aria-label="Une répétition de moins"
               className="shrink-0 w-11 h-11 rounded-lg border border-filet bg-papier-2 flex items-center justify-center active:bg-filet"
             >
@@ -488,7 +547,9 @@ export function TableauSeries({
             </span>
             <button
               type="button"
-              onClick={() => ecrire(serieCourante, "reps", String(repsCourantes + 1))}
+              onClick={() =>
+                ecrire(serieCourante, "reps", String(repsCourantes + 1))
+              }
               aria-label="Une répétition de plus"
               className="shrink-0 w-11 h-11 rounded-lg border border-filet bg-papier-2 flex items-center justify-center active:bg-filet"
             >
@@ -524,18 +585,27 @@ export function TableauSeries({
       )}
 
       <div className="p-3.5">
-        <table className="w-full">
+        <table className="live-series-table w-full">
           <thead>
             <tr className="text-[10px] uppercase tracking-wide text-encre-3">
-              <th scope="col" className="w-6 pb-1.5 text-left font-medium">#</th>
-              <th scope="col" className="pb-1.5 text-left font-medium">Dernière</th>
+              <th scope="col" className="w-6 pb-1.5 text-left font-medium">
+                #
+              </th>
+              <th scope="col" className="pb-1.5 text-left font-medium">
+                Dernière
+              </th>
               {/* « kg » ne dit pas la même chose selon l'appareil : sur une
                   machine d'assistance, le nombre allège au lieu de charger. */}
               <th scope="col" className="w-[4.5rem] pb-1.5 font-medium">
                 {libelleChampCharge(exercice.natureCharge)}
               </th>
-              <th scope="col" className="w-[3.5rem] pb-1.5 font-medium">Reps</th>
-              <th scope="col" className={`pb-1.5 font-medium ${modeReserve ? "w-[7.5rem]" : "w-[3.5rem]"}`}>
+              <th scope="col" className="w-[3.5rem] pb-1.5 font-medium">
+                Reps
+              </th>
+              <th
+                scope="col"
+                className={`pb-1.5 font-medium ${modeReserve ? "w-[7.5rem]" : "w-[3.5rem]"}`}
+              >
                 {modeReserve ? "Encore ?" : "RPE"}
               </th>
               <th scope="col" className="w-10 pb-1.5">
@@ -546,7 +616,9 @@ export function TableauSeries({
           <tbody>
             {lignes.map((numero) => {
               const v = valeurs(numero);
-              const validee = seriesSaisies.some((s) => s.numeroSerie === numero);
+              const validee = seriesSaisies.some(
+                (s) => s.numeroSerie === numero,
+              );
               const passe = exercice.historique?.[numero - 1];
               /**
                * Au-delà de ce qui a été prescrit.
@@ -558,21 +630,38 @@ export function TableauSeries({
               const horsPrescription = numero > exercice.seriesCibles;
 
               return (
-                <tr key={numero} className="border-t border-filet-doux">
-                  <td className="chiffres text-xs text-encre-3 py-1.5">
+                <tr
+                  key={numero}
+                  className={`border-t border-filet-doux ${validee ? "bg-gain-fond/60" : numero === serieCourante ? "bg-primary/5" : ""}`}
+                >
+                  <td
+                    data-label="Série"
+                    className="chiffres text-xs text-encre-3 py-1.5"
+                  >
                     {numero}
                     {horsPrescription && (
-                      <span className="block text-[9px] leading-tight text-encre-3" title="Au-delà de la prescription">
+                      <span
+                        className="block text-[9px] leading-tight text-encre-3"
+                        title="Au-delà de la prescription"
+                      >
                         +
                       </span>
                     )}
                   </td>
-                  <td className="chiffres text-xs text-encre-3 py-1.5 whitespace-nowrap">
+                  <td
+                    data-label="Dernière"
+                    className="chiffres text-xs text-encre-3 py-1.5 whitespace-nowrap"
+                  >
                     {passe ? `${passe.charge}×${passe.reps}` : "—"}
                   </td>
-                  <td className="py-1.5 px-1">
+                  <td
+                    data-label={libelleChampCharge(exercice.natureCharge)}
+                    className="py-1.5 px-1"
+                  >
                     <input
-                      type="text" inputMode="decimal" value={v.charge}
+                      type="text"
+                      inputMode="decimal"
+                      value={v.charge}
                       onChange={(e) => ecrire(numero, "charge", e.target.value)}
                       aria-label={`Charge série ${numero}`}
                       /* Verrouillée tant que la série est validée : une valeur
@@ -581,16 +670,21 @@ export function TableauSeries({
                       className={validee ? champVerrouille : champ}
                     />
                   </td>
-                  <td className="py-1.5 px-1">
+                  <td data-label="Reps" className="py-1.5 px-1">
                     <input
-                      type="text" inputMode="numeric" value={v.reps}
+                      type="text"
+                      inputMode="numeric"
+                      value={v.reps}
                       onChange={(e) => ecrire(numero, "reps", e.target.value)}
                       aria-label={`Répétitions série ${numero}`}
                       readOnly={validee}
                       className={validee ? champVerrouille : champ}
                     />
                   </td>
-                  <td className="py-1.5 px-1">
+                  <td
+                    data-label={modeReserve ? "Encore ?" : "RPE"}
+                    className="py-1.5 px-1"
+                  >
                     {modeReserve ? (
                       <select
                         /* Rien de sélectionné quand rien n'est saisi : le
@@ -601,7 +695,9 @@ export function TableauSeries({
                           ecrire(
                             numero,
                             "rpe",
-                            e.target.value === "" ? "" : String(reserveVersRpe(Number(e.target.value))),
+                            e.target.value === ""
+                              ? ""
+                              : String(reserveVersRpe(Number(e.target.value))),
                           )
                         }
                         aria-label={`Répétitions encore possibles, série ${numero}`}
@@ -617,7 +713,9 @@ export function TableauSeries({
                       </select>
                     ) : (
                       <input
-                        type="text" inputMode="decimal" value={v.rpe}
+                        type="text"
+                        inputMode="decimal"
+                        value={v.rpe}
                         onChange={(e) => ecrire(numero, "rpe", e.target.value)}
                         aria-label={`Effort perçu série ${numero}`}
                         readOnly={validee}
@@ -630,8 +728,12 @@ export function TableauSeries({
                       type="button"
                       onClick={() => basculer(numero)}
                       aria-pressed={validee}
-                      aria-label={validee ? `Modifier la série ${numero}` : `Valider la série ${numero}`}
-                      className={`w-9 h-9 rounded-md border grid place-items-center transition-colors ${
+                      aria-label={
+                        validee
+                          ? `Modifier la série ${numero}`
+                          : `Valider la série ${numero}`
+                      }
+                      className={`w-10 h-11 rounded-xl border grid place-items-center transition-colors ${
                         validee
                           ? "bg-gain border-gain text-papier"
                           : "border-filet bg-papier-2 text-encre-3 hover:text-encre"
@@ -676,9 +778,10 @@ export function TableauSeries({
         </div>
         {seriesEnPlus > 0 && (
           <p className="text-xs text-encre-3 mt-1">
-            {exercice.seriesCibles} série{exercice.seriesCibles > 1 ? "s" : ""} prescrite
-            {exercice.seriesCibles > 1 ? "s" : ""} — les suivantes sont enregistrées comme
-            réalisation, la prescription ne change pas.
+            {exercice.seriesCibles} série{exercice.seriesCibles > 1 ? "s" : ""}{" "}
+            prescrite
+            {exercice.seriesCibles > 1 ? "s" : ""} — les suivantes sont
+            enregistrées comme réalisation, la prescription ne change pas.
           </p>
         )}
 
@@ -689,7 +792,9 @@ export function TableauSeries({
           total, et deux séances saisies autrement font une courbe qui bouge
           sans effort supplémentaire.
         */}
-        {consigne ? <p className="text-xs text-encre-3 mt-2">{consigne}</p> : null}
+        {consigne ? (
+          <p className="text-xs text-encre-3 mt-2">{consigne}</p>
+        ) : null}
 
         {exercice.poidsNonCompte ? (
           <p className="text-xs text-encre-3 mt-1">
@@ -698,14 +803,17 @@ export function TableauSeries({
               s'ajoute pas : inclinaison, bras de levier et cames font qu'elle
               n'est pas une masse qu'on additionne à la charge saisie.
             */}
-            Résistance de l&apos;appareil à vide : {exercice.poidsNonCompte} kg, non comptée dans la saisie
+            Résistance de l&apos;appareil à vide : {exercice.poidsNonCompte} kg,
+            non comptée dans la saisie
           </p>
         ) : null}
 
         {exercice.seriesPrevuesAvantAjustement != null &&
           exercice.seriesPrevuesAvantAjustement !== exercice.seriesCibles && (
             <p className="text-xs text-encre-3 mt-2">
-              {exercice.seriesCibles} séries au lieu de {exercice.seriesPrevuesAvantAjustement} — volume réduit aujourd&apos;hui
+              {exercice.seriesCibles} séries au lieu de{" "}
+              {exercice.seriesPrevuesAvantAjustement} — volume réduit
+              aujourd&apos;hui
             </p>
           )}
       </div>

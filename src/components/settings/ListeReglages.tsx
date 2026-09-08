@@ -27,11 +27,11 @@ export function GroupeReglages({ titre, entrees }: { titre: string; entrees: Ent
   return (
     <section className="space-y-2">
       <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">{titre}</h2>
-      <ul className="rounded-xl border border-filet bg-carte divide-y divide-filet">
+      <ul className="overflow-hidden rounded-3xl bg-carte divide-y divide-filet-doux shadow-sm">
         {entrees.map(({ href, libelle, description, icone: Icone }) => (
           <li key={href}>
-            <Link href={href} className="flex items-center gap-3 px-4 py-3.5">
-              <Icone className="w-4 h-4 text-encre-2 shrink-0" aria-hidden />
+            <Link href={href} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-papier-2">
+              <Icone className="w-10 h-10 p-2.5 rounded-xl bg-papier-2 text-primary shrink-0" aria-hidden />
               <span className="min-w-0 flex-1">
                 <span className="block text-encre text-sm font-medium">{libelle}</span>
                 {description && (
@@ -68,7 +68,7 @@ export function LigneAction({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="w-full flex items-center gap-3 px-4 py-3.5 text-left disabled:opacity-50"
+      className="w-full flex items-center gap-4 px-5 py-4 transition-colors hover:bg-papier-2 text-left disabled:opacity-50"
     >
       <Icone className={`w-4 h-4 shrink-0 ${danger ? "text-perte" : "text-encre-2"}`} aria-hidden />
       <span className="min-w-0 flex-1">

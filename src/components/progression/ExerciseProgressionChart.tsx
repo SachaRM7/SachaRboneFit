@@ -1,7 +1,15 @@
 "use client";
+import { RepereEnConstruction } from "./RepereEnConstruction";
 import { useEffect, useState } from "react";
 import { avecUnite } from "@/lib/format";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { CHART_THEME, couleursGraphique } from "@/lib/chart-theme";
 import { jourCourt } from "@/lib/format-date";
 import { libelleDeLaMesure, type PorteeDeLaMesure } from "@/lib/engine/charges";
@@ -24,10 +32,18 @@ interface ExerciseProgressionChartProps {
   months: number;
 }
 
-export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgressionChartProps) {
+export function ExerciseProgressionChart({
+  instanceId,
+  months,
+}: ExerciseProgressionChartProps) {
   // Le resultat porte la cle de la requete qui l'a produit. `loading` en derive,
   // ce qui evite un setState synchrone en tete d'effet a chaque changement de cle.
-  const [result, setResult] = useState<{ cle: string; points: DataPoint[]; portee: PorteeDeLaMesure } | null>(null);
+  const [result, setResult] = useState<{
+    cle: string;
+    points: DataPoint[];
+    portee: PorteeDeLaMesure;
+    echec?: boolean;
+  } | null>(null);
   const [mode, setMode] = useState<"1rm" | "volume">("1rm");
 
   const cle = `${instanceId}:${months}`;
@@ -47,7 +63,9 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
     if (!instanceId) return;
     let annule = false;
     fetch(`/api/progression/exercise?instanceId=${instanceId}&months=${months}`)
-      .then((r) => r.json())
+      .then((r) =>
+        r.ok ? r.json() : Promise.reject(new Error(String(r.status))),
+      )
       .then((d: ReponseProgression) => {
         if (!annule) {
           setResult({
@@ -58,20 +76,57 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
         }
       })
       .catch(() => {
-        if (!annule) setResult({ cle: `${instanceId}:${months}`, points: [], portee: "kilos" });
+        if (!annule)
+          setResult({
+            cle: `${instanceId}:${months}`,
+            points: [],
+            portee: "kilos",
+            echec: true,
+          });
       });
-    return () => { annule = true; };
+    return () => {
+      annule = true;
+    };
   }, [instanceId, months]);
 
   if (loading) {
     return <div className="h-64 bg-papier-2 rounded-lg animate-pulse" />;
   }
 
-  if (!data || data.length === 0) {
+  if (result?.echec)
     return (
-      <div className="text-encre-3 text-center py-12">
-        Pas encore de données. Enregistre ta première séance !
-      </div>
+      <p role="alert">
+        Impossible de lire cet historique. Reviens à la vue d’ensemble puis
+        réessaie.
+      </p>
+    );
+  if (data.length < 2) {
+    const premiere = data[0];
+    return (
+      <RepereEnConstruction
+        titre={
+          premiere
+            ? "Ton premier repère est posé"
+            : "Ton évolution commence ici"
+        }
+      >
+        {premiere && (
+          <p className="first-reference">
+            <strong>{premiere.bestSet.charge} kg</strong> ×{" "}
+            {premiere.bestSet.reps} répétitions{" "}
+            <small>le {jourCourt(premiere.date)}</small>
+          </p>
+        )}
+        <p>
+          {premiere
+            ? "Retrouve cet exercice lors d’une prochaine séance pour comparer tes performances sur le même matériel."
+            : "Les séances où tu pratiques cet exercice construiront son historique de charges et de volume."}
+        </p>
+        <p>
+          La courbe apparaît avec deux séances ; une tendance demande davantage
+          de recul.
+        </p>
+      </RepereEnConstruction>
     );
   }
 
@@ -87,7 +142,9 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
         <button
           onClick={() => setMode("1rm")}
           className={`px-3 py-1 rounded text-sm ${
-            mode === "1rm" ? "bg-papier-2 text-encre" : "bg-papier-2 text-encre-2"
+            mode === "1rm"
+              ? "bg-papier-2 text-encre"
+              : "bg-papier-2 text-encre-2"
           }`}
         >
           {libelle}
@@ -95,7 +152,9 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
         <button
           onClick={() => setMode("volume")}
           className={`px-3 py-1 rounded text-sm ${
-            mode === "volume" ? "bg-papier-2 text-encre" : "bg-papier-2 text-encre-2"
+            mode === "volume"
+              ? "bg-papier-2 text-encre"
+              : "bg-papier-2 text-encre-2"
           }`}
         >
           Volume total
@@ -108,11 +167,17 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
           <LineChart data={chartData}>
             <XAxis
               dataKey="date"
-              tick={{ fill: CHART_THEME.textColor, fontSize: CHART_THEME.fontSize.sm }}
+              tick={{
+                fill: CHART_THEME.textColor,
+                fontSize: CHART_THEME.fontSize.sm,
+              }}
               axisLine={{ stroke: CHART_THEME.gridColor }}
             />
             <YAxis
-              tick={{ fill: CHART_THEME.textColor, fontSize: CHART_THEME.fontSize.sm }}
+              tick={{
+                fill: CHART_THEME.textColor,
+                fontSize: CHART_THEME.fontSize.sm,
+              }}
               axisLine={{ stroke: CHART_THEME.gridColor }}
               width={40}
             />
@@ -124,7 +189,10 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
                 color: couleursGraphique().trace,
               }}
               formatter={(value, name, props: { dataPointIndex?: number }) => {
-                const point = props.dataPointIndex === undefined ? undefined : data[props.dataPointIndex];
+                const point =
+                  props.dataPointIndex === undefined
+                    ? undefined
+                    : data[props.dataPointIndex];
                 if (!point) return [value, mode === "1rm" ? libelle : "Volume"];
                 return [
                   `${value}${mode === "1rm" ? "kg" : "kg×rep"}`,
@@ -151,10 +219,10 @@ export function ExerciseProgressionChart({ instanceId, months }: ExerciseProgres
         {data.length} séance{data.length > 1 ? "s" : ""} —{" "}
         {mode === "1rm"
           ? assistance
-            // Moins d'assistance = plus de poids du corps porté. Le minimum est
-            // donc la meilleure séance, et le dire évite de lire la courbe à
-            // l'envers.
-            ? `Assistance la plus faible : ${avecUnite(Math.min(...data.map((d) => d.best1RM)), "kg")} — moins, c'est mieux`
+            ? // Moins d'assistance = plus de poids du corps porté. Le minimum est
+              // donc la meilleure séance, et le dire évite de lire la courbe à
+              // l'envers.
+              `Assistance la plus faible : ${avecUnite(Math.min(...data.map((d) => d.best1RM)), "kg")} — moins, c'est mieux`
             : `Meilleur ${libelle.toLowerCase()} : ${avecUnite(Math.max(...data.map((d) => d.best1RM)), "kg")}`
           : `Volume total : ${avecUnite(Math.round(data.reduce((sum, d) => sum + d.totalVolume, 0)), "kg soulevés")}`}
       </div>

@@ -1,3 +1,4 @@
+import { gabaritSuivant } from "@/lib/engine/rotation-seances";
 import { db } from "@/db/client";
 import { seancesRealisees } from "@/db/archivage";
 import { exerciseInTemplate, programmeBlocs, seanceTemplates, sessionLogs } from "@/db/schema";
@@ -62,8 +63,7 @@ export async function prochaineSeance(userId: string): Promise<ProchaineSeance |
     .limit(1);
 
   const dernierId = derniere[0]?.seanceTemplateId ?? null;
-  const indexPrecedent = dernierId ? seances.findIndex((s) => s.id === dernierId) : -1;
-  const suivante = seances[(indexPrecedent + 1) % seances.length]!;
+  const suivante = gabaritSuivant(seances, dernierId)!;
 
   return {
     bloc: {

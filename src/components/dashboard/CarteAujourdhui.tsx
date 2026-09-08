@@ -1,8 +1,14 @@
 "use client";
 import Link from "next/link";
-import { Dumbbell, MapPin, Wrench, Ruler, CheckCircle2, TrendingUp } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { buttonVariants } from "@/components/ui/button";
+import {
+  ArrowRight,
+  Dumbbell,
+  MapPin,
+  Wrench,
+  Ruler,
+  CheckCircle2,
+  TrendingUp,
+} from "lucide-react";
 import type { EtatDuJour, NomEtat } from "@/lib/engine/etat-du-jour";
 
 /**
@@ -25,7 +31,8 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
   sans_salle: {
     icone: MapPin,
     titre: () => "Où t'entraînes-tu ?",
-    texte: "Je ne peux rien préparer tant que je ne sais pas de quel matériel tu disposes.",
+    texte:
+      "Je ne peux rien préparer tant que je ne sais pas de quel matériel tu disposes.",
     bouton: "Choisir ma salle",
   },
   salle_vide: {
@@ -37,9 +44,12 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
   },
   calibration: {
     icone: Ruler,
-    titre: (e) => (e.seance ? `Séance ${e.seance.lettre} — calibration` : "Ta première séance"),
+    titre: (e) =>
+      e.seance
+        ? `Séance ${e.seance.lettre} — calibration`
+        : "Ta première séance",
     texte:
-      "On ne cherche pas la performance aujourd'hui, on mesure. Après chaque série, tu diras combien tu aurais pu en faire de plus — c'est ce qui me permettra de fixer tes charges.",
+      "On mesure tes premières charges. Après chaque série, indique combien de répétitions tu aurais pu faire en plus.",
     bouton: "Commencer",
   },
   prete: {
@@ -51,14 +61,16 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
   deja_entraine: {
     icone: CheckCircle2,
     titre: () => "C'est fait pour aujourd'hui",
-    texte: "Séance enregistrée. La récupération fait partie du travail, pas une pause dedans.",
-    bouton: "Voir ma progression",
+    texte:
+      "Séance enregistrée. La récupération fait partie du travail, pas une pause dedans.",
+    bouton: "Voir ton évolution",
   },
   semaine_complete: {
     icone: TrendingUp,
     titre: () => "Semaine complète",
-    texte: "Tu as atteint le rythme que tu t'es fixé. Rien ne t'empêche d'y retourner, mais rien ne l'exige.",
-    bouton: "Voir ma progression",
+    texte:
+      "Tu as atteint le rythme que tu t'es fixé. Rien ne t'empêche d'y retourner, mais rien ne l'exige.",
+    bouton: "Voir ton évolution",
   },
 };
 
@@ -73,32 +85,37 @@ export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
       : f.texte;
 
   return (
-    <Card
-      className={
-        etat.enAttenteDeDonnees
-          ? "bg-carte border-filet"
-          : "bg-carte border-encre/20 shadow-sm"
-      }
-    >
-      <CardContent className="py-5 space-y-4">
-        <div className="flex items-start gap-3">
-          <Icone className="w-5 h-5 mt-0.5 shrink-0 text-encre-2" aria-hidden />
-          <div className="space-y-1 min-w-0">
-            <p className="text-xs uppercase tracking-wide text-encre-3">Aujourd&apos;hui</p>
-            <h2 className="text-xl font-bold text-encre leading-tight">{f.titre(etat)}</h2>
-            {texte && <p className="text-encre-2 text-sm leading-relaxed">{texte}</p>}
-          </div>
-        </div>
-
-        <Link
-          href={etat.action.href}
-          className={buttonVariants({
-            className: "w-full h-11 text-base bg-encre text-papier hover:bg-filet",
-          })}
-        >
+    <section className="session-hero" aria-labelledby="session-du-jour">
+      <div className="session-hero-art" aria-hidden>
+        <span className="hero-orbit orbit-one" />
+        <span className="hero-orbit orbit-two" />
+        <span className="hero-orbit orbit-three" />
+        <span className="hero-letter">
+          {etat.seance?.lettre || <Icone size={92} strokeWidth={1} />}
+        </span>
+      </div>
+      <div className="hero-copy">
+        <p className="hero-category">
+          Aujourd’hui ·{" "}
+          {etat.etat === "calibration" ? "Calibration" : "Entraînement"}
+        </p>
+        <h2 id="session-du-jour">{f.titre(etat)}</h2>
+        {texte && <p className="hero-description">{texte}</p>}
+      </div>
+      <div className="hero-footer">
+        <Link href={etat.action.href} className="hero-cta">
           {f.bouton}
+          <span>
+            <ArrowRight size={21} aria-hidden />
+          </span>
         </Link>
-      </CardContent>
-    </Card>
+        {etat.salle && (
+          <span className="hero-location">
+            <MapPin size={14} aria-hidden />
+            {etat.salle.nom}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }

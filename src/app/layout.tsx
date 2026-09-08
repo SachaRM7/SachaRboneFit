@@ -1,26 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Karla } from "next/font/google";
+import { Outfit, Geist } from "next/font/google";
 import "./globals.css";
+import "./live-session.css";
+import "./overview.css";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 
-/**
- * Typographie de la direction Carnet.
- *
- * Elle n'avait jamais ete chargee : `globals.css` declarait
- * `--font-sans: var(--font-sans)`, une reference circulaire donc invalide, et
- * aucune police n'etait importee. L'application tombait sur les polices par
- * defaut du navigateur — ce qui n'avait aucun rapport avec la maquette.
- *
- * Fraunces porte les titres et les chiffres, Karla le reste.
- */
-const fraunces = Fraunces({
+// Polices variables auto-hébergées par Next pour toute l'interface.
+const heading = Outfit({
   subsets: ["latin"],
   display: "swap",
   variable: "--police-titre",
-  axes: ["SOFT", "WONK", "opsz"],
 });
-
-const karla = Karla({
+const body = Geist({
   subsets: ["latin"],
   display: "swap",
   variable: "--police-texte",
@@ -44,16 +35,23 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  userScalable: false,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#FBFAF7" },
-    { media: "(prefers-color-scheme: dark)", color: "#16181C" },
+    { media: "(prefers-color-scheme: light)", color: "#F7F7F2" },
+    { media: "(prefers-color-scheme: dark)", color: "#151C18" },
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="fr" suppressHydrationWarning className={`${fraunces.variable} ${karla.variable}`}>
+    <html
+      lang="fr"
+      suppressHydrationWarning
+      className={`${heading.variable} ${body.variable}`}
+    >
       <body className="bg-papier text-encre min-h-screen antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

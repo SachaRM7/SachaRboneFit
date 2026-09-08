@@ -44,9 +44,9 @@ export const ETATS_RECUPERATION = ["pret", "en_cours", "a_menager"] as const;
 export type EtatRecuperation = (typeof ETATS_RECUPERATION)[number];
 
 export const LIBELLES_ETAT_RECUPERATION: Record<EtatRecuperation, string> = {
-  pret: "Prêt",
-  en_cours: "Récupération en cours",
-  a_menager: "À ménager",
+  pret: "Disponible",
+  en_cours: "En récupération",
+  a_menager: "À protéger",
 };
 
 export interface MuscleRecupere {

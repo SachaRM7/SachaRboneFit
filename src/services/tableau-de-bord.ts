@@ -1,3 +1,4 @@
+import { gabaritSuivant } from "@/lib/engine/rotation-seances";
 import { cache } from "react";
 import { db } from "@/db/client";
 import { sessionLogs, dailyStates, bodyWeights, seanceTemplates, precalcSessions, weeklyDebriefs, gyms, exerciseInstances } from "@/db/schema";
@@ -131,12 +132,7 @@ export async function essentielTableauDeBord(userId: string) {
    * de la semaine, en repartant du premier une fois le tour fini.
    */
   const gabarits = contexte.gabarits;
-  const indexPrecedent = contexte.dernierGabaritId
-    ? gabarits.findIndex((g) => g.id === contexte.dernierGabaritId)
-    : -1;
-  const suivante = gabarits.length > 0
-    ? gabarits[(indexPrecedent + 1) % gabarits.length]!
-    : null;
+  const suivante = gabaritSuivant(gabarits, contexte.dernierGabaritId);
 
   const seanceSuivante = suivante
     ? { lettre: suivante.lettre ?? "", templateId: suivante.id, templateNom: suivante.nom }

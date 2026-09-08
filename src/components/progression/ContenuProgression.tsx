@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ChevronLeft } from "lucide-react";
+import {
+  ChevronLeft,
+  Dumbbell,
+  ChartNoAxesCombined,
+  Trophy,
+  Scale,
+} from "lucide-react";
 import { ExerciseProgressionChart } from "@/components/progression/ExerciseProgressionChart";
 import { PillarVolumeChart } from "@/components/progression/PillarVolumeChart";
 import { BodyWeightChart } from "@/components/progression/BodyWeightChart";
@@ -23,11 +29,34 @@ import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 
 type Vue = "exercice" | "pilier" | "records" | "poids";
 
+const ICONES = {
+  exercice: Dumbbell,
+  pilier: ChartNoAxesCombined,
+  records: Trophy,
+  poids: Scale,
+};
+
 const VUES: { cle: Vue; libelle: string; description: string }[] = [
-  { cle: "exercice", libelle: "Par exercice", description: "Charges séance après séance" },
-  { cle: "pilier", libelle: "Par pilier", description: "Répartition du volume" },
-  { cle: "records", libelle: "Records", description: "Tes meilleures performances" },
-  { cle: "poids", libelle: "Poids de corps", description: "Tendance sur six mois" },
+  {
+    cle: "exercice",
+    libelle: "Par exercice",
+    description: "Charges séance après séance",
+  },
+  {
+    cle: "pilier",
+    libelle: "Par pilier",
+    description: "Répartition du volume",
+  },
+  {
+    cle: "records",
+    libelle: "Records",
+    description: "Tes meilleures performances",
+  },
+  {
+    cle: "poids",
+    libelle: "Poids de corps",
+    description: "Tendance sur six mois",
+  },
 ];
 
 interface ExerciceTravaille {
@@ -53,26 +82,51 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
   const [exercices, setExercices] = useState<ExerciceTravaille[]>([]);
   const [instanceId, setInstanceId] = useState("");
   const [mois, setMois] = useState(3);
+  const [lectureExercices, setLectureExercices] = useState<
+    "attente" | "charge" | "erreur"
+  >("attente");
+  const apercus: Record<Vue, string> = {
+    exercice: bilan.enProgression.length
+      ? `${bilan.enProgression.length} exercice${bilan.enProgression.length > 1 ? "s" : ""} en progression`
+      : "Tes références de départ",
+    pilier: bilan.volume
+      ? `${bilan.volume.seriesDerniereSemaine} séries la semaine dernière`
+      : "Construire ton historique de volume",
+    records: bilan.recordsRecents.length
+      ? `${bilan.recordsRecents.length} record${bilan.recordsRecents.length > 1 ? "s" : ""} récent${bilan.recordsRecents.length > 1 ? "s" : ""}`
+      : "Découvrir tes repères",
+    poids: "Suivi optionnel · ajouter une pesée",
+  };
 
   // La liste n'est chargée qu'à l'ouverture de la vue qui en a besoin.
   useEffect(() => {
     if (vue !== "exercice" || exercices.length > 0) return;
+    let annule = false;
     void (async () => {
-      const res = await fetch("/api/progression/exercices");
-      if (!res.ok) return;
-      const corps = await res.json().catch(() => null);
-      const liste: ExerciceTravaille[] = corps?.exercices ?? [];
-      setExercices(liste);
-      // Le plus récemment travaillé est en tête : le présélectionner évite un
-      // écran vide dès l'ouverture.
-      if (liste[0]) setInstanceId(liste[0].instanceId);
+      try {
+        const res = await fetch("/api/progression/exercices");
+        if (!res.ok) throw new Error(String(res.status));
+        const corps = await res.json().catch(() => null);
+        if (annule) return;
+        const liste: ExerciceTravaille[] = corps?.exercices ?? [];
+        setExercices(liste);
+        // Le plus récemment travaillé est en tête : le présélectionner évite un
+        // écran vide dès l'ouverture.
+        if (liste[0]) setInstanceId(liste[0].instanceId);
+        setLectureExercices("charge");
+      } catch {
+        if (!annule) setLectureExercices("erreur");
+      }
     })();
+    return () => {
+      annule = true;
+    };
   }, [vue, exercices.length]);
 
   if (vue) {
     const active = VUES.find((v) => v.cle === vue)!;
     return (
-      <div className="min-h-dvh bg-papier text-encre">
+      <div className="progression-v3 min-h-dvh bg-papier text-encre">
         <DeclarerContexte
           ecran="progression"
           typeEntite={vue === "exercice" && instanceId ? "instance" : null}
@@ -107,7 +161,13 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
                   onChange={(e) => setInstanceId(e.target.value)}
                   aria-label="Exercice"
                 >
-                  {exercices.length === 0 && <option value="">Aucun exercice travaillé</option>}
+                  {exercices.length === 0 && (
+                    <option value="">
+                      {lectureExercices === "attente"
+                        ? "Chargement…"
+                        : "Aucun exercice travaillé"}
+                    </option>
+                  )}
                   {exercices.map((e) => (
                     <option key={e.instanceId} value={e.instanceId}>
                       {e.machineNom ? `${e.nom} — ${e.machineNom}` : e.nom}
@@ -126,10 +186,17 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
                 </select>
               </div>
               {instanceId ? (
-                <ExerciseProgressionChart instanceId={instanceId} months={mois} />
+                <ExerciseProgressionChart
+                  instanceId={instanceId}
+                  months={mois}
+                />
               ) : (
                 <p className="text-encre-2 text-sm py-8 text-center">
-                  Aucun exercice n&apos;a encore été travaillé.
+                  {lectureExercices === "attente"
+                    ? "Lecture de tes exercices…"
+                    : lectureExercices === "erreur"
+                      ? "Impossible de lire tes exercices. Reviens au bilan puis réessaie."
+                      : "Tes exercices apparaîtront ici après ta première séance enregistrée."}
                 </p>
               )}
             </>
@@ -144,51 +211,102 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
   }
 
   return (
-    <div className="min-h-dvh bg-papier text-encre">
+    <div className="progression-v3 min-h-dvh bg-papier text-encre">
       <DeclarerContexte ecran="progression" />
-      <header className="px-4 pt-8 pb-4">
-        <h1 className="text-2xl font-bold">Progression</h1>
+      <header className="dashboard-header">
+        <p className="eyebrow">La régularité fait la différence</p>
+        <h1>Tes progrès.</h1>
         {bilan?.periode && (
           <p className="text-encre-2 text-sm mt-0.5">
             Depuis le{" "}
-            {new Date(`${bilan.periode.debut}T12:00:00`).toLocaleDateString("fr-FR", {
-              day: "numeric",
-              month: "long",
-            })}
+            {new Date(`${bilan.periode.debut}T12:00:00`).toLocaleDateString(
+              "fr-FR",
+              {
+                day: "numeric",
+                month: "long",
+              },
+            )}
           </p>
         )}
       </header>
 
       <div className="px-4 space-y-6">
+        <section className="progress-snapshot">
+          <p className="eyebrow">
+            {bilan.etat === "en_route"
+              ? "Dans la durée"
+              : "Tes premières références"}
+          </p>
+          <h2>
+            {bilan.etat === "sans_donnees"
+              ? "Tout commence par une séance."
+              : bilan.etat === "premieres_references"
+                ? "Tu poses tes bases."
+                : "Regarde le chemin parcouru."}
+          </h2>
+          <p>
+            <strong>{bilan.seancesTotal}</strong> séance
+            {bilan.seancesTotal > 1 ? "s" : ""} enregistrée
+            {bilan.seancesTotal > 1 ? "s" : ""}
+            {bilan.dureeMedianeMinutes !== null && (
+              <> · {bilan.dureeMedianeMinutes} min de durée habituelle</>
+            )}
+          </p>
+          <span>
+            {bilan.enProgression.length
+              ? "Tes progrès se lisent exercice par exercice, sur le même matériel."
+              : "Tes mesures construisent les comparaisons des prochaines séances."}
+          </span>
+        </section>
         {/* Plus de spinner plein écran : le bilan arrive avec la page. */}
-        <BilanProgression bilan={bilan} />
-
         {/* Les vues détaillées restent accessibles, mais après le bilan : on y
             va pour vérifier quelque chose, pas pour découvrir. */}
-        {bilan.etat !== "sans_donnees" && (
+        {
           <section className="space-y-2">
             <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">
-              Entrer dans le détail
+              Choisis ce que tu veux suivre
             </h2>
-            <ul className="rounded-xl border border-filet bg-carte divide-y divide-filet">
-              {VUES.map((v) => (
-                <li key={v.cle}>
-                  <button
-                    type="button"
-                    onClick={() => setVue(v.cle)}
-                    className="w-full text-left px-4 py-3.5 flex items-center gap-3"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-encre text-sm font-medium">{v.libelle}</span>
-                      <span className="block text-encre-3 text-xs">{v.description}</span>
-                    </span>
-                    <ChevronLeft className="w-4 h-4 text-encre-3 rotate-180 shrink-0" aria-hidden />
-                  </button>
-                </li>
-              ))}
+            <ul className="progress-explore-grid">
+              {VUES.map((v) => {
+                const Icone = ICONES[v.cle];
+                return (
+                  <li key={v.cle}>
+                    <button
+                      type="button"
+                      onClick={() => setVue(v.cle)}
+                      className="progress-explore-card"
+                    >
+                      <Icone
+                        className="w-10 h-10 p-2.5 bg-papier-2 rounded-xl text-primary shrink-0"
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-encre text-sm font-medium">
+                          {v.libelle}
+                        </span>
+                        <span className="block text-encre-3 text-xs">
+                          {apercus[v.cle]}
+                        </span>
+                      </span>
+                      <ChevronLeft
+                        className="w-4 h-4 text-encre-3 rotate-180 shrink-0"
+                        aria-hidden
+                      />
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </section>
-        )}
+        }
+
+        <details
+          className="progress-analysis"
+          open={bilan.etat === "sans_donnees"}
+        >
+          <summary>Ton bilan en détail</summary>
+          <BilanProgression bilan={bilan} />
+        </details>
       </div>
     </div>
   );

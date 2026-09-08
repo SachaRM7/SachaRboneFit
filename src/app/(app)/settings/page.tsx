@@ -3,14 +3,27 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Download, LogOut, User, History, CalendarRange, Palette, BookOpen, MapPin, Scale, HeartPulse,
+  Download,
+  LogOut,
+  User,
+  History,
+  CalendarRange,
+  Palette,
+  BookOpen,
+  MapPin,
+  Scale,
+  HeartPulse,
 } from "lucide-react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useSessionStore } from "@/stores/sessionStore";
 import { ChoixTheme } from "@/components/layout/ChoixTheme";
 import { RejouerOnboarding } from "@/components/settings/RejouerOnboarding";
-import { GroupeReglages, LigneAction, type Entree } from "@/components/settings/ListeReglages";
+import {
+  GroupeReglages,
+  LigneAction,
+  type Entree,
+} from "@/components/settings/ListeReglages";
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 
 /**
@@ -30,18 +43,53 @@ import { DeclarerContexte } from "@/components/coach/ContexteCoach";
  */
 
 const ENTRAINEMENT: Entree[] = [
-  { href: "/programme", libelle: "Programme", description: "Ton cycle et ta semaine", icone: CalendarRange },
-  { href: "/historique", libelle: "Historique", description: "Toutes tes séances passées", icone: History },
-  { href: "/exercises", libelle: "Bibliothèque", description: "Tous les exercices", icone: BookOpen },
-  { href: "/gyms", libelle: "Salles", description: "Lieux et matériel disponible", icone: MapPin },
+  {
+    href: "/programme",
+    libelle: "Programme",
+    description: "Ton cycle et ta semaine",
+    icone: CalendarRange,
+  },
+  {
+    href: "/historique",
+    libelle: "Historique",
+    description: "Toutes tes séances passées",
+    icone: History,
+  },
+  {
+    href: "/exercises",
+    libelle: "Banque d’exercices",
+    description: "Mouvements, muscles et conseils techniques",
+    icone: BookOpen,
+  },
+  {
+    href: "/gyms",
+    libelle: "Salles",
+    description: "Lieux et matériel disponible",
+    icone: MapPin,
+  },
 ];
 
 const TOI: Entree[] = [
-  { href: "/profil", libelle: "Mon profil", description: "Objectif, fréquence, durée de séance", icone: User },
+  {
+    href: "/profil",
+    libelle: "Mon profil",
+    description: "Objectif, fréquence, durée de séance",
+    icone: User,
+  },
   // L'écran existait et fonctionnait, sans qu'aucun lien de l'application n'y
   // mène : il n'était atteignable qu'en tapant l'adresse à la main.
-  { href: "/bodyweight", libelle: "Poids de corps", description: "Suivi et tendance", icone: Scale },
-  { href: "/contraintes", libelle: "Ce que tu ménages", description: "Gênes en cours et passées", icone: HeartPulse },
+  {
+    href: "/bodyweight",
+    libelle: "Poids de corps",
+    description: "Suivi et tendance",
+    icone: Scale,
+  },
+  {
+    href: "/contraintes",
+    libelle: "Ce que tu ménages",
+    description: "Gênes en cours et passées",
+    icone: HeartPulse,
+  },
 ];
 
 export default function SettingsPage() {
@@ -92,18 +140,30 @@ export default function SettingsPage() {
       {/* Aucun contexte sportif : on ne fabrique pas de situation ici. */}
       <DeclarerContexte ecran="plus" />
 
-      <h1 className="text-2xl font-bold">Plus</h1>
+      <div className="page-intro">
+        <div>
+          <p className="eyebrow">Tout ce qui te ressemble</p>
+          <h1>Mon espace.</h1>
+          <p className="page-subtitle">
+            Ton entraînement, tes préférences, tes données.
+          </p>
+        </div>
+      </div>
 
       <GroupeReglages titre="Entraînement" entrees={ENTRAINEMENT} />
       <GroupeReglages titre="Toi" entrees={TOI} />
 
       <section className="space-y-2">
-        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">Application</h2>
+        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">
+          Application
+        </h2>
         <div className="rounded-xl border border-filet bg-carte divide-y divide-filet">
           <div className="px-4 py-3.5 flex items-center gap-3">
             <Palette className="w-4 h-4 text-encre-2 shrink-0" aria-hidden />
             <span className="min-w-0 flex-1">
-              <span className="block text-encre text-sm font-medium">Apparence</span>
+              <span className="block text-encre text-sm font-medium">
+                Apparence
+              </span>
               <span className="block mt-2">
                 <ChoixTheme />
               </span>
@@ -120,7 +180,9 @@ export default function SettingsPage() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">Compte</h2>
+        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">
+          Compte
+        </h2>
         <div className="rounded-xl border border-filet bg-carte divide-y divide-filet">
           <div className="px-4 py-3.5">
             <p className="text-encre-3 text-xs">Connecté en tant que</p>
@@ -128,7 +190,11 @@ export default function SettingsPage() {
               {emailConnecte ?? "…"}
             </p>
           </div>
-          <LigneAction libelle="Se déconnecter" icone={LogOut} onClick={() => void deconnecter()} />
+          <LigneAction
+            libelle="Se déconnecter"
+            icone={LogOut}
+            onClick={() => void deconnecter()}
+          />
         </div>
       </section>
 

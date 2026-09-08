@@ -69,7 +69,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-papier text-encre flex flex-col items-center justify-center p-4">
+    <div className="auth-page min-h-dvh bg-papier text-encre flex flex-col items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold">Sport Perso</h1>
@@ -111,7 +111,7 @@ export default function LoginPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-encre text-papier hover:bg-filet"
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={loading}
               >
                 {loading ? "Connexion..." : "Se connecter"}

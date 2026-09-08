@@ -252,8 +252,8 @@ describe("les acquis des lots précédents ne sont pas défaits", () => {
       expect(page, `${sos} n'est plus monté`).toContain(sos);
     }
     // Le bouton « État ↓ » du lot 16, pas l'ancien « Énergie ↓ ».
-    expect(page).toMatch(/onEtat=/);
-    expect(lire("components/session/SOSBar.tsx")).toMatch(/État ↓/);
+    expect(page).toMatch(/setModaleSOS\("etat"\)/);
+    expect(page).toContain("Mon état a changé");
   });
 
   it("et les deux vues ne les montent pas elles-mêmes", () => {
@@ -304,7 +304,8 @@ describe("le Live dégage les zones réservées d'iOS", () => {
     expect(css).toMatch(/--barre-nav: calc\(var\(--rangee-nav\) \+ var\(--marge-bas\)\)/);
 
     const page = lire(PAGE);
-    expect(page).toMatch(/var\(--degagement-live\)/);
+    expect(page).toContain("live-session");
+    expect(lire("app/live-session.css")).toContain(".app-main:has(.live-session)");
     expect(page, "le dégagement est de nouveau écrit en dur")
       .not.toMatch(/className="min-h-screen bg-papier pb-\d+"/);
   });
@@ -316,11 +317,31 @@ describe("le Live dégage les zones réservées d'iOS", () => {
     expect(page).toMatch(/top: "var\(--marge-haut\)"/);
   });
 
-  it("la barre SOS se pose au-dessus de la navigation basse", () => {
+  it("État et Temps restent dans la surface persistante du Live", () => {
+    const page = lire(PAGE);
+    const header = page.match(/<header[\s\S]*?<\/header>/)?.[0];
+
+    expect(header, "le Live n'a plus d'en-tête persistant").toBeDefined();
+    expect(header).toContain("live-session-persistent");
+    expect(header).toMatch(/setModaleSOS\("etat"\)/);
+    expect(header).toMatch(/setModaleSOS\("temps"\)/);
+    expect(header).toContain("État");
+    expect(header).toContain("Temps");
+    expect(header).toContain("<ChronoSeance");
+
+    const css = lire("app/live-session.css");
+    expect(page).toMatch(/className="live-session-header sticky/);
+    expect(css).toMatch(/\.live-session-persistent\s*\{[^}]*min-height:44px/);
+    expect(css).not.toContain(".live-session-context");
+  });
+
+  it("les actions restent dans le contenu, sans barre SOS fixe", () => {
     // À `bottom-0`, elle passait sous une barre de navigation fixée au même
     // endroit et de z-index supérieur.
     const page = lire(PAGE);
-    expect(page).toMatch(/bottom: "var\(--barre-nav\)"/);
+    expect(page).not.toContain("<SOSBar");
+    expect(page).toContain('ouvrirIncidentExercice(exercice.id, "machine")');
+    expect(page).toContain('ouvrirIncidentExercice(exercice.id, "douleur")');
   });
 
   it("toutes les feuilles du Live dégagent le home indicator", () => {

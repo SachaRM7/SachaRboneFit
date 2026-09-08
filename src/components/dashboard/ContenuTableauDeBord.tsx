@@ -2,15 +2,28 @@
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { toast } from "sonner";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { ActionsCoach } from "./ActionsCoach";
 import { Button } from "@/components/ui/button";
 import { FeuBiologique } from "@/components/ui/FeuBiologique";
 import { Sparkline } from "@/components/ui/Sparkline";
-import { Activity, Play } from "lucide-react";
+import {
+  ArrowUpRight,
+  Activity,
+  Play,
+  HeartPulse,
+  Scale,
+  TimerReset,
+} from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { EtatDuJour } from "@/lib/engine/etat-du-jour";
 import { CarteAujourdhui } from "@/components/dashboard/CarteAujourdhui";
@@ -55,12 +68,16 @@ export function ContenuTableauDeBord({
   useEffect(() => {
     if (!active?.startedAt) return;
     const startedAt = active.startedAt;
-    const check = () => setIsSessionStale(Date.now() - startedAt > 6 * 60 * 60 * 1000);
+    const check = () =>
+      setIsSessionStale(Date.now() - startedAt > 6 * 60 * 60 * 1000);
     // Premiere evaluation differee : un setState synchrone dans l'effet declenche
     // un rendu en cascade.
     const premier = setTimeout(check, 0);
     const id = setInterval(check, 60_000);
-    return () => { clearTimeout(premier); clearInterval(id); };
+    return () => {
+      clearTimeout(premier);
+      clearInterval(id);
+    };
   }, [active?.startedAt]);
   const canResume = active && !active.completedAt && !isSessionStale;
 
@@ -108,169 +125,181 @@ export function ContenuTableauDeBord({
   };
 
   // Weight sparkline data
-  const weightData = data.poids30jours.slice().reverse().map(bw => bw.poids) || [];
+  const weightData =
+    data.poids30jours
+      .slice()
+      .reverse()
+      .map((bw) => bw.poids) || [];
 
   return (
-    <div className="min-h-screen bg-papier text-encre">
+    <div className="dashboard-v2">
       <DeclarerContexte ecran="accueil" />
-      {/* Header */}
-      <div className="px-4 pt-8 pb-4">
-        <h1 className="text-2xl font-bold">Salut {data.user.nom ?? "Sacha"}</h1>
-        <div className="flex items-center gap-3 mt-1">
-          {data.user.poidsActuel && (
-            <p className="text-encre-2 text-sm">{data.user.poidsActuel} kg</p>
+      <header className="page-intro">
+        <div>
+          <h1>
+            Salut {data.user.nom ?? "Sacha"}
+            <span className="greeting-dot">.</span>
+          </h1>
+        </div>
+        <Link href="/historique" className="intro-link">
+          Mon historique <ArrowUpRight size={16} aria-hidden />
+        </Link>
+      </header>
+      <section className="readiness-section" aria-labelledby="readiness-title">
+        <div className="section-heading">
+          <h2 id="readiness-title">Ta forme aujourd’hui</h2>
+        </div>
+        <div className="readiness-grid">
+          <div className="metric-tile">
+            <span className="metric-icon">
+              <HeartPulse size={20} aria-hidden />
+            </span>
+            <p>Aujourd’hui</p>
+            <div className="metric-value">
+              {data.feuJour ? (
+                <FeuBiologique
+                  feu={data.feuJour}
+                  label={
+                    {
+                      vert: "Favorable",
+                      orange: "À adapter",
+                      rouge: "Récupérer",
+                    }[data.feuJour]
+                  }
+                  size="lg"
+                />
+              ) : (
+                <span className="metric-empty">À renseigner</span>
+              )}
+            </div>
+          </div>
+          <div className="metric-tile">
+            <span className="metric-icon">
+              <Activity size={20} aria-hidden />
+            </span>
+            <p>Tendance</p>
+            <div className="metric-value">
+              {data.feuTendance ? (
+                <FeuBiologique feu={data.feuTendance} size="lg" />
+              ) : (
+                <span className="metric-empty">—</span>
+              )}
+            </div>
+          </div>
+          <Link href="/bodyweight" className="metric-tile weight-tile">
+            <span className="metric-icon">
+              <Scale size={20} aria-hidden />
+            </span>
+            <p>
+              Poids de corps <ArrowUpRight size={14} aria-hidden />
+            </p>
+            <div className="metric-value">
+              {data.user.poidsActuel != null ? (
+                <span className="metric-number">
+                  {data.user.poidsActuel}
+                  <small> kg</small>
+                </span>
+              ) : (
+                <span className="metric-empty">Ajouter</span>
+              )}
+              {weightData.length >= 2 && (
+                <Sparkline data={weightData} width={80} height={28} />
+              )}
+            </div>
+          </Link>
+        </div>
+      </section>
+      <div className="dashboard-primary">
+        <div className="dashboard-action">
+          {canResume && (
+            <section className="resume-panel">
+              <div className="resume-icon">
+                <Play size={24} aria-hidden />
+              </div>
+              <p className="eyebrow">C’est parti</p>
+              <h2>On reprend ?</h2>
+              <p>
+                {active.sets.filter((s) => s.validatedAt).length} séries
+                enregistrées. Ta séance t’attend.
+              </p>
+              <div className="flex flex-wrap gap-3 mt-5">
+                <Button onClick={handleResume}>
+                  Reprendre ma séance <Play size={16} aria-hidden />
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setConfirmationAbandon(true)}
+                >
+                  Abandonner
+                </Button>
+              </div>
+            </section>
           )}
-          {weightData.length >= 2 && (
-            <Sparkline data={weightData} width={60} height={20} />
+          {data.etat && !canResume && <CarteAujourdhui etat={data.etat} />}
+          {active && isSessionStale && (
+            <section className="stale-session">
+              <TimerReset size={21} aria-hidden />
+              <div>
+                <h2>Séance à clôturer</h2>
+                <p>En pause depuis plus de 6 h.</p>
+              </div>
+              <div className="stale-actions">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    if (active.seanceTemplateId)
+                      router.push(
+                        `/sessions/new/${active.seanceTemplateId}/finish`,
+                      );
+                  }}
+                >
+                  Clôturer
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setConfirmationAbandon(true)}
+                >
+                  Abandonner
+                </Button>
+              </div>
+            </section>
           )}
         </div>
+        <aside className="dashboard-side">
+          {carteProgramme}
+          <ActionsCoach />
+        </aside>
       </div>
-
-      {/* Le raccourci vers le programme arrive du serveur, en différé : il
-          coûte à lui seul huit requêtes, et il n'aide personne à décider de
-          sa séance. Sa place, en revanche, ne bouge pas. */}
-      {carteProgramme}
-
-      {/* Le dégagement de la barre de navigation est posé une fois, par le
-          layout, marge du bas comprise. Le `pb-20` qui était ici s'y ajoutait
-          en pure perte : 5 rem de vide à faire défiler sous le dernier bloc. */}
-      <div className="px-4 space-y-4">
-        {/* Plus de squelette : les données sont rendues avec la page. Ce qui
-            s'affichait pendant deux à trois secondes n'attendait plus rien. */}
-        {/* In-progress session banner */}
-        {canResume && (
-          <Card className="bg-gain-fond border-gain/30">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gain font-semibold flex items-center gap-2">
-                    <Play className="w-4 h-4" />
-                    Séance en cours
-                  </p>
-                  <p className="text-encre-2 text-sm">
-                    {active.sets.filter(s => s.validatedAt).length} séries enregistrées
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="bg-gain hover:bg-gain"
-                    onClick={handleResume}
-                  >
-                    Reprendre
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-encre-2 hover:text-encre"
-                    onClick={() => setConfirmationAbandon(true)}
-                  >
-                    Abandonner
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Stale session - offer to close or abandon */}
-        {active && isSessionStale && (
-          <Card className="bg-feu-orange/10 border-feu-orange/30">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-feu-orange font-semibold">Séance interrompue</p>
-                  <p className="text-encre-2 text-sm">
-                    Il y a plus de 6h — terminer ou abandonner ?
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    className="bg-feu-orange hover:bg-feu-orange/90"
-                    onClick={() => {
-                      if (active.seanceTemplateId) {
-                        router.push(`/sessions/new/${active.seanceTemplateId}/finish`);
-                      }
-                    }}
-                  >
-                    Clôturer
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-encre-2 hover:text-encre"
-                    onClick={() => setConfirmationAbandon(true)}
-                  >
-                    Abandonner
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        <Dialog open={confirmationAbandon} onOpenChange={setConfirmationAbandon}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Abandonner la séance en cours ?</DialogTitle>
-              <DialogDescription>
-                Elle ne porte aucune série enregistrée. Ton programme, ton bloc et
-                le matériel de ta salle ne changent pas.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setConfirmationAbandon(false)}
-                disabled={abandonEnCours}>
-                Continuer la séance
-              </Button>
-              <Button variant="destructive" onClick={handleAbandon} disabled={abandonEnCours}>
-                {abandonEnCours ? "Abandon…" : "Abandonner"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Aujourd'hui — l'état vient du moteur, cet écran ne fait que le rendre.
-            Il ne s'affiche pas pendant une séance en cours : la reprendre est
-            alors la seule action qui a du sens. */}
-        {data.etat && !canResume && <CarteAujourdhui etat={data.etat} />}
-
-        {/* Feu biologique */}
-        <Card className="bg-carte border-filet">
-          <CardHeader>
-            <CardTitle className="text-encre-2 flex items-center gap-2">
-              <Activity className="w-4 h-4" />
-              Feu biologique
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-6">
-              <div className="flex items-center gap-3">
-                <span className="text-encre-3 text-sm">Aujourd&apos;hui</span>
-                {data.feuJour ? (
-                  <FeuBiologique feu={data.feuJour} size="lg" />
-                ) : (
-                  <span className="text-encre-3 text-sm">À renseigner avant ta séance</span>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-encre-3 text-sm">Tendance</span>
-                {data.feuTendance ? (
-                  <FeuBiologique feu={data.feuTendance} size="lg" />
-                ) : (
-                  <span className="text-encre-3 text-sm">Pas de données</span>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Alertes, séance de demain, débriefs, historique récent : une
-            vingtaine de requêtes que le serveur envoie dès qu'elles sont
-            prêtes, sans retenir tout ce qui précède. */}
-        {complement}
-      </div>
+      <div className="dashboard-insights">{complement}</div>
+      <Dialog open={confirmationAbandon} onOpenChange={setConfirmationAbandon}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Abandonner la séance en cours ?</DialogTitle>
+            <DialogDescription>
+              Ton programme, ton bloc et le matériel de ta salle ne changent
+              pas.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setConfirmationAbandon(false)}
+              disabled={abandonEnCours}
+            >
+              Continuer la séance
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleAbandon}
+              disabled={abandonEnCours}
+            >
+              {abandonEnCours ? "Abandon…" : "Abandonner"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

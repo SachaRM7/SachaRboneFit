@@ -277,6 +277,7 @@ export async function vueDuProgramme(
     .select({
       id: sessionLogs.id,
       date: sessionLogs.date,
+      createdAt: sessionLogs.createdAt,
       seanceTemplateId: sessionLogs.seanceTemplateId,
     })
     .from(sessionLogs)
@@ -310,6 +311,7 @@ export async function vueDuProgramme(
     seancesFaites: faites.map((s) => ({
       seanceTemplateId: s.seanceTemplateId,
       date: s.date,
+      createdAt: s.createdAt,
       adaptee: adapteesPar.has(s.id),
     })),
     aujourdhui,

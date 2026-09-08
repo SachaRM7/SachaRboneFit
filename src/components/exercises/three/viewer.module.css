@@ -1,0 +1,264 @@
+.viewer {
+  color: #253327;
+  overflow: hidden;
+  border: 1px solid #dce2da;
+  border-radius: 26px;
+  background: #fff;
+}
+.stage {
+  height: 440px;
+  position: relative;
+  background: radial-gradient(ellipse at 50% 40%, #fff 0, #eaf0e7 80%);
+}
+.canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+}
+.canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.badge {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  font-size: 10px;
+  letter-spacing: 0.13em;
+  font-weight: 700;
+  color: #64705e;
+  pointer-events: none;
+}
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  padding: 32px;
+  text-align: center;
+  background: #edf1e9e8;
+  font-size: 14px;
+  color: #485441;
+}
+.legend {
+  position: absolute;
+  bottom: 48px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  pointer-events: none;
+}
+.legend span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #df4f48;
+}
+.gesture {
+  position: absolute;
+  bottom: 15px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #64705e;
+  pointer-events: none;
+}
+.controls {
+  padding: 20px;
+}
+.toolbar {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.toolbar button,
+.angles button,
+.choices button,
+.launch {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.toolbar button:focus-visible,
+.angles button:focus-visible,
+.choices button:focus-visible,
+.launch:focus-visible {
+  outline: 3px solid #b44225;
+  outline-offset: 3px;
+}
+.play {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 14px;
+  background: #273b2d;
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+}
+.speed {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #5b655a;
+}
+.speed select {
+  padding: 9px;
+  border: 1px solid #dce2da;
+  border-radius: 10px;
+  background: white;
+  color: #253327;
+  min-height: 44px;
+}
+.reset {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #dce2da;
+  border-radius: 12px;
+}
+.timeline {
+  display: block;
+  margin-top: 20px;
+  font-size: 12px;
+  color: #5b655a;
+}
+.timeline span {
+  float: right;
+  font-variant-numeric: tabular-nums;
+}
+.timeline input {
+  display: block;
+  width: 100%;
+  margin: 8px 0 14px;
+  accent-color: #b44225;
+  min-height: 30px;
+}
+.angles {
+  display: flex;
+  gap: 8px;
+}
+.angles button {
+  flex: 1;
+  border: 1px solid #dce2da;
+  border-radius: 12px;
+  min-height: 42px;
+  font-size: 13px;
+}
+.angles button:hover,
+.reset:hover {
+  background: #edf1e9;
+}
+.cue {
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-top: 20px;
+  color: #263b2c;
+}
+.note {
+  font-size: 11px;
+  line-height: 1.6;
+  color: #687165;
+  margin-top: 12px;
+}
+.credit {
+  display: inline-block;
+  font-size: 11px;
+  color: #596a51;
+  text-decoration: underline;
+  margin-top: 8px;
+}
+.choices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 20px 0;
+}
+.choices button {
+  color: #253327;
+  text-align: left;
+  padding: 14px 10px;
+  border: 1px solid #dce2da;
+  border-radius: 16px;
+  background: #fff;
+}
+.choices button[aria-pressed="true"] {
+  background: #273b2d;
+  border-color: #273b2d;
+  color: white;
+}
+.choices small {
+  font-size: 10px;
+  opacity: 0.7;
+  display: block;
+  margin-bottom: 12px;
+}
+.choices strong {
+  font-size: 12px;
+  line-height: 1.4;
+  display: block;
+}
+.choices span {
+  font-size: 10px;
+  opacity: 0.75;
+  display: block;
+  margin-top: 8px;
+}
+.launch {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-align: left;
+  background: #eaf0e7;
+  border: 1px solid #dce2da;
+  border-radius: 20px;
+  padding: 20px;
+  color: #273b2d;
+}
+.launch strong {
+  display: block;
+  font-size: 15px;
+}
+.launch small {
+  display: block;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.launch > span:last-child {
+  margin-left: auto;
+}
+.viewer button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+@media (min-width: 700px) {
+  .stage {
+    height: 540px;
+  }
+  .controls {
+    padding: 24px 32px;
+  }
+  .choices strong {
+    font-size: 15px;
+  }
+  .choices button {
+    padding: 18px;
+  }
+}

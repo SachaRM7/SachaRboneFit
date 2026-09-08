@@ -1,3 +1,4 @@
+import { setTimeout as attendre } from "node:timers/promises";
 /**
  * Client LLM du coach.
  *
@@ -51,6 +52,7 @@ export interface ReponseLLM {
 
 export interface OptionsLLM {
   messages: MessageLLM[];
+  signal?: AbortSignal;
   system: string;
   outils?: DefinitionOutil[];
   /** Résultats d'outils à renvoyer au modèle pour qu'il conclue. */
@@ -128,11 +130,13 @@ export function fournisseurActif(): FournisseurLLM {
 export class CoachIndisponible extends Error {
   /** Code HTTP du fournisseur, quand l'échec en vient. */
   readonly statut?: number;
+  readonly retryAfterSeconds?: number;
 
-  constructor(raison: string, statut?: number) {
+  constructor(raison: string, statut?: number, retryAfterSeconds?: number) {
     super(raison);
     this.name = "CoachIndisponible";
     this.statut = statut;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -153,6 +157,24 @@ function cleApi(nom: string): string {
   const valeur = process.env[nom];
   if (!valeur) throw new CoachIndisponible(`Clé ${nom} non configurée`);
   return valeur;
+}
+
+/** Le délai vient du fournisseur, jamais d'une boucle de tentatives immédiates. */
+async function erreurFournisseur(reponse: Response): Promise<CoachIndisponible> {
+  const corps = await reponse.text();
+  const entete = reponse.headers.get("retry-after");
+  const secondes = entete ? Number(entete) : NaN;
+  const date = entete && !Number.isFinite(secondes) ? (Date.parse(entete) - Date.now()) / 1000 : NaN;
+  const annonce = corps.match(/try again in ([\d.]+)s/i);
+  const delai = Number.isFinite(secondes) ? secondes : Number.isFinite(date) ? date : annonce ? Number(annonce[1]) : NaN;
+  // Pas de corps fournisseur dans les logs : il peut contenir le prompt.
+  return new CoachIndisponible(`Fournisseur HTTP ${reponse.status}`, reponse.status,
+    Number.isFinite(delai) && delai >= 0 ? Math.ceil(delai) : undefined);
+}
+
+function signalAppel(options: OptionsLLM): AbortSignal {
+  const timeout = AbortSignal.timeout(30_000);
+  return options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
 }
 
 // ---------------------------------------------------------------------------
@@ -195,13 +217,14 @@ async function appelerGemini(options: OptionsLLM, nomModele: string): Promise<Re
     `https://generativelanguage.googleapis.com/v1beta/models/${nomModele}:generateContent`,
     {
       method: "POST",
+      signal: signalAppel(options),
       headers: { "content-type": "application/json", "x-goog-api-key": cle },
       body: JSON.stringify(corps),
     },
   );
 
   if (!reponse.ok) {
-    throw new CoachIndisponible(`Gemini ${reponse.status} : ${await reponse.text()}`, reponse.status);
+    throw await erreurFournisseur(reponse);
   }
 
   const data = await reponse.json();
@@ -263,12 +286,13 @@ async function appelerCompatibleOpenAI(
 
   const reponse = await fetch(`${base}/chat/completions`, {
     method: "POST",
+      signal: signalAppel(options),
     headers: { "content-type": "application/json", authorization: `Bearer ${cle}` },
     body: JSON.stringify(corps),
   });
 
   if (!reponse.ok) {
-    throw new CoachIndisponible(`${nomModele} ${reponse.status} : ${await reponse.text()}`, reponse.status);
+    throw await erreurFournisseur(reponse);
   }
 
   const data = await reponse.json();
@@ -320,6 +344,7 @@ async function appelerAnthropic(options: OptionsLLM, nomModele: string): Promise
 
   const reponse = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
+      signal: signalAppel(options),
     headers: {
       "x-api-key": cle,
       "anthropic-version": "2023-06-01",
@@ -329,7 +354,7 @@ async function appelerAnthropic(options: OptionsLLM, nomModele: string): Promise
   });
 
   if (!reponse.ok) {
-    throw new CoachIndisponible(`Anthropic ${reponse.status} : ${await reponse.text()}`, reponse.status);
+    throw await erreurFournisseur(reponse);
   }
 
   const data = await reponse.json();
@@ -377,6 +402,7 @@ export async function appelerLLM(
   const chaine = chaineDeModeles(profil);
   let dernierEchec: unknown = new CoachIndisponible("Aucun modèle configuré");
 
+  let reessai: { cible: CibleLLM; apres: number } | null = null;
   for (const [rang, cible] of chaine.entries()) {
     try {
       // Le nom du modèle est ajouté ICI, une fois pour toutes : c'est le seul
@@ -384,6 +410,14 @@ export async function appelerLLM(
       return { ...(await appelerCible(cible, options)), modeleUtilise: `${cible.fournisseur}:${cible.modele}` };
     } catch (erreur) {
       dernierEchec = erreur;
+      if (options.signal?.aborted) throw erreur;
+      if (erreur instanceof CoachIndisponible && erreur.statut === 429 &&
+          erreur.retryAfterSeconds !== undefined && erreur.retryAfterSeconds <= 60) {
+        const apres = Date.now() + (erreur.retryAfterSeconds + 1) * 1000;
+        if (!reessai || apres < reessai.apres) reessai = { cible, apres };
+      }
+      console.warn("[coach] appel refusé", { fournisseur: cible.fournisseur, modele: cible.modele,
+        statut: erreur instanceof CoachIndisponible ? erreur.statut : "reseau" });
       const reste = rang < chaine.length - 1;
       if (!reste || !justifieUnRepli(erreur)) break;
       console.warn(
@@ -394,5 +428,10 @@ export async function appelerLLM(
     }
   }
 
+  // Une seule reprise différée après les modèles de secours, pour les quotas courts.
+  if (reessai && (dernierEchec instanceof CoachIndisponible) && dernierEchec.statut === 429) {
+    await attendre(Math.max(0, reessai.apres - Date.now()), undefined, { signal: options.signal });
+    return { ...(await appelerCible(reessai.cible, options)), modeleUtilise: `${reessai.cible.fournisseur}:${reessai.cible.modele}` };
+  }
   throw dernierEchec;
 }

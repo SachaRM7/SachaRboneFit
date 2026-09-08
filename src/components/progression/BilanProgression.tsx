@@ -1,7 +1,15 @@
 "use client";
 import Link from "next/link";
-import { Trophy, TrendingUp, TrendingDown, Minus, CalendarCheck, HelpCircle, Sparkles } from "lucide-react";
-import { LIBELLES as LIBELLES_MUSCLES } from "@/lib/referentiels/muscles";
+import {
+  Trophy,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  CalendarCheck,
+  HelpCircle,
+  Sparkles,
+} from "lucide-react";
+import { LIBELLES as LIBELLES_MUSCLES, versMuscle } from "@/lib/referentiels/muscles";
 import type { Bilan } from "@/lib/engine/bilan-progression";
 import { nombre, pluriel } from "@/lib/format";
 
@@ -17,10 +25,8 @@ import { nombre, pluriel } from "@/lib/format";
  * phrase à dire sur ce qui manque encore.
  */
 
-const nomMuscle = (m: string) => (LIBELLES_MUSCLES as Record<string, string>)[m] ?? m;
-
-
-
+const nomMuscle = (m: string) =>
+  (LIBELLES_MUSCLES as Record<string, string>)[versMuscle(m) ?? m] ?? m;
 
 /** « il y a » lisible : on ne compte pas en jours au-delà d'un mois. */
 function ilYA(jours: number): string {
@@ -31,22 +37,40 @@ function ilYA(jours: number): string {
   return `il y a ${Math.round(jours / 30)} mois`;
 }
 
-function Bloc({ titre, children }: { titre: string; children: React.ReactNode }) {
+function Bloc({
+  titre,
+  children,
+}: {
+  titre: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="space-y-2">
-      <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">{titre}</h2>
+    <section className="bilan-section space-y-2">
+      <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">
+        {titre}
+      </h2>
       {children}
     </section>
   );
 }
 
 /** Le chiffre qu'on lit en premier, avec ce qu'il compte juste dessous. */
-function Chiffre({ valeur, unite, legende }: { valeur: string; unite?: string; legende: string }) {
+function Chiffre({
+  valeur,
+  unite,
+  legende,
+}: {
+  valeur: string;
+  unite?: string;
+  legende: string;
+}) {
   return (
-    <div className="flex-1 rounded-xl border border-filet bg-carte px-3 py-3">
-      <p className="text-encre text-2xl font-bold leading-none chiffres">
+    <div className="bilan-kpi">
+      <p className="bilan-kpi-value chiffres">
         {valeur}
-        {unite && <span className="text-encre-2 text-sm font-normal ml-1">{unite}</span>}
+        {unite && (
+          <span className="text-encre-2 text-sm font-normal ml-1">{unite}</span>
+        )}
       </p>
       <p className="text-encre-2 text-xs mt-1.5 leading-snug">{legende}</p>
     </div>
@@ -55,16 +79,19 @@ function Chiffre({ valeur, unite, legende }: { valeur: string; unite?: string; l
 
 function EtatVide() {
   return (
-    <div className="rounded-xl border border-filet bg-carte p-5 space-y-3">
+    <div className="progress-empty">
       <Sparkles className="w-5 h-5 text-encre-2" aria-hidden />
-      <h2 className="text-encre text-xl font-bold">Rien à comparer, pour l&apos;instant</h2>
+      <h2 className="text-encre text-3xl font-medium">
+        Ton histoire commence ici
+      </h2>
       <p className="text-encre-2 text-sm leading-relaxed">
-        Ta première séance ne sera pas une performance : elle posera tes références. C&apos;est à
-        partir d&apos;elles que tout se mesurera ensuite — tes charges, tes records, tes tendances.
+        Ta première séance ne sera pas une performance : elle posera tes
+        références. C&apos;est à partir d&apos;elles que tout se mesurera
+        ensuite — tes charges, tes records, tes tendances.
       </p>
       <Link
         href="/dashboard"
-        className="block w-full h-11 rounded-xl bg-encre text-papier font-semibold grid place-items-center"
+        className="inline-flex items-center justify-center px-6 h-12 rounded-xl bg-primary text-primary-foreground font-semibold"
       >
         Faire ma première séance
       </Link>
@@ -78,9 +105,9 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
   const { adherence, volume } = bilan;
 
   return (
-    <div className="space-y-6">
+    <div className="bilan-v2">
       {/* ------------------------------------------------------------------ */}
-      <div className="flex gap-2">
+      <div className="bilan-kpis">
         <Chiffre
           valeur={String(bilan.seancesTotal)}
           legende={`${pluriel(bilan.seancesTotal, "séance")} depuis le début`}
@@ -105,12 +132,20 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
         <Bloc titre="Ton rythme">
           <div className="rounded-xl border border-filet bg-carte p-4 space-y-3">
             <div className="flex items-baseline gap-2">
-              <CalendarCheck className="w-4 h-4 text-encre-2 shrink-0" aria-hidden />
+              <CalendarCheck
+                className="w-4 h-4 text-encre-2 shrink-0"
+                aria-hidden
+              />
               <p className="text-encre text-sm">
-                <span className="chiffres font-semibold">{adherence.semainesTenues}</span> semaine
+                <span className="chiffres font-semibold">
+                  {adherence.semainesTenues}
+                </span>{" "}
+                semaine
                 {adherence.semainesTenues > 1 ? "s" : ""} sur{" "}
-                <span className="chiffres font-semibold">{adherence.semainesObservees}</span> à ton
-                minimum ou au-dessus.
+                <span className="chiffres font-semibold">
+                  {adherence.semainesObservees}
+                </span>{" "}
+                à ton minimum ou au-dessus.
               </p>
             </div>
 
@@ -118,11 +153,21 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
                 mieux qu'un pourcentage, et une coupure reste visible. Les
                 colonnes sont étroites et posées sur une ligne de base — pleine
                 largeur, quatre semaines devenaient quatre pavés illisibles. */}
-            <div className="flex items-end gap-3 h-14 border-b border-encre/15 pb-px" aria-hidden>
+            <div
+              className="flex items-end gap-3 h-14 border-b border-encre/15 pb-px"
+              aria-hidden
+            >
               {adherence.seancesParSemaine.map((n, i) => {
-                const plafond = Math.max(adherence.max, ...adherence.seancesParSemaine, 1);
+                const plafond = Math.max(
+                  adherence.max,
+                  ...adherence.seancesParSemaine,
+                  1,
+                );
                 return (
-                  <div key={i} className="w-7 flex flex-col justify-end h-full gap-1">
+                  <div
+                    key={i}
+                    className="w-7 flex flex-col justify-end h-full gap-1"
+                  >
                     <span className="text-encre-3 text-[10px] text-center chiffres leading-none">
                       {n}
                     </span>
@@ -135,15 +180,15 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
               })}
             </div>
             <p className="text-encre-3 text-xs">
-              Séances par semaine, la plus ancienne à gauche — ta fourchette va de{" "}
-              <span className="chiffres">{adherence.min}</span> à{" "}
+              Séances par semaine, la plus ancienne à gauche — ta fourchette va
+              de <span className="chiffres">{adherence.min}</span> à{" "}
               <span className="chiffres">{adherence.max}</span>.
             </p>
 
             {adherence.statut === "sous_le_minimum" && (
               <p className="text-encre-2 text-sm leading-snug border-l-2 border-filet pl-3">
-                En dessous de ton minimum. Ce n&apos;est pas un reproche : si la fourchette ne
-                correspond plus à ta vie, elle peut se changer.
+                En dessous de ton minimum. Ce n&apos;est pas un reproche : si la
+                fourchette ne correspond plus à ta vie, elle peut se changer.
               </p>
             )}
           </div>
@@ -158,28 +203,50 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
               {!volume.significative ? (
                 <Minus className="w-4 h-4 text-encre-2 shrink-0" aria-hidden />
               ) : volume.variationPct > 0 ? (
-                <TrendingUp className="w-4 h-4 text-gain shrink-0" aria-hidden />
+                <TrendingUp
+                  className="w-4 h-4 text-gain shrink-0"
+                  aria-hidden
+                />
               ) : (
-                <TrendingDown className="w-4 h-4 text-encre-2 shrink-0" aria-hidden />
+                <TrendingDown
+                  className="w-4 h-4 text-encre-2 shrink-0"
+                  aria-hidden
+                />
               )}
               <p className="text-encre text-sm">
-                <span className="chiffres font-semibold">{volume.seriesDerniereSemaine}</span> séries
-                la semaine dernière
+                <span className="chiffres font-semibold">
+                  {volume.seriesDerniereSemaine}
+                </span>{" "}
+                séries la semaine dernière
                 {volume.significative && (
                   <>
                     {" "}
-                    <span className={volume.variationPct > 0 ? "text-gain" : "text-encre-2"}>
+                    <span
+                      className={
+                        volume.variationPct > 0 ? "text-gain" : "text-encre-2"
+                      }
+                    >
                       {volume.variationPct > 0 ? "+" : ""}
-                      <span className="chiffres">{nombre(volume.variationPct, 1)}</span> %
+                      <span className="chiffres">
+                        {nombre(volume.variationPct, 1)}
+                      </span>{" "}
+                      %
                     </span>
                   </>
                 )}
               </p>
             </div>
             <p className="text-encre-3 text-xs mt-1.5">
-              Contre <span className="chiffres">{nombre(volume.seriesMoyenneAnterieure, 1)}</span>{" "}
-              en moyenne sur les <span className="chiffres">{volume.semainesComparees - 1}</span>{" "}
-              semaines précédentes · <span className="chiffres">{nombre(volume.tonnageDerniereSemaine)}</span>{" "}
+              Contre{" "}
+              <span className="chiffres">
+                {nombre(volume.seriesMoyenneAnterieure, 1)}
+              </span>{" "}
+              en moyenne sur les{" "}
+              <span className="chiffres">{volume.semainesComparees - 1}</span>{" "}
+              semaines précédentes ·{" "}
+              <span className="chiffres">
+                {nombre(volume.tonnageDerniereSemaine)}
+              </span>{" "}
               kg soulevés.
             </p>
             {!volume.significative && (
@@ -202,11 +269,14 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
               >
                 <Trophy className="w-4 h-4 text-gain shrink-0" aria-hidden />
                 <div className="min-w-0 flex-1">
-                  <p className="text-encre text-sm font-medium truncate">{r.exerciceNom}</p>
+                  <p className="text-encre text-sm font-medium truncate">
+                    {r.exerciceNom}
+                  </p>
                   <p className="text-encre-2 text-xs">
                     <span className="chiffres">{nombre(r.charge, 1)}</span> kg ×{" "}
-                    <span className="chiffres">{r.reps}</span> — meilleure charge à{" "}
-                    <span className="chiffres">{r.plage}</span> répétitions ou plus
+                    <span className="chiffres">{r.reps}</span> — meilleure
+                    charge à <span className="chiffres">{r.plage}</span>{" "}
+                    répétitions ou plus
                   </p>
                 </div>
                 <span className="text-gain text-sm font-semibold chiffres shrink-0">
@@ -223,9 +293,14 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
         <Bloc titre="Ce qui progresse">
           <ul className="rounded-xl border border-filet bg-carte divide-y divide-filet">
             {bilan.enProgression.slice(0, 5).map((e) => (
-              <li key={e.exerciseInstanceId} className="px-4 py-3 flex items-center gap-3">
+              <li
+                key={e.exerciseInstanceId}
+                className="px-4 py-3 flex items-center gap-3"
+              >
                 <div className="min-w-0 flex-1">
-                  <p className="text-encre text-sm font-medium truncate">{e.exerciceNom}</p>
+                  <p className="text-encre text-sm font-medium truncate">
+                    {e.exerciceNom}
+                  </p>
                   {/* Les métriques brutes, celles qu'on peut vérifier. Le score
                       qui décide de l'ordre n'est pas affiché : ce serait donner
                       un choix de pondération pour une mesure. */}
@@ -233,7 +308,9 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
                     <span className="chiffres">{e.ameliorations}</span>{" "}
                     {pluriel(e.ameliorations, "amélioration")} ·{" "}
                     <span className="chiffres">{e.seances}</span> séances
-                    {e.joursDepuisAmelioration !== null && <> · {ilYA(e.joursDepuisAmelioration)}</>}
+                    {e.joursDepuisAmelioration !== null && (
+                      <> · {ilYA(e.joursDepuisAmelioration)}</>
+                    )}
                   </p>
                 </div>
                 <span className="text-right shrink-0">
@@ -248,10 +325,11 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
             ))}
           </ul>
           <p className="text-encre-3 text-xs">
-            Classés par clarté de l&apos;amélioration — régularité, fraîcheur et nombre de séances
-            comparables — et non par pourcentage : un exercice léger gagne mécaniquement plus de
-            pourcents qu&apos;un exercice lourd. Le maximum estimé tient compte des répétitions et
-            de la réserve.
+            Classés par clarté de l&apos;amélioration — régularité, fraîcheur et
+            nombre de séances comparables — et non par pourcentage : un exercice
+            léger gagne mécaniquement plus de pourcents qu&apos;un exercice
+            lourd. Le maximum estimé tient compte des répétitions et de la
+            réserve.
           </p>
         </Bloc>
       )}
@@ -270,7 +348,9 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
                   <div className="flex-1 h-2 rounded-full bg-papier-2 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-encre"
-                      style={{ width: `${Math.max(4, (m.series / maximum) * 100)}%` }}
+                      style={{
+                        width: `${Math.max(4, (m.series / maximum) * 100)}%`,
+                      }}
                     />
                   </div>
                   <span className="text-encre-3 text-xs chiffres w-10 text-right shrink-0">
@@ -280,7 +360,8 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
               );
             })}
             <p className="text-encre-3 text-xs pt-1">
-              Séries depuis le début. Un muscle secondaire compte pour une demi-série.
+              Séries depuis le début. Un muscle secondaire compte pour une
+              demi-série.
             </p>
           </div>
         </Bloc>
@@ -291,28 +372,43 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
         <Bloc titre="À regarder">
           <ul className="space-y-2">
             {bilan.stagnations.slice(0, 3).map((s) => (
-              <li key={s.exerciseInstanceId} className="rounded-xl border border-filet bg-carte px-4 py-3">
-                <p className="text-encre text-sm font-medium">{s.exerciceNom}</p>
+              <li
+                key={s.exerciseInstanceId}
+                className="rounded-xl border border-filet bg-carte px-4 py-3"
+              >
+                <p className="text-encre text-sm font-medium">
+                  {s.exerciceNom}
+                </p>
                 <p className="text-encre-2 text-xs mt-0.5">
-                  <span className="chiffres">{s.seances}</span> séances depuis ton dernier record,
-                  sur <span className="chiffres">{s.semaines}</span> semaines.
+                  <span className="chiffres">{s.seances}</span> séances depuis
+                  ton dernier record, sur{" "}
+                  <span className="chiffres">{s.semaines}</span> semaines.
                 </p>
               </li>
             ))}
           </ul>
           <p className="text-encre-3 text-xs">
-            Seuls les exercices réellement retentés depuis leur record figurent ici : les semaines
-            où l&apos;exercice n&apos;a pas pu être proposé ne comptent pas.
+            Seuls les exercices réellement retentés depuis leur record figurent
+            ici : les semaines où l&apos;exercice n&apos;a pas pu être proposé
+            ne comptent pas.
           </p>
         </Bloc>
       )}
 
       {/* ------------------------------------------------------------------ */}
       {bilan.enAttente.length > 0 && (
-        <div className="rounded-xl border border-filet bg-carte p-4 space-y-1.5">
+        <div className="learning-panel rounded-xl border border-filet bg-carte p-4 space-y-1.5">
+          <h2>Ton historique se construit</h2>
+          <p>Chaque séance ajoute un point de comparaison.</p>
           {bilan.enAttente.map((phrase) => (
-            <p key={phrase} className="text-encre-2 text-sm flex gap-2 leading-snug">
-              <HelpCircle className="w-4 h-4 shrink-0 mt-0.5 text-encre-3" aria-hidden />
+            <p
+              key={phrase}
+              className="text-encre-2 text-sm flex gap-2 leading-snug"
+            >
+              <HelpCircle
+                className="w-4 h-4 shrink-0 mt-0.5 text-encre-3"
+                aria-hidden
+              />
               {phrase}
             </p>
           ))}

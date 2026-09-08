@@ -1,3 +1,4 @@
+import { gabaritSuivant } from "./rotation-seances";
 /**
  * Où en est-on dans le cycle, et où en est la semaine.
  *
@@ -42,6 +43,7 @@ export interface SeanceFaite {
   date: string;
   /** Au moins un exercice a été remplacé par les circonstances. */
   adaptee: boolean;
+  createdAt?: Date | null;
 }
 
 /**
@@ -138,8 +140,8 @@ export function positionDansLeCycle(
  *
  * « Terminée » et « adaptée » se lisent dans les séances réellement
  * enregistrées cette semaine. « Aujourd'hui » n'est affirmé que si une séance
- * a effectivement été enregistrée aujourd'hui. La première séance non faite
- * est dite « prochaine » — et non « aujourd'hui » : rien dans le modèle ne
+ * a effectivement été enregistrée aujourd'hui. La rotation continue après la
+ * dernière séance du bloc, même au changement de semaine — et non « aujourd'hui » : rien dans le modèle ne
  * fixe le jour d'une séance.
  */
 export function semaineDuProgramme(entrees: {
@@ -162,7 +164,11 @@ export function semaineDuProgramme(entrees: {
   }
 
   const tries = [...gabarits].sort((a, b) => a.ordreDansSemaine - b.ordreDansSemaine);
-  const premiereNonFaite = tries.find((g) => !faitePour.has(g.id))?.id ?? null;
+  const derniere = seancesFaites
+    .filter((s) => tries.some((g) => g.id === s.seanceTemplateId))
+    .toSorted((a, b) => b.date.localeCompare(a.date) ||
+      (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0))[0];
+  const prochaine = gabaritSuivant(tries, derniere?.seanceTemplateId ?? null)?.id;
 
   return tries.map((g) => {
     const faite = faitePour.get(g.id);
@@ -171,7 +177,7 @@ export function semaineDuProgramme(entrees: {
     if (faite) {
       etat = faite.date === aujourdhui ? "faite_aujourdhui" : "terminee";
     } else {
-      etat = g.id === premiereNonFaite ? "prochaine" : "a_venir";
+      etat = g.id === prochaine ? "prochaine" : "a_venir";
     }
 
     // Les piliers les plus représentés disent de quoi la séance est faite,

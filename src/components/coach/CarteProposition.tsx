@@ -131,7 +131,7 @@ export function CarteProposition({
         <Button
           onClick={() => void decider("appliquer")}
           disabled={enCours !== null}
-          className="flex-1 bg-encre text-papier hover:bg-filet rounded-full h-11"
+          className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full h-11"
         >
           {enCours === "appliquer" ? "Un instant…" : "Appliquer"}
         </Button>

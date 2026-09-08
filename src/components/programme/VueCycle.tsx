@@ -2,9 +2,20 @@
 import Link from "next/link";
 import { useCoach, DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { useState } from "react";
-import { ChevronRight, Info, Sparkles, Wrench } from "lucide-react";
+import {
+  ChevronRight,
+  Info,
+  Sparkles,
+  Wrench,
+  Check,
+  ArrowUpRight,
+} from "lucide-react";
 import { libellePilier } from "@/lib/referentiels/libelles";
-import { LIBELLES_PHASE, LIBELLES_FATIGUE, LIBELLES_TENDANCE } from "@/lib/referentiels/cycle";
+import {
+  LIBELLES_PHASE,
+  LIBELLES_FATIGUE,
+  LIBELLES_TENDANCE,
+} from "@/lib/referentiels/cycle";
 import type { VueProgramme } from "@/services/cycle";
 import type { EtatSeance } from "@/lib/engine/semaine-programme";
 
@@ -35,7 +46,10 @@ import type { EtatSeance } from "@/lib/engine/semaine-programme";
  */
 const ETIQUETTES: Record<EtatSeance, { texte: string; classe: string }> = {
   terminee: { texte: "Terminée", classe: "bg-papier-2 text-encre-2" },
-  faite_aujourdhui: { texte: "Faite aujourd'hui", classe: "bg-papier-2 text-encre-2" },
+  faite_aujourdhui: {
+    texte: "Faite aujourd'hui",
+    classe: "bg-papier-2 text-encre-2",
+  },
   prochaine: { texte: "Prochaine", classe: "bg-encre text-papier" },
   a_venir: { texte: "À venir", classe: "bg-papier-2 text-encre-3" },
 };
@@ -61,7 +75,17 @@ function Etiquette({ etat, adaptee }: { etat: EtatSeance; adaptee: boolean }) {
   );
 }
 
-function EtatVide({ titre, texte, lien, action }: { titre: string; texte: string; lien: string; action: string }) {
+function EtatVide({
+  titre,
+  texte,
+  lien,
+  action,
+}: {
+  titre: string;
+  texte: string;
+  lien: string;
+  action: string;
+}) {
   return (
     <div className="rounded-xl border border-filet bg-carte p-5 space-y-3">
       <Sparkles className="w-5 h-5 text-encre-2" aria-hidden />
@@ -84,13 +108,13 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
   if (!vue.cycle) {
     return (
       <>
-      <DeclarerContexte ecran="programme" />
-      <EtatVide
-        titre="Ton point de départ est prêt"
-        texte="Il ne me manque plus qu'un premier bloc pour te proposer des séances. La calibration mesurera tes charges avant de construire quoi que ce soit."
-        lien="/dashboard"
-        action="Préparer mes séances"
-      />
+        <DeclarerContexte ecran="programme" />
+        <EtatVide
+          titre="Ton point de départ est prêt"
+          texte="Il ne me manque plus qu'un premier bloc pour te proposer des séances. La calibration mesurera tes charges avant de construire quoi que ce soit."
+          lien="/dashboard"
+          action="Préparer mes séances"
+        />
       </>
     );
   }
@@ -99,68 +123,65 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
   const enCalibration = vue.etat === "calibration";
 
   return (
-    <div className="space-y-6">
-      <DeclarerContexte ecran="programme" typeEntite="bloc" entiteId={cycle.id} />
+    <div className="programme-v2">
+      <DeclarerContexte
+        ecran="programme"
+        typeEntite="bloc"
+        entiteId={cycle.id}
+      />
 
       {/* ---------------------------------------------------------------- */}
-      <section className="space-y-2">
-        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">Mon programme</h2>
-        <div className="rounded-xl border border-filet bg-carte p-4 space-y-3">
-          <div>
-            <p className="text-encre text-lg font-bold leading-tight">{cycle.libelle.libelle}</p>
-            {cycle.nom !== cycle.libelle.libelle && (
-              <p className="text-encre-3 text-xs mt-0.5">{cycle.nom}</p>
-            )}
-          </div>
-
-          {/* En calibration, le repère utile est le nombre de séances faites,
-              pas un numéro de semaine : on ne construit pas encore un cycle. */}
+      <section className="cycle-panel">
+        <div className="cycle-panel-copy">
+          <p className="eyebrow">
+            Mon programme ·{" "}
+            {enCalibration ? "Les fondations" : "Cycle en cours"}
+          </p>
+          <h2>{cycle.libelle.libelle}</h2>
+          {cycle.nom !== cycle.libelle.libelle && (
+            <p className="text-encre-3 text-sm">{cycle.nom}</p>
+          )}
+          {cycle.libelle.intention && (
+            <p className="cycle-intention">{cycle.libelle.intention}</p>
+          )}
           {enCalibration ? (
-            <p className="text-encre-2 text-sm">
-              <span className="chiffres font-semibold">{cycle.seancesFaites}</span> séance
-              {cycle.seancesFaites > 1 ? "s" : ""} de calibration
+            <p className="cycle-detail">
+              {cycle.seancesFaites} séance{cycle.seancesFaites > 1 ? "s" : ""}{" "}
+              de calibration
               {semaine.length > 0 && (
-                <>
-                  {" "}sur <span className="chiffres font-semibold">{semaine.length}</span> prévues
-                  cette semaine
-                </>
+                <> · {semaine.length} prévues dans ta semaine type</>
               )}
-              .
             </p>
           ) : (
-            <div className="space-y-1.5">
-              <p className="text-encre-2 text-sm">
-                Semaine <span className="chiffres font-semibold text-encre">{cycle.position.semaine}</span>
-                {cycle.position.semainesTotal !== null && (
-                  <>
-                    {" "}sur <span className="chiffres font-semibold text-encre">{cycle.position.semainesTotal}</span>
-                  </>
-                )}
-              </p>
-              {cycle.position.avancement !== null && (
-                <div className="h-1 rounded-full bg-filet overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-encre"
-                    style={{ width: `${Math.round(cycle.position.avancement * 100)}%` }}
-                  />
-                </div>
+            <p className="cycle-detail">
+              Semaine {cycle.position.semaine}
+              {cycle.position.semainesTotal !== null && (
+                <> sur {cycle.position.semainesTotal}</>
               )}
-            </div>
-          )}
-
-          {cycle.libelle.intention && (
-            <p className="text-encre-2 text-sm leading-snug border-l-2 border-filet pl-3">
-              {cycle.libelle.intention}
             </p>
           )}
-
-          {/* Un cycle enregistré sous un vocabulaire abandonné : on le dit
-              plutôt que de faire passer une traduction pour une certitude. */}
           {cycle.libelle.herite && (
             <p className="text-encre-3 text-xs">
-              Ce cycle a été créé avec l&apos;ancienne façon de nommer les blocs. Son intitulé est
-              conservé tel quel.
+              L’intitulé de ton ancien cycle est conservé.
             </p>
+          )}
+        </div>
+        <div className="cycle-visual">
+          <div className="cycle-ring">
+            <span>
+              {enCalibration ? cycle.seancesFaites : cycle.position.semaine}
+            </span>
+            <small>
+              {enCalibration ? "séances mesurées" : "semaine en cours"}
+            </small>
+          </div>
+          {!enCalibration && cycle.position.avancement !== null && (
+            <progress
+              className="cycle-progress"
+              value={cycle.position.avancement}
+              max={1}
+              aria-label="Avancement du cycle"
+            />
           )}
         </div>
       </section>
@@ -168,7 +189,9 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
       {/* ---------------------------------------------------------------- */}
       {lecture && !enCalibration && (
         <section className="space-y-2">
-          <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">Phase actuelle</h2>
+          <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">
+            Phase actuelle
+          </h2>
           <div className="rounded-xl border border-filet bg-carte p-4 space-y-2">
             <p className="text-encre font-semibold">
               {LIBELLES_PHASE[lecture.phase] ?? "Phase en cours"}
@@ -192,7 +215,10 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
                   <ul className="text-encre-2 text-sm space-y-1 pt-1">
                     {lecture.motifs.map((m) => (
                       <li key={m} className="flex gap-2">
-                        <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 text-encre-3" aria-hidden />
+                        <Info
+                          className="w-3.5 h-3.5 shrink-0 mt-0.5 text-encre-3"
+                          aria-hidden
+                        />
                         {m}
                       </li>
                     ))}
@@ -206,36 +232,54 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
 
       {/* ---------------------------------------------------------------- */}
       <section className="space-y-2">
-        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">Cette semaine</h2>
+        <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">
+          Cette semaine
+        </h2>
 
         {semaine.length === 0 ? (
           <p className="text-encre-2 text-sm rounded-xl border border-filet bg-carte p-4">
-            Ce cycle n&apos;a pas encore de séances. Ajoute-les depuis l&apos;édition avancée, ou
-            demande-les au coach.
+            Ce cycle n&apos;a pas encore de séances. Ajoute-les depuis
+            l&apos;édition avancée, ou demande-les au coach.
           </p>
         ) : (
-          <ul className="rounded-xl border border-filet bg-carte divide-y divide-filet">
-            {semaine.map((s) => (
-              <li key={s.templateId}>
+          <ul className="session-path">
+            {semaine.map((s, index) => (
+              <li key={s.templateId} className={`path-step path-${s.etat}`}>
                 <Link
                   href={`/sessions/new/${s.templateId}`}
                   /* Même raison que la liste des séances : ces cibles
                      construisent un plan complet. On ne les anticipe pas. */
                   prefetch={false}
-                  className="w-full px-4 py-3.5 flex items-center gap-3"
+                  className="path-link"
                 >
+                  <span className="path-marker" aria-hidden>
+                    {s.etat === "terminee" || s.etat === "faite_aujourdhui" ? (
+                      <Check size={21} />
+                    ) : (
+                      String(index + 1).padStart(2, "0")
+                    )}
+                  </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="text-encre text-sm font-medium truncate">{s.nom}</span>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-encre text-sm font-medium truncate">
+                        {s.nom}
+                      </span>
                       <Etiquette etat={s.etat} adaptee={s.adaptee} />
                     </span>
                     <span className="block text-encre-3 text-xs mt-0.5">
-                      {s.piliers.length > 0 && <>{s.piliers.map(libellePilier).join(" · ")} — </>}
-                      <span className="chiffres">{s.exercices}</span> exercices · ~
-                      <span className="chiffres">{s.dureeEstimeeMinutes}</span> min
+                      {s.piliers.length > 0 && (
+                        <>{s.piliers.map(libellePilier).join(" · ")} — </>
+                      )}
+                      <span className="chiffres">{s.exercices}</span> exercices
+                      · ~
+                      <span className="chiffres">{s.dureeEstimeeMinutes}</span>{" "}
+                      min
                     </span>
                   </span>
-                  <ChevronRight className="w-4 h-4 text-encre-3 shrink-0" aria-hidden />
+                  <ArrowUpRight
+                    className="w-5 h-5 text-encre-3 shrink-0"
+                    aria-hidden
+                  />
                 </Link>
               </li>
             ))}
@@ -244,8 +288,8 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
         {/* Le modèle ne porte pas de jour de séance : l'ordre est le seul
             repère honnête, et aucune séance ne peut être dite « manquée ». */}
         <p className="text-encre-3 text-xs">
-          Ta semaine type, dans l&apos;ordre. Les jours ne sont pas fixés — tu t&apos;entraînes
-          quand tu peux.
+          Ta semaine type, dans l&apos;ordre. Les jours ne sont pas fixés — tu
+          t&apos;entraînes quand tu peux.
         </p>
       </section>
 
@@ -256,7 +300,9 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
             Ajustement recommandé
           </h2>
           <div className="rounded-xl border border-filet bg-carte p-4 space-y-2">
-            <p className="text-encre text-sm font-medium">Une décharge se justifierait</p>
+            <p className="text-encre text-sm font-medium">
+              Une décharge se justifierait
+            </p>
             <p className="text-encre-2 text-sm leading-snug">
               {lecture?.motifs.slice(0, 2).join(", ") ||
                 "Les signaux récents vont dans ce sens"}
@@ -279,7 +325,10 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
             Ajustement possible
           </h2>
           {vue.ajustements.slice(0, 2).map((a) => (
-            <div key={a.message} className="rounded-xl border border-filet bg-carte p-4 space-y-2">
+            <div
+              key={a.message}
+              className="rounded-xl border border-filet bg-carte p-4 space-y-2"
+            >
               <p className="text-encre-2 text-sm leading-snug">{a.message}</p>
               <button
                 type="button"
@@ -303,8 +352,8 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
           Modifier avec le coach
         </button>
         <p className="text-encre-3 text-xs text-center">
-          « Je ne peux plus venir le mercredi », « je veux réduire à 3 séances »… Rien n&apos;est
-          appliqué sans ta confirmation.
+          « Je ne peux plus venir le mercredi », « je veux réduire à 3 séances
+          »… Rien n&apos;est appliqué sans ta confirmation.
         </p>
       </section>
     </div>
@@ -327,11 +376,14 @@ export function OptionsAvancees({ children }: { children: React.ReactNode }) {
         aria-expanded={ouvert}
         className="w-full flex items-center justify-between py-3 text-encre-2 text-sm border-t border-filet"
       >
-        <span className="flex items-center gap-2">
+        <span className="flex flex-wrap items-center gap-2">
           <Wrench className="w-4 h-4" aria-hidden />
           Édition avancée
         </span>
-        <ChevronRight className={`w-4 h-4 transition-transform ${ouvert ? "rotate-90" : ""}`} aria-hidden />
+        <ChevronRight
+          className={`w-4 h-4 transition-transform ${ouvert ? "rotate-90" : ""}`}
+          aria-hidden
+        />
       </button>
       {ouvert && <div className="pt-2">{children}</div>}
     </section>

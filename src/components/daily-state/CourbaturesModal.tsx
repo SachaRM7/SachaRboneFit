@@ -100,7 +100,7 @@ export function CourbaturesModal({ value, onChange }: CourbaturesModalProps) {
             <Button
               onClick={addCourbature}
               disabled={!selectedMuscle}
-              className="w-full bg-encre text-papier hover:bg-filet"
+              className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             >
               <Plus className="w-4 h-4 mr-2" />
               Ajouter

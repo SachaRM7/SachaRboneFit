@@ -13,9 +13,14 @@ import {
 const DOSSIER = path.resolve(import.meta.dirname, "../../../public/exercices");
 
 describe("les images écartées", () => {
-  it("le Cable Crunch ne montre plus les deux rendus à la fois", () => {
+  it("le Cable Crunch ne montre plus une variante différente de la fiche", () => {
     // Le défaut constaté en séance : l'image 2 vient d'un autre tracé.
-    expect(imagesAffichables("cable-crunch")).toEqual([1, 3]);
+    expect(imagesAffichables("cable-crunch")).toEqual([]);
+  });
+
+  it("le hack squat ne montre plus les dessins de presse à cuisses", () => {
+    expect(imagesAffichables("hack-squat")).toEqual([]);
+    expect(sequenceAnimation(imagesAffichables("hack-squat"))).toEqual([]);
   });
 
   it("un exercice sans anomalie garde ses trois images", () => {
@@ -42,7 +47,9 @@ describe("le manifeste reste ancré au disque", () => {
     // Un slug renommé laisserait une anomalie orpheline, donc une image
     // fautive de nouveau affichée sans que rien ne le signale.
     for (const slug of Object.keys(ANOMALIES_ILLUSTRATIONS)) {
-      expect(existsSync(path.join(DOSSIER, slug)), `${slug} introuvable`).toBe(true);
+      expect(existsSync(path.join(DOSSIER, slug)), `${slug} introuvable`).toBe(
+        true,
+      );
     }
   });
 
@@ -64,9 +71,13 @@ describe("le manifeste reste ancré au disque", () => {
     }
   });
 
-  it("aucun exercice ne se retrouve sans la moindre image", () => {
+  it("un dessin retiré entièrement est remplacé par une source explicite", () => {
     for (const slug of Object.keys(ANOMALIES_ILLUSTRATIONS)) {
-      expect(imagesAffichables(slug).length, slug).toBeGreaterThan(0);
+      if (imagesAffichables(slug).length === 0) {
+        expect(ANOMALIES_ILLUSTRATIONS[slug]?.demonstration?.url, slug).toMatch(
+          /^https:\/\//,
+        );
+      }
     }
   });
 });

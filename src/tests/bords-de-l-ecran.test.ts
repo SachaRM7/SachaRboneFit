@@ -82,8 +82,8 @@ const CHROME: Array<{ fichier: string; attend: string[]; pourquoi: string }> = [
   },
   {
     fichier: "app/(app)/sessions/new/[templateId]/page.tsx",
-    attend: ["--barre-nav", "--marge-haut"],
-    pourquoi: "la rangée SOS se place au-dessus de la barre, l'en-tête sous l'encoche",
+    attend: ["--marge-haut"],
+    pourquoi: "l’en-tête reste sous l’encoche, les actions défilent avec le contenu",
   },
   {
     fichier: "components/coach/BoutonCoach.tsx",
