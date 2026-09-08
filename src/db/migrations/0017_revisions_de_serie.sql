@@ -48,15 +48,25 @@
 -- sans consulter cette table : c'est l'état final du brouillon qui fait foi.
 CREATE TABLE IF NOT EXISTS "set_log_revisions" (
   "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  "session_log_id" uuid NOT NULL REFERENCES "session_logs"("id") ON DELETE CASCADE,
-  "exercise_instance_id" uuid NOT NULL REFERENCES "exercise_instances"("id"),
+  -- Les contraintes sont NOMMÉES, et nommées comme Drizzle les nomme.
+  -- Laisser PostgreSQL choisir donne `…_fkey` là où le schéma attend
+  -- `…_session_logs_id_fk` : mêmes contraintes, noms différents, et
+  -- `verifier-migrations` signale une dérive à chaque reconstruction. C'est
+  -- exactement la dérive qui traîne déjà sur `session_debriefs` ; on ne la
+  -- reproduit pas ici.
+  "session_log_id" uuid NOT NULL,
+  "exercise_instance_id" uuid NOT NULL,
   "numero_serie" integer NOT NULL,
   -- Horloge du client au moment de l'intention. `bigint` : des millisecondes
   -- depuis 1970 débordent un `integer` depuis 1970 + 24 jours.
   "revision" bigint NOT NULL,
   -- La pierre tombale : cette clé a été supprimée à cette révision.
   "supprime" boolean NOT NULL DEFAULT false,
-  "updated_at" timestamp DEFAULT now()
+  "updated_at" timestamp DEFAULT now(),
+  CONSTRAINT "set_log_revisions_session_log_id_session_logs_id_fk"
+    FOREIGN KEY ("session_log_id") REFERENCES "session_logs"("id") ON DELETE CASCADE,
+  CONSTRAINT "set_log_revisions_exercise_instance_id_exercise_instances_id_fk"
+    FOREIGN KEY ("exercise_instance_id") REFERENCES "exercise_instances"("id")
 );--> statement-breakpoint
 
 -- Le point de rendez-vous des écritures concurrentes, et la clé logique d'une
