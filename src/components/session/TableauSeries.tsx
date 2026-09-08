@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
 import { chargeAEnregistrer, consigneDeSaisie, libelleChampCharge } from "@/lib/validators/exercise-instance";
 import { derniereLigneRetirable, nombreDeLignes } from "./lignes-de-series";
+import { PasDeCharge, alerteChargeIrrealisable } from "./PasDeCharge";
 
 interface Props {
   exercice: ExercicePrescrit;
@@ -35,6 +36,19 @@ interface Props {
    * bouton déjà monté et se contente de lui donner sa place.
    */
   actions?: ReactNode;
+  /**
+   * Les numéros de série que CETTE entrée doit encore demander.
+   *
+   * Après une substitution, ce n'est plus « 1 à seriesCibles » : les slots de
+   * prescription consommés sur l'ancienne machine en sont retirés. Sans ça,
+   * trois séries prescrites dont une faite sur A donnaient trois séries de plus
+   * sur B — quatre au total.
+   *
+   * Absent : comportement d'avant, tous les numéros de 1 à `seriesCibles`.
+   */
+  slots?: number[];
+  /** L'avancement du slot, toutes machines confondues. */
+  avancementSlot?: { faites: number; cibles: number };
 }
 
 type Brouillon = { charge: string; reps: string; rpe: string };
@@ -52,7 +66,10 @@ type Brouillon = { charge: string; reps: string; rpe: string };
  * La colonne « Dernière » met l'historique en face de la décision, au lieu de
  * le reléguer dans un encadré séparé au-dessus.
  */
-export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeReserve = false, actions }: Props) {
+export function TableauSeries({
+  exercice, rpeReduction, onSerieValidee, modeReserve = false, actions,
+  slots, avancementSlot,
+}: Props) {
   const { upsertSet, removeSet, active } = useSessionStore();
 
   const seriesSaisies = useMemo(
@@ -259,7 +276,39 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
     onSerieValidee(exercice.reposSecondes ?? null);
   };
 
-  const lignes = Array.from({ length: nbLignes }, (_, i) => i + 1);
+  /*
+   * Les lignes à afficher.
+   *
+   * `slots` prime quand il est fourni : après une substitution, la nouvelle
+   * machine ne redemande que les numéros restants — et elle les garde tels
+   * quels, la série 2 reste la série 2. Les séries ajoutées à la main au-delà
+   * de la prescription s'ajoutent après, comme avant.
+   */
+  const lignes = slots
+    ? [...slots, ...Array.from(
+        { length: Math.max(0, nbLignes - exercice.seriesCibles) },
+        (_, i) => exercice.seriesCibles + i + 1,
+      )]
+    : Array.from({ length: nbLignes }, (_, i) => i + 1);
+
+  /**
+   * La série qu'on est en train de faire — la première non validée.
+   *
+   * C'est la seule que la saisie rapide manipule. `null` quand tout est
+   * validé : il n'y a alors plus de « prochaine série », et afficher des
+   * boutons qui modifient une ligne verrouillée serait un mensonge.
+   */
+  const serieCourante = lignes.find(
+    (n) => !seriesSaisies.some((s) => s.numeroSerie === n),
+  ) ?? null;
+
+  const repsCourantes = serieCourante === null
+    ? 0
+    : Number.parseInt(valeurs(serieCourante).reps, 10) || 0;
+
+  const alerte = serieCourante === null
+    ? null
+    : alerteChargeIrrealisable(exercice, valeurs(serieCourante).charge);
   const validees = seriesSaisies.length;
 
   const champ =
@@ -310,8 +359,12 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
           <p className="text-encre-3 text-xs">{libelleCibleEffort(exercice.rpeCible)}</p>
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
+          {/* L'avancement du SLOT : après substitution, il compte aussi ce qui
+              a été fait sur l'ancienne machine — sinon la séance semble
+              repartir de zéro alors qu'une série a bien été soulevée. */}
           <span className="chiffres text-xs text-encre-3 tabular-nums">
-            {validees}/{exercice.seriesCibles}
+            {avancementSlot ? avancementSlot.faites : validees}/
+            {avancementSlot ? avancementSlot.cibles : exercice.seriesCibles}
           </span>
           {actions}
         </div>
@@ -364,6 +417,21 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
         </p>
       )}
 
+      {/*
+        L'aveu, quand il n'y a rien à comparer.
+
+        Après une substitution, la nouvelle machine n'a pas d'historique. La
+        colonne « Dernière » affiche alors des tirets, ce qui se lit comme une
+        absence de données plutôt que comme une information. Le dire
+        explicitement évite surtout la tentation inverse : emprunter la charge
+        de l'ancienne machine, où le même nombre ne déplace pas la même chose.
+      */}
+      {(exercice.historique ?? []).length === 0 && (
+        <p className="px-3.5 py-2 text-xs text-encre-3 border-b border-filet-doux">
+          Pas encore de repère sur cette machine.
+        </p>
+      )}
+
       {(exercice.raisonSubstitution || exercice.messageProgression) && (
         <p className="px-3.5 py-2 text-xs border-b border-filet-doux">
           {exercice.raisonSubstitution && (
@@ -378,6 +446,81 @@ export function TableauSeries({ exercice, rpeReduction, onSerieValidee, modeRese
             </span>
           )}
         </p>
+      )}
+
+      {/*
+        La saisie rapide, sur la SÉRIE COURANTE seulement.
+
+        Un stepper par ligne aurait mis six boutons sur un tableau déjà dense.
+        Celui-ci ne sert qu'à la prochaine série à faire — la seule qu'on
+        manipule entre deux efforts — et les crans viennent du moteur, jamais
+        d'un incrément écrit dans l'écran.
+
+        La saisie directe reste là : toucher la valeur ouvre le clavier. Le
+        parcours normal n'en a pas besoin, les cas particuliers oui.
+      */}
+      {serieCourante !== null && (
+        <div className="px-3.5 pt-3 flex items-center gap-2">
+          <span className="text-xs text-encre-3 shrink-0">
+            Série <span className="chiffres">{serieCourante}</span>
+          </span>
+          <PasDeCharge
+            exercice={exercice}
+            valeur={valeurs(serieCourante).charge}
+            onChanger={(val) => ecrire(serieCourante, "charge", val)}
+          />
+          <span className="chiffres text-sm text-encre tabular-nums min-w-[3.5rem] text-center">
+            {valeurs(serieCourante).charge || "—"}
+          </span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            {/* Les répétitions n'ont pas de grille matérielle : un cran est un
+                cran. C'est la seule différence avec la charge. */}
+            <button
+              type="button"
+              onClick={() => ecrire(serieCourante, "reps", String(Math.max(0, repsCourantes - 1)))}
+              aria-label="Une répétition de moins"
+              className="shrink-0 w-11 h-11 rounded-lg border border-filet bg-papier-2 flex items-center justify-center active:bg-filet"
+            >
+              <Minus className="w-4 h-4 text-encre-2" aria-hidden />
+            </button>
+            <span className="chiffres text-sm text-encre tabular-nums min-w-[2.5rem] text-center">
+              {valeurs(serieCourante).reps || "—"}
+            </span>
+            <button
+              type="button"
+              onClick={() => ecrire(serieCourante, "reps", String(repsCourantes + 1))}
+              aria-label="Une répétition de plus"
+              className="shrink-0 w-11 h-11 rounded-lg border border-filet bg-papier-2 flex items-center justify-center active:bg-filet"
+            >
+              <Plus className="w-4 h-4 text-encre-2" aria-hidden />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/*
+        Une charge que l'appareil ne produit pas.
+
+        Elle n'est PAS remplacée en silence : la corriger d'autorité ferait
+        enregistrer autre chose que ce qui a été soulevé. L'écran dit ce qui
+        existe autour, et laisse choisir.
+      */}
+      {alerte && serieCourante !== null && (
+        <div className="px-3.5 pt-2">
+          <p className="text-xs text-feu-orange">{alerte.message}</p>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            {alerte.choix.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => ecrire(serieCourante, "charge", String(c))}
+                className="chiffres rounded-md border border-filet bg-papier-2 px-3 py-1.5 text-sm text-encre active:bg-filet"
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       <div className="p-3.5">

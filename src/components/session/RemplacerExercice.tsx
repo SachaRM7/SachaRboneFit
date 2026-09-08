@@ -124,7 +124,7 @@ export function RemplacerExercice({
       {ouvert && (
         <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center" role="dialog" aria-modal="true">
           <div
-            className="bg-carte rounded-t-2xl w-full max-w-md p-4 space-y-4 max-h-[85vh] overflow-y-auto"
+            className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85vh] overflow-y-auto"
             style={{ paddingBottom: "calc(1rem + var(--marge-bas))" }}
           >
             <div className="flex items-start justify-between gap-3">

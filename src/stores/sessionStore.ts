@@ -1,5 +1,29 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { pousserSerie, retirerSerieEnVol, revisionSuivante } from "@/components/session/serie-en-vol";
+import {
+  noterSubstitution as noterSubstitutionDansLignees, type LigneeSlot,
+} from "@/lib/live/vue-live";
+
+/**
+ * La persistance serveur est branchée ICI, et pas dans les écrans.
+ *
+ * Le store est le seul endroit que Focus, Liste et les SOS traversent tous.
+ * Brancher l'envoi dans `TableauSeries` aurait marché tant qu'une seule vue
+ * existait ; avec deux, il aurait fallu l'écrire deux fois, et la première
+ * divergence aurait été silencieuse — une série validée en Focus persistée,
+ * la même corrigée en Liste non.
+ *
+ * L'envoi ne bloque rien : `pousserSerie` ne rend même pas de promesse. Le
+ * store écrit d'abord en local, l'écran se met à jour, et la requête part
+ * derrière avec `keepalive`. Voir `components/session/serie-en-vol.ts`.
+ */
+const envoiDesactive = { actif: true };
+
+/** Permet aux tests de couper le réseau sans mocker tout le module. */
+export function suspendrePersistanceSerie(suspendu: boolean) {
+  envoiDesactive.actif = !suspendu;
+}
 
 export type DraftSet = {
   exerciseInstanceId: string;
@@ -50,6 +74,17 @@ export type ActiveSession = {
   // RPE reductions (exerciseInstanceId -> rpe reduction amount)
   rpeReductions: Record<string, number>;
   /**
+   * Les lignées de slots de prescription — voir `lib/live/vue-live.ts`.
+   *
+   * Persistées avec le reste du brouillon : sans elles, un rafraîchissement
+   * après substitution perdrait la mémoire du slot, et la nouvelle machine
+   * redemanderait les séries déjà faites sur l'ancienne.
+   *
+   * Facultatif à la lecture : un brouillon écrit avant ce lot n'en a pas, et
+   * doit continuer de s'ouvrir.
+   */
+  lignees?: LigneeSlot[];
+  /**
    * Tempo signalé par exercice. Absent = rien n'a été dit, et c'est le cas
    * courant : on ne demande pas confirmation, on offre de signaler un écart.
    */
@@ -65,8 +100,12 @@ type SessionStore = {
    * Le store generait auparavant un UUID local, decorrele de la base : tout
    * appel utilisant cet id (enregistrement d'incident, cloture) echouait en 403.
    */
-  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "tempoParExercice" | "shownProactiveAlerts">) => void;
+  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "lignees" | "tempoParExercice" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
+  /** Remplace le brouillon par ce que la base porte — voir `hydraterDepuisServeur`. */
+  hydraterSets: (sets: DraftSet[]) => void;
+  /** Repose les lignées de substitution telles que le SERVEUR les connaît. */
+  hydraterLignees: (lignees: string[][]) => void;
   removeSet: (exerciseInstanceId: string, numeroSerie: number) => void;
   setCurrentExerciseIndex: (i: number) => void;
   setNotes: (notes: string) => void;
@@ -82,6 +121,8 @@ type SessionStore = {
   /** Propage un signalement de tempo à toutes les séries déjà saisies d'un exercice. */
   signalerTempo: (exerciseInstanceId: string, respecte: boolean | null) => void;
   skipExercises: (ids: string[]) => void;
+  /** Enregistre une substitution : l'ancienne entrée garde ses séries. */
+  noterSubstitution: (ancienId: string, nouveauId: string) => void;
   allegerExercises: (ids: string[]) => void;
   updateLastAction: () => void;
   addProactiveAlertShown: (type: string) => void;
@@ -118,6 +159,38 @@ export const useSessionStore = create<SessionStore>()(
         const sets = [...state.active.sets];
         if (existing >= 0) sets[existing] = newSet;
         else sets.push(newSet);
+
+        /*
+         * La base apprend la série tout de suite.
+         *
+         * Avant, rien n'atteignait Postgres avant l'écran de fin : une heure
+         * d'entraînement tenait dans le `localStorage`, et un crash de Safari
+         * l'effaçait entièrement. Seules les séries qui MESURENT quelque chose
+         * partent — une ligne à moitié saisie n'a rien à persister, et le
+         * serveur la refuserait.
+         */
+        if (envoiDesactive.actif
+          && newSet.repsEffectuees !== null && newSet.charge !== null) {
+          pousserSerie(state.active.id, {
+            /*
+             * La révision est prise ICI, au moment du geste — pas à l'envoi.
+             *
+             * C'est ce qui rend inoffensive une reprise réseau qui aboutirait
+             * après une correction : elle porte la révision de son intention
+             * d'origine, et le serveur la refuse.
+             */
+            revision: revisionSuivante(),
+            exerciseInstanceId: newSet.exerciseInstanceId,
+            numeroSerie: newSet.numeroSerie,
+            repsEffectuees: newSet.repsEffectuees,
+            charge: newSet.charge,
+            rpeEffectif: newSet.rpeEffectif,
+            tempoRespecte: newSet.tempoRespecte,
+            reposReelSecondes: newSet.reposReelSecondes,
+            notes: newSet.notes ?? null,
+          });
+        }
+
         return { active: { ...state.active, sets, lastActionTimestamp: Date.now() } };
       }),
       // Decocher une serie validee par erreur n'etait pas possible : le store
@@ -127,7 +200,57 @@ export const useSessionStore = create<SessionStore>()(
         const sets = state.active.sets.filter(
           (s) => !(s.exerciseInstanceId === exerciseInstanceId && s.numeroSerie === numeroSerie),
         );
+        // Décocher retire aussi la ligne en base : sans cela, elle
+        // ressusciterait à la reprise après un crash.
+        if (envoiDesactive.actif) {
+          // Une suppression est une intention comme une autre : elle porte sa
+          // révision, et elle empêche un vieux POST de ressusciter la série.
+          retirerSerieEnVol(state.active.id, {
+            revision: revisionSuivante(), exerciseInstanceId, numeroSerie,
+          });
+        }
         return { active: { ...state.active, sets, lastActionTimestamp: Date.now() } };
+      }),
+      /*
+       * La reprise : ce que la BASE porte fait autorité.
+       *
+       * Une série absente du brouillon mais présente en base — l'onglet est
+       * tombé après l'envoi — est restaurée. Une série présente des deux côtés
+       * garde la version LOCALE : c'est la plus récente, l'envoi part après
+       * l'écriture locale. Rien n'est supprimé : une série locale que le
+       * serveur n'a pas encore reçue survit à la fusion.
+       */
+      hydraterSets: (duServeur) => set((state) => {
+        if (!state.active) return state;
+        const cle = (s: DraftSet) => `${s.exerciseInstanceId}#${s.numeroSerie}`;
+        const connues = new Set(state.active.sets.map(cle));
+        const manquantes = duServeur.filter((s) => !connues.has(cle(s)));
+        if (manquantes.length === 0) return state;
+        return { active: { ...state.active, sets: [...state.active.sets, ...manquantes] } };
+      }),
+      /*
+       * Les lignées viennent du PLAN SERVEUR, pas seulement du brouillon.
+       *
+       * Le store persisté suffisait à un rafraîchissement, pas à un
+       * `localStorage` purgé par Safari ni à une reprise depuis un autre
+       * contexte. Or les séries, elles, sont relues depuis Postgres : sans
+       * lignée serveur, la machine substituée repartait à 0/3 alors qu'une
+       * série avait bien été soulevée.
+       *
+       * Le serveur fait autorité ici — c'est lui qui a enregistré la
+       * substitution. Une lignée locale que le plan ne connaît pas est
+       * conservée : elle vient d'un remplacement dont l'écriture n'a pas
+       * encore abouti.
+       */
+      hydraterLignees: (duServeur) => set((state) => {
+        if (!state.active) return state;
+        const utiles = duServeur.filter((l) => l.length > 1);
+        const connues = new Set(utiles.map((l) => l[0]!));
+        const locales = (state.active.lignees ?? []).filter((l) => !connues.has(l.origine));
+        const reconstruites = utiles.map((instances) => ({
+          origine: instances[0]!, instances,
+        }));
+        return { active: { ...state.active, lignees: [...reconstruites, ...locales] } };
       }),
       setCurrentExerciseIndex: (i) => set((state) =>
         state.active ? { active: { ...state.active, currentExerciseIndex: i } } : state
@@ -197,6 +320,24 @@ export const useSessionStore = create<SessionStore>()(
         else carte[exerciseInstanceId] = respecte;
         return { active: { ...state.active, tempoParExercice: carte, lastActionTimestamp: Date.now() } };
       }),
+      /*
+       * Une substitution ne remplace pas l'exercice : elle ALLONGE sa lignée.
+       *
+       * L'ancienne entrée porte les séries déjà faites et continue d'occuper
+       * les slots qu'elle a consommés. C'est ce qui empêche la nouvelle machine
+       * de redemander S1 quand S1 a déjà été soulevée sur l'ancienne.
+       */
+      noterSubstitution: (ancienId, nouveauId) => set((state) =>
+        state.active ? {
+          active: {
+            ...state.active,
+            lignees: noterSubstitutionDansLignees(
+              state.active.lignees ?? [], ancienId, nouveauId,
+            ),
+            lastActionTimestamp: Date.now(),
+          },
+        } : state
+      ),
       // SOS actions
       skipExercises: (ids) => set((state) =>
         state.active ? {

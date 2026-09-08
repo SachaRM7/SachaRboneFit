@@ -75,7 +75,7 @@ export function SOSMachineOccupee({
 
   return (
     <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
-      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 space-y-4 max-h-[80vh] overflow-y-auto">
+      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[80vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-encre">Machine occupée</h2>
           <button onClick={onClose} className="p-2">

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ligneeApresSubstitution } from "@/lib/live/vue-live";
 import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -120,6 +121,25 @@ export async function POST(request: Request) {
           ...(item.contexteAdaptation ?? {}),
           type: raison === "occupee" ? "machine_occupee" : "autre",
           horodatage: new Date().toISOString(),
+          /*
+           * La lignée COMPLÈTE du slot, écrite en base.
+           *
+           * Le brouillon local la tenait déjà, ce qui suffisait à un
+           * rafraîchissement — pas à un `localStorage` purgé par Safari, ni à
+           * une reprise depuis un autre contexte. Or les séries, elles, sont
+           * relues depuis Postgres : sans lignée serveur, la nouvelle machine
+           * repartait à 0/3 alors qu'une série avait été soulevée.
+           *
+           * Et c'est bien la LISTE, pas les deux colonnes : après A→B→C, ni
+           * `substitutionDeInstanceId` ni `exerciseInstancePrevuId` ne nomment
+           * B — qui porte peut-être une série.
+           */
+          ligneeInstances: ligneeApresSubstitution(
+            item.contexteAdaptation?.ligneeInstances,
+            item.exerciseInstancePrevuId,
+            remplaceInstanceId,
+            remplacantInstanceId,
+          ),
         },
         /*
          * La charge suggérée et les répétitions proposées DISPARAISSENT.
