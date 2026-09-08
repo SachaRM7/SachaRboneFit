@@ -60,7 +60,12 @@ interface SeanceChargee {
   feuBiologiqueJour?: string | null;
   volumeAjustePct?: number | null;
   volumeAjusteRaison?: string | null;
-  exercices: (ExercicePrescrit & { categorieRole?: string; musclesPrincipaux?: string[] })[];
+  exercices: (ExercicePrescrit & {
+    categorieRole?: string;
+    musclesPrincipaux?: string[];
+    /** La lignée du slot, telle que le serveur la connaît. Voir `lirePlan`. */
+    lignee?: string[];
+  })[];
 }
 
 export default function PageSeanceLive() {
@@ -87,7 +92,7 @@ function ContenuSeanceLive() {
   const router = useRouter();
 
   const {
-    active, start, hydraterSets, setCurrentExerciseIndex, noterSubstitution,
+    active, start, hydraterSets, hydraterLignees, setCurrentExerciseIndex, noterSubstitution,
     startRest, clearRest, skipRest, extendRest, skipExercises, allegerExercises,
   } = useSessionStore();
 
@@ -183,6 +188,17 @@ function ContenuSeanceLive() {
       .then((s: SeanceChargee) => {
         if (!annule) {
           setSeance(s);
+          /*
+           * Les lignées viennent du plan SERVEUR, pas seulement du brouillon.
+           *
+           * Le store persisté suffisait à un rafraîchissement ; il ne survit
+           * pas à un `localStorage` purgé. Or les séries reviennent bien de
+           * Postgres : sans cette ligne, la machine substituée repartait à 0/3
+           * alors qu'une série avait été soulevée sur l'ancienne.
+           */
+          hydraterLignees(
+            s.exercices.map((e) => e.lignee ?? []).filter((l) => l.length > 1),
+          );
           setChargement(false);
         }
       })
@@ -211,6 +227,10 @@ function ContenuSeanceLive() {
       .catch(() => {});
 
     return () => { annule = true; };
+    // `hydraterLignees` vient de Zustand : sa référence est stable pour la vie
+    // du store. L'ajouter ne changerait rien et relancerait le chargement de la
+    // séance à la moindre recréation du store.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId, gymId, sessionId]);
 
   /**

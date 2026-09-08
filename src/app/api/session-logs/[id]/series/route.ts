@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import {
   enregistrerSerie, retirerSerie, seriesDeLaSeance,
-  SeanceIntrouvable, SerieInvalide,
+  SeanceIntrouvable, SeanceClose, SerieInvalide,
 } from "@/services/seances";
 
 /**
@@ -37,11 +37,16 @@ export const runtime = "nodejs";
  * faite entre-temps. Sans elle, l'ordre d'ARRIVÉE des requêtes décidait, ce
  * qui n'a aucun rapport avec l'ordre des gestes de l'athlète.
  *
- * Facultative pour ne casser aucun appelant : absente, elle vaut l'instant du
- * serveur, ce qui redonne exactement l'ancien comportement « le dernier arrivé
- * gagne ».
+ * OBLIGATOIRE. Elle l'était « facultative pour ne casser aucun appelant » —
+ * argument creux : cette route n'existait pas avant ce lot, elle n'a pas
+ * d'appelant historique. Le repli `?? Date.now()` offrait surtout une porte de
+ * sortie : un appel qui ne respecte pas le protocole obtenait une révision
+ * fraîche côté serveur et repassait devant toutes les intentions en vol.
+ *
+ * `MAX_SAFE_INTEGER` parce que Drizzle lit ce `bigint` en `mode: "number"` :
+ * au-delà, la valeur relue ne serait plus celle qui a été écrite.
  */
-const revisionSchema = z.number().int().nonnegative().optional();
+const revisionSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
 const serieSchema = z.object({
   revision: revisionSchema,
@@ -99,10 +104,7 @@ export async function POST(
 
   try {
     const { revision, ...serie } = parsed.data;
-    const issue = await enregistrerSerie({
-      userId, sessionLogId: id, serie,
-      revision: revision ?? Date.now(),
-    });
+    const issue = await enregistrerSerie({ userId, sessionLogId: id, serie, revision });
     /*
      * `perimee` rend 200, pas une erreur.
      *
@@ -115,6 +117,18 @@ export async function POST(
   } catch (error) {
     if (error instanceof SeanceIntrouvable) {
       return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    /*
+     * 409 : la séance est terminée, et la clôture a réécrit la liste complète
+     * des séries. Une reprise partie avant la clôture ne doit pas la modifier
+     * après — c'est l'invariant « la clôture reste l'autorité ».
+     *
+     * 409 et non 404 : la séance existe, elle est simplement fermée. Et le
+     * client ne réessaie pas — `meriteUneReprise` ne rejoue que le transport
+     * et les pannes serveur.
+     */
+    if (error instanceof SeanceClose) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     /*
      * 422 : la requête est bien formée, c'est la SÉRIE qui ne mesure rien. Le
@@ -148,14 +162,15 @@ export async function DELETE(
 
   try {
     const { revision, ...cle } = parsed.data;
-    const issue = await retirerSerie({
-      userId, sessionLogId: id, ...cle,
-      revision: revision ?? Date.now(),
-    });
+    const issue = await retirerSerie({ userId, sessionLogId: id, ...cle, revision });
     return NextResponse.json({ ok: true, issue });
   } catch (error) {
     if (error instanceof SeanceIntrouvable) {
       return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+    // Même règle qu'à l'écriture : une séance close ne se modifie plus.
+    if (error instanceof SeanceClose) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
     }
     console.error("[series DELETE] échec :", error instanceof Error ? error.name : typeof error);
     return NextResponse.json({ error: "Retrait impossible" }, { status: 500 });

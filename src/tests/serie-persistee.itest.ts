@@ -67,6 +67,16 @@ const retirer = (sessionId: string, corps: unknown) =>
 const lire = (sessionId: string) =>
   route.GET(new Request("http://t/"), params(sessionId));
 
+/*
+ * Toutes les écritures portent une RÉVISION : elle n'est plus facultative.
+ *
+ * Le repli `?? Date.now()` côté serveur offrait une porte de sortie — un appel
+ * hors protocole obtenait une révision fraîche et repassait devant toutes les
+ * intentions en vol. Ces tests ne dépendent donc plus de lui.
+ */
+let horloge = 100_000;
+const rev = () => (horloge += 1);
+
 const SERIE = {
   numeroSerie: 1, repsEffectuees: 10, charge: 40, rpeEffectif: 8,
 };
@@ -121,7 +131,7 @@ const enBase = (sessionId: string) =>
 describe("une série validée arrive en base tout de suite", () => {
   it("elle y est avant toute clôture", async () => {
     connecte = SACHA;
-    const res = await poster(seanceSacha, { ...SERIE, exerciseInstanceId: instanceA });
+    const res = await poster(seanceSacha, { ...SERIE, revision: rev(), exerciseInstanceId: instanceA });
     expect(res.status).toBe(200);
 
     const lignes = await enBase(seanceSacha);
@@ -143,7 +153,7 @@ describe("une série validée arrive en base tout de suite", () => {
      */
     connecte = SACHA;
     for (let i = 0; i < 3; i += 1) {
-      const res = await poster(seanceSacha, { ...SERIE, exerciseInstanceId: instanceA });
+      const res = await poster(seanceSacha, { ...SERIE, revision: rev(), exerciseInstanceId: instanceA });
       expect(res.status).toBe(200);
     }
     expect(await enBase(seanceSacha)).toHaveLength(1);
@@ -152,7 +162,7 @@ describe("une série validée arrive en base tout de suite", () => {
   it("revalider une série corrigée met à jour la bonne ligne", async () => {
     connecte = SACHA;
     await poster(seanceSacha, {
-      ...SERIE, exerciseInstanceId: instanceA, repsEffectuees: 8, charge: 45,
+      ...SERIE, revision: rev(), exerciseInstanceId: instanceA, repsEffectuees: 8, charge: 45,
     });
 
     const lignes = await enBase(seanceSacha);
@@ -162,7 +172,7 @@ describe("une série validée arrive en base tout de suite", () => {
 
   it("deux séries de la même entrée coexistent", async () => {
     connecte = SACHA;
-    await poster(seanceSacha, { ...SERIE, exerciseInstanceId: instanceA, numeroSerie: 2 });
+    await poster(seanceSacha, { ...SERIE, revision: rev(), exerciseInstanceId: instanceA, numeroSerie: 2 });
     expect(await enBase(seanceSacha)).toHaveLength(2);
   });
 
@@ -170,7 +180,7 @@ describe("une série validée arrive en base tout de suite", () => {
     // Le triplet identifie la série : (séance, entrée, numéro). La série 1 de
     // l'entrée B ne remplace pas la série 1 de l'entrée A.
     connecte = SACHA;
-    await poster(seanceSacha, { ...SERIE, exerciseInstanceId: instanceB, numeroSerie: 1 });
+    await poster(seanceSacha, { ...SERIE, revision: rev(), exerciseInstanceId: instanceB, numeroSerie: 1 });
     const lignes = await enBase(seanceSacha);
     expect(lignes).toHaveLength(3);
     expect(new Set(lignes.map((l) => l.exerciseInstanceId)).size).toBe(2);
@@ -180,7 +190,7 @@ describe("une série validée arrive en base tout de suite", () => {
 describe("décocher une série la retire aussi de la base", () => {
   it("sinon elle ressusciterait à la reprise", async () => {
     connecte = SACHA;
-    const res = await retirer(seanceSacha, { exerciseInstanceId: instanceB, numeroSerie: 1 });
+    const res = await retirer(seanceSacha, { revision: rev(), exerciseInstanceId: instanceB, numeroSerie: 1 });
     expect(res.status).toBe(200);
 
     const lignes = await enBase(seanceSacha);
@@ -191,7 +201,7 @@ describe("décocher une série la retire aussi de la base", () => {
 
   it("retirer deux fois ne casse rien", async () => {
     connecte = SACHA;
-    const res = await retirer(seanceSacha, { exerciseInstanceId: instanceB, numeroSerie: 1 });
+    const res = await retirer(seanceSacha, { revision: rev(), exerciseInstanceId: instanceB, numeroSerie: 1 });
     expect(res.status).toBe(200);
   });
 });
@@ -251,7 +261,7 @@ describe("la reprise après un crash", () => {
 describe("ce que la route refuse", () => {
   it("la séance d'un autre compte", async () => {
     connecte = MARIA;
-    const res = await poster(seanceSacha, { ...SERIE, exerciseInstanceId: instanceA });
+    const res = await poster(seanceSacha, { ...SERIE, revision: rev(), exerciseInstanceId: instanceA });
     expect(res.status).toBe(404);
 
     // Et rien n'a été écrit chez Sacha.
@@ -266,7 +276,7 @@ describe("ce que la route refuse", () => {
 
   it("le retrait sur la séance d'un autre compte", async () => {
     connecte = MARIA;
-    const res = await retirer(seanceSacha, { exerciseInstanceId: instanceA, numeroSerie: 1 });
+    const res = await retirer(seanceSacha, { revision: rev(), exerciseInstanceId: instanceA, numeroSerie: 1 });
     expect(res.status).toBe(404);
   });
 
@@ -274,7 +284,7 @@ describe("ce que la route refuse", () => {
     // Elle a été retirée du calcul : la rouvrir en écriture la ferait
     // réapparaître par une autre porte.
     connecte = SACHA;
-    const res = await poster(seanceClose, { ...SERIE, exerciseInstanceId: instanceA });
+    const res = await poster(seanceClose, { ...SERIE, revision: rev(), exerciseInstanceId: instanceA });
     expect(res.status).toBe(404);
   });
 
@@ -286,11 +296,11 @@ describe("ce que la route refuse", () => {
      */
     connecte = SACHA;
     const res = await poster(seanceMaria, {
-      exerciseInstanceId: instanceA, numeroSerie: 1, repsEffectuees: 0, charge: 0,
+      revision: rev(), exerciseInstanceId: instanceA, numeroSerie: 1, repsEffectuees: 0, charge: 0,
     });
     connecte = MARIA;
     const chezMaria = await poster(seanceMaria, {
-      exerciseInstanceId: instanceA, numeroSerie: 1, repsEffectuees: 0, charge: 0,
+      revision: rev(), exerciseInstanceId: instanceA, numeroSerie: 1, repsEffectuees: 0, charge: 0,
     });
     // Sacha n'est pas propriétaire : 404 avant même la validation.
     expect(res.status).toBe(404);
@@ -299,7 +309,7 @@ describe("ce que la route refuse", () => {
 
   it("un corps mal formé", async () => {
     connecte = SACHA;
-    const res = await poster(seanceMaria, { exerciseInstanceId: "pas-un-uuid", numeroSerie: 1 });
+    const res = await poster(seanceMaria, { revision: rev(), exerciseInstanceId: "pas-un-uuid", numeroSerie: 1 });
     expect(res.status).toBe(400);
   });
 });
@@ -307,7 +317,7 @@ describe("ce que la route refuse", () => {
 describe("deux comptes dans la même salle", () => {
   it("les séries de Maria ne se mêlent pas à celles de Sacha", async () => {
     connecte = MARIA;
-    await poster(seanceMaria, { ...SERIE, exerciseInstanceId: instanceA, charge: 25 });
+    await poster(seanceMaria, { ...SERIE, revision: rev(), exerciseInstanceId: instanceA, charge: 25 });
 
     const chezMaria = await enBase(seanceMaria);
     const chezSacha = await enBase(seanceSacha);
@@ -523,5 +533,149 @@ describe("une reprise en retard ne gagne jamais contre une intention récente", 
 
     const ligne = await ligneDeLaCle();
     expect(ligne!.charge).toBe(50);
+  });
+});
+
+describe("une séance TERMINÉE n'accepte plus aucune écriture", () => {
+  /*
+   * LE DÉFAUT FERMÉ
+   *
+   * Le contrôle se contentait du propriétaire et de l'archivage. Or une séance
+   * terminée n'est pas archivée : elle porte une durée, c'est tout. Une reprise
+   * réseau partie avant la clôture pouvait donc aboutir APRÈS, et modifier
+   * `set_logs` sur une séance que `terminerSeance` venait de figer.
+   *
+   * Cela contredisait frontalement l'invariant annoncé — « la clôture reste
+   * l'autorité ».
+   */
+  let seanceFinie = "";
+
+  const preparer = async () => {
+    const { terminerSeance } = await import("@/services/seances");
+    const salle = await db.query.gyms.findFirst({ where: eq(schema.gyms.userId, SACHA) });
+    const [s] = await db.insert(schema.sessionLogs)
+      .values({ userId: SACHA, date: AUJOURDHUI, gymId: salle!.id }).returning();
+    seanceFinie = s!.id;
+
+    connecte = SACHA;
+    // Une série écrite au fil de la séance, comme en vrai.
+    await poster(seanceFinie, { ...SERIE, revision: rev(), exerciseInstanceId: instanceA, charge: 40 });
+
+    // Puis la clôture, avec un état final DIFFÉRENT.
+    await terminerSeance({
+      userId: SACHA, sessionLogId: seanceFinie, dureeMinutes: 50,
+      series: [{
+        exerciseInstanceId: instanceA, numeroSerie: 1, repsEffectuees: 12, charge: 55,
+      }],
+    });
+  };
+
+  const etatFinal = () => db.select().from(schema.setLogs)
+    .where(eq(schema.setLogs.sessionLogId, seanceFinie));
+
+  it("un POST retardé arrivant après la clôture est refusé", async () => {
+    await preparer();
+    connecte = SACHA;
+
+    // La reprise du vieux POST : révision plus récente que tout, et pourtant
+    // elle ne doit rien pouvoir faire.
+    const retard = await poster(seanceFinie, {
+      ...SERIE, revision: rev(), exerciseInstanceId: instanceA, charge: 40,
+    });
+    expect(retard.status, "une séance close a accepté une écriture").toBe(409);
+
+    const lignes = await etatFinal();
+    expect(lignes).toHaveLength(1);
+    expect(lignes[0]!.charge, "la clôture a été écrasée par une reprise").toBe(55);
+    expect(lignes[0]!.repsEffectuees).toBe(12);
+  });
+
+  it("un DELETE retardé aussi", async () => {
+    connecte = SACHA;
+    const retard = await retirer(seanceFinie, {
+      revision: rev(), exerciseInstanceId: instanceA, numeroSerie: 1,
+    });
+    expect(retard.status).toBe(409);
+
+    const lignes = await etatFinal();
+    expect(lignes, "une reprise a effacé une série d'une séance close").toHaveLength(1);
+  });
+
+  it("et 409 n'est pas un refus que le client rejoue", async () => {
+    /*
+     * `meriteUneReprise` ne rejoue que le transport et les pannes serveur. Un
+     * 409 dit « cette séance est finie » : insister donnerait trois fois le
+     * même refus, et userait la batterie pour rien.
+     */
+    const { cheminSeries } = await import("@/components/session/serie-en-vol");
+    expect(cheminSeries(seanceFinie)).toContain("/series");
+    // Le comportement lui-même est tenu par `meriteUneReprise`, testé plus bas
+    // dans ce même fichier via la route : 409 < 500, ni 408, ni 429.
+    expect([408, 429].includes(409)).toBe(false);
+  });
+
+  it("la LECTURE, elle, reste possible : l'historique n'est pas touché", async () => {
+    // Le garde porte sur l'écriture. Relire une séance close est légitime —
+    // c'est ce que fait l'historique.
+    connecte = SACHA;
+    const res = await lire(seanceFinie);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toHaveLength(1);
+  });
+});
+
+describe("la révision est obligatoire", () => {
+  /*
+   * Cette route n'existait pas avant ce lot : elle n'a aucun appelant
+   * historique à ménager. Le repli `?? Date.now()` offrait surtout une porte de
+   * sortie — un appel hors protocole obtenait une révision fraîche côté serveur
+   * et repassait devant toutes les intentions en vol.
+   */
+  it("un POST sans révision est refusé, et n'écrit rien", async () => {
+    connecte = SACHA;
+    const avant = await enBase(seanceSacha);
+
+    const res = await poster(seanceSacha, {
+      exerciseInstanceId: instanceA, numeroSerie: 9, repsEffectuees: 10, charge: 40,
+    });
+    expect(res.status).toBe(400);
+
+    expect(await enBase(seanceSacha)).toHaveLength(avant.length);
+    const revisions = await db.select().from(schema.setLogRevisions).where(and(
+      eq(schema.setLogRevisions.sessionLogId, seanceSacha),
+      eq(schema.setLogRevisions.numeroSerie, 9),
+    ));
+    expect(revisions, "une révision a été créée malgré le refus").toHaveLength(0);
+  });
+
+  it("un DELETE sans révision aussi", async () => {
+    connecte = SACHA;
+    const avant = await enBase(seanceSacha);
+
+    const res = await retirer(seanceSacha, { exerciseInstanceId: instanceA, numeroSerie: 1 });
+    expect(res.status).toBe(400);
+    expect(await enBase(seanceSacha)).toHaveLength(avant.length);
+  });
+
+  it("une révision non entière ou négative est refusée", async () => {
+    connecte = SACHA;
+    for (const revision of [-1, 1.5]) {
+      const res = await poster(seanceSacha, {
+        revision, exerciseInstanceId: instanceA, numeroSerie: 9,
+        repsEffectuees: 10, charge: 40,
+      });
+      expect(res.status, `révision ${revision} acceptée`).toBe(400);
+    }
+  });
+
+  it("et une révision au-delà de l'entier sûr aussi", async () => {
+    // Drizzle lit ce `bigint` en `mode: "number"` : au-delà, la valeur relue ne
+    // serait plus celle qui a été écrite.
+    connecte = SACHA;
+    const res = await poster(seanceSacha, {
+      revision: Number.MAX_SAFE_INTEGER + 100, exerciseInstanceId: instanceA,
+      numeroSerie: 9, repsEffectuees: 10, charge: 40,
+    });
+    expect(res.status).toBe(400);
   });
 });

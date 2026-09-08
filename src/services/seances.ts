@@ -455,6 +455,49 @@ export async function abandonnerSeance(userId: string, sessionLogId: string): Pr
 export type IssueEcriture = "appliquee" | "perimee";
 
 /**
+ * La séance est close : plus rien ne s'y écrit série par série.
+ *
+ * DISTINCTE DE `SeanceIntrouvable`, et pas par élégance. Une séance close
+ * existe, appartient bien à ce compte, et se lit encore ; c'est l'ÉCRITURE qui
+ * n'a plus de sens. Le client doit pouvoir distinguer « cette séance n'est pas
+ * à toi » de « cette séance est finie » — et surtout ne pas réessayer.
+ */
+export class SeanceClose extends Error {
+  constructor() {
+    super("Cette séance est terminée");
+    this.name = "SeanceClose";
+  }
+}
+
+/**
+ * La séance visée par une écriture série par série — ouverte, et à ce compte.
+ *
+ * LE DÉFAUT QUE CE GARDE FERME
+ *
+ * Le contrôle se contentait du propriétaire et de l'archivage. Or une séance
+ * TERMINÉE n'est pas archivée : elle porte une durée, c'est tout. Une reprise
+ * réseau partie avant la clôture pouvait donc aboutir APRÈS, et modifier
+ * `set_logs` sur une séance que `terminerSeance` venait de figer.
+ *
+ * Cela contredisait frontalement l'invariant annoncé — « la clôture reste
+ * l'autorité ». `dureeMinutes IS NULL` est la définition d'« ouverte » que le
+ * reste du service emploie déjà (`seanceCourante`, `estTerminee`) ; on la
+ * réutilise plutôt que d'en inventer une seconde.
+ */
+async function seanceOuvertePour(userId: string, sessionLogId: string) {
+  const existante = await db.query.sessionLogs.findFirst({
+    where: and(
+      eq(sessionLogs.id, sessionLogId),
+      eq(sessionLogs.userId, userId),
+      isNull(sessionLogs.archiveLe),
+    ),
+  });
+  if (!existante) throw new SeanceIntrouvable();
+  if (existante.dureeMinutes !== null) throw new SeanceClose();
+  return existante;
+}
+
+/**
  * Réserver la clé logique de la série pour cette révision — ou constater qu'on
  * est en retard.
  *
@@ -524,14 +567,7 @@ export async function enregistrerSerie(donnees: {
   /** Horloge du client au moment de l'INTENTION, transportée par les reprises. */
   revision: number;
 }): Promise<IssueEcriture> {
-  const existante = await db.query.sessionLogs.findFirst({
-    where: and(
-      eq(sessionLogs.id, donnees.sessionLogId),
-      eq(sessionLogs.userId, donnees.userId),
-      isNull(sessionLogs.archiveLe),
-    ),
-  });
-  if (!existante) throw new SeanceIntrouvable();
+  const existante = await seanceOuvertePour(donnees.userId, donnees.sessionLogId);
 
   const s = donnees.serie;
 
@@ -597,14 +633,7 @@ export async function retirerSerie(donnees: {
   numeroSerie: number;
   revision: number;
 }): Promise<IssueEcriture> {
-  const existante = await db.query.sessionLogs.findFirst({
-    where: and(
-      eq(sessionLogs.id, donnees.sessionLogId),
-      eq(sessionLogs.userId, donnees.userId),
-      isNull(sessionLogs.archiveLe),
-    ),
-  });
-  if (!existante) throw new SeanceIntrouvable();
+  await seanceOuvertePour(donnees.userId, donnees.sessionLogId);
 
   const cle = {
     sessionLogId: donnees.sessionLogId,

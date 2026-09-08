@@ -298,3 +298,40 @@ export function avancementDeLaLignee(
   const restants = slotsARemplir(lignee, series, seriesCibles);
   return { faites: seriesCibles - restants.length, cibles: seriesCibles };
 }
+
+/**
+ * La lignée telle qu'elle doit être écrite en base après une substitution.
+ *
+ * `substitutionDeInstanceId` ne porte que le remplacement PRÉCÉDENT, et
+ * `exerciseInstancePrevuId` que le tout premier : après A→B→C, la machine
+ * intermédiaire B n'est nommée nulle part. Or c'est peut-être elle qui porte
+ * une série, donc un slot consommé.
+ *
+ * Cette fonction est donc le seul endroit qui sait allonger une lignée
+ * persistée — le serveur l'appelle à chaque substitution, et la reprise la
+ * relit telle quelle.
+ */
+export function ligneeApresSubstitution(
+  ligneeExistante: string[] | null | undefined,
+  /** Ce que le plan désignait avant ce lot — le premier maillon connu. */
+  prevuId: string | null | undefined,
+  ancienId: string,
+  nouveauId: string,
+): string[] {
+  /*
+   * Le point de départ : la lignée déjà écrite si elle existe, sinon ce que les
+   * deux colonnes historiques permettent de reconstruire. Une ligne écrite
+   * avant ce lot n'a pas de lignée, et ce repli la rend exacte tant qu'il n'y a
+   * eu qu'une substitution — ce qui est le cas par construction, puisque toute
+   * substitution ultérieure passera par ici.
+   */
+  const debut = ligneeExistante && ligneeExistante.length > 0
+    ? [...ligneeExistante]
+    : [...new Set([prevuId, ancienId].filter((v): v is string => Boolean(v)))];
+
+  if (!debut.includes(ancienId)) debut.push(ancienId);
+  // Repasser sur une machine déjà employée ne la duplique pas : elle occupe
+  // toujours les mêmes slots.
+  if (!debut.includes(nouveauId)) debut.push(nouveauId);
+  return debut;
+}

@@ -683,6 +683,24 @@ export const sessionPlanItems = pgTable("session_plan_items", {
     niveauFidelite?: string;
     qualite?: string;
     horodatage?: string;
+    /**
+     * TOUTES les entrées ayant occupé ce slot de prescription, dans l'ordre.
+     *
+     * `substitutionDeInstanceId` ne porte que le remplacement PRÉCÉDENT, et
+     * `exerciseInstancePrevuId` que le tout premier : après A→B→C, la machine
+     * intermédiaire B n'est plus nommée nulle part. Or c'est elle qui porte
+     * peut-être une série, et donc un slot consommé.
+     *
+     * Sans cette liste, une reprise après perte du `localStorage` faisait
+     * repartir la nouvelle machine à 0/3 alors que deux séries avaient été
+     * soulevées — le Live promettait précisément de ne plus perdre ça.
+     *
+     * Aucune migration : la colonne est un `jsonb`, et une ligne écrite avant
+     * ce lot n'en porte simplement pas. La lignée se reconstruit alors depuis
+     * `exerciseInstancePrevuId` et l'entrée courante, ce qui est exact tant
+     * qu'il n'y a eu qu'une substitution.
+     */
+    ligneeInstances?: string[];
   }>(),
   raisonSubstitution: text("raison_substitution"),
 

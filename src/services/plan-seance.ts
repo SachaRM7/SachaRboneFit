@@ -568,6 +568,15 @@ export interface ItemPlanEnrichi {
   repsSuggerees: number[] | null;
   messageProgression: string | null;
   raisonSubstitution: string | null;
+  /**
+   * Les entrées ayant occupé ce slot de prescription, dans l'ordre.
+   *
+   * Vide quand rien n'a été substitué. C'est ce qui permet au Live de repartir
+   * juste après une perte du brouillon local : les séries reviennent de
+   * Postgres, la lignée aussi, et la machine substituée n'a pas à redemander
+   * les séries déjà faites sur l'ancienne.
+   */
+  lignee: string[];
   historique: { charge: number; reps: number; rpe: number | null }[];
 }
 
@@ -597,6 +606,16 @@ export async function lirePlan(userId: string, sessionLogId: string) {
       repsSuggerees: sessionPlanItems.repsSuggerees,
       messageProgression: sessionPlanItems.messageProgression,
       raisonSubstitution: sessionPlanItems.raisonSubstitution,
+      /*
+       * De quoi reconstruire la lignée du slot après une perte du brouillon.
+       *
+       * `contexteAdaptation.ligneeInstances` la porte depuis ce lot ; les deux
+       * colonnes servent de repli pour les lignes écrites avant. Sans ça, une
+       * reprise sans `localStorage` faisait repartir la machine substituée à
+       * 0/3 — alors que les séries, elles, reviennent bien de Postgres.
+       */
+      contexteAdaptation: sessionPlanItems.contexteAdaptation,
+      exerciseInstancePrevuId: sessionPlanItems.exerciseInstancePrevuId,
       machineNom: exerciseInstances.machineNom,
       exerciseId: exerciseInstances.exerciseId,
       incrementsPossibles: exerciseInstances.incrementsPossibles,
@@ -667,6 +686,18 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         repsSuggerees: l.repsSuggerees,
         messageProgression: l.messageProgression,
         raisonSubstitution: l.raisonSubstitution,
+        /*
+         * La lignée du slot, telle que le serveur la connaît.
+         *
+         * Écrite depuis ce lot dans `contexteAdaptation` ; reconstruite depuis
+         * les deux colonnes historiques pour les lignes plus anciennes, ce qui
+         * est exact tant qu'il n'y a eu qu'une substitution. Vide quand rien
+         * n'a été substitué : il n'y a alors pas de lignée à retenir.
+         */
+        lignee: l.contexteAdaptation?.ligneeInstances
+          ?? (l.exerciseInstancePrevuId && l.exerciseInstancePrevuId !== l.exerciseInstanceId
+            ? [l.exerciseInstancePrevuId, l.exerciseInstanceId]
+            : []),
         historique: (derniere?.sets ?? []).map((s) => ({ charge: s.charge, reps: s.reps, rpe: null })),
       };
     }),

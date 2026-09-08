@@ -104,6 +104,8 @@ type SessionStore = {
   upsertSet: (set: DraftSet) => void;
   /** Remplace le brouillon par ce que la base porte — voir `hydraterDepuisServeur`. */
   hydraterSets: (sets: DraftSet[]) => void;
+  /** Repose les lignées de substitution telles que le SERVEUR les connaît. */
+  hydraterLignees: (lignees: string[][]) => void;
   removeSet: (exerciseInstanceId: string, numeroSerie: number) => void;
   setCurrentExerciseIndex: (i: number) => void;
   setNotes: (notes: string) => void;
@@ -225,6 +227,30 @@ export const useSessionStore = create<SessionStore>()(
         const manquantes = duServeur.filter((s) => !connues.has(cle(s)));
         if (manquantes.length === 0) return state;
         return { active: { ...state.active, sets: [...state.active.sets, ...manquantes] } };
+      }),
+      /*
+       * Les lignées viennent du PLAN SERVEUR, pas seulement du brouillon.
+       *
+       * Le store persisté suffisait à un rafraîchissement, pas à un
+       * `localStorage` purgé par Safari ni à une reprise depuis un autre
+       * contexte. Or les séries, elles, sont relues depuis Postgres : sans
+       * lignée serveur, la machine substituée repartait à 0/3 alors qu'une
+       * série avait bien été soulevée.
+       *
+       * Le serveur fait autorité ici — c'est lui qui a enregistré la
+       * substitution. Une lignée locale que le plan ne connaît pas est
+       * conservée : elle vient d'un remplacement dont l'écriture n'a pas
+       * encore abouti.
+       */
+      hydraterLignees: (duServeur) => set((state) => {
+        if (!state.active) return state;
+        const utiles = duServeur.filter((l) => l.length > 1);
+        const connues = new Set(utiles.map((l) => l[0]!));
+        const locales = (state.active.lignees ?? []).filter((l) => !connues.has(l.origine));
+        const reconstruites = utiles.map((instances) => ({
+          origine: instances[0]!, instances,
+        }));
+        return { active: { ...state.active, lignees: [...reconstruites, ...locales] } };
       }),
       setCurrentExerciseIndex: (i) => set((state) =>
         state.active ? { active: { ...state.active, currentExerciseIndex: i } } : state
