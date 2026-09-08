@@ -404,18 +404,45 @@ describe("une reprise en retard ne gagne jamais contre une intention récente", 
     connecte = MARIA;
     await reinitialiserCle();
 
-    const ancienPost = { ...SERIE, ...CLE(), charge: 40, revision: 3_000 };
-    expect((await poster(seanceMaria, ancienPost)).status).toBe(200);
+    /*
+     * TROIS révisions distinctes, et l'ordre compte pour la démonstration.
+     *
+     * Une première version de ce test employait la même révision pour le POST
+     * initial et sa reprise. Il passait — mais sans rien prouver : la ligne de
+     * révision portait encore celle du POST, et la reprise était refusée pour
+     * égalité, pas grâce à la pierre tombale. Le contrôle négatif l'a montré en
+     * restant vert alors que la tombe était retirée.
+     *
+     * Ici la reprise (1 500) est PLUS RÉCENTE que le POST initial (1 000) et
+     * plus ancienne que la suppression (2 000). Sans la tombe, la suppression
+     * ne laisse aucune trace, 1 500 dépasse 1 000, et la série ressuscite.
+     */
+    const initial = { ...SERIE, ...CLE(), charge: 40, revision: 1_000 };
+    expect((await poster(seanceMaria, initial)).status).toBe(200);
 
-    // Le décochage, plus récent.
-    const suppression = await retirer(seanceMaria, { ...CLE(), revision: 4_000 });
+    const suppression = await retirer(seanceMaria, { ...CLE(), revision: 2_000 });
     expect((await suppression.json()).issue).toBe("appliquee");
     expect(await ligneDeLaCle()).toBeNull();
 
-    // La reprise du POST d'origine arrive maintenant.
-    const retard = await poster(seanceMaria, ancienPost);
+    // La reprise d'une saisie faite APRÈS le POST initial, mais avant le
+    // décochage. C'est le cas que seule la pierre tombale rattrape.
+    const retard = await poster(seanceMaria, { ...SERIE, ...CLE(), charge: 42, revision: 1_500 });
     expect((await retard.json()).issue).toBe("perimee");
     expect(await ligneDeLaCle(), "la série supprimée est revenue").toBeNull();
+  });
+
+  it("B bis — une suppression tient même si elle est la première écriture", async () => {
+    // Décocher une série que le serveur n'a jamais reçue : la tombe est alors
+    // la seule chose qui existe pour cette clé, et elle doit suffire.
+    connecte = MARIA;
+    await reinitialiserCle();
+
+    const suppression = await retirer(seanceMaria, { ...CLE(), revision: 2_000 });
+    expect((await suppression.json()).issue).toBe("appliquee");
+
+    const retard = await poster(seanceMaria, { ...SERIE, ...CLE(), charge: 40, revision: 1_000 });
+    expect((await retard.json()).issue).toBe("perimee");
+    expect(await ligneDeLaCle(), "un POST en retard a créé la série supprimée").toBeNull();
   });
 
   it("C — deux écritures concurrentes ne font qu'une ligne", async () => {
