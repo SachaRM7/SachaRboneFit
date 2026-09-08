@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import {
-  ArrowUpRight,
   ArrowRight,
   Dumbbell,
   MapPin,
@@ -94,15 +93,6 @@ export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
         <span className="hero-letter">
           {etat.seance?.lettre || <Icone size={92} strokeWidth={1} />}
         </span>
-      </div>
-      <div className="hero-topline">
-        <span className="hero-kicker">
-          <span />{" "}
-          {etat.enAttenteDeDonnees
-            ? "Ton point de départ"
-            : "Ton prochain mouvement"}
-        </span>
-        <ArrowUpRight size={22} aria-hidden />
       </div>
       <div className="hero-copy">
         <p className="hero-category">

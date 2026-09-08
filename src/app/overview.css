@@ -1,4 +1,31 @@
 /* Overview first; the explanation opens on demand. */
+.dashboard-v2 .page-intro { padding-block: 0.75rem 1.25rem; }
+.dashboard-v2 .metric-value { margin-bottom: 0; }
+.pillar-volume { display: grid; gap: 1.25rem; }
+.pillar-period { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.pillar-period label { font-size: 0.8rem; color: var(--encre-2); }
+.pillar-period select { min-height: 44px; max-width: 75%; border: 1px solid var(--filet); border-radius: 0.85rem; background: var(--papier); padding: 0.5rem 0.75rem; font: inherit; font-size: 0.85rem; }
+.pillar-total { border-radius: 1.75rem; background: var(--encre); color: var(--papier); padding: 1.5rem; }
+.pillar-total .eyebrow { color: inherit; opacity: 0.75; }
+.pillar-total p { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.6rem; margin: 0.4rem 0; }
+.pillar-total strong { font-size: clamp(2.6rem, 9vw, 4rem); line-height: 1.1; letter-spacing: -0.06em; font-variant-numeric: tabular-nums; }
+.pillar-total > span:last-child { font-size: 0.8rem; opacity: 0.75; }
+.pillar-ranking { margin: 0; padding: 0.3rem 1.2rem; list-style: none; background: var(--carte); border: 1px solid var(--filet); border-radius: 1.5rem; }
+.pillar-ranking li { display: flex; align-items: center; gap: 0.8rem; padding: 1.1rem 0; }
+.pillar-ranking li + li { border-top: 1px solid var(--filet-doux); }
+.pillar-rank { font-size: 0.75rem; color: var(--encre-3); font-variant-numeric: tabular-nums; }
+.pillar-measure { flex: 1; min-width: 0; }
+.pillar-measure > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: 0.9rem; }
+.pillar-measure strong { font-weight: 600; }
+.pillar-measure small { font-size: 0.65rem; color: var(--encre-3); }
+.pillar-measure > div > span { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pillar-track { height: 6px; margin-top: 0.6rem; border-radius: 1rem; background: var(--papier-2); overflow: hidden; }
+.pillar-track span { display: block; height: 100%; border-radius: inherit; background: var(--encre); }
+.pillar-ranking li:first-child .pillar-track span { background: var(--primary); }
+.pillar-definition { font-size: 0.8rem; color: var(--encre-2); }
+.pillar-definition summary { cursor: pointer; min-height: 44px; padding-block: 0.7rem; }
+.pillar-definition p { line-height: 1.6; }
+.pillar-week-empty { padding: 1.25rem; border: 1px solid var(--filet); border-radius: 1.25rem; color: var(--encre-2); }
 .dashboard-v2 .readiness-section {
   margin-bottom: 1.4rem;
 }

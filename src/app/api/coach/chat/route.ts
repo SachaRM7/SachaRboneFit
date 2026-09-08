@@ -13,6 +13,7 @@ import { resoudreContexte } from "@/services/contexte-coach";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 const schema = z.object({
   conversationId: z.string().uuid().nullable().optional(),
@@ -42,62 +43,64 @@ const TOURS_MAX = 4;
  * colonnes prévues pour ça et jusqu'ici toujours vides.
  */
 export async function POST(request: Request) {
-  const userId = await getAuthenticatedUserId();
-  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const parsed = schema.safeParse(await request.json());
-  if (!parsed.success) {
-    return NextResponse.json({ error: "Message invalide" }, { status: 400 });
-  }
-  const { conversationId, message, sessionLogId } = parsed.data;
-  const contexteEcran = contexteValide(parsed.data.contexte);
-
-  // --- Conversation ---
-  let convId = conversationId ?? null;
-
-  if (convId) {
-    const conv = await db.query.coachConversations.findFirst({
-      where: and(eq(coachConversations.id, convId), eq(coachConversations.userId, userId)),
-    });
-    if (!conv) return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });
-  } else {
-    const [nouvelle] = await db
-      .insert(coachConversations)
-      .values({ userId, sessionLogId: sessionLogId ?? null, title: message.slice(0, 60) })
-      .returning();
-    if (!nouvelle) return NextResponse.json({ error: "Création impossible" }, { status: 500 });
-    convId = nouvelle.id;
-  }
-
-  await db.insert(coachMessages).values({ conversationId: convId, role: "user", content: message });
-
-  // --- Contexte et historique ---
-  const [contexte, contexteDeLEcran, historique] = await Promise.all([
-    loadCoachContext(userId),
-    resoudreContexte(userId, contexteEcran),
-    db.query.coachMessages.findMany({
-      where: eq(coachMessages.conversationId, convId),
-      orderBy: [asc(coachMessages.createdAt)],
-    }),
-  ]);
-
-  const messages: MessageLLM[] = historique
-    .filter((m) => m.role === "user" || m.role === "assistant")
-    .filter((m) => m.content.trim().length > 0)
-    .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-
-  const outils = createCoachTools();
-
-  // Le contexte d'écran s'ajoute au prompt plutôt qu'au message : c'est une
-  // situation, pas une question de l'utilisateur.
-  const promptComplet = contexteDeLEcran.texte
-    ? `${buildSystemPrompt(contexte)}\n\n## Écran en cours\n${contexteDeLEcran.texte}`
-    : buildSystemPrompt(contexte);
-
+  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(240_000)]);
   try {
+    const userId = await getAuthenticatedUserId();
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const parsed = schema.safeParse(await request.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Message invalide" }, { status: 400 });
+    }
+    const { conversationId, message, sessionLogId } = parsed.data;
+    const contexteEcran = contexteValide(parsed.data.contexte);
+
+    // --- Conversation ---
+    let convId = conversationId ?? null;
+
+    if (convId) {
+      const conv = await db.query.coachConversations.findFirst({
+        where: and(eq(coachConversations.id, convId), eq(coachConversations.userId, userId)),
+      });
+      if (!conv) return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });
+    } else {
+      const [nouvelle] = await db
+        .insert(coachConversations)
+        .values({ userId, sessionLogId: sessionLogId ?? null, title: message.slice(0, 60) })
+        .returning();
+      if (!nouvelle) return NextResponse.json({ error: "Création impossible" }, { status: 500 });
+      convId = nouvelle.id;
+    }
+
+    await db.insert(coachMessages).values({ conversationId: convId, role: "user", content: message });
+
+    // --- Contexte et historique ---
+    const [contexte, contexteDeLEcran, historique] = await Promise.all([
+      loadCoachContext(userId),
+      resoudreContexte(userId, contexteEcran),
+      db.query.coachMessages.findMany({
+        where: eq(coachMessages.conversationId, convId),
+        orderBy: [asc(coachMessages.createdAt)],
+      }),
+    ]);
+
+    const messages: MessageLLM[] = historique
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .filter((m) => m.content.trim().length > 0)
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+
+    const outils = createCoachTools();
+
+    // Le contexte d'écran s'ajoute au prompt plutôt qu'au message : c'est une
+    // situation, pas une question de l'utilisateur.
+    const promptComplet = contexteDeLEcran.texte
+      ? `${buildSystemPrompt(contexte)}\n\n## Écran en cours\n${contexteDeLEcran.texte}`
+      : buildSystemPrompt(contexte);
+
     const resultatsOutils: Array<{ appel: AppelOutil; resultat: string }> = [];
     let reponse = await appelerLLM({
       messages,
+      signal,
       system: promptComplet,
       outils: outils.definitions,
     });
@@ -120,6 +123,7 @@ export async function POST(request: Request) {
 
       reponse = await appelerLLM({
         messages,
+        signal,
         system: promptComplet,
         outils: outils.definitions,
         resultatsOutils,
@@ -152,6 +156,10 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof CoachIndisponible) {
+      if (error.statut === 429) {
+        return NextResponse.json({ code: "COACH_QUOTA", error: "Le coach a atteint sa limite temporaire. Réessaie dans un instant." },
+          { status: 429, headers: error.retryAfterSeconds !== undefined ? { "Retry-After": String(error.retryAfterSeconds) } : {} });
+      }
       return NextResponse.json(
         { error: "Le coach n'est pas disponible : clé API non configurée ou fournisseur en erreur." },
         { status: 503 },

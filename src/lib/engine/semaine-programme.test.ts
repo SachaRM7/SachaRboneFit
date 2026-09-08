@@ -69,6 +69,30 @@ describe("position dans le cycle", () => {
 describe("semaine du programme", () => {
   const gabarits = [gabarit("a", 1), gabarit("b", 2), gabarit("c", 3)];
 
+  it("propose C après B le dimanche, sans annoncer A ou B faites le lundi", () => {
+    const s = semaineDuProgramme({ gabarits, aujourdhui: "2026-09-07", seancesFaites: [
+      { seanceTemplateId: "a", date: "2026-09-03", adaptee: false },
+      { seanceTemplateId: "b", date: "2026-09-06", adaptee: false },
+    ] });
+    expect(s.map((x) => x.etat)).toEqual(["a_venir", "a_venir", "prochaine"]);
+    expect(s.every((x) => x.faiteLe === null)).toBe(true);
+  });
+
+  it("départage deux séances du même jour par leur création", () => {
+    const s = semaineDuProgramme({ gabarits, aujourdhui: "2026-09-07", seancesFaites: [
+      { seanceTemplateId: "b", date: "2026-09-06", createdAt: new Date("2026-09-06T12:00:00Z"), adaptee: false },
+      { seanceTemplateId: "a", date: "2026-09-06", createdAt: new Date("2026-09-06T10:00:00Z"), adaptee: false },
+    ] });
+    expect(s[2].etat).toBe("prochaine");
+  });
+
+  it("revient à A après le dernier gabarit, même si B a été sautée", () => {
+    const s = semaineDuProgramme({ gabarits, aujourdhui: "2026-09-07", seancesFaites: [
+      { seanceTemplateId: "c", date: "2026-09-06", adaptee: false },
+    ] });
+    expect(s[0].etat).toBe("prochaine");
+  });
+
   it("marque la première séance non faite comme prochaine, les autres à venir", () => {
     const s = semaineDuProgramme({ gabarits, seancesFaites: [], aujourdhui: AUJOURDHUI });
     expect(s.map((x) => x.etat)).toEqual(["prochaine", "a_venir", "a_venir"]);
@@ -130,8 +154,8 @@ describe("semaine du programme", () => {
     expect(s[1]!.etat).toBe("faite_aujourdhui");
   });
 
-  it("ignore les séances des semaines précédentes", () => {
-    // Lundi : la semaine repart de zéro, même si tout a été fait la veille.
+  it("poursuit la rotation après la dernière séance de la semaine précédente", () => {
+    // Les badges faits se remettent à zéro le lundi, pas la rotation.
     const s = semaineDuProgramme({
       gabarits,
       seancesFaites: [
@@ -140,7 +164,7 @@ describe("semaine du programme", () => {
       ],
       aujourdhui: AUJOURDHUI,
     });
-    expect(s.map((x) => x.etat)).toEqual(["prochaine", "a_venir", "a_venir"]);
+    expect(s.map((x) => x.etat)).toEqual(["a_venir", "prochaine", "a_venir"]);
   });
 
   it("ignore une séance libre, non rattachée à un gabarit", () => {

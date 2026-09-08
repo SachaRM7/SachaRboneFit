@@ -23,17 +23,7 @@ export async function CarteProgramme({ userId }: { userId: string }) {
         <span className="eyebrow">Phase actuelle</span>
         <ChevronRight size={17} aria-hidden />
       </div>
-      <h2>
-        {blocActif.enCalibration
-          ? "Construire tes repères"
-          : blocActif.libelleCycle}
-      </h2>
-      {blocActif.enCalibration && <p>{blocActif.libelleCycle}</p>}
-      <p className="phase-purpose">
-        {blocActif.enCalibration
-          ? "Trouver tes charges de départ avant de progresser."
-          : "Avancer dans ton programme, au rythme de tes séances."}
-      </p>
+      <h2>{blocActif.libelleCycle}</h2>
       <div className="programme-position">
         <strong>
           {blocActif.enCalibration

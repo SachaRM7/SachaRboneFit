@@ -136,12 +136,10 @@ export function ContenuTableauDeBord({
       <DeclarerContexte ecran="accueil" />
       <header className="page-intro">
         <div>
-          <p className="eyebrow">Ton rendez-vous avec toi</p>
           <h1>
             Salut {data.user.nom ?? "Sacha"}
             <span className="greeting-dot">.</span>
           </h1>
-          <p className="page-subtitle">Chaque séance construit la suite.</p>
         </div>
         <Link href="/historique" className="intro-link">
           Mon historique <ArrowUpRight size={16} aria-hidden />
@@ -150,7 +148,6 @@ export function ContenuTableauDeBord({
       <section className="readiness-section" aria-labelledby="readiness-title">
         <div className="section-heading">
           <h2 id="readiness-title">Ta forme aujourd’hui</h2>
-          <span>Ton ressenti avant l’effort</span>
         </div>
         <div className="readiness-grid">
           <div className="metric-tile">
@@ -175,7 +172,6 @@ export function ContenuTableauDeBord({
                 <span className="metric-empty">À renseigner</span>
               )}
             </div>
-            <span className="metric-caption">Ton état avant la séance</span>
           </div>
           <div className="metric-tile">
             <span className="metric-icon">
@@ -186,10 +182,9 @@ export function ContenuTableauDeBord({
               {data.feuTendance ? (
                 <FeuBiologique feu={data.feuTendance} size="lg" />
               ) : (
-                <span className="metric-empty">À découvrir</span>
+                <span className="metric-empty">—</span>
               )}
             </div>
-            <span className="metric-caption">Tes derniers ressentis</span>
           </div>
           <Link href="/bodyweight" className="metric-tile weight-tile">
             <span className="metric-icon">
@@ -205,13 +200,12 @@ export function ContenuTableauDeBord({
                   <small> kg</small>
                 </span>
               ) : (
-                <span className="metric-empty">Ajouter une mesure</span>
+                <span className="metric-empty">Ajouter</span>
               )}
               {weightData.length >= 2 && (
                 <Sparkline data={weightData} width={80} height={28} />
               )}
             </div>
-            <span className="metric-caption">Voir l’évolution</span>
           </Link>
         </div>
       </section>

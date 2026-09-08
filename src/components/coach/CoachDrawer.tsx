@@ -59,6 +59,12 @@ export function CoachDrawer({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [attenteLongue, setAttenteLongue] = useState(false);
+  useEffect(() => {
+    if (!loading) return;
+    const timer = setTimeout(() => setAttenteLongue(true), 8000);
+    return () => clearTimeout(timer);
+  }, [loading]);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   /**
@@ -172,6 +178,7 @@ export function CoachDrawer({
 
     const userMessage = brut.trim();
     if (!messageImpose) setInput("");
+    setAttenteLongue(false);
     setLoading(true);
     setErreur(null);
 
@@ -202,7 +209,9 @@ export function CoachDrawer({
       if (!res.ok) {
         const erreur = await res.json().catch(() => null);
         throw new Error(
-          messageErreur("joindre le coach", erreur?.error, res.status),
+          erreur?.code === "COACH_QUOTA"
+            ? "Le coach a atteint sa limite temporaire. Ton message est conservé : réessaie dans un instant."
+            : messageErreur("joindre le coach", erreur?.error, res.status),
         );
       }
 
@@ -422,9 +431,10 @@ export function CoachDrawer({
                   />
                 ))}
                 {loading && (
-                  <div className="flex justify-start">
+                  <div className="flex flex-col items-start gap-2">
+                    {attenteLongue && <p role="status" className="text-sm text-encre-2">La réponse prend plus de temps. Le coach poursuit la consultation.</p>}
                     <div className="bg-papier-2 text-encre rounded-2xl rounded-bl-md px-4 py-2">
-                      <div className="flex gap-1">
+                      <div role="status" aria-label="Le coach prépare sa réponse" className="flex gap-1">
                         <span
                           className="w-2 h-2 bg-encre-3 rounded-full animate-bounce"
                           style={{ animationDelay: "0ms" }}
