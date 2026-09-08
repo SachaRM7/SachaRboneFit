@@ -1,0 +1,21 @@
+{
+  "sourceCommit": "7d04bf3c4de2bd9cb234dd51d7e6857c099afafd",
+  "sourceTriangles": 1478973,
+  "triangles": 169363,
+  "bytes": 11622880,
+  "groups": [
+    "pecs",
+    "other",
+    "deltoids",
+    "tendons",
+    "calves",
+    "triceps",
+    "biceps",
+    "glutes",
+    "quads",
+    "hamstrings",
+    "bones"
+  ],
+  "joints": 15,
+  "method": "BP3D meshes only; decimation, coordinate conversion, heuristic skin weights. Poses require expert review."
+}

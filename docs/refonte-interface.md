@@ -41,3 +41,12 @@ La carte de séance interrompue place désormais les actions sous le message sur
 - Compilation Next.js/TypeScript réussie et ESLint sans erreur (89 avertissements). Le contrôle ciblé des illustrations passe après la seconde exclusion.
 
 - Contrôle connecté sur l’aperçu déployé : nom réel St-Martin-Du-Touch dans l’état du jour, accès Mon espace → Banque, catalogue de 120 exercices et fiche Cable Crunch (muscles et consignes) vérifiés en lecture seule. Les anciens codes de muscles sont normalisés dans les cartes et la recherche.
+
+## Prototype anatomique 3D
+
+- Studio `/exercises/3d`, accessible depuis la banque : squat au poids du corps, curl biceps avec haltères et élévations latérales. Rotation libre, vues face/profil/dos, pause, ralenti et décomposition manuelle. Le mouvement démarre en pause.
+- [BodyExplorer](https://github.com/JohanBellander/BodyExplorer) fournit les sources anatomiques ; seuls les modèles BodyParts3D sont conservés, sous CC BY-SA 2.1 Japan. Attribution, modifications et instructions de reconstruction accompagnent le modèle dans `public/models/exercises-3d`. Le code de LiftLab n’est pas repris, faute de licence explicite dans le dépôt consulté.
+- Rig et mouvements originaux, simplifiés et non validés biomécaniquement. La prise des mains est approximative. La coloration désigne les muscles ciblés ; elle ne mesure pas leur activation. Ce prototype reste distinct d’une bibliothèque de mouvements validés.
+- Correspondances explicites par slug, sans changer les identifiants : curl et élévations sont compatibles avec le matériel du catalogue. Le squat avec barre existant n’est pas relié au squat sans charge. Les autres fiches conservent leurs médias et consignes.
+- Moteur et modèle chargés à l’ouverture ; rendu arrêté à l’arrière-plan, ressources libérées à la fermeture. Le fichier anatomique fait environ 11 Mo avant compression HTTP. Sa compression et l’amélioration des articulations restent nécessaires avant généralisation.
+- 1 384 tests réussis avec deux workers, dont six sur les correspondances, la continuité des boucles et l’ancrage des chevilles. Le premier passage parallèle a rencontré deux délais de cinq secondes dépassés ; le passage complet suivant réussit. Contrôles navigateur à 390 × 844 et sur ordinateur : trois modèles, flexion du squat, cadrage des bras, vues et lecture à ¼×.

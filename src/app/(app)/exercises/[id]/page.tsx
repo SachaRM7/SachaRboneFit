@@ -1,4 +1,6 @@
 import { redirect, notFound } from "next/navigation";
+import { Exercise3DPreview } from "@/components/exercises/three/ExerciseViewer";
+import { renderingForExercise } from "@/lib/exercises-3d/catalogue";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { db } from "@/db/client";
 import { exercises, exerciseInstances } from "@/db/schema";
@@ -59,9 +61,12 @@ export default async function ExerciseDetailPage({
   // consultables même si le catalogue distant n’a pas encore été enrichi.
   const technique = ficheRenseignee(exercise.ficheTechnique)
     ? exercise.ficheTechnique
-    : exercise.slug ? FICHES_TECHNIQUES[exercise.slug] : null;
+    : exercise.slug
+      ? FICHES_TECHNIQUES[exercise.slug]
+      : null;
 
   const principaux = versMuscles(exercise.musclesPrincipaux);
+  const movement3d = renderingForExercise(exercise.slug);
   const secondaires = versMuscles(exercise.musclesSecondaires);
 
   return (
@@ -83,6 +88,7 @@ export default async function ExerciseDetailPage({
         <h1 className="text-xl font-bold text-encre">{exercise.nom}</h1>
       </div>
 
+      {movement3d && <Exercise3DPreview movement={movement3d} />}
       {fiche && exercise.slug && (
         <DemonstrationExercice
           slug={exercise.slug}

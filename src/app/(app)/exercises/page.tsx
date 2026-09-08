@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";
 import { db } from "@/db/client";
 import { exercises, exerciseInstances, gyms } from "@/db/schema";
@@ -51,6 +52,25 @@ export default async function ExercisesPage() {
         Explore les mouvements, les muscles sollicités et les consignes
         disponibles pour chaque exercice.
       </p>
+      <Link
+        href="/exercises/3d"
+        className="mx-4 mb-5 flex items-center justify-between gap-4 rounded-2xl bg-[#273b2d] p-5 text-white"
+      >
+        <span>
+          <span className="block text-xs uppercase tracking-widest opacity-70">
+            Nouveau · prototype
+          </span>
+          <strong className="mt-1 block text-lg">
+            Explore le mouvement en 3D
+          </strong>
+          <span className="mt-1 block text-xs opacity-80">
+            Trois exercices, tous les angles, à ton rythme.
+          </span>
+        </span>
+        <span aria-hidden className="text-2xl">
+          ↗
+        </span>
+      </Link>
       <ExerciseLibrary
         exercises={avecInstances}
         salles={salles.map((g) => ({ id: g.id, nom: g.nom }))}

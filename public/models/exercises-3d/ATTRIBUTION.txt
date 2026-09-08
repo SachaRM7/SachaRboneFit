@@ -1,0 +1,22 @@
+BodyParts3D / Anatomography
+Copyright Database Center for Life Science (DBCLS), Japan.
+License: Creative Commons Attribution-ShareAlike 2.1 Japan.
+https://creativecommons.org/licenses/by-sa/2.1/jp/deed.en
+Original project: https://lifesciencedb.jp/bp3d/
+
+Source files: anatomy.glb, skeleton.glb, mesh_mapping.json from BodyExplorer
+https://github.com/JohanBellander/BodyExplorer
+Pinned revision: 7d04bf3c4de2bd9cb234dd51d7e6857c099afafd
+
+Only meshes identified as BodyParts3D are retained from anatomy.glb.
+Z-Anatomy meshes are excluded. The skeleton is BodyParts3D.
+
+Adaptation by SachaRboneFit contributors, 2026: mesh simplification,
+coordinate conversion, regrouping by muscle group, recalculated normals,
+original heuristic joint weights, simplified closed hands and 15-joint skeleton.
+This adapted body.glb is distributed under CC BY-SA 2.1 Japan, above.
+No endorsement by the original authors is implied.
+
+The procedural exercise motions are original prototype demonstrations.
+Their biomechanics have not been professionally validated. Highlighting
+indicates selected muscle groups, not measured activation or force.
