@@ -2,9 +2,22 @@
 
 import { useState, useRef, useEffect } from "react";
 import { messageErreur } from "@/lib/messages";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
-import { X, Send, Plus, ChevronLeft } from "lucide-react";
+import {
+  X,
+  Send,
+  Plus,
+  ChevronLeft,
+  Sparkles,
+  ArrowUpRight,
+  MessageCircle,
+} from "lucide-react";
 import { useCoach } from "./ContexteCoach";
 import { amorce, suggestions } from "@/lib/coach/contexte-ecran";
 import { CarteProposition, type Proposition } from "./CarteProposition";
@@ -23,7 +36,13 @@ interface ConversationPreview {
   updatedAt: string;
 }
 
-export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function CoachDrawer({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const { contexte } = useCoach();
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
@@ -130,11 +149,20 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
    * s'est passé. Sans cette phrase, l'athlète n'aurait que la disparition de la
    * carte pour savoir si son geste a produit quelque chose.
    */
-  function apresDecision(id: string, _decision: "appliquer" | "refuser", message: string) {
+  function apresDecision(
+    id: string,
+    _decision: "appliquer" | "refuser",
+    message: string,
+  ) {
     setPropositions((prev) => prev.filter((p) => p.id !== id));
     setMessages((prev) => [
       ...prev,
-      { id: `decision-${id}`, role: "assistant", content: message, createdAt: new Date().toISOString() },
+      {
+        id: `decision-${id}`,
+        role: "assistant",
+        content: message,
+        createdAt: new Date().toISOString(),
+      },
     ]);
   }
 
@@ -173,7 +201,9 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
 
       if (!res.ok) {
         const erreur = await res.json().catch(() => null);
-        throw new Error(messageErreur("joindre le coach", erreur?.error, res.status));
+        throw new Error(
+          messageErreur("joindre le coach", erreur?.error, res.status),
+        );
       }
 
       const data = await res.json();
@@ -214,19 +244,60 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
       {/* `vh` inclut sur iOS la zone masquee par la barre du navigateur : le bas du
           tiroir — donc le champ de saisie — tombait hors ecran. `dvh` suit la
           hauteur reellement visible. */}
-      <DrawerContent className="bg-papier text-encre max-h-[88dvh] !rounded-t-2xl">
+      <DrawerContent className="coach-sheet bg-papier text-encre max-h-[88dvh] !rounded-t-2xl">
         <div className="flex flex-col h-[88dvh] min-h-0">
           <DrawerHeader className="border-b border-filet pb-2">
             <div className="flex items-center justify-between">
-              <DrawerTitle className="text-encre">Coach</DrawerTitle>
-              <Button variant="ghost" size="icon" onClick={onClose} className="text-encre hover:bg-papier-2">
+              <DrawerTitle className="text-encre flex items-center gap-3">
+                <span className="coach-avatar">
+                  <Sparkles size={20} aria-hidden />
+                </span>
+                Ton coach
+              </DrawerTitle>
+              <Button
+                aria-label="Fermer le coach"
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="text-encre hover:bg-papier-2"
+              >
                 <X className="w-5 h-5" />
               </Button>
             </div>
           </DrawerHeader>
 
           {vue === "liste" && (
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-3">
+              <div className="coach-welcome">
+                <p className="eyebrow">On fait équipe</p>
+                <h2>
+                  De quoi as-tu
+                  <br />
+                  besoin aujourd’hui ?
+                </h2>
+                <p>
+                  Un entraînement à comprendre, un programme à ajuster. Je pars
+                  de ta situation.
+                </p>
+              </div>
+              <div className="coach-prompts">
+                {suggestions(contexte).map((s) => (
+                  <button
+                    key={s.libelle}
+                    onClick={() => {
+                      startNewConversation();
+                      setInput(s.message);
+                    }}
+                  >
+                    <span>{s.libelle}</span>
+                    <ArrowUpRight size={17} aria-hidden />
+                  </button>
+                ))}
+              </div>
+              <div className="section-heading pt-5">
+                <h3 className="text-sm">Nos conversations</h3>
+                <MessageCircle size={16} aria-hidden />
+              </div>
               <Button
                 variant="outline"
                 className="w-full bg-carte border-filet text-encre hover:bg-papier-2 justify-start"
@@ -237,24 +308,29 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
               </Button>
 
               {loadingConversations ? (
-                <div className="text-encre-3 text-sm text-center py-4">Un instant…</div>
+                <div className="text-encre-3 text-sm text-center py-4">
+                  Un instant…
+                </div>
               ) : conversations.length === 0 ? (
                 <div className="text-encre-3 text-sm text-center py-4">
-                  Aucune conversation pour l’instant. Pose ta première question ci-dessous.
+                  Nos échanges apparaîtront ici. Choisis un sujet ou commence
+                  une conversation.
                 </div>
               ) : (
                 conversations.map((conv) => (
                   <button
                     key={conv.id}
                     onClick={() => selectConversation(conv.id)}
-                    className="w-full text-left p-3 rounded-lg bg-carte border border-filet hover:bg-papier-2 transition-colors"
+                    className="w-full text-left p-4 rounded-2xl bg-carte border border-filet-doux hover:bg-papier-2 transition-colors"
                   >
                     <div className="font-medium text-encre text-sm truncate">
                       {conv.title || "Nouvelle conversation"}
                     </div>
                     {conv.lastMessage && (
                       <div className="text-encre-3 text-xs truncate mt-1">
-                        {conv.lastMessage.role === "user" ? "Vous: " : "Coach: "}
+                        {conv.lastMessage.role === "user"
+                          ? "Vous: "
+                          : "Coach: "}
                         {conv.lastMessage.preview}
                       </div>
                     )}
@@ -329,7 +405,9 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                           : "bg-papier-2 text-encre rounded-bl-md"
                       }`}
                     >
-                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      <p className="text-sm whitespace-pre-wrap">
+                        {msg.content}
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -337,15 +415,28 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
                     du message qui les explique et juste au-dessus du champ de
                     saisie : c'est là que le pouce arrive. */}
                 {propositions.map((p) => (
-                  <CarteProposition key={p.id} proposition={p} onDecide={apresDecision} />
+                  <CarteProposition
+                    key={p.id}
+                    proposition={p}
+                    onDecide={apresDecision}
+                  />
                 ))}
                 {loading && (
                   <div className="flex justify-start">
                     <div className="bg-papier-2 text-encre rounded-2xl rounded-bl-md px-4 py-2">
                       <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-encre-3 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                        <span className="w-2 h-2 bg-encre-3 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                        <span className="w-2 h-2 bg-encre-3 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                        <span
+                          className="w-2 h-2 bg-encre-3 rounded-full animate-bounce"
+                          style={{ animationDelay: "0ms" }}
+                        />
+                        <span
+                          className="w-2 h-2 bg-encre-3 rounded-full animate-bounce"
+                          style={{ animationDelay: "150ms" }}
+                        />
+                        <span
+                          className="w-2 h-2 bg-encre-3 rounded-full animate-bounce"
+                          style={{ animationDelay: "300ms" }}
+                        />
                       </div>
                     </div>
                   </div>
@@ -354,24 +445,26 @@ export function CoachDrawer({ open, onClose }: { open: boolean; onClose: () => v
               </div>
 
               <div className="shrink-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-filet">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && void handleSend()}
-                placeholder="Écris ta question…"
-                className="flex-1 bg-carte border border-filet rounded-full px-4 py-2 text-sm text-encre placeholder:text-encre-3 focus:outline-none focus:border-filet"
-                disabled={loading}
-              />
-              <Button
-                onClick={() => void handleSend()}
-                disabled={loading || !input.trim()}
-                className="w-12 h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 p-0"
-              >
-                <Send className="w-5 h-5" />
-              </Button>
-            </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void handleSend()}
+                    aria-label="Message au coach"
+                    placeholder="Écris ta question…"
+                    className="flex-1 bg-carte border border-filet rounded-full px-4 py-2 text-sm text-encre placeholder:text-encre-3 focus:outline-none focus:border-filet"
+                    disabled={loading}
+                  />
+                  <Button
+                    aria-label="Envoyer le message"
+                    onClick={() => void handleSend()}
+                    disabled={loading || !input.trim()}
+                    className="w-12 h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 p-0"
+                  >
+                    <Send className="w-5 h-5" />
+                  </Button>
+                </div>
               </div>
             </>
           )}

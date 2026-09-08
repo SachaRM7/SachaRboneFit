@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ChevronLeft, Dumbbell, ChartNoAxesCombined, Trophy, Scale } from "lucide-react";
+import {
+  ChevronLeft,
+  Dumbbell,
+  ChartNoAxesCombined,
+  Trophy,
+  Scale,
+} from "lucide-react";
 import { ExerciseProgressionChart } from "@/components/progression/ExerciseProgressionChart";
 import { PillarVolumeChart } from "@/components/progression/PillarVolumeChart";
 import { BodyWeightChart } from "@/components/progression/BodyWeightChart";
@@ -23,13 +29,34 @@ import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 
 type Vue = "exercice" | "pilier" | "records" | "poids";
 
-const ICONES = { exercice: Dumbbell, pilier: ChartNoAxesCombined, records: Trophy, poids: Scale };
+const ICONES = {
+  exercice: Dumbbell,
+  pilier: ChartNoAxesCombined,
+  records: Trophy,
+  poids: Scale,
+};
 
 const VUES: { cle: Vue; libelle: string; description: string }[] = [
-  { cle: "exercice", libelle: "Par exercice", description: "Charges séance après séance" },
-  { cle: "pilier", libelle: "Par pilier", description: "Répartition du volume" },
-  { cle: "records", libelle: "Records", description: "Tes meilleures performances" },
-  { cle: "poids", libelle: "Poids de corps", description: "Tendance sur six mois" },
+  {
+    cle: "exercice",
+    libelle: "Par exercice",
+    description: "Charges séance après séance",
+  },
+  {
+    cle: "pilier",
+    libelle: "Par pilier",
+    description: "Répartition du volume",
+  },
+  {
+    cle: "records",
+    libelle: "Records",
+    description: "Tes meilleures performances",
+  },
+  {
+    cle: "poids",
+    libelle: "Poids de corps",
+    description: "Tendance sur six mois",
+  },
 ];
 
 interface ExerciceTravaille {
@@ -109,7 +136,9 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
                   onChange={(e) => setInstanceId(e.target.value)}
                   aria-label="Exercice"
                 >
-                  {exercices.length === 0 && <option value="">Aucun exercice travaillé</option>}
+                  {exercices.length === 0 && (
+                    <option value="">Aucun exercice travaillé</option>
+                  )}
                   {exercices.map((e) => (
                     <option key={e.instanceId} value={e.instanceId}>
                       {e.machineNom ? `${e.nom} — ${e.machineNom}` : e.nom}
@@ -128,7 +157,10 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
                 </select>
               </div>
               {instanceId ? (
-                <ExerciseProgressionChart instanceId={instanceId} months={mois} />
+                <ExerciseProgressionChart
+                  instanceId={instanceId}
+                  months={mois}
+                />
               ) : (
                 <p className="text-encre-2 text-sm py-8 text-center">
                   Aucun exercice n&apos;a encore été travaillé.
@@ -149,14 +181,18 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
     <div className="min-h-dvh bg-papier text-encre">
       <DeclarerContexte ecran="progression" />
       <header className="dashboard-header">
-        <h1 className="text-2xl font-bold">Progression</h1>
+        <p className="eyebrow">La régularité fait la différence</p>
+        <h1>Tes progrès.</h1>
         {bilan?.periode && (
           <p className="text-encre-2 text-sm mt-0.5">
             Depuis le{" "}
-            {new Date(`${bilan.periode.debut}T12:00:00`).toLocaleDateString("fr-FR", {
-              day: "numeric",
-              month: "long",
-            })}
+            {new Date(`${bilan.periode.debut}T12:00:00`).toLocaleDateString(
+              "fr-FR",
+              {
+                day: "numeric",
+                month: "long",
+              },
+            )}
           </p>
         )}
       </header>
@@ -172,7 +208,7 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
             <h2 className="text-encre-2 text-xs font-semibold uppercase tracking-wide">
               Entrer dans le détail
             </h2>
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <ul className="progress-explore-grid">
               {VUES.map((v) => {
                 const Icone = ICONES[v.cle];
                 return (
@@ -180,14 +216,24 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
                     <button
                       type="button"
                       onClick={() => setVue(v.cle)}
-                      className="w-full h-full text-left p-5 flex items-center gap-4 rounded-3xl bg-carte hover:bg-papier-2 transition-colors shadow-sm"
+                      className="progress-explore-card"
                     >
-                      <Icone className="w-10 h-10 p-2.5 bg-papier-2 rounded-xl text-primary shrink-0" aria-hidden />
+                      <Icone
+                        className="w-10 h-10 p-2.5 bg-papier-2 rounded-xl text-primary shrink-0"
+                        aria-hidden
+                      />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-encre text-sm font-medium">{v.libelle}</span>
-                        <span className="block text-encre-3 text-xs">{v.description}</span>
+                        <span className="block text-encre text-sm font-medium">
+                          {v.libelle}
+                        </span>
+                        <span className="block text-encre-3 text-xs">
+                          {v.description}
+                        </span>
                       </span>
-                      <ChevronLeft className="w-4 h-4 text-encre-3 rotate-180 shrink-0" aria-hidden />
+                      <ChevronLeft
+                        className="w-4 h-4 text-encre-3 rotate-180 shrink-0"
+                        aria-hidden
+                      />
                     </button>
                   </li>
                 );

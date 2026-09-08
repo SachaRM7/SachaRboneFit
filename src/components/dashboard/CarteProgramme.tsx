@@ -18,41 +18,37 @@ export async function CarteProgramme({ userId }: { userId: string }) {
   if (!blocActif) return null;
 
   return (
-    <div className="px-4 pb-5">
-      {/* Le programme n'a pas d'onglet — c'est une décision assumée : ce n'est
-          pas une destination quotidienne. Mais il ne doit pas être à deux
-          gestes pour autant. Toute la carte est le lien : un second gros bouton
-          entrerait en concurrence avec celui de la séance du jour. */}
-      <Link
-        href="/programme"
-        className="programme-link flex items-center gap-3 rounded-2xl bg-carte px-5 py-4"
-      >
-        <span className="min-w-0 flex-1">
-          <span className="block text-encre text-sm font-medium truncate">
-            {blocActif.libelleCycle}
-          </span>
-          <span className="block text-encre-3 text-xs mt-0.5">
-            {blocActif.enCalibration ? (
-              <>
-                <span className="chiffres">{blocActif.seancesFaites}</span> séance
-                {blocActif.seancesFaites > 1 ? "s" : ""} mesurée
-                {blocActif.seancesFaites > 1 ? "s" : ""}
-              </>
-            ) : (
-              <>
-                Semaine <span className="chiffres">{blocActif.semaine}</span>
-                {blocActif.semainesTotal !== null && (
-                  <> sur <span className="chiffres">{blocActif.semainesTotal}</span></>
-                )}
-              </>
-            )}
-            {" · "}
-            <span className="chiffres">{blocActif.seancesDeLaSemaine}</span> séance
-            {blocActif.seancesDeLaSemaine > 1 ? "s" : ""} cette semaine
-          </span>
+    <Link href="/programme" className="programme-overview">
+      <div className="section-heading">
+        <span className="eyebrow">Le fil conducteur</span>
+        <ChevronRight size={17} aria-hidden />
+      </div>
+      <h2>{blocActif.libelleCycle}</h2>
+      <div className="programme-position">
+        <strong>
+          {blocActif.enCalibration
+            ? blocActif.seancesFaites
+            : blocActif.semaine}
+        </strong>
+        <span>
+          {blocActif.enCalibration
+            ? "séances mesurées"
+            : `semaine${blocActif.semainesTotal !== null ? ` sur ${blocActif.semainesTotal}` : " en cours"}`}
         </span>
-        <ChevronRight className="w-4 h-4 text-encre-3 shrink-0" aria-hidden />
-      </Link>
-    </div>
+      </div>
+      {!blocActif.enCalibration && blocActif.semainesTotal !== null && (
+        <progress
+          className="cycle-progress"
+          max={Math.max(1, blocActif.semainesTotal)}
+          value={blocActif.semaine}
+          aria-label="Semaine du cycle"
+        />
+      )}
+      <p>
+        {blocActif.seancesDeLaSemaine} séance
+        {blocActif.seancesDeLaSemaine > 1 ? "s" : ""} dans ta semaine type{" "}
+        <span>Voir le programme →</span>
+      </p>
+    </Link>
   );
 }

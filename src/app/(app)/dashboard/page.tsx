@@ -66,8 +66,8 @@ export default async function DashboardPage() {
  */
 function CadreProgrammeEnAttente() {
   return (
-    <div className="px-4 pb-2" aria-hidden>
-      <div className="h-[58px] rounded-xl bg-papier-2 animate-pulse" />
+    <div aria-hidden>
+      <div className="h-[185px] rounded-3xl bg-papier-2 animate-pulse" />
     </div>
   );
 }

@@ -17,7 +17,12 @@ function formaterDuree(secondes: number): string {
   return reste === 0 ? `${minutes} min` : `${minutes} min ${reste}`;
 }
 
-export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: RestTimerProps) {
+export function RestTimer({
+  durationSeconds,
+  onComplete,
+  onSkip,
+  onExtend,
+}: RestTimerProps) {
   const [elapsed, setElapsed] = useState(0);
   // Ref plutot qu'un state : sert uniquement a ne declencher onComplete qu'une fois.
   const completedRef = useRef(false);
@@ -36,7 +41,9 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
   useEffect(() => {
     const tick = () => {
       const now = Date.now();
-      const newElapsed = Math.floor((now - (startTimeRef.current ?? now)) / 1000);
+      const newElapsed = Math.floor(
+        (now - (startTimeRef.current ?? now)) / 1000,
+      );
       setElapsed(newElapsed);
       const remaining = durationRef.current - newElapsed;
       if (remaining <= 0 && !completedRef.current) {
@@ -58,7 +65,9 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
       if (document.visibilityState === "visible") {
         // Recalculate elapsed on return to foreground
         const now = Date.now();
-        const newElapsed = Math.floor((now - (startTimeRef.current ?? now)) / 1000);
+        const newElapsed = Math.floor(
+          (now - (startTimeRef.current ?? now)) / 1000,
+        );
         setElapsed(newElapsed);
         const remaining = durationRef.current - newElapsed;
         if (remaining <= 0 && !completedRef.current) {
@@ -69,7 +78,8 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
   }, [onComplete]);
 
   const remaining = Math.max(0, durationSeconds - elapsed);
@@ -79,16 +89,18 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
 
   const mins = Math.floor(remaining / 60);
   const secs = remaining % 60;
-  const timeDisplay = mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}`;
+  const timeDisplay =
+    mins > 0 ? `${mins}:${secs.toString().padStart(2, "0")}` : `${secs}`;
 
   const isOvertime = elapsed >= durationSeconds;
   const overtimeSeconds = isOvertime ? elapsed - durationSeconds : 0;
 
   return (
-    <div className="flex flex-col items-center gap-4 p-4">
+    <div className="rest-v2 flex flex-col items-center gap-5 p-6">
+      <p className="eyebrow">La récupération fait partie du travail</p>
       {/* SVG Circular Timer */}
       <div className="relative">
-        <svg width="180" height="180" viewBox="0 0 180 180">
+        <svg width="230" height="230" viewBox="0 0 180 180">
           {/*
             L'anneau suit le thème, comme le reste.
 
@@ -119,7 +131,7 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
             /* Le dépassement est un SIGNAL — la seule couleur de l'anneau,
                au sens du système Carnet : elle apparaît quand quelque chose a
                lieu, elle ne décore pas le temps qui passe. */
-            className={isOvertime ? "text-gain" : "text-encre-2"}
+            className={isOvertime ? "text-gain" : "text-primary"}
             stroke="currentColor"
             strokeWidth="8"
             strokeLinecap="round"
@@ -143,12 +155,16 @@ export function RestTimer({ durationSeconds, onComplete, onSkip, onExtend }: Res
               <p className="text-3xl font-bold text-gain">Prêt</p>
               <p className="text-lg text-gain/70">
                 repos atteint
-                {overtimeSeconds >= 5 ? ` depuis ${formaterDuree(overtimeSeconds)}` : ""}
+                {overtimeSeconds >= 5
+                  ? ` depuis ${formaterDuree(overtimeSeconds)}`
+                  : ""}
               </p>
             </div>
           ) : (
             <>
-              <p className={`text-4xl font-bold ${remaining <= 10 ? "text-feu-orange" : "text-encre"}`}>
+              <p
+                className={`text-5xl font-medium chiffres ${remaining <= 10 ? "text-feu-orange" : "text-encre"}`}
+              >
                 {timeDisplay}
               </p>
               <p className="text-encre-3 text-sm">de repos</p>

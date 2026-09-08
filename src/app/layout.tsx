@@ -4,8 +4,16 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 
 // Polices variables auto-hébergées par Next pour toute l'interface.
-const heading = Outfit({ subsets: ["latin"], display: "swap", variable: "--police-titre" });
-const body = Geist({ subsets: ["latin"], display: "swap", variable: "--police-texte" });
+const heading = Outfit({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--police-titre",
+});
+const body = Geist({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--police-texte",
+});
 
 export const metadata: Metadata = {
   title: "Sport Perso",
@@ -26,14 +34,22 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F3F6F6" },
-    { media: "(prefers-color-scheme: dark)", color: "#111A1C" },
+    { media: "(prefers-color-scheme: light)", color: "#F7F7F2" },
+    { media: "(prefers-color-scheme: dark)", color: "#151C18" },
   ],
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="fr" suppressHydrationWarning className={`${heading.variable} ${body.variable}`}>
+    <html
+      lang="fr"
+      suppressHydrationWarning
+      className={`${heading.variable} ${body.variable}`}
+    >
       <body className="bg-papier text-encre min-h-screen antialiased">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

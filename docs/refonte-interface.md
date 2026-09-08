@@ -1,28 +1,25 @@
-# Refonte de l’interface — septembre 2026
+# Interface V2 — septembre 2026
 
-Direction : interface sportive minérale, accent turquoise, typographie Outfit / Geist auto-hébergée, surfaces claires et sombres cohérentes.
+Direction : application sportive, fond ivoire ou graphite, surfaces sauge, action principale citron et accent terre cuite. Typographies Outfit et Geist auto-hébergées.
 
-## Changements
+## Écrans et interactions
 
-- Thème commun aux composants Base UI et aux écrans métier ; couleurs des graphiques conservées.
-- Accueil hiérarchisé autour de la prochaine séance, cartes secondaires en deux colonnes à partir de 900 px.
-- Navigation active, mise en page limitée en largeur, accès au coach, cartes et champs harmonisés.
-- Progression en tuiles, réglages avec icônes, sélection des séances et commandes Focus / Liste modernisées.
-- Champs et boutons principaux de 44 px, focus clavier visible, zoom autorisé, réduction des animations respectée.
-- Zones de sécurité mobiles et dégagement des commandes fixes conservés.
+- Accueil recomposé autour de la prochaine séance, avec programme et accès contextuels au coach ; indicateurs personnels regroupés en dessous.
+- Navigation latérale sur ordinateur, barre mobile avec accès central au coach ; en séance, les commandes métier restent prioritaires.
+- Programme présenté comme un parcours de séances avec états terminée, prochaine et à venir.
+- Bibliothèque illustrée avec recherche par exercice, muscle ou machine, insensible aux accents ; filtres métier et salle conservés.
+- Navigation directe entre exercices en mode Focus, minuterie agrandie et bilan de progression en indicateurs lisibles.
+- Coach avec accueil, suggestions de questions et conversations. Une suggestion prépare un brouillon ; elle n’envoie pas de message automatiquement.
+- Thèmes clair et sombre, focus clavier, zones de sécurité mobiles et préférence de réduction des animations conservés.
 
 ## Vérification
 
-- `npm run build` réussi (compilation, TypeScript et génération des pages).
-- `npm run lint` : aucune erreur, 93 avertissements dans le dépôt.
-
-- 1 377 tests existants passent avec `npx vitest run --maxWorkers=2`.
-- Le test `douleur-a-un-chemin` normalise désormais les séparateurs Windows avant ses comparaisons de chemins.
-- Contrôle navigateur sur des composants réels avec données fictives : formats 390 × 844 et 1440 × 1000, thèmes clair et sombre, changement Focus / Liste et saisie affichée. La route temporaire utilisée pour ce contrôle a été supprimée.
-- Aucun changement des services, API, moteurs de calcul, schéma de données ou stockage de séance.
-- La connexion et les parcours connectés réels restent à vérifier avec la configuration Supabase : `NEXT_PUBLIC_SUPABASE_URL` et `NEXT_PUBLIC_SUPABASE_ANON_KEY` manquent dans l’environnement local.
-
-Les changements préexistants de `package-lock.json` n’ont pas été modifiés par cette refonte.
+- 1 377 tests existants passent, répartis dans 92 fichiers.
+- Compilation Next.js et TypeScript réussie ; ESLint : aucune erreur, 93 avertissements existants.
+- Rendu examiné dans le navigateur sur ordinateur et à 390 × 844 : accueil, programme, progression et ouverture du coach. Données fictives dans une route locale temporaire, retirée avant livraison.
+- Aucun changement des API, moteurs de calcul, services IA, schémas ou stockage de séance.
+- Les parcours authentifiés complets ne sont pas validés localement : les paramètres publics Supabase manquent dans cet environnement. L’aperçu Vercel utilise la configuration du projet.
+- La modification préexistante de package-lock.json reste exclue de cette refonte.
 
 ## Références consultées après le premier retour
 

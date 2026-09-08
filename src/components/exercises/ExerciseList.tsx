@@ -27,17 +27,17 @@ interface ExerciseListProps {
 
 export function ExerciseList({ exercises, salleId = null }: ExerciseListProps) {
   return (
-    <div className="space-y-2 px-4">
+    <div className="exercise-library-grid">
       {exercises.map((ex) => (
         <Link key={ex.id} href={`/exercises/${ex.id}`} prefetch={false}>
-          <div className="bg-carte border border-filet rounded-lg p-3 hover:border-filet transition-colors">
+          <div className="exercise-library-card">
             <div className="flex items-start gap-3">
               {ex.slug && CATALOGUE_PAR_SLUG.has(ex.slug) ? (
                 <IllustrationExercice
                   slug={ex.slug}
                   nom={ex.nom}
                   nbFrames={CATALOGUE_PAR_SLUG.get(ex.slug)!.nbFrames}
-                  className="w-10 h-10 shrink-0 text-encre-2"
+                  className="library-illustration shrink-0 text-encre-2"
                 />
               ) : (
                 <PilierBadge pilier={ex.pilier} />
@@ -49,11 +49,17 @@ export function ExerciseList({ exercises, salleId = null }: ExerciseListProps) {
                     {ex.instances?.find((i) => i.gymId === salleId)?.machineNom}
                   </p>
                 )}
-                <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <Badge
+                    variant="outline"
+                    className="border-filet text-encre-3 text-[10px]"
+                  >
                     {libelleProfilTension(ex.profilTension)}
                   </Badge>
-                  <Badge variant="outline" className="border-filet text-encre-3 text-[10px]">
+                  <Badge
+                    variant="outline"
+                    className="border-filet text-encre-3 text-[10px]"
+                  >
                     {libelleTypeMouvement(ex.type)}
                   </Badge>
                 </div>
@@ -64,7 +70,9 @@ export function ExerciseList({ exercises, salleId = null }: ExerciseListProps) {
       ))}
 
       {exercises.length === 0 && (
-        <p className="text-encre-3 text-center py-8">Aucun exercice ne correspond aux filtres.</p>
+        <p className="text-encre-3 text-center py-8">
+          Aucun exercice ne correspond aux filtres.
+        </p>
       )}
     </div>
   );

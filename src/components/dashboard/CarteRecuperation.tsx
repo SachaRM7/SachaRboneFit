@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HeartPulse } from "lucide-react";
+import { HeartPulse, ChevronDown } from "lucide-react";
 import {
-  LIBELLES_ETAT_RECUPERATION, resumeRecuperation,
+  LIBELLES_ETAT_RECUPERATION,
+  resumeRecuperation,
   type RecuperationMusculaire,
 } from "@/services/recuperation";
 
@@ -43,7 +44,7 @@ export function CarteRecuperation({ etat }: { etat: RecuperationMusculaire }) {
   if (etat.muscles.length === 0) return null;
 
   return (
-    <Card className="bg-carte border-filet">
+    <Card className="recovery-panel bg-carte border-filet">
       <CardHeader>
         <CardTitle className="text-encre-2 flex items-center gap-2">
           <HeartPulse className="w-4 h-4" />
@@ -52,16 +53,31 @@ export function CarteRecuperation({ etat }: { etat: RecuperationMusculaire }) {
       </CardHeader>
       <CardContent className="space-y-2">
         {etat.muscles.map((m) => (
-          <details key={m.muscle} className="group">
+          <details key={m.muscle} className="recovery-muscle group">
             <summary className="flex items-baseline justify-between gap-3 cursor-pointer list-none">
-              <span className="text-encre text-sm">{m.libelle}</span>
-              <span className={`text-xs shrink-0 ${TEINTES[m.etat] ?? "text-encre-3"}`}>
-                {LIBELLES_ETAT_RECUPERATION[m.etat]}
+              <span className="text-encre text-sm flex items-center gap-2">
+                <span
+                  className={`recovery-dot recovery-${m.etat}`}
+                  aria-hidden
+                />
+                {m.libelle}
+              </span>
+              <span
+                className={`text-xs shrink-0 ${TEINTES[m.etat] ?? "text-encre-3"}`}
+              >
+                {LIBELLES_ETAT_RECUPERATION[m.etat]}{" "}
+                <ChevronDown
+                  size={12}
+                  className="inline transition-transform group-open:rotate-180"
+                  aria-hidden
+                />
               </span>
             </summary>
             {/* L'explication vient du service, qui la tient des motifs du
                 moteur. Reformuler ici ferait diverger le texte de la règle. */}
-            <p className="text-encre-3 text-xs mt-1 pl-0.5">{resumeRecuperation(m)}</p>
+            <p className="text-encre-3 text-xs mt-1 pl-0.5">
+              {resumeRecuperation(m)}
+            </p>
             {m.severiteContrainte !== null && (
               <p className="text-encre-3 text-xs pl-0.5">
                 Zone ménagée à ta demande, sévérité {m.severiteContrainte}/10.
@@ -72,7 +88,8 @@ export function CarteRecuperation({ etat }: { etat: RecuperationMusculaire }) {
 
         {etat.neutresMasques > 0 && (
           <p className="text-encre-3 text-xs pt-1">
-            {etat.neutresMasques} autre{etat.neutresMasques > 1 ? "s" : ""} muscle
+            {etat.neutresMasques} autre{etat.neutresMasques > 1 ? "s" : ""}{" "}
+            muscle
             {etat.neutresMasques > 1 ? "s" : ""} : rien à signaler.
           </p>
         )}
@@ -83,7 +100,8 @@ export function CarteRecuperation({ etat }: { etat: RecuperationMusculaire }) {
           santé — et ce n'en est pas un.
         */}
         <p className="text-encre-3 text-xs pt-1">
-          Ce que l&apos;application propose de ménager. Ce n&apos;est pas un avis médical.
+          Ce que l&apos;application propose de ménager. Ce n&apos;est pas un
+          avis médical.
         </p>
       </CardContent>
     </Card>

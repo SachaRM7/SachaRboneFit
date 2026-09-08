@@ -1,4 +1,4 @@
-import { Activity } from "lucide-react";
+import { AppTopbar } from "@/components/layout/AppTopbar";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -18,14 +18,22 @@ export const dynamic = "force-dynamic";
  * pour toutes. Sans ce garde, un nouveau compte arrive sur un tableau de bord
  * vide qui ne sait rien lui proposer.
  */
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   // Le nom de la route, transmis par le proxy sous forme réduite. C'est ce qui
   // permet de regrouper les mesures par écran plutôt que par visite.
   nommerTrace((await headers()).get("x-route-forme"));
 
   const userId = await getAuthenticatedUserId();
   if (!userId) redirect("/login");
-  if (!(await phase("calcul", "onboardingTermine", () => onboardingTermine(userId)))) {
+  if (
+    !(await phase("calcul", "onboardingTermine", () =>
+      onboardingTermine(userId),
+    ))
+  ) {
     redirect("/bienvenue");
   }
 
@@ -49,7 +57,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         Les en-têtes collants, eux, gèrent leur propre marge haute : ils se
         placent à `--marge-haut` pour ne pas glisser sous l'encoche.
       */}
-      <a href="#contenu" className="skip-link">Aller au contenu</a>
+      <a href="#contenu" className="skip-link">
+        Aller au contenu
+      </a>
       <main
         id="contenu"
         className="app-main"
@@ -58,7 +68,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           paddingBottom: "calc(var(--barre-nav) + 5rem)",
         }}
       >
-        <div className="app-brand"><span className="brand-symbol"><Activity size={18} aria-hidden /></span>Sport Perso<span>TON ESPACE TRAINING</span></div>
+        <AppTopbar />
         {children}
       </main>
       <BottomNav />
