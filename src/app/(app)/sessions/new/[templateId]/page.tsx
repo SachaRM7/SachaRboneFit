@@ -10,6 +10,7 @@ import { RestTimer } from "@/components/session/RestTimer";
 import { type ExercicePrescrit } from "@/components/session/types";
 import { TableauSeries } from "@/components/session/TableauSeries";
 import { VueFocus } from "@/components/session/VueFocus";
+import type { SerieValidee } from "@/components/session/useSaisieSeries";
 import { SelecteurVue } from "@/components/session/SelecteurVue";
 import {
   avancement,
@@ -449,11 +450,46 @@ function ContenuSeanceLive() {
     }
   }, [audioPret]);
 
-  // --- Repos : déclenché à chaque série validée ---
-  const lancerRepos = (reposSecondes: number | null) => {
-    if (!reposSecondes || reposSecondes <= 0) return;
-    startRest(reposSecondes, active?.currentExerciseIndex ?? 0);
-    setTimerVisible(true);
+  /**
+   * Une série vient d'être validée : lancer le repos, et enchaîner s'il y a lieu.
+   *
+   * L'ORDRE N'EST PAS UN DÉTAIL.
+   *
+   * `startRest` mémorise l'exercice auquel le repos se rattache, et
+   * `intervalleDepuisLaSeriePrecedente` compare cet index à l'exercice courant
+   * pour décider si l'intervalle mesuré veut dire quelque chose. Naviguer AVANT
+   * de démarrer le repos rattacherait celui-ci à l'exercice suivant : la mesure
+   * `repos_reel_secondes` changerait silencieusement de sens, et deux séances
+   * enregistrées de part et d'autre de ce lot cesseraient d'être comparables.
+   *
+   * On démarre donc le repos sur l'exercice QUI VIENT D'ÊTRE TERMINÉ — la
+   * sémantique historique, inchangée — puis on navigue.
+   *
+   * POURQUOI L'ENCHAÎNEMENT EST AUTOMATIQUE
+   *
+   * « Exercice suivant » demandait un appui qui n'apporte aucune décision : on
+   * vient de finir, il n'y a rien d'autre à faire. Le repos monte devant, et
+   * l'exercice suivant est déjà chargé derrière — au moment où l'on referme la
+   * feuille, on est au bon endroit sans avoir rien touché.
+   */
+  const lancerRepos = ({ reposSecondes, exerciceTermine }: SerieValidee) => {
+    const indexTermine = active?.currentExerciseIndex ?? 0;
+
+    if (reposSecondes && reposSecondes > 0) {
+      startRest(reposSecondes, indexTermine);
+      setTimerVisible(true);
+    }
+
+    /*
+     * Le dernier exercice de la séance ne mène nulle part.
+     *
+     * Pas de navigation vers un index qui n'existe pas, et pas de « prochaine »
+     * inventée : l'écran reste sur l'état « exercice terminé », d'où l'on
+     * termine la séance.
+     */
+    if (!exerciceTermine) return;
+    const suivant = indexTermine + 1;
+    if (suivant < visibles.length) setCurrentExerciseIndex(suivant);
   };
 
   /** Le repos arrive à son terme : on referme, sans rien signaler de plus. */
@@ -660,8 +696,21 @@ function ContenuSeanceLive() {
       courant.seriesCibles,
     );
     if (prochain === undefined) return null;
+    /*
+     * Le NOM de l'exercice, parce que le repos peut mener ailleurs.
+     *
+     * Depuis l'enchaînement automatique, la fin d'un exercice fait passer au
+     * suivant pendant que la feuille de repos est devant : « Série 1 » seul
+     * laisserait croire qu'on reprend la même machine.
+     *
+     * Aucune charge n'est fabriquée : `chargeSuggeree` vient du moteur, et à
+     * défaut la dernière performance RÉELLE de cette entrée. Quand ni l'une ni
+     * l'autre n'existe — une machine sans historique — on annonce l'exercice et
+     * le numéro, et rien de plus.
+     */
     const charge = courant.chargeSuggeree ?? courant.historique?.[0]?.charge;
     return [
+      courant.nom,
       `Série ${prochain}`,
       charge != null ? `${charge} × ${courant.fourchetteRepsMin}` : null,
     ]

@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
-import { Check, Minus, Pencil, Plus } from "lucide-react";
+import { Check, Pencil, Plus, Trash2 } from "lucide-react";
 import { DemonstrationMouvement } from "./DemonstrationMouvement";
 import { FicheExecution } from "./FicheExecution";
 import { useContexteExecution } from "./useContexteExecution";
@@ -14,13 +14,13 @@ import {
   consigneDeSaisie,
   libelleChampCharge,
 } from "@/lib/validators/exercise-instance";
-import { useSaisieSeries } from "./useSaisieSeries";
+import { useSaisieSeries, type SerieValidee } from "./useSaisieSeries";
 
 interface Props {
   exercice: ExercicePrescrit;
   rpeReduction: number;
-  /** Déclenché à chaque série validée, pour lancer le repos. */
-  onSerieValidee: (reposSecondes: number | null) => void;
+  /** Déclenché à chaque série validée : lance le repos et enchaîne. */
+  onSerieValidee: (resultat: SerieValidee) => void;
   /**
    * En calibration, on demande la réserve de répétitions plutôt qu'un RPE.
    * « Combien aurais-tu pu en faire de plus ? » se répond sans avoir appris
@@ -367,6 +367,20 @@ export function TableauSeries({
                       <Check className="w-5 h-5" aria-hidden />
                     )}
                   </button>
+
+                  {/* La suppression vit AVEC la série qu'elle retire. Elle était
+                      un lien en pied de carte, à distance de la ligne visée —
+                      sur une carte à six lignes, rien ne disait laquelle. */}
+                  {derniereEnPlus === numero && (
+                    <button
+                      type="button"
+                      onClick={retirerLaDerniereSerie}
+                      aria-label={`Supprimer la série ${numero}`}
+                      className="live-serie-supprimer"
+                    >
+                      <Trash2 className="w-4 h-4" aria-hidden />
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -378,20 +392,6 @@ export function TableauSeries({
             <Plus className="w-3.5 h-3.5" aria-hidden />
             Série en plus
           </button>
-
-          {/*
-            Le geste inverse, qui n'existait pas.
-            Un appui de trop faisait apparaître une ligne vide que rien ne
-            pouvait retirer : elle restait là jusqu'à la fin de la séance.
-            Seule la DERNIÈRE ligne ajoutée s'enlève — supprimer une ligne du
-            milieu laisserait un trou dans la numérotation des séries.
-          */}
-          {derniereEnPlus !== null && (
-            <button type="button" onClick={retirerLaDerniereSerie}>
-              <Minus className="w-3.5 h-3.5" aria-hidden />
-              Retirer la série {derniereEnPlus}
-            </button>
-          )}
 
           {/* Ouvrir le détail reste possible même sans aucune donnée : c'est là
               qu'on renseigne un réglage pour la première fois. Le mot
