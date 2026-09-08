@@ -30,7 +30,7 @@ vi.mock("@/lib/supabase/auth-helper", () => ({
 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
-const { eq } = await import("drizzle-orm");
+const { eq, and } = await import("drizzle-orm");
 const route = await import("@/app/api/session-logs/[id]/series/route");
 const { seriesDeLaSeance } = await import("@/services/seances");
 
@@ -322,5 +322,179 @@ describe("deux comptes dans la même salle", () => {
     await expect(seriesDeLaSeance(SACHA, seanceMaria)).rejects.toThrow();
     const propres = await seriesDeLaSeance(MARIA, seanceMaria);
     expect(propres).toHaveLength(1);
+  });
+});
+
+/*
+ * ---------------------------------------------------------------------------
+ * L'ORDRE DES INTENTIONS, QUI N'EST PAS L'ORDRE DES REQUÊTES
+ * ---------------------------------------------------------------------------
+ *
+ * Les tests au-dessus appellent la route séquentiellement : ils prouvent
+ * l'idempotence, pas l'ordonnancement. Une transaction DELETE + INSERT donne
+ * l'atomicité — elle ne dit rien de QUI arrive en dernier.
+ *
+ * Ceux qui suivent font délibérément terminer les requêtes dans le mauvais
+ * ordre, c'est-à-dire dans l'ordre que produit un réseau de sous-sol : la
+ * requête partie en premier revient en dernier.
+ */
+
+const CLE = () => ({ exerciseInstanceId: instanceB, numeroSerie: 7 });
+
+/** Repartir d'une clé vierge : ces tests se lisent seuls. */
+async function reinitialiserCle() {
+  await db.delete(schema.setLogs).where(and(
+    eq(schema.setLogs.sessionLogId, seanceMaria),
+    eq(schema.setLogs.exerciseInstanceId, instanceB),
+    eq(schema.setLogs.numeroSerie, 7),
+  ));
+  await db.delete(schema.setLogRevisions).where(and(
+    eq(schema.setLogRevisions.sessionLogId, seanceMaria),
+    eq(schema.setLogRevisions.exerciseInstanceId, instanceB),
+    eq(schema.setLogRevisions.numeroSerie, 7),
+  ));
+}
+
+const ligneDeLaCle = async () => {
+  const l = await db.select().from(schema.setLogs).where(and(
+    eq(schema.setLogs.sessionLogId, seanceMaria),
+    eq(schema.setLogs.exerciseInstanceId, instanceB),
+    eq(schema.setLogs.numeroSerie, 7),
+  ));
+  return l[0] ?? null;
+};
+
+describe("une reprise en retard ne gagne jamais contre une intention récente", () => {
+  it("A — la correction survit à la reprise du POST qu'elle remplace", async () => {
+    /*
+     * t0  la série part à 40 kg, la requête se perd, une reprise est armée
+     * t1  l'athlète corrige à 45 kg, cette requête-là aboutit
+     * t2  la reprise de t0 aboutit enfin
+     *
+     * La base revenait à 40. On fait ici terminer B AVANT A, ce qui est le
+     * scénario exact.
+     */
+    connecte = MARIA;
+    await reinitialiserCle();
+
+    const ancienne = { ...SERIE, ...CLE(), charge: 40, revision: 1_000 };
+    const recente = { ...SERIE, ...CLE(), charge: 45, revision: 2_000 };
+
+    // La plus récente aboutit d'abord.
+    expect((await poster(seanceMaria, recente)).status).toBe(200);
+    // Puis la reprise de l'ancienne, qui porte sa révision d'origine.
+    const retard = await poster(seanceMaria, ancienne);
+    expect(retard.status).toBe(200);
+    expect((await retard.json()).issue, "la reprise a été appliquée").toBe("perimee");
+
+    const ligne = await ligneDeLaCle();
+    expect(ligne, "la série a disparu").not.toBeNull();
+    expect(ligne!.charge, "la reprise en retard a écrasé la correction").toBe(45);
+  });
+
+  it("B — une suppression ne se laisse pas ressusciter", async () => {
+    /*
+     * t0  un POST est en reprise
+     * t1  l'athlète décoche, le DELETE aboutit
+     * t2  le vieux POST aboutit
+     *
+     * La série décochée revenait en base. La pierre tombale l'en empêche : la
+     * suppression a laissé sa révision derrière elle.
+     */
+    connecte = MARIA;
+    await reinitialiserCle();
+
+    const ancienPost = { ...SERIE, ...CLE(), charge: 40, revision: 3_000 };
+    expect((await poster(seanceMaria, ancienPost)).status).toBe(200);
+
+    // Le décochage, plus récent.
+    const suppression = await retirer(seanceMaria, { ...CLE(), revision: 4_000 });
+    expect((await suppression.json()).issue).toBe("appliquee");
+    expect(await ligneDeLaCle()).toBeNull();
+
+    // La reprise du POST d'origine arrive maintenant.
+    const retard = await poster(seanceMaria, ancienPost);
+    expect((await retard.json()).issue).toBe("perimee");
+    expect(await ligneDeLaCle(), "la série supprimée est revenue").toBeNull();
+  });
+
+  it("C — deux écritures concurrentes ne font qu'une ligne", async () => {
+    /*
+     * Deux POST du même triplet lancés en parallèle. Sans point de rendez-vous,
+     * deux transactions DELETE + INSERT peuvent s'ignorer et insérer chacune.
+     * La contrainte d'unicité sur la clé de révision les sérialise.
+     */
+    connecte = MARIA;
+    await reinitialiserCle();
+
+    const resultats = await Promise.allSettled([
+      poster(seanceMaria, { ...SERIE, ...CLE(), charge: 40, revision: 5_000 }),
+      poster(seanceMaria, { ...SERIE, ...CLE(), charge: 45, revision: 5_001 }),
+    ]);
+    // Aucune des deux ne doit exploser : la concurrence est gérée, pas subie.
+    for (const r of resultats) expect(r.status).toBe("fulfilled");
+
+    const lignes = await db.select().from(schema.setLogs).where(and(
+      eq(schema.setLogs.sessionLogId, seanceMaria),
+      eq(schema.setLogs.exerciseInstanceId, instanceB),
+      eq(schema.setLogs.numeroSerie, 7),
+    ));
+    expect(lignes, "deux lignes pour une seule série").toHaveLength(1);
+    // Et c'est la plus récente qui reste.
+    expect(lignes[0]!.charge).toBe(45);
+  });
+
+  it("et rejouer la même révision reste idempotent", async () => {
+    // Une reprise du MÊME événement : ni doublon, ni régression. Elle rend
+    // `perimee` parce que la révision n'est pas strictement supérieure — et
+    // c'est sans conséquence, l'état est déjà le bon.
+    connecte = MARIA;
+    const rejeu = await poster(seanceMaria, { ...SERIE, ...CLE(), charge: 45, revision: 5_001 });
+    expect((await rejeu.json()).issue).toBe("perimee");
+
+    const ligne = await ligneDeLaCle();
+    expect(ligne!.charge).toBe(45);
+  });
+
+  it("D — une suppression rejouée après échec finit par être reflétée", async () => {
+    /*
+     * Le DELETE échoue une première fois, le réseau revient, la reprise part.
+     * Elle porte la même révision : elle doit aboutir, et rester.
+     */
+    connecte = MARIA;
+    const revision = 6_000;
+    const premier = await retirer(seanceMaria, { ...CLE(), revision });
+    expect((await premier.json()).issue).toBe("appliquee");
+
+    // La reprise du même geste.
+    const reprise = await retirer(seanceMaria, { ...CLE(), revision });
+    expect(reprise.status).toBe(200);
+    expect(await ligneDeLaCle(), "la reprise a ressuscité la série").toBeNull();
+  });
+
+  it("E — après conflit, la relecture rend la dernière intention", async () => {
+    /*
+     * Ce que l'écran verra au rafraîchissement : la base ne porte que ce que la
+     * dernière intention a décidé. Ici, une suppression — donc rien.
+     */
+    connecte = MARIA;
+    const res = await lire(seanceMaria);
+    const lignes = await res.json();
+    const survivante = lignes.find(
+      (l: { exerciseInstanceId: string; numeroSerie: number }) =>
+        l.exerciseInstanceId === instanceB && l.numeroSerie === 7,
+    );
+    expect(survivante, "la série supprimée réapparaît à la reprise").toBeUndefined();
+  });
+
+  it("une nouvelle intention passe toujours au-dessus d'une suppression", async () => {
+    // La pierre tombale n'est pas un verrou définitif : revalider la série
+    // après l'avoir décochée doit marcher.
+    connecte = MARIA;
+    const res = await poster(seanceMaria, { ...SERIE, ...CLE(), charge: 50, revision: 7_000 });
+    expect((await res.json()).issue).toBe("appliquee");
+
+    const ligne = await ligneDeLaCle();
+    expect(ligne!.charge).toBe(50);
   });
 });
