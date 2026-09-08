@@ -72,7 +72,7 @@ export interface ContexteEssentiel {
 }
 
 /**
- * « Réalisée » veut dire : non archivée, et portant au moins une série.
+ * « Réalisée » veut dire : non archivée, clôturée et portant au moins une série.
  *
  * Écrit ici en toutes lettres parce que la requête est brute. C'est la même
  * règle que `estUneSeanceRealisee()` dans `db/archivage.ts` — une séance
@@ -80,7 +80,7 @@ export interface ContexteEssentiel {
  * rien n'ait été soulevé. Toute divergence entre les deux serait un bug : le
  * test d'intégration compare les deux chemins.
  */
-const REALISEE = sql`sl.archive_le is null and exists (
+export const REALISEE = sql`sl.archive_le is null and sl.duree_minutes is not null and exists (
   select 1 from set_logs where set_logs.session_log_id = sl.id
 )`;
 

@@ -19,7 +19,7 @@ import { randomUUID } from "node:crypto";
  *
  * Ce fichier fixe la frontière : ACTIVE et RÉALISÉE sont deux choses
  * différentes. Une séance vide reste active — sinon on ne pourrait plus la
- * reprendre — mais elle n'est réalisée qu'à partir de la première série.
+ * reprendre — mais elle n'est réalisée qu'après clôture avec une série.
  */
 
 const U = randomUUID();
@@ -216,7 +216,7 @@ describe("la clôturer sans série est refusée", () => {
   });
 });
 
-describe("dès la première série validée, elle compte", () => {
+describe("après clôture avec une série validée, elle compte", () => {
   beforeAll(async () => {
     // Par le vrai chemin : la clôture accepte, cette fois, parce qu'une série
     // est présente. C'est elle qui écrit `duree_minutes`, et la rotation exige

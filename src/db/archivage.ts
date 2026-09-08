@@ -45,14 +45,18 @@ export function seancesActives(userId: string): SQL | undefined {
  * la clôture a été demandée, pas qu'un effort a eu lieu — et la clôture pouvait
  * jusqu'ici être demandée sans une seule série.
  *
- *     réalisée <=> non archivée ET il existe au moins une série
+ * Une série sauvegardée pendant le Live ne prouve pas que la séance est finie.
+ * La clôture ET la présence d'une série sont nécessaires : la première évite
+ * de compter une séance en cours, la seconde exclut les anciennes clôtures vides.
+ *
+ *     réalisée <=> non archivée ET clôturée ET il existe au moins une série
  *
  * Ce prédicat ne remplace pas `seancesActives` : une séance ouverte et vide
  * reste ACTIVE — c'est ce qui permet de la reprendre — mais elle n'est pas
  * RÉALISÉE. Les deux notions sont distinctes et le restent.
  */
 export function estUneSeanceRealisee(): SQL {
-  return sql`${sessionLogs.archiveLe} is null and exists (
+  return sql`${sessionLogs.archiveLe} is null and ${sessionLogs.dureeMinutes} is not null and exists (
     select 1 from ${sql.identifier(getTableName(setLogs))} ${SERIE}
     where ${SERIE}.${colonne(setLogs.sessionLogId)} = ${sessionLogs.id}
   )`;
