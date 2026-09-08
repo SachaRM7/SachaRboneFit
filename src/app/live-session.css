@@ -1,44 +1,1022 @@
-/* Live sessions: actions belong to their exercise, never over the input fields. */
-.live-session { min-width: 0; padding-bottom: 1rem; }
-.live-session-persistent { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin-top:2px; border-top:1px solid var(--filet-doux); }
-.live-time-context { display:flex; align-items:center; min-width:0; }
-.live-time-context > div { min-width:0; padding:0; flex-wrap:wrap; }
-.live-persistent-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
-.live-persistent-action { min-height:44px; padding:7px 12px; border-radius:10px; color:var(--encre-2); font-size:12px; font-weight:600; cursor:pointer; transition:background-color 180ms ease, color 180ms ease, transform 180ms ease; }
-.live-persistent-action:hover { background:var(--papier-2); color:var(--encre); }
-.live-persistent-action:active { transform:translateY(1px); }
-.live-persistent-action:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
-.live-context-action { min-height:44px; padding:8px 10px; font-size:12px; line-height:1.3; color:var(--encre-2); border-radius:10px; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
-.live-context-action:hover { background:var(--papier-2); }
-.live-exercise-actions { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; padding:4px 12px; border-bottom:1px solid var(--filet-doux); }
-.live-exercise-actions > button { min-height:44px; }
-.live-exercise-card { min-width:0; }
-.live-exercise-card h2 { overflow-wrap:anywhere; }
-.live-exercise-card > header { gap:10px; }
-.live-exercise-card details > summary { min-height:32px; align-content:center; }
-@media(max-width:1023px) {
-  body:has(.live-session) .app-nav { display:none; }
-  .app-main:has(.live-session) { padding-bottom:calc(var(--marge-bas) + 1rem) !important; }
+/* ---------------------------------------------------------------------------
+   LE LIVE, DANS LA GRAMMAIRE V2
+
+   Le reste de l'application a une identité : fond papier chaud, cartes
+   généreuses à grands rayons, vert très sombre pour les surfaces qui dominent,
+   lime pour le geste principal, orange réservé aux signaux, peu de filets,
+   beaucoup d'espace, de grandes typographies. Le Live, lui, était resté au
+   langage précédent — petites lignes, bordures partout, liens soulignés,
+   tableau technique. Il fonctionnait, mais il venait visiblement d'une autre
+   application.
+
+   Ce fichier ne crée AUCUN token. Il n'utilise que ceux de `globals.css` —
+   --papier, --carte, --encre, --hero, --electric, --primary, --gain, --filet —
+   pour que le Live change en même temps que le reste, thème sombre compris.
+
+   DEUX COMPOSITIONS, UN MÊME VOCABULAIRE
+
+     .lecteur     le Focus : un exercice, une série, un geste ;
+     .live-carte  la Liste : le carnet de toute la séance.
+
+   Elles ne partagent pas leur DOM — c'est le sujet de ce lot — mais elles
+   partagent leurs surfaces, leurs rayons et leurs échelles typographiques.
+   --------------------------------------------------------------------------- */
+
+.live-session {
+  min-width: 0;
+  /* La barre SOS et la barre de navigation flottent au-dessus du bas de page :
+     sans ce dégagement, la dernière carte passe dessous. */
+  padding-bottom: calc(var(--degagement-live) + 1rem);
 }
-@media(max-width:600px) {
-  .live-session > main { padding-top:8px; }
-  .live-session-header h1 { font-size:16px; }
-  .live-session-header { padding-bottom:0; }
-  .live-session-persistent { margin-inline:-4px; }
-  .live-session .focus-v2 { margin-top:8px; }
-  .live-session .live-series-table thead { display:none; }
-  .live-session .live-series-table tbody { display:block; }
-  .live-session .live-series-table tr { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) 44px; gap:4px; padding:8px 0; }
-  .live-session .live-series-table td { min-width:0; width:auto; padding:0; }
-  .live-session .live-series-table td:first-child { grid-column:1; display:flex; align-items:center; gap:5px; }
-  .live-session .live-series-table td:nth-child(2) { grid-column:2 / -1; justify-self:end; display:flex; align-items:center; gap:5px; white-space:normal; }
-  .live-session .live-series-table td[data-label]::before { content:attr(data-label); display:block; font-size:10px; line-height:18px; color:var(--encre-3); font-weight:500; }
-  .live-session .live-series-table td:last-child { align-self:end; }
-  .live-session .live-series-table input, .live-session .live-series-table select { min-height:44px; width:100%; }
+
+/* ---------------------------------------------------------------------------
+   L'EN-TÊTE COLLANT — et son invariant
+   ---------------------------------------------------------------------------
+   « État » et « Temps » restent atteignables à tout moment : ce sont les deux
+   gestes qui n'attendent pas. Les redescendre dans la zone défilante les rendait
+   introuvables au milieu d'une séance. Cette rangée ne quitte donc pas
+   l'en-tête, quelle que soit la vue. */
+
+.live-session-header {
+  backdrop-filter: blur(12px);
+  background: color-mix(in srgb, var(--papier) 88%, transparent);
 }
+.live-session-persistent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  margin-top: 2px;
+  border-top: 1px solid var(--filet-doux);
+}
+.live-time-context {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.live-time-context > div {
+  min-width: 0;
+  padding: 0;
+  flex-wrap: wrap;
+}
+.live-persistent-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.live-persistent-action {
+  min-height: 44px;
+  padding: 7px 14px;
+  border-radius: 12px;
+  background: var(--papier-2);
+  color: var(--encre-2);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 180ms ease, color 180ms ease, transform 180ms ease;
+}
+.live-persistent-action:hover {
+  background: var(--filet-doux);
+  color: var(--encre);
+}
+.live-persistent-action:active {
+  transform: translateY(1px);
+}
+
+/* La consigne de phase, dite une fois pour la séance. */
+.live-calibration {
+  background: var(--brand-soft);
+  border-radius: 18px;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--encre-2);
+  line-height: 1.5;
+}
+.live-calibration > summary {
+  cursor: pointer;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  min-height: 32px;
+  align-content: center;
+}
+.live-calibration > summary::-webkit-details-marker {
+  display: none;
+}
+.live-calibration > p {
+  margin-top: 8px;
+  color: var(--encre-3);
+  font-size: 12px;
+}
+
+/* ===========================================================================
+   LE FOCUS — un lecteur de séance
+   =========================================================================== */
+
+.focus-v2 {
+  display: grid;
+  gap: 14px;
+}
+
+/* La navigation : le RANG porte la position, le nom est déjà en grand dessous. */
+.focus-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.focus-nav > button {
+  display: grid;
+  place-items: center;
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 16px;
+  background: var(--carte);
+  color: var(--encre-2);
+  transition: background-color 160ms ease;
+}
+.focus-nav > button:disabled {
+  opacity: 0.3;
+}
+.focus-nav > button:not(:disabled):active {
+  background: var(--papier-2);
+}
+.focus-nav-rang {
+  flex: 1;
+  min-width: 0;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+}
+.focus-nav-rang > .chiffres {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--encre);
+}
+.focus-nav-rang > svg {
+  color: var(--encre-3);
+}
+
+/* --- Le lecteur lui-même --- */
+
+.lecteur {
+  display: grid;
+  gap: 14px;
+}
+
+.lecteur-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--carte);
+  border-radius: 24px;
+  padding: 18px;
+}
+.lecteur-illustration {
+  flex-shrink: 0;
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  border-radius: 20px;
+  background: var(--papier-2);
+  color: var(--encre-3);
+  padding: 8px;
+}
+.lecteur-titre {
+  min-width: 0;
+}
+.lecteur-titre h2 {
+  font-size: clamp(24px, 6.5vw, 32px);
+  font-weight: 550;
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  color: var(--encre);
+  overflow-wrap: anywhere;
+}
+.lecteur-titre p {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--encre-3);
+}
+
+.lecteur-mot {
+  display: grid;
+  gap: 3px;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--encre-2);
+}
+
+/* Les repères : présents, mais jamais plus gros que la série en cours. */
+.lecteur-reperes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 22px;
+  background: var(--carte);
+  border-radius: 22px;
+  padding: 16px 18px;
+}
+.lecteur-reperes > section {
+  min-width: 0;
+}
+.lecteur-repere-valeur {
+  margin-top: 4px;
+  font-family: var(--font-heading);
+  font-size: 19px;
+  font-weight: 550;
+  color: var(--encre);
+}
+/* Une absence de repère est une information — pas une performance à moitié
+   effacée. Elle se lit donc comme du texte, jamais comme un chiffre. */
+.lecteur-repere-vide {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--encre-3);
+  max-width: 22ch;
+}
+.lecteur-repere-detail {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--encre-2);
+}
+.lecteur-reperes > button {
+  margin-left: auto;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 13px;
+  background: var(--papier-2);
+  color: var(--encre-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.lecteur-reperes > button:active {
+  background: var(--filet-doux);
+}
+
+/* --- Ce qui est fait : compacté, jamais effacé --- */
+
+.lecteur-faites {
+  display: grid;
+  gap: 6px;
+}
+.lecteur-faites > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--gain-fond);
+  border-radius: 16px;
+  padding: 11px 14px;
+  min-height: 52px;
+}
+.lecteur-faites > li > svg {
+  color: var(--gain);
+  flex-shrink: 0;
+}
+.lecteur-faite-nom {
+  font-size: 12px;
+  color: var(--encre-2);
+  flex-shrink: 0;
+}
+.lecteur-faite-valeur {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 550;
+  color: var(--encre);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lecteur-faites > li > button {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 10px;
+  border-radius: 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--encre-2);
+}
+.lecteur-faites > li > button:active {
+  background: color-mix(in srgb, var(--gain) 14%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   LA SÉRIE EN COURS — la seule chose qui domine l'écran
+   ---------------------------------------------------------------------------
+   Surface sombre, comme le hero de l'accueil : c'est ce qui la détache de tout
+   le reste sans avoir besoin d'une bordure. Les valeurs sont énormes parce
+   qu'on les lit à bout de bras, essoufflé, et le geste est en lime — le vert
+   électrique que l'application réserve à son action principale. */
+
+.serie-en-cours {
+  background: var(--hero);
+  color: var(--hero-ink);
+  border-radius: 26px;
+  padding: 20px 18px 18px;
+  display: grid;
+  gap: 16px;
+}
+.serie-en-cours-titre {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #b6c5b6;
+}
+.serie-en-cours-titre .chiffres {
+  color: var(--electric);
+  font-size: 13px;
+}
+.serie-en-cours .eyebrow {
+  color: #9fb3a1;
+}
+
+.mesure {
+  display: grid;
+  gap: 8px;
+}
+.mesure-ligne {
+  display: grid;
+  grid-template-columns: 60px 1fr 60px;
+  align-items: center;
+  gap: 10px;
+}
+.mesure-ligne > button {
+  display: grid;
+  place-items: center;
+  height: 60px;
+  border-radius: 18px;
+  background: #ffffff14;
+  color: var(--hero-ink);
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+.mesure-ligne > button:active {
+  background: #ffffff2b;
+  transform: scale(0.96);
+}
+/* La valeur reste un champ : toucher le nombre ouvre le clavier. Le parcours
+   normal passe par les crans, les cas particuliers par la saisie. */
+.mesure-valeur {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  text-align: center;
+  font-family: var(--font-heading);
+  font-size: clamp(38px, 12vw, 52px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--hero-ink);
+}
+.mesure-valeur:focus {
+  outline: none;
+  color: var(--electric);
+}
+.mesure-valeur::placeholder {
+  color: #ffffff40;
+}
+
+/* Les crans de réserve : des pastilles, pas un menu déroulant. */
+.mesure-choix {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+}
+.mesure-choix > button {
+  min-height: 52px;
+  border-radius: 15px;
+  background: #ffffff14;
+  color: var(--hero-ink);
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 550;
+  transition: background-color 140ms ease;
+}
+.mesure-choix > button[aria-pressed="true"] {
+  background: var(--electric);
+  color: #263727;
+}
+
+.mesure-alerte {
+  display: grid;
+  gap: 7px;
+}
+.mesure-alerte > p {
+  font-size: 12px;
+  line-height: 1.45;
+  /* Le signal garde sa couleur de signal, même sur fond sombre. */
+  color: #f0c675;
+}
+.mesure-alerte > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mesure-alerte button {
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: #ffffff1a;
+  color: var(--hero-ink);
+  font-size: 15px;
+  font-weight: 550;
+}
+
+/* LE GESTE. Le seul bouton de cette taille dans tout l'écran. */
+.serie-valider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 62px;
+  border-radius: 19px;
+  background: var(--electric);
+  color: #263727;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+.serie-valider:hover {
+  background: #e8f7b9;
+}
+.serie-valider:active {
+  transform: scale(0.985);
+}
+
+/* --- La fin d'une étape : un état, pas un formulaire vide --- */
+
+.lecteur-fin {
+  background: var(--gain-fond);
+  border-radius: 24px;
+  padding: 20px 18px;
+  display: grid;
+  gap: 8px;
+}
+.lecteur-fin .eyebrow {
+  color: var(--gain);
+}
+.lecteur-fin-titre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+  color: var(--encre);
+}
+.lecteur-fin-titre > span {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--encre-2);
+}
+.lecteur-fin-ailleurs {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--encre-2);
+}
+.lecteur-suivant {
+  justify-self: start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  min-height: 52px;
+  padding: 0 20px;
+  border-radius: 16px;
+  background: var(--encre);
+  color: var(--papier);
+  font-size: 14px;
+  font-weight: 600;
+}
+.lecteur-suivant:active {
+  transform: translateY(1px);
+}
+
+/* --- Les actions de l'exercice, hiérarchisées --- */
+
+.lecteur-actions,
+.live-carte-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* « Remplacer » est l'action structurante : elle prend la largeur. Les deux
+   incidents restent côte à côte, immédiatement atteignables — une action
+   critique ne s'enterre pas dans un menu. */
+.lecteur-actions > *:first-child,
+.live-carte-actions > *:first-child {
+  flex: 1 1 100%;
+}
+.lecteur-actions button,
+.live-carte-actions button,
+.lecteur-actions > *:first-child > button,
+.live-carte-actions > *:first-child > button {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 15px;
+  background: var(--carte);
+  color: var(--encre-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.lecteur-actions > button:not(:first-child),
+.live-carte-actions > button:not(:first-child) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.lecteur-actions button:active,
+.live-carte-actions button:active {
+  background: var(--papier-2);
+}
+
+/* L'appoint : des gestes rares, à leur juste poids visuel. */
+.lecteur-appoint,
+.live-carte-pied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 0 4px;
+}
+.lecteur-appoint > button,
+.live-carte-pied > button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  font-size: 12px;
+  font-weight: 550;
+  color: var(--encre-3);
+}
+.lecteur-appoint > button:hover,
+.live-carte-pied > button:hover {
+  color: var(--encre);
+}
+
+/* --- La feuille « toute la séance » --- */
+
+.focus-feuille {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+}
+.focus-feuille-fond {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--encre) 62%, transparent);
+}
+.focus-feuille-panneau {
+  position: relative;
+  width: 100%;
+  max-height: 78dvh;
+  overflow-y: auto;
+  background: var(--carte);
+  border-radius: 26px 26px 0 0;
+  padding: 16px 16px calc(16px + var(--marge-bas));
+  animation: feuille-monte 220ms ease;
+}
+.focus-feuille-panneau > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.focus-feuille-panneau > header > button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  color: var(--encre-2);
+}
+@keyframes feuille-monte {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-feuille-panneau {
+    animation: none;
+  }
+}
+
+/* ===========================================================================
+   LA VUE LISTE — le carnet
+   ===========================================================================
+   Moins de traits, plus d'espace. La carte n'a plus de filet à chaque section :
+   ce sont les fonds et les rythmes verticaux qui séparent. */
+
+.live-carte {
+  min-width: 0;
+  background: var(--carte);
+  border-radius: 24px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+.live-carte-tete {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.live-carte-vignette {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  background: var(--papier-2);
+  padding: 5px;
+}
+.live-carte-tete h2 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--encre);
+  overflow-wrap: anywhere;
+}
+.live-carte-prescription {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--encre-3);
+}
+.live-carte-compteur {
+  flex-shrink: 0;
+  font-family: var(--font-heading);
+  font-size: 22px;
+  font-weight: 550;
+  color: var(--encre);
+  letter-spacing: -0.03em;
+}
+.live-carte-compteur > span {
+  font-size: 13px;
+  color: var(--encre-3);
+}
+/* L'exercice fini se retire visuellement sans disparaître : c'est encore un
+   carnet, on doit pouvoir y revenir. */
+.live-carte[data-termine] .live-carte-compteur {
+  color: var(--gain);
+}
+
+.live-reperes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  text-align: left;
+  background: var(--papier-2);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--encre-2);
+  min-height: 44px;
+  align-items: center;
+}
+.live-carte-mot {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--encre-2);
+  padding: 0 2px;
+}
+.live-alerte-charge {
+  display: grid;
+  gap: 7px;
+  background: var(--brand-soft);
+  border-radius: 14px;
+  padding: 11px 12px;
+}
+.live-alerte-charge > p {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--encre-2);
+}
+.live-alerte-charge > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.live-alerte-charge button {
+  min-height: 44px;
+  padding: 0 15px;
+  border-radius: 11px;
+  background: var(--carte);
+  color: var(--encre);
+  font-size: 14px;
+  font-weight: 550;
+}
+
+.live-carte-corps {
+  display: grid;
+  gap: 12px;
+}
+
+/* --- Les séries : trois états, lisibles sans les lire --- */
+
+.live-series {
+  display: grid;
+  gap: 6px;
+}
+.live-serie {
+  display: grid;
+  grid-template-columns: 34px 1fr 48px;
+  align-items: center;
+  gap: 10px;
+  border-radius: 16px;
+  padding: 9px 11px;
+  background: var(--papier);
+  transition: background-color 200ms ease;
+}
+.live-serie[data-etat="validee"] {
+  background: var(--gain-fond);
+}
+.live-serie[data-etat="courante"] {
+  background: color-mix(in srgb, var(--primary) 7%, var(--papier));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--primary) 26%, transparent);
+}
+.live-serie-numero {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--encre-3);
+}
+.live-serie[data-etat="validee"] .live-serie-numero {
+  color: var(--gain);
+}
+.live-serie[data-etat="courante"] .live-serie-numero {
+  color: var(--primary);
+}
+.live-serie-numero > b {
+  font-size: 10px;
+  vertical-align: super;
+  color: var(--encre-3);
+}
+
+/* Une série faite se LIT. Des champs verrouillés gardaient l'encombrement d'un
+   formulaire sans en offrir le geste. */
+.live-serie-resume {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 5px;
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 550;
+  color: var(--encre);
+}
+.live-serie-resume small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--encre-3);
+}
+.live-serie-resume i {
+  font-style: normal;
+  color: var(--encre-3);
+}
+
+.live-serie-champs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  min-width: 0;
+}
+.live-serie-champs > label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.live-serie-champs > label > span {
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--encre-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.serie-champ {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--filet);
+  background: var(--carte);
+  padding: 0 6px;
+  text-align: center;
+  font-family: var(--font-heading);
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--encre);
+}
+.serie-champ:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
+
+.live-serie-repere {
+  grid-column: 2;
+  font-size: 10px;
+  color: var(--encre-3);
+}
+
+.live-serie-geste {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  background: var(--carte);
+  color: var(--encre-3);
+  border: 1px solid var(--filet);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+.live-serie[data-etat="courante"] .live-serie-geste {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-foreground);
+}
+.live-serie[data-etat="validee"] .live-serie-geste {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--gain) 35%, transparent);
+  color: var(--gain);
+}
+
+.live-serie-vide {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--encre-3);
+  background: var(--papier);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+/* Les précisions : groupées, discrètes, jamais en bandes séparées. */
+.live-carte-notes {
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--encre-3);
+  padding: 0 2px;
+}
+
+/* ===========================================================================
+   LE REPOS
+   ===========================================================================
+   La logique du minuteur ne change pas. Ce qui change est qu'il cesse d'être
+   une boîte posée au milieu d'un voile : c'est une feuille qui monte du bas,
+   comme les autres feuilles de l'application, et elle annonce la suite. */
+
+.repos-feuille {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: color-mix(in srgb, var(--encre) 72%, transparent);
+}
+.repos-panneau {
+  width: 100%;
+  max-width: 520px;
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--papier);
+  border-radius: 28px 28px 0 0;
+  padding-bottom: var(--marge-bas);
+}
+@media (min-width: 560px) {
+  .repos-feuille {
+    align-items: center;
+  }
+  .repos-panneau {
+    border-radius: 28px;
+    padding-bottom: 0;
+  }
+}
+/* Ce qui vient après le repos — la raison pour laquelle on attend. */
+.repos-prochaine {
+  display: grid;
+  gap: 3px;
+  text-align: center;
+  padding: 0 24px 4px;
+}
+.repos-prochaine > strong {
+  font-family: var(--font-heading);
+  font-size: 17px;
+  font-weight: 550;
+  color: var(--encre);
+}
+
+/* ===========================================================================
+   MOBILE
+   =========================================================================== */
+
+@media (max-width: 1023px) {
+  body:has(.live-session) .app-nav {
+    display: none;
+  }
+  .app-main:has(.live-session) {
+    padding-bottom: calc(var(--marge-bas) + 1rem) !important;
+  }
+}
+
 @media (max-width: 600px) {
-  .live-quick-entry { flex-wrap: wrap; }
-  .live-quick-entry > span:first-child { flex-basis: 100%; }
-  .live-quick-entry > span.chiffres { min-width: 2rem; }
-  .live-quick-entry > div:last-child { margin-left: auto; }
+  .live-session > main {
+    padding-top: 8px;
+  }
+  .live-session-header h1 {
+    font-size: 16px;
+  }
+  .live-session-header {
+    padding-bottom: 0;
+  }
+  .live-session-persistent {
+    margin-inline: -4px;
+  }
+}
+
+/* 320 px — l'iPhone SE, et la contrainte qui décide vraiment.
+   Les trois champs d'une série ne tiennent plus côte à côte avec leurs
+   étiquettes : ils passent en deux rangées plutôt que de rétrécir sous la
+   cible tactile. */
+@media (max-width: 359px) {
+  .live-serie {
+    grid-template-columns: 30px 1fr 44px;
+    gap: 7px;
+    padding: 8px 9px;
+  }
+  .live-serie-champs {
+    gap: 5px;
+  }
+  .serie-champ {
+    font-size: 15px;
+    padding: 0 2px;
+  }
+  .live-serie-geste {
+    width: 44px;
+    height: 44px;
+  }
+  .lecteur-hero {
+    gap: 12px;
+    padding: 15px;
+  }
+  .lecteur-illustration {
+    width: 60px;
+    height: 60px;
+    border-radius: 17px;
+  }
+  .mesure-ligne {
+    grid-template-columns: 52px 1fr 52px;
+    gap: 7px;
+  }
+  .mesure-ligne > button {
+    height: 54px;
+    border-radius: 16px;
+  }
+  .mesure-choix {
+    gap: 4px;
+  }
+  .mesure-choix > button {
+    min-height: 48px;
+    font-size: 15px;
+    border-radius: 13px;
+  }
+  .serie-en-cours {
+    padding: 18px 14px 16px;
+  }
+  .lecteur-faites > li {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+  }
+  .lecteur-faites > li > button {
+    margin-left: auto;
+  }
 }

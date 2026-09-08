@@ -46,7 +46,19 @@ export function configurationDeLExercice(exercice: ExercicePrescrit) {
   });
 }
 
-export function PasDeCharge({ exercice, valeur, onChanger, desactive }: Props) {
+/**
+ * Les deux crans de l'appareil, prêts à être câblés sur n'importe quels boutons.
+ *
+ * La grammaire du Focus place les boutons DE PART ET D'AUTRE de la valeur, celle
+ * de la Liste les colle en paire. Deux dispositions, un seul appel au moteur :
+ * dupliquer `voisineCharge` dans la seconde vue en ferait un second moteur de
+ * charge, exactement ce que ce fichier existe pour empêcher.
+ */
+export function cransDeCharge(
+  exercice: ExercicePrescrit,
+  valeur: string,
+  onChanger: (valeur: string) => void,
+) {
   const config = configurationDeLExercice(exercice);
 
   /*
@@ -68,10 +80,25 @@ export function PasDeCharge({ exercice, valeur, onChanger, desactive }: Props) {
     onChanger(String(r.valeur));
   };
 
-  // Un appareil sans grille connue n'a pas de crans à proposer. La saisie
-  // directe, elle, reste disponible — c'est l'échappatoire prévue.
-  const sansGrille = voisineCharge(config, depart, "haut").statut === "indeterminable";
-  if (sansGrille) return null;
+  return {
+    monter: () => aller("haut"),
+    descendre: () => aller("bas"),
+    /*
+     * Un appareil sans grille connue n'a pas de crans à proposer. La saisie
+     * directe, elle, reste disponible — c'est l'échappatoire prévue.
+     */
+    disponible:
+      voisineCharge(config, depart, "haut").statut !== "indeterminable",
+  };
+}
+
+export function PasDeCharge({ exercice, valeur, onChanger, desactive }: Props) {
+  const { monter, descendre, disponible } = cransDeCharge(
+    exercice,
+    valeur,
+    onChanger,
+  );
+  if (!disponible) return null;
 
   const bouton =
     "shrink-0 w-11 h-11 rounded-lg border border-filet bg-papier-2 "
@@ -83,7 +110,7 @@ export function PasDeCharge({ exercice, valeur, onChanger, desactive }: Props) {
           ratent avec les mains moites, entre deux séries. */}
       <button
         type="button"
-        onClick={() => aller("bas")}
+        onClick={descendre}
         disabled={desactive}
         aria-label="Charge : un cran en dessous"
         className={bouton}
@@ -92,7 +119,7 @@ export function PasDeCharge({ exercice, valeur, onChanger, desactive }: Props) {
       </button>
       <button
         type="button"
-        onClick={() => aller("haut")}
+        onClick={monter}
         disabled={desactive}
         aria-label="Charge : un cran au-dessus"
         className={bouton}

@@ -7,6 +7,14 @@ interface RestTimerProps {
   onComplete: () => void;
   onSkip: () => void;
   onExtend: (extraSeconds: number) => void;
+  /**
+   * Ce qui vient après — la raison pour laquelle on attend.
+   *
+   * Le minuteur occupait tout l'écran sans jamais dire vers quoi il menait : on
+   * en sortait pour retrouver où l'on en était. Purement informatif, calculé
+   * par l'écran de séance qui connaît déjà la série suivante.
+   */
+  prochaine?: string | null;
 }
 
 /** « 1 min 20 » plutôt que « 80 s » : c'est ce qu'on lit d'un coup d'œil. */
@@ -22,6 +30,7 @@ export function RestTimer({
   onComplete,
   onSkip,
   onExtend,
+  prochaine,
 }: RestTimerProps) {
   const [elapsed, setElapsed] = useState(0);
   // Ref plutot qu'un state : sert uniquement a ne declencher onComplete qu'une fois.
@@ -172,6 +181,15 @@ export function RestTimer({
           )}
         </div>
       </div>
+
+      {/* Ce vers quoi le repos mène. Absent quand l'exercice est fini : il n'y
+          a alors pas de « prochaine », et en inventer une serait un mensonge. */}
+      {prochaine && (
+        <div className="repos-prochaine">
+          <p className="eyebrow">Prochaine</p>
+          <strong className="chiffres">{prochaine}</strong>
+        </div>
+      )}
 
       {/* Control buttons */}
       <div className="flex gap-4">
