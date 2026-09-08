@@ -360,6 +360,18 @@
 .lecteur-faites > li > button:active {
   background: color-mix(in srgb, var(--gain) 14%, transparent);
 }
+/* La poubelle d'une série ajoutée déjà validée : même discrétion, même cible. */
+.lecteur-faite-supprimer {
+  margin-left: 0 !important;
+  width: 44px;
+  padding: 0 !important;
+  display: grid !important;
+  place-items: center;
+  color: var(--encre-3);
+}
+.lecteur-faite-supprimer:active {
+  color: var(--perte);
+}
 
 /* ---------------------------------------------------------------------------
    LA SÉRIE EN COURS — un bloc DANS la carte
@@ -378,6 +390,42 @@
   display: grid;
   gap: 11px;
 }
+/* Le bandeau de la série : son rang à gauche, son geste rare à droite. */
+.serie-en-cours-tete {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  /* La poubelle est plus haute que le titre : on la laisse déborder du flux
+     plutôt que d'épaissir le bandeau pour elle seule. */
+  margin-block: -6px;
+}
+/*
+ * Supprimer une série ajoutée à la main.
+ *
+ * Discrète et jamais rouge en permanence : c'est un geste rare, pas une alarme.
+ * Le rouge n'apparaît qu'à l'appui, au moment où il décrit ce qui se passe.
+ * Cible tactile pleine — 44 px — malgré une icône de 16.
+ */
+.serie-supprimer {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  color: #b6c5b6;
+  flex-shrink: 0;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.serie-supprimer:hover {
+  color: var(--hero-ink);
+  background: #ffffff14;
+}
+.serie-supprimer:active {
+  color: #ffb4a2;
+  background: #ffffff1f;
+}
+
 .serie-en-cours-titre {
   font-size: 10px;
   font-weight: 650;
@@ -978,6 +1026,33 @@
   color: var(--gain);
 }
 
+.live-serie:has(.live-serie-supprimer) .live-serie-geste {
+  /* Quand la poubelle est là, les deux gestes se partagent la colonne : la
+     coche ne prend plus toute la hauteur. */
+  grid-row: 1;
+}
+
+/* Même geste, même règle, dans le carnet : il vit sur la ligne qu'il retire. */
+.live-serie-supprimer {
+  grid-column: 3;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  color: var(--encre-3);
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.live-serie-supprimer:hover {
+  color: var(--encre);
+  background: var(--papier-2);
+}
+.live-serie-supprimer:active {
+  color: var(--perte);
+  background: var(--perte-fond);
+}
+
 .live-serie-vide {
   font-size: 12px;
   line-height: 1.5;
@@ -1110,24 +1185,47 @@
      compte pour que le CTA reste dans le premier écran — c'est le contrôle
      `captures.mts` qui arbitre, pas l'œil. */
   .focus-carte {
-    padding: 14px 12px 12px;
+    padding: 13px 12px 12px;
     border-radius: 24px;
-    gap: 10px;
+    gap: 8px;
+  }
+  .lecteur-titre h2 {
+    font-size: 21px;
+  }
+  .lecteur-reperes {
+    gap: 4px 14px;
+  }
+  /* Toutes ces cibles restent au-dessus des 44 px d'iOS : c'est la marge
+     au-dessus du plancher qui est rendue, pas le plancher lui-même. */
+  .serie-valider {
+    min-height: 52px;
   }
   .lecteur-hero {
     gap: 11px;
   }
   .lecteur-illustration {
-    width: 78px;
-    height: 78px;
-    border-radius: 20px;
+    width: 72px;
+    height: 72px;
+    border-radius: 19px;
   }
   .lecteur-reperes {
-    padding: 8px 12px;
+    padding: 6px 12px;
   }
   .lecteur-faites > li {
-    min-height: 42px;
-    padding: 7px 11px;
+    min-height: 40px;
+    padding: 6px 10px;
+    gap: 7px;
+  }
+  .lecteur-faite-valeur {
+    font-size: 13px;
+  }
+  /* Une carte peut porter deux séries faites ET une série ajoutée : c'est la
+     composition la plus haute du Live, et celle qui décide du palier étroit. */
+  .serie-en-cours {
+    gap: 9px;
+  }
+  .mesure {
+    gap: 5px;
   }
   .lecteur-avancement {
     font-size: 20px;
@@ -1143,7 +1241,7 @@
     gap: 3px;
   }
   .mesure-ligne > button {
-    height: 46px;
+    height: 44px;
     border-radius: 12px;
   }
   /* « 32,5 » doit tenir en entier : c'est la charge d'une pile, pas un cas rare. */
@@ -1154,7 +1252,7 @@
     gap: 4px;
   }
   .mesure-choix > button {
-    min-height: 46px;
+    min-height: 44px;
     font-size: 15px;
     border-radius: 12px;
   }

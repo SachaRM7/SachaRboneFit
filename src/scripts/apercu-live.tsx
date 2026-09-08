@@ -82,7 +82,18 @@ export function ecrire(nom: string, titre: string, corps: string, largeur: numbe
  * `flushSync` force React à terminer le rendu avant qu'on lise le DOM : sans
  * lui, on sérialiserait un conteneur encore vide.
  */
-export function rendre(element: React.ReactElement): string {
+export function rendre(
+  element: React.ReactElement,
+  /**
+   * Un geste à jouer AVANT de sérialiser — « ajouter une série », par exemple.
+   *
+   * Certains états ne s'atteignent que par une interaction ; les fabriquer en
+   * ajoutant une propriété au composant reviendrait à modifier le produit pour
+   * les besoins d'une capture, et à photographier autre chose que ce que les
+   * gens utilisent. On clique donc, comme eux.
+   */
+  geste?: (hote: HTMLElement) => void,
+): string {
   const hote = document.createElement("div");
   document.body.appendChild(hote);
   /*
@@ -100,6 +111,7 @@ export function rendre(element: React.ReactElement): string {
     onCaughtError: (e) => erreurs.push(e),
   });
   flushSync(() => racine.render(element));
+  if (geste) flushSync(() => geste(hote));
   const html = hote.innerHTML;
   racine.unmount();
   hote.remove();

@@ -325,6 +325,41 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
       );
     },
   },
+  {
+    nom: "9-focus-serie-en-plus",
+    titre: "Focus — série ajoutée hors prescription",
+    rendu: () => {
+      // Deux prescrites, faites, plus une troisième ajoutée à la main : c'est
+      // la seule situation où la poubelle apparaît.
+      seance([fait(TIRAGE.id, 1, 45, 10, 7), fait(TIRAGE.id, 2, 45, 9, 8)]);
+      return enveloppe(
+        rendre(
+          <LecteurExercice
+            exercice={TIRAGE as never}
+            rpeReduction={0}
+            modeReserve={false}
+            onSerieValidee={rien}
+            onSuivant={rien}
+            actions={
+              <>
+                <button>↔ Remplacer l&apos;exercice</button>
+                <button>Machine occupée</button>
+                <button>Douleur</button>
+              </>
+            }
+          />,
+          // On appuie sur « Série en plus », comme le ferait l'athlète : c'est
+          // le seul chemin vers cet état, et le seul honnête.
+          (hote) => {
+            const boutons = [...hote.querySelectorAll("button")];
+            boutons
+              .find((b) => b.textContent?.includes("Série en plus"))
+              ?.click();
+          },
+        ),
+      );
+    },
+  },
 ];
 
 for (const largeur of [320, 390]) {

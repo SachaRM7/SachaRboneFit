@@ -1,11 +1,11 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { Check, ChevronRight, Minus, Pencil, Plus } from "lucide-react";
+import { Check, ChevronRight, Minus, Pencil, Plus, Trash2 } from "lucide-react";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { DemonstrationMouvement } from "./DemonstrationMouvement";
 import { FicheExecution } from "./FicheExecution";
 import { useContexteExecution } from "./useContexteExecution";
-import { useSaisieSeries } from "./useSaisieSeries";
+import { useSaisieSeries, type SerieValidee } from "./useSaisieSeries";
 import { cransDeCharge } from "./crans-de-charge";
 import { effortSaisi } from "./effort-propose";
 import { classeDuMotif } from "./motif-progression";
@@ -58,7 +58,7 @@ interface Props {
   exercice: ExercicePrescrit;
   rpeReduction: number;
   modeReserve: boolean;
-  onSerieValidee: (reposSecondes: number | null) => void;
+  onSerieValidee: (resultat: SerieValidee) => void;
   /** Les actions propres à l'exercice — remplacement, incidents — déjà montées. */
   actions?: ReactNode;
   /** Aller à l'exercice suivant, quand celui-ci est fini. `null` s'il est le dernier. */
@@ -217,6 +217,19 @@ export function LecteurExercice({
                   <Pencil className="w-3.5 h-3.5" aria-hidden />
                   Modifier
                 </button>
+                {/* Une série ajoutée reste retirable APRÈS validation : la
+                    valider ne doit pas l'enfermer. Même geste, même règle —
+                    seule la dernière ajoutée s'enlève. */}
+                {derniereEnPlus === numero && (
+                  <button
+                    type="button"
+                    onClick={retirerLaDerniereSerie}
+                    aria-label={`Supprimer la série ${numero}`}
+                    className="lecteur-faite-supprimer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" aria-hidden />
+                  </button>
+                )}
               </li>
             );
           })}
@@ -231,6 +244,12 @@ export function LecteurExercice({
           exercice={exercice}
           numero={serieCourante}
           total={exercice.seriesCibles}
+          /* La suppression appartient à LA SÉRIE AJOUTÉE, pas à un lien perdu
+             en bas de carte. Elle n'apparaît que si CETTE série est celle qui
+             peut être retirée — seule la dernière l'est. */
+          onSupprimer={
+            derniereEnPlus === serieCourante ? retirerLaDerniereSerie : null
+          }
           modeReserve={modeReserve}
           valeurs={valeurs(serieCourante)}
           ecrire={(champ, valeur) => ecrire(serieCourante, champ, valeur)}
@@ -274,17 +293,15 @@ export function LecteurExercice({
           ------------------------------------------------------------------ */}
       {actions && <div className="lecteur-actions">{actions}</div>}
 
+      {/* Le pied ne porte plus que l'ajout : « Retirer la série N » y était
+          déconnecté de la série qu'il visait, et on le lisait après avoir
+          scrollé au-delà des contrôles. La poubelle vit maintenant sur la
+          série elle-même. */}
       <div className="lecteur-appoint">
         <button type="button" onClick={ajouterUneSerie}>
           <Plus className="w-3.5 h-3.5" aria-hidden />
           Série en plus
         </button>
-        {derniereEnPlus !== null && (
-          <button type="button" onClick={retirerLaDerniereSerie}>
-            <Minus className="w-3.5 h-3.5" aria-hidden />
-            Retirer la série {derniereEnPlus}
-          </button>
-        )}
       </div>
 
       {demonstration && exercice.slug && (
@@ -334,6 +351,7 @@ function SerieEnCours({
   ecrire,
   alerte,
   onValider,
+  onSupprimer,
 }: {
   exercice: ExercicePrescrit;
   numero: number;
@@ -343,6 +361,8 @@ function SerieEnCours({
   ecrire: (champ: "charge" | "reps" | "rpe", valeur: string) => void;
   alerte: { message: string; choix: number[] } | null;
   onValider: () => void;
+  /** Retirer cette série ajoutée à la main, ou `null` si elle ne l'est pas. */
+  onSupprimer: (() => void) | null;
 }) {
   const crans = cransDeCharge(exercice, valeurs.charge, (v) => ecrire("charge", v));
   const reps = Number.parseInt(valeurs.reps, 10) || 0;
@@ -351,10 +371,25 @@ function SerieEnCours({
 
   return (
     <section className="serie-en-cours" aria-label={`Série ${numero}`}>
-      <p className="serie-en-cours-titre">
-        Série <span className="chiffres">{numero}</span> sur{" "}
-        <span className="chiffres">{total}</span>
-      </p>
+      <div className="serie-en-cours-tete">
+        <p className="serie-en-cours-titre">
+          Série <span className="chiffres">{numero}</span> sur{" "}
+          <span className="chiffres">{total}</span>
+        </p>
+        {/* Discrète, jamais rouge en permanence : c'est un geste rare, pas une
+            alarme. Elle ne s'affiche que sur une série hors prescription — la
+            prescription, elle, appartient au moteur. */}
+        {onSupprimer && (
+          <button
+            type="button"
+            onClick={onSupprimer}
+            aria-label={`Supprimer la série ${numero}`}
+            className="serie-supprimer"
+          >
+            <Trash2 className="w-4 h-4" aria-hidden />
+          </button>
+        )}
+      </div>
 
       {/* Charge et répétitions se partagent une rangée : ce sont les deux
           nombres qu'on ajuste ensemble, et les empiler coûtait un demi-écran. */}

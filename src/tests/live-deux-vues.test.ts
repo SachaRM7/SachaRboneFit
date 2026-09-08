@@ -450,6 +450,9 @@ describe("le Live dégage les zones réservées d'iOS", () => {
       ".mesure-choix > button",
       ".serie-valider",
       ".focus-nav > button",
+      // La suppression d'une série ajoutée : une icône de 16 px, une cible de 44.
+      ".serie-supprimer",
+      ".live-serie-supprimer",
     ]) {
       const h = hauteurDe(selecteur);
       expect(h, `${selecteur} ne déclare plus de hauteur`).not.toBeNull();

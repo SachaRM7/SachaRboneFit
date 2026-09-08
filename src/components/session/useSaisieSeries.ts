@@ -14,6 +14,7 @@ import { derniereLigneRetirable, lignesAAfficher } from "./lignes-de-series";
 import {
   avancementDeLaLignee,
   ligneeDe,
+  slotsARemplir,
   type LigneeSlot,
 } from "@/lib/live/vue-live";
 
@@ -54,13 +55,28 @@ export interface Brouillon {
   rpe: string;
 }
 
+/**
+ * Ce qu'une validation vient de produire.
+ *
+ * `exerciceTermine` est décidé ICI, au moment du geste, à partir des séries que
+ * l'on vient d'écrire — jamais déduit d'un rendu React qui peut être en retard
+ * d'un tour. L'écran qui enchaînerait sur un état périmé passerait à l'exercice
+ * suivant une série trop tôt, ou pas du tout.
+ */
+export interface SerieValidee {
+  /** Le repos prescrit pour cet exercice, `null` s'il n'y en a pas. */
+  reposSecondes: number | null;
+  /** Cette validation vient-elle de remplir la prescription de l'exercice ? */
+  exerciceTermine: boolean;
+}
+
 interface Options {
   exercice: ExercicePrescrit;
   rpeReduction: number;
   /** En calibration, la réserve de répétitions remplace le RPE. */
   modeReserve: boolean;
-  /** Déclenché à chaque série validée, pour lancer le repos. */
-  onSerieValidee: (reposSecondes: number | null) => void;
+  /** Déclenché à chaque série validée, pour lancer le repos et enchaîner. */
+  onSerieValidee: (resultat: SerieValidee) => void;
 }
 
 export function useSaisieSeries({
@@ -267,7 +283,32 @@ export function useSaisieSeries({
       return suite;
     });
 
-    onSerieValidee(exercice.reposSecondes ?? null);
+    /*
+     * L'exercice est-il terminé PAR CETTE validation ?
+     *
+     * On recalcule les slots avec la série qu'on vient d'écrire, plutôt que de
+     * relire `avancement` — celui-ci vient du rendu courant, donc d'AVANT
+     * l'écriture. S'y fier ferait enchaîner l'écran avec une série de retard.
+     *
+     * Une série hors prescription ne termine rien : la prescription était déjà
+     * remplie avant elle, et l'enchaînement a déjà eu lieu.
+     */
+    const apres = [
+      ...(active?.sets ?? []).filter(
+        (s) => !(s.exerciseInstanceId === exercice.id && s.numeroSerie === numero),
+      ),
+      {
+        exerciseInstanceId: exercice.id,
+        numeroSerie: numero,
+        repsEffectuees: Number.isFinite(reps) ? reps : null,
+        charge,
+      },
+    ];
+    const exerciceTermine =
+      numero <= exercice.seriesCibles &&
+      slotsARemplir(lignee, apres, exercice.seriesCibles).length === 0;
+
+    onSerieValidee({ reposSecondes: exercice.reposSecondes ?? null, exerciceTermine });
   };
 
   const ajouterUneSerie = () => setSeriesEnPlus((n) => n + 1);

@@ -5,6 +5,7 @@ import { LecteurExercice } from "./LecteurExercice";
 import { ListeCompacte } from "./ListeCompacte";
 import type { ExercicePrescrit } from "./types";
 import type { AvancementExercice } from "@/lib/live/vue-live";
+import type { SerieValidee } from "./useSaisieSeries";
 
 /**
  * Un exercice à la fois — la séance telle qu'on la vit devant la machine.
@@ -37,7 +38,7 @@ interface Props {
   courant: number;
   onNaviguer: (index: number) => void;
   rpeReduction: (exerciceId: string) => number;
-  onSerieValidee: (reposSecondes: number | null) => void;
+  onSerieValidee: (resultat: SerieValidee) => void;
   modeReserve?: boolean;
   /** Les actions propres à un exercice — remplacement, réglages — déjà montées. */
   actions?: (exercice: ExercicePrescrit) => ReactNode;
