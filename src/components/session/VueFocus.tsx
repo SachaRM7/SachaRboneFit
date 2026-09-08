@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, List, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, List } from "lucide-react";
 import { TableauSeries } from "./TableauSeries";
 import { ListeCompacte } from "./ListeCompacte";
 import type { ExercicePrescrit } from "./types";
@@ -83,32 +83,6 @@ export function VueFocus({
 
   return (
     <div className="focus-v2 space-y-4">
-      <div className="focus-heading">
-        <span className="eyebrow">Un mouvement à la fois</span>
-        <span>
-          Exercice {courant + 1} / {exercices.length}
-        </span>
-      </div>
-      <nav className="exercise-rail" aria-label="Exercices de la séance">
-        {exercices.map((ex, index) => (
-          <button
-            key={ex.id}
-            onClick={() => aller(index)}
-            aria-current={index === courant ? "step" : undefined}
-            aria-label={`${ex.nom}, exercice ${index + 1}${etats[index]?.statut === "termine" ? ", terminé" : ""}`}
-            className={etats[index]?.statut === "termine" ? "rail-done" : ""}
-          >
-            <span>
-              {etats[index]?.statut === "termine" ? (
-                <Check size={14} aria-hidden />
-              ) : (
-                String(index + 1).padStart(2, "0")
-              )}
-            </span>
-            <span>{ex.nom}</span>
-          </button>
-        ))}
-      </nav>
       {/*
         La barre de navigation : où l'on est, et comment aller ailleurs.
 

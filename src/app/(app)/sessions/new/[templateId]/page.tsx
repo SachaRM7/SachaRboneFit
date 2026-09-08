@@ -12,12 +12,18 @@ import { TableauSeries } from "@/components/session/TableauSeries";
 import { VueFocus } from "@/components/session/VueFocus";
 import { SelecteurVue } from "@/components/session/SelecteurVue";
 import {
-  avancement, exerciceAffiche, CLE_VUE_LIVE, vueParDefaut,
-  ligneeDe, slotsARemplir, avancementDeLaLignee, type VueLive,
+  avancement,
+  exerciceAffiche,
+  CLE_VUE_LIVE,
+  vueParDefaut,
+  ligneeDe,
+  slotsARemplir,
+  avancementDeLaLignee,
+  type VueLive,
 } from "@/lib/live/vue-live";
 import { BandeauAdaptation } from "@/components/session/BandeauAdaptation";
 import { initAudioContext, playBeep } from "@/lib/audio/beep";
-import { SOSBar } from "@/components/session/SOSBar";
+
 import { ChangerDeLieu } from "@/components/session/ChangerDeLieu";
 import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
 import { RemplacerExercice } from "@/components/session/RemplacerExercice";
@@ -32,7 +38,10 @@ import { ObservateurSeance } from "@/components/session/ObservateurSeance";
 import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { Feu } from "@/components/carnet/Feu";
 import { modeSaisieEffort } from "@/lib/engine/reserve";
-import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engine/substitutions";
+import type {
+  ExerciseInstanceWithExercise,
+  SubstituteResult,
+} from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
 import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
 
@@ -43,10 +52,19 @@ import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
  * distincts : une baisse d'énergie et une nausée ne se saisissent pas de la
  * même façon, et ne s'enregistrent pas dans le même type d'incident.
  */
-type ModaleSOS = "machine" | "douleur" | "etat" | "energie" | "symptome" | "temps" | null;
+type ModaleSOS =
+  | "machine"
+  | "douleur"
+  | "etat"
+  | "energie"
+  | "symptome"
+  | "temps"
+  | null;
 
 /** Le rôle vient de la base en texte libre : on le ramène aux trois valeurs du moteur. */
-function normaliserRole(role: string | null | undefined): ExerciceRestant["categorie_role"] {
+function normaliserRole(
+  role: string | null | undefined,
+): ExerciceRestant["categorie_role"] {
   return role === "pilier" || role === "substitut" ? role : "accessoire";
 }
 
@@ -92,8 +110,18 @@ function ContenuSeanceLive() {
   const router = useRouter();
 
   const {
-    active, start, hydraterSets, hydraterLignees, setCurrentExerciseIndex, noterSubstitution,
-    startRest, clearRest, skipRest, extendRest, skipExercises, allegerExercises,
+    active,
+    start,
+    hydraterSets,
+    hydraterLignees,
+    setCurrentExerciseIndex,
+    noterSubstitution,
+    startRest,
+    clearRest,
+    skipRest,
+    extendRest,
+    skipExercises,
+    allegerExercises,
   } = useSessionStore();
 
   const [seance, setSeance] = useState<SeanceChargee | null>(null);
@@ -139,7 +167,9 @@ function ContenuSeanceLive() {
   // panneau reste replié tant qu'on ne le demande pas.
   const [changementDeLieu, setChangementDeLieu] = useState(false);
   const [dureeSOSMin, setDureeSOSMin] = useState(0);
-  const [parcSalle, setParcSalle] = useState<ExerciseInstanceWithExercise[]>([]);
+  const [parcSalle, setParcSalle] = useState<ExerciseInstanceWithExercise[]>(
+    [],
+  );
   const [musclesCourbatures, setMusclesCourbatures] = useState<string[]>([]);
 
   // --- Chargement du plan (le template n'est qu'un repli) ---
@@ -167,23 +197,28 @@ function ContenuSeanceLive() {
       : Promise.resolve(null);
 
     source
-      .then((plan) =>
-        plan ??
-        fetch(`/api/sessions/${templateId}`)
-          // Le repli est le dernier filet : il rend une ligne par exercice
-          // programmé, sans consulter ni la salle ni l'état du jour. Sa réponse
-          // était lue sans regarder le statut — un 500 donnait un corps
-          // `{ error }`, donc `t.exercises` valait `undefined`, donc `[]`, et
-          // l'écran annonçait « Aucun exercice dans cette séance ». Une panne
-          // serveur se présentait comme un programme vide, et c'est ce qui a
-          // fait chercher la cause dans les données pendant des heures.
-          .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`gabarit illisible (${r.status})`))))
-          .then((t) => ({
-            nom: t.nom,
-            // Sans elle, une calibration ouverte par le repli réclamait un RPE.
-            phaseCycle: t.phaseCycle ?? null,
-            exercices: t.exercises ?? [],
-          })),
+      .then(
+        (plan) =>
+          plan ??
+          fetch(`/api/sessions/${templateId}`)
+            // Le repli est le dernier filet : il rend une ligne par exercice
+            // programmé, sans consulter ni la salle ni l'état du jour. Sa réponse
+            // était lue sans regarder le statut — un 500 donnait un corps
+            // `{ error }`, donc `t.exercises` valait `undefined`, donc `[]`, et
+            // l'écran annonçait « Aucun exercice dans cette séance ». Une panne
+            // serveur se présentait comme un programme vide, et c'est ce qui a
+            // fait chercher la cause dans les données pendant des heures.
+            .then((r) =>
+              r.ok
+                ? r.json()
+                : Promise.reject(new Error(`gabarit illisible (${r.status})`)),
+            )
+            .then((t) => ({
+              nom: t.nom,
+              // Sans elle, une calibration ouverte par le repli réclamait un RPE.
+              phaseCycle: t.phaseCycle ?? null,
+              exercices: t.exercises ?? [],
+            })),
       )
       .then((s: SeanceChargee) => {
         if (!annule) {
@@ -220,13 +255,16 @@ function ContenuSeanceLive() {
       .then((d) => {
         if (annule || !d?.courbatures) return;
         setMusclesCourbatures(
-          d.courbatures.filter((c: { intensite: number }) => c.intensite >= 7)
+          d.courbatures
+            .filter((c: { intensite: number }) => c.intensite >= 7)
             .map((c: { muscle: string }) => c.muscle),
         );
       })
       .catch(() => {});
 
-    return () => { annule = true; };
+    return () => {
+      annule = true;
+    };
     // `hydraterLignees` vient de Zustand : sa référence est stable pour la vie
     // du store. L'ajouter ne changerait rien et relancerait le chargement de la
     // séance à la moindre recréation du store.
@@ -288,7 +326,11 @@ function ContenuSeanceLive() {
         });
         if (!res.ok) throw new Error();
         const resultat: { seance: { id: string } } = await res.json();
-        start({ id: resultat.seance.id, seanceTemplateId: templateId as string, gymId });
+        start({
+          id: resultat.seance.id,
+          seanceTemplateId: templateId as string,
+          gymId,
+        });
 
         /*
          * L'identifiant part dans l'URL, et ce n'est pas cosmétique.
@@ -302,7 +344,10 @@ function ContenuSeanceLive() {
          * Avec l'identifiant dans l'adresse, la reprise ne dépend plus de rien
          * d'autre — c'est ce que fait `/session/start` depuis toujours.
          */
-        const params = new URLSearchParams({ gymId, sessionId: resultat.seance.id });
+        const params = new URLSearchParams({
+          gymId,
+          sessionId: resultat.seance.id,
+        });
         router.replace(`/sessions/new/${templateId}?${params.toString()}`);
         return;
       }
@@ -315,7 +360,11 @@ function ContenuSeanceLive() {
       const res = await fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, seanceTemplateId: templateId, gymId: null }),
+        body: JSON.stringify({
+          date,
+          seanceTemplateId: templateId,
+          gymId: null,
+        }),
       });
       if (!res.ok) throw new Error();
       const creee: { id: string } = await res.json();
@@ -464,11 +513,17 @@ function ContenuSeanceLive() {
         // Hors ligne : le brouillon local reste, et la clôture réécrira tout.
       }
     })();
-    return () => { annule = true; };
+    return () => {
+      annule = true;
+    };
     // Une seule fois par séance : `active.id` ne change pas en cours de route.
   }, [active?.id, hydraterSets]);
 
-  const enregistrerIncident = (data: { type: string; contexte: Record<string, unknown>; decision: string }): void => {
+  const enregistrerIncident = (data: {
+    type: string;
+    contexte: Record<string, unknown>;
+    decision: string;
+  }): void => {
     // Possible depuis que le store porte l'identifiant réel : cet appel
     // renvoyait auparavant 403 à chaque fois, en silence.
     if (!active?.id) return;
@@ -485,19 +540,25 @@ function ContenuSeanceLive() {
   if (echecLecture) {
     return (
       <div className="p-4 space-y-3">
-        <p className="text-perte font-semibold">Je n&apos;ai pas pu lire cette séance</p>
-        <p className="text-encre-2 text-sm">
-          Ton programme n&apos;est pas en cause : c&apos;est la lecture qui a échoué.
-          Réessaie — si ça persiste, c&apos;est côté serveur.
+        <p className="text-perte font-semibold">
+          Je n&apos;ai pas pu lire cette séance
         </p>
-        <Button variant="outline" className="w-full border-filet bg-carte text-encre"
-          onClick={() => router.refresh()}>
+        <p className="text-encre-2 text-sm">
+          Ton programme n&apos;est pas en cause : c&apos;est la lecture qui a
+          échoué. Réessaie — si ça persiste, c&apos;est côté serveur.
+        </p>
+        <Button
+          variant="outline"
+          className="w-full border-filet bg-carte text-encre"
+          onClick={() => router.refresh()}
+        >
           Réessayer
         </Button>
       </div>
     );
   }
-  if (!seance) return <div className="p-4 text-encre-3">Séance introuvable</div>;
+  if (!seance)
+    return <div className="p-4 text-encre-3">Séance introuvable</div>;
 
   /*
    * Rien n'a encore été ouvert : on demande, on ne décide pas.
@@ -510,7 +571,9 @@ function ContenuSeanceLive() {
       <div className="min-h-dvh bg-papier text-encre p-4 space-y-4">
         <DeclarerContexte ecran="seance" />
         <div className="space-y-1">
-          <p className="text-xs uppercase tracking-wide text-encre-3">Prête à démarrer</p>
+          <p className="text-xs uppercase tracking-wide text-encre-3">
+            Prête à démarrer
+          </p>
           <h1 className="text-2xl font-bold">{seance.nom}</h1>
           <p className="text-encre-2 text-sm">
             <span className="chiffres">{seance.exercices.length}</span> exercice
@@ -522,7 +585,9 @@ function ContenuSeanceLive() {
           {seance.exercices.map((e) => (
             <li key={e.id} className="px-4 py-3">
               <p className="text-encre text-sm font-medium">{e.nom}</p>
-              {e.machineNom && <p className="text-encre-3 text-xs mt-0.5">{e.machineNom}</p>}
+              {e.machineNom && (
+                <p className="text-encre-3 text-xs mt-0.5">{e.machineNom}</p>
+              )}
             </li>
           ))}
         </ul>
@@ -543,7 +608,9 @@ function ContenuSeanceLive() {
 
   const exercicesSkippes = active?.skippedExerciseIds ?? [];
   const reductionsRPE = active?.rpeReductions ?? {};
-  const visibles = seance.exercices.filter((e) => !exercicesSkippes.includes(e.id));
+  const visibles = seance.exercices.filter(
+    (e) => !exercicesSkippes.includes(e.id),
+  );
 
   /*
    * L'avancement est calculé UNE fois, et les deux vues le lisent.
@@ -554,7 +621,11 @@ function ContenuSeanceLive() {
    * testée pour elle-même.
    */
   const etats = avancement(
-    visibles.map((e) => ({ id: e.id, nom: e.nom, seriesCibles: e.seriesCibles })),
+    visibles.map((e) => ({
+      id: e.id,
+      nom: e.nom,
+      seriesCibles: e.seriesCibles,
+    })),
     active?.sets ?? [],
     // Après substitution, les séries faites sur l'ancienne machine comptent
     // pour le slot : la liste compacte doit dire 1/3, pas 0/3.
@@ -603,21 +674,47 @@ function ContenuSeanceLive() {
       exercice.seriesCibles,
     );
 
-  const actionsDeLExercice = (exercice: (typeof visibles)[number]) =>
-    active?.id && gymId ? (
-      <RemplacerExercice
-        sessionLogId={active.id}
-        exerciceId={exercice.id}
-        exerciceNom={exercice.nom}
-        pilier={pilierDe(exercice)}
-        profilTension={profilDe(exercice)}
-        gymId={gymId}
-        parcSalle={parcSalle}
-        dejaAuProgramme={visibles.map((e) => e.id)}
-        musclesCourbatures={musclesCourbatures}
-        onRemplace={(r) => remplacer(exercice.id, r)}
-      />
-    ) : null;
+  const ouvrirIncidentExercice = (
+    exerciceId: string,
+    incident: "machine" | "douleur",
+  ) => {
+    const position = visibles.findIndex((e) => e.id === exerciceId);
+    if (position < 0) return;
+    setCurrentExerciseIndex(position);
+    setModaleSOS(incident);
+  };
+  const actionsDeLExercice = (exercice: (typeof visibles)[number]) => (
+    <>
+      {active?.id && gymId && (
+        <RemplacerExercice
+          sessionLogId={active.id}
+          exerciceId={exercice.id}
+          exerciceNom={exercice.nom}
+          pilier={pilierDe(exercice)}
+          profilTension={profilDe(exercice)}
+          gymId={gymId}
+          parcSalle={parcSalle}
+          dejaAuProgramme={visibles.map((e) => e.id)}
+          musclesCourbatures={musclesCourbatures}
+          onRemplace={(r) => remplacer(exercice.id, r)}
+        />
+      )}
+      <button
+        type="button"
+        className="live-context-action"
+        onClick={() => ouvrirIncidentExercice(exercice.id, "machine")}
+      >
+        Machine occupée
+      </button>
+      <button
+        type="button"
+        className="live-context-action"
+        onClick={() => ouvrirIncidentExercice(exercice.id, "douleur")}
+      >
+        Douleur
+      </button>
+    </>
+  );
 
   const restants: ExerciceAvecMuscles[] = visibles.slice(index).map((e, i) => ({
     exercise_instance_id: e.id,
@@ -632,48 +729,38 @@ function ContenuSeanceLive() {
   }));
 
   return (
-    /*
-     * Le bas de la séance porte DEUX barres — la rangée SOS, puis la
-     * navigation. Le layout dégage déjà la seconde, marge du bas comprise ;
-     * cet écran n'a donc à dégager que la première. `pb-40` les comptait
-     * toutes les deux à la main, en double avec le layout et sans marge : la
-     * dernière série d'une séance longue passait sous la rangée SOS, ce qui
-     * est exactement le moment où elle compte.
-     */
     <div
-      className="min-h-screen bg-papier"
-      /*
-       * Le dégagement vient d'une variable partagée, pas d'un `pb-16`.
-       *
-       * `pb-16` valait 4 rem quand la rangée SOS en mesure 4,75 : la dernière
-       * série d'une séance longue passait sous la barre. Et la valeur était
-       * recopiée là plutôt que calculée — sur un appareil sans encoche comme
-       * sur un iPhone, c'était le même nombre pour deux réalités.
-       */
-      style={{ paddingBottom: "var(--degagement-live)" }}
+      className="live-session min-h-screen bg-papier"
       onPointerDown={interaction}
     >
-      {/* Déclaré pour que l'entrée du coach s'efface : pendant la séance, ce
-          sont les actions immédiates de la barre SOS qui servent. */}
       <DeclarerContexte ecran="seance" />
       {/* Collé sous l'encoche, pas sous l'heure : à `top-0`, l'en-tête de la
           séance — nom de la séance, chrono, bouton quitter — glissait derrière
           la barre d'état dès le premier défilement. */}
       <header
-        className="sticky z-20 bg-papier border-b border-filet px-4 py-3"
+        className="live-session-header sticky z-20 bg-papier border-b border-filet px-4 py-2"
         style={{ top: "var(--marge-haut)" }}
       >
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            <Button variant="ghost" size="icon" aria-label="Quitter la séance"
-              onClick={() => router.push("/")}>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Quitter la séance"
+              onClick={() => router.push("/")}
+            >
               <ArrowLeft className="w-5 h-5 text-encre-2" />
             </Button>
-            <h1 className="text-lg font-semibold text-encre truncate">{seance.nom}</h1>
+            <h1 className="text-lg font-semibold text-encre truncate">
+              {seance.nom}
+            </h1>
           </div>
           <span className="flex items-center gap-2 text-xs text-encre-3 shrink-0">
             <Feu niveau={seance.feuBiologiqueJour} />
-            <span className="chiffres">{termines}/{visibles.length}</span> exercices
+            <span className="chiffres">
+              {termines}/{visibles.length}
+            </span>{" "}
+            exercices
           </span>
         </div>
       </header>
@@ -689,13 +776,39 @@ function ContenuSeanceLive() {
 
       {/* Le temps écoulé, discrètement. Il n'existait pas : les durées idéale
           et maximale de l'onboarding n'étaient relues nulle part. */}
-      {active?.startedAt && (
-        <ChronoSeance
-          demarreeA={active.startedAt}
-          dureeCibleMinutes={seance.dureeCibleMinutes}
-          dureeMaxMinutes={seance.dureeMaxMinutes}
-        />
-      )}
+      <div className="live-session-context">
+        <div className="live-time-context">
+          {active?.startedAt && (
+            <ChronoSeance
+              demarreeA={active.startedAt}
+              dureeCibleMinutes={seance.dureeCibleMinutes}
+              dureeMaxMinutes={seance.dureeMaxMinutes}
+            />
+          )}
+
+          <button
+            type="button"
+            className="live-context-action"
+            onClick={() => {
+              setDureeSOSMin(
+                active
+                  ? Math.floor((Date.now() - active.startedAt) / 60000)
+                  : 0,
+              );
+              setModaleSOS("temps");
+            }}
+          >
+            Adapter la durée
+          </button>
+        </div>
+        <button
+          type="button"
+          className="live-context-action"
+          onClick={() => setModaleSOS("etat")}
+        >
+          Mon état a changé
+        </button>
+      </div>
 
       {/*
         Le Coach regarde la séance pendant qu'elle a lieu. Ce que le moteur
@@ -713,11 +826,12 @@ function ContenuSeanceLive() {
         ordreDesExercices={visibles.map((e) => e.id)}
       />
 
-      <div className="px-4 pt-4 space-y-3">
+      <div className="px-4 pt-1 space-y-2">
         <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
 
-        {sessionId && gymId && (
-          changementDeLieu ? (
+        {sessionId &&
+          gymId &&
+          (changementDeLieu ? (
             <div className="rounded-xl border border-filet bg-carte p-4">
               <ChangerDeLieu
                 sessionLogId={sessionId}
@@ -734,10 +848,9 @@ function ContenuSeanceLive() {
               onClick={() => setChangementDeLieu(true)}
               className="text-encre-2 text-sm underline underline-offset-4"
             >
-              Je m&apos;entraîne ailleurs aujourd&apos;hui
+              Changer de salle
             </button>
-          )
-        )}
+          ))}
       </div>
 
       {/* La séance entière tient dans une page défilante : on voit ce qui reste
@@ -788,36 +901,13 @@ function ContenuSeanceLive() {
       </main>
 
       <div className="px-4 mt-5">
-        <Button variant="outline" className="w-full border-filet bg-carte text-encre-2"
-          onClick={() => router.push(`/sessions/new/${templateId}/finish`)}>
+        <Button
+          variant="outline"
+          className="w-full border-filet bg-carte text-encre-2"
+          onClick={() => router.push(`/sessions/new/${templateId}/finish`)}
+        >
           Terminer la séance
         </Button>
-      </div>
-
-      {/* La rangée SOS était posée en bottom-0, sous une barre de navigation
-          fixée au même endroit et de z-index supérieur : elle était donc
-          entièrement recouverte, invisible pendant toute la séance. Elle se
-          place au-dessus, à la hauteur exacte de cette barre.
-
-          « À la hauteur exacte » avait été écrit 4 rem en dur. C'est la
-          hauteur de la rangée tactile, pas celle de la barre : sur un iPhone
-          à indicateur d'accueil, la barre en fait une trentaine de pixels de
-          plus, et la rangée SOS repassait à cheval sur elle — le défaut que
-          ce commentaire annonçait avoir corrigé. Elle se réfère maintenant à
-          la hauteur réelle. */}
-      <div
-        className="fixed left-0 right-0 bg-papier border-t border-filet px-4 py-2 z-30"
-        style={{ bottom: "var(--barre-nav)" }}
-      >
-        <SOSBar
-          onMachineOccupee={() => setModaleSOS("machine")}
-          onDouleur={() => setModaleSOS("douleur")}
-          onEtat={() => setModaleSOS("etat")}
-          onTempsDepasse={() => {
-            setDureeSOSMin(active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0);
-            setModaleSOS("temps");
-          }}
-        />
       </div>
 
       {timerVisible && active?.restDurationSeconds && (
@@ -839,7 +929,9 @@ function ContenuSeanceLive() {
             id: e.id,
             nom: e.nom,
             machineNom: e.machineNom,
-            seriesFaites: (active?.sets ?? []).filter((s) => s.exerciseInstanceId === e.id).length,
+            seriesFaites: (active?.sets ?? []).filter(
+              (s) => s.exerciseInstanceId === e.id,
+            ).length,
             seriesCibles: e.seriesCibles,
           }))}
           exerciseInstanceId={courant.id}
@@ -934,7 +1026,11 @@ function ContenuSeanceLive() {
           onStopSeance={() => router.push(`/sessions/new/${templateId}/finish`)}
           onAlleger={(coupes) => {
             const idParNom = new Map(visibles.map((e) => [e.nom, e.id]));
-            skipExercises(coupes.map((n) => idParNom.get(n)).filter((id): id is string => Boolean(id)));
+            skipExercises(
+              coupes
+                .map((n) => idParNom.get(n))
+                .filter((id): id is string => Boolean(id)),
+            );
             toast.success("Séance allégée");
           }}
           onIncident={enregistrerIncident}
@@ -948,9 +1044,17 @@ function ContenuSeanceLive() {
           onStopSeance={() => router.push(`/sessions/new/${templateId}/finish`)}
           onApply={(coupes, rpeReduit) => {
             const idParNom = new Map(visibles.map((e) => [e.nom, e.id]));
-            skipExercises(coupes.map((n) => idParNom.get(n)).filter((id): id is string => Boolean(id)));
+            skipExercises(
+              coupes
+                .map((n) => idParNom.get(n))
+                .filter((id): id is string => Boolean(id)),
+            );
             // Le RPE réduit était reçu puis ignoré.
-            allegerExercises(rpeReduit.map((n) => idParNom.get(n)).filter((id): id is string => Boolean(id)));
+            allegerExercises(
+              rpeReduit
+                .map((n) => idParNom.get(n))
+                .filter((id): id is string => Boolean(id)),
+            );
             toast.success("Séance ajustée");
           }}
           onIncident={enregistrerIncident}
@@ -963,19 +1067,35 @@ function ContenuSeanceLive() {
           /* La cible venait d'un 60 écrit en dur, alors que l'onboarding la
              demande. Sans durée déclarée, on retombe sur le maximum, puis sur
              une heure — mais l'ordre part maintenant de ce que la personne a dit. */
-          dureeCibleMin={seance.dureeCibleMinutes ?? seance.dureeMaxMinutes ?? 60}
+          dureeCibleMin={
+            seance.dureeCibleMinutes ?? seance.dureeMaxMinutes ?? 60
+          }
           exercicesRestants={restants}
-          seriesRestantesPar={Object.fromEntries(visibles.map((e) => [
-            e.id,
-            Math.max(0, e.seriesCibles - (active?.sets ?? []).filter((s) => s.exerciseInstanceId === e.id).length),
-          ]))}
+          seriesRestantesPar={Object.fromEntries(
+            visibles.map((e) => [
+              e.id,
+              Math.max(
+                0,
+                e.seriesCibles -
+                  (active?.sets ?? []).filter(
+                    (s) => s.exerciseInstanceId === e.id,
+                  ).length,
+              ),
+            ]),
+          )}
           reposSecondesPar={Object.fromEntries(
-            visibles.filter((e) => e.reposSecondes != null).map((e) => [e.id, e.reposSecondes!]),
+            visibles
+              .filter((e) => e.reposSecondes != null)
+              .map((e) => [e.id, e.reposSecondes!]),
           )}
           onClose={() => setModaleSOS(null)}
           onApply={(coupes) => {
             const idParNom = new Map(visibles.map((e) => [e.nom, e.id]));
-            skipExercises(coupes.map((n) => idParNom.get(n)).filter((id): id is string => Boolean(id)));
+            skipExercises(
+              coupes
+                .map((n) => idParNom.get(n))
+                .filter((id): id is string => Boolean(id)),
+            );
             toast.success("Coupes appliquées");
           }}
           onIncident={enregistrerIncident}

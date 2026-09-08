@@ -50,3 +50,10 @@ La carte de séance interrompue place désormais les actions sous le message sur
 - Correspondances explicites par slug, sans changer les identifiants : curl et élévations sont compatibles avec le matériel du catalogue. Le squat avec barre existant n’est pas relié au squat sans charge. Les autres fiches conservent leurs médias et consignes.
 - Moteur et modèle chargés à l’ouverture ; rendu arrêté à l’arrière-plan, ressources libérées à la fermeture. Le fichier anatomique fait environ 11 Mo avant compression HTTP. Sa compression et l’amélioration des articulations restent nécessaires avant généralisation.
 - 1 384 tests réussis avec deux workers, dont six sur les correspondances, la continuité des boucles et l’ancrage des chevilles. Le premier passage parallèle a rencontré deux délais de cinq secondes dépassés ; le passage complet suivant réussit. Contrôles navigateur à 390 × 844 et sur ordinateur : trois modèles, flexion du squat, cadrage des bras, vues et lecture à ¼×.
+## Séance live sur mobile
+
+- Suppression de la barre SOS fixe et masquage de la navigation principale pendant le Live mobile. « Machine occupée » et « Douleur » rejoignent « Remplacer » dans chaque carte ; leur ouverture sélectionne explicitement cet exercice, y compris en Liste. Les ajustements de durée et d’état restent près du chronomètre.
+- Une seule navigation en Focus, titre dégagé, consignes de calibration repliables et saisie par série adaptée aux petits écrans. Les boutons de réglage passent à la ligne plutôt que de déborder.
+- Contrôle navigateur à 320 et 390 px avec les vrais composants sur une route de démonstration temporaire, retirée ensuite. Aucun entraînement réel enregistré ou terminé. Vérification des deux vues, des noms longs et du ciblage des actions dans la démonstration.
+- 1 384 tests réussis ; ESLint ciblé sans erreur (quatre avertissements existants).
+- Compilation de production Next.js et contrôle TypeScript réussis après retrait de la route de démonstration.

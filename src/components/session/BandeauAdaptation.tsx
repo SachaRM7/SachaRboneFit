@@ -22,7 +22,12 @@ interface Props {
  *
  * Le bandeau ne s'affiche que s'il a quelque chose à dire.
  */
-export function BandeauAdaptation({ feuJour, volumeAjustePct, volumeAjusteRaison, exercices }: Props) {
+export function BandeauAdaptation({
+  feuJour,
+  volumeAjustePct,
+  volumeAjusteRaison,
+  exercices,
+}: Props) {
   const substitutions = exercices.filter((e) => e.raisonSubstitution);
   // « N charges en hausse » comptait TOUT message de progression : une
   // référence tronquée et une butée d'appareil y étaient donc annoncées comme
@@ -34,21 +39,27 @@ export function BandeauAdaptation({ feuJour, volumeAjustePct, volumeAjusteRaison
   );
   const volumeReduit = Boolean(volumeAjustePct);
 
-  if (!volumeReduit && substitutions.length === 0
-      && hausses.length === 0 && autresDecisions.length === 0 && !feuJour) {
+  if (
+    !volumeReduit &&
+    substitutions.length === 0 &&
+    hausses.length === 0 &&
+    autresDecisions.length === 0 &&
+    !feuJour
+  ) {
     return null;
   }
 
   return (
     <section
       aria-label="Adaptations de la séance"
-      className="border-b border-filet bg-papier-2 px-4 py-3 space-y-2"
+      className="live-adaptation border-b border-filet bg-papier-2 px-4 py-2 space-y-2"
     >
       {feuJour && (
         <p className="flex items-center gap-2 text-sm text-encre-2">
           <Feu niveau={feuJour} />
           <span>
-            Feu <strong className="text-encre font-semibold">{feuJour}</strong> aujourd&apos;hui
+            Feu <strong className="text-encre font-semibold">{feuJour}</strong>{" "}
+            aujourd&apos;hui
           </span>
         </p>
       )}
@@ -66,7 +77,8 @@ export function BandeauAdaptation({ feuJour, volumeAjustePct, volumeAjusteRaison
         <ul className="text-sm text-encre-2 space-y-1">
           {substitutions.map((e) => (
             <li key={e.id}>
-              <strong className="text-encre font-semibold">{e.nom}</strong> — {e.raisonSubstitution}
+              <strong className="text-encre font-semibold">{e.nom}</strong> —{" "}
+              {e.raisonSubstitution}
             </li>
           ))}
         </ul>
@@ -77,7 +89,9 @@ export function BandeauAdaptation({ feuJour, volumeAjustePct, volumeAjusteRaison
           <strong className="font-semibold">
             {hausses.length} charge{hausses.length > 1 ? "s" : ""} en hausse
           </strong>{" "}
-          <span className="text-encre-2">— {hausses.map((e) => e.nom).join(", ")}</span>
+          <span className="text-encre-2">
+            — {hausses.map((e) => e.nom).join(", ")}
+          </span>
         </p>
       )}
 
