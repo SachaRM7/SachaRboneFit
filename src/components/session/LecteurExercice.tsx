@@ -6,7 +6,7 @@ import { DemonstrationMouvement } from "./DemonstrationMouvement";
 import { FicheExecution } from "./FicheExecution";
 import { useContexteExecution } from "./useContexteExecution";
 import { useSaisieSeries } from "./useSaisieSeries";
-import { cransDeCharge } from "./PasDeCharge";
+import { cransDeCharge } from "./crans-de-charge";
 import { effortSaisi } from "./effort-propose";
 import { classeDuMotif } from "./motif-progression";
 import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";

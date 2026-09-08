@@ -9,7 +9,7 @@ import {
   motifSerieInvalide,
 } from "@/lib/engine/serie-realisee";
 import { chargeAEnregistrer } from "@/lib/validators/exercise-instance";
-import { alerteChargeIrrealisable } from "./PasDeCharge";
+import { alerteChargeIrrealisable } from "./crans-de-charge";
 import { derniereLigneRetirable, lignesAAfficher } from "./lignes-de-series";
 import {
   avancementDeLaLignee,

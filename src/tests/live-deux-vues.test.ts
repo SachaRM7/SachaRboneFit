@@ -241,7 +241,9 @@ describe("le pas du stepper vient du matériel, pas de l'écran", () => {
   });
 
   it("aucun composant de séance n'écrit d'incrément en dur", () => {
-    for (const f of [FOCUS, "components/session/TableauSeries.tsx", "components/session/PasDeCharge.tsx"]) {
+    // Le Focus rend désormais ses propres boutons de cran : il est le premier
+    // endroit où un `charge + 2.5` écrit à la main serait tentant.
+    for (const f of [FOCUS, LECTEUR, TABLEAU, "components/session/crans-de-charge.ts"]) {
       const source = lire(f);
       expect(source, `${f} ajoute un incrément écrit à la main`)
         .not.toMatch(/charge\s*[+-]\s*[0-9]/);
@@ -249,7 +251,7 @@ describe("le pas du stepper vient du matériel, pas de l'écran", () => {
   });
 
   it("le stepper demande au moteur, il ne calcule pas", () => {
-    const source = lire("components/session/PasDeCharge.tsx");
+    const source = lire("components/session/crans-de-charge.ts");
     expect(source).toMatch(/voisineCharge\(/);
     // `prochaineCharge` suivrait la PROGRESSION, qui descend sur une
     // assistance : le `+` allègerait l'exercice sans rien dire.
@@ -263,7 +265,7 @@ describe("le pas du stepper vient du matériel, pas de l'écran", () => {
      * soulevé. L'écran informe et propose les voisines réelles ; c'est
      * l'utilisateur qui choisit.
      */
-    const source = lire("components/session/PasDeCharge.tsx");
+    const source = lire("components/session/crans-de-charge.ts");
     expect(source).toMatch(/export function alerteChargeIrrealisable/);
     expect(source).toMatch(/chargeAtteignable\(/);
     /*
@@ -422,8 +424,6 @@ describe("le Live dégage les zones réservées d'iOS", () => {
      * sont passées dans la feuille du Live avec la refonte. Le garde suit —
      * l'invariant est la taille, pas l'endroit où elle est écrite.
      */
-    expect(lire("components/session/PasDeCharge.tsx")).toMatch(/w-11 h-11/);
-
     const css = lire("app/live-session.css");
     /** Chaque cible tactile du Live, et la hauteur qu'elle promet. */
     const cibles: [string, RegExp][] = [

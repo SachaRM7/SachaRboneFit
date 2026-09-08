@@ -846,7 +846,17 @@
   color: var(--encre-3);
 }
 
+/*
+ * Le geste reste EN FACE de la série, sur toute sa hauteur.
+ *
+ * Sans placement explicite, le repère « Dernière 57,5 × 9 » ouvrait une seconde
+ * rangée et la coche y tombait toute seule, sous les champs : la rangée doublait
+ * de hauteur et le geste n'était plus à côté de ce qu'il valide.
+ */
 .live-serie-geste {
+  grid-column: 3;
+  grid-row: 1 / -1;
+  align-self: center;
   display: grid;
   place-items: center;
   width: 48px;
@@ -983,6 +993,17 @@
   .live-serie-geste {
     width: 44px;
     height: 44px;
+  }
+  /* « Machine occupée » tenait sur deux lignes et déséquilibrait la rangée. */
+  .lecteur-actions button,
+  .live-carte-actions button,
+  .lecteur-actions > *:first-child > button,
+  .live-carte-actions > *:first-child > button {
+    font-size: 12px;
+    padding: 0 8px;
+  }
+  .live-carte-compteur {
+    font-size: 19px;
   }
   .lecteur-hero {
     gap: 12px;
