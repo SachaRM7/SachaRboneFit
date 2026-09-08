@@ -15,8 +15,8 @@
 
    DEUX COMPOSITIONS, UN MÊME VOCABULAIRE
 
-     .lecteur     le Focus : un exercice, une série, un geste ;
-     .live-carte  la Liste : le carnet de toute la séance.
+     .focus-carte  le Focus : LA carte de l'exercice, passée au premier plan ;
+     .live-carte   la Liste : le carnet de toute la séance.
 
    Elles ne partagent pas leur DOM — c'est le sujet de ce lot — mais elles
    partagent leurs surfaces, leurs rayons et leurs échelles typographiques.
@@ -163,97 +163,145 @@
 
 /* --- Le lecteur lui-même --- */
 
-.lecteur {
+/* ---------------------------------------------------------------------------
+   LA CARTE FOCUS — la scène
+
+   Le Focus n'est pas « le formulaire prend tout l'écran », c'est « la carte de
+   l'exercice passe au premier plan ». Une première version empilait sept
+   surfaces indépendantes, dont un pavé sombre de compteurs qui écrasait tout le
+   reste : on remplissait trois champs au lieu d'être sur le Deadlift.
+
+   Une seule carte, donc, avec ses sections internes. Elle se détache par son
+   rayon, son fond et une ombre très légère — pas par des bordures.
+   --------------------------------------------------------------------------- */
+
+.focus-carte {
+  background: var(--carte);
+  border-radius: 28px;
+  padding: 18px 16px 16px;
   display: grid;
-  gap: 14px;
+  gap: 12px;
+  /* La profondeur, à peine : la V2 sépare par le fond et l'espace, pas par le trait. */
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--encre) 5%, transparent),
+    0 12px 28px -14px color-mix(in srgb, var(--encre) 22%, transparent);
+  /* Un changement d'exercice se sent, sans spectacle. */
+  animation: focus-entre 260ms ease;
 }
+@keyframes focus-entre {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-carte {
+    animation: none;
+  }
+}
+
+/* --- Le hero : le dessin fait l'identité de l'exercice --- */
 
 .lecteur-hero {
   display: flex;
   align-items: center;
-  gap: 16px;
-  background: var(--carte);
-  border-radius: 24px;
-  padding: 18px;
+  gap: 14px;
 }
 .lecteur-illustration {
   flex-shrink: 0;
-  width: 76px;
-  height: 76px;
+  width: 104px;
+  height: 104px;
   display: grid;
   place-items: center;
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--papier-2);
-  color: var(--encre-3);
-  padding: 8px;
+  color: var(--encre-2);
+  padding: 9px;
 }
 .lecteur-titre {
   min-width: 0;
+  flex: 1;
 }
 .lecteur-titre h2 {
-  font-size: clamp(24px, 6.5vw, 32px);
+  font-size: clamp(23px, 6.2vw, 30px);
   font-weight: 550;
-  line-height: 1.06;
+  line-height: 1.05;
   letter-spacing: -0.035em;
   color: var(--encre);
   overflow-wrap: anywhere;
 }
 .lecteur-titre p {
-  margin-top: 6px;
+  margin-top: 5px;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.45;
+  color: var(--encre-3);
+}
+.lecteur-avancement {
+  flex-shrink: 0;
+  align-self: flex-start;
+  font-family: var(--font-heading);
+  font-size: 24px;
+  font-weight: 550;
+  letter-spacing: -0.03em;
+  color: var(--encre);
+}
+.lecteur-avancement > span {
+  font-size: 13px;
   color: var(--encre-3);
 }
 
 .lecteur-mot {
   display: grid;
   gap: 3px;
-  padding: 0 4px;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.45;
   color: var(--encre-2);
 }
 
-/* Les repères : présents, mais jamais plus gros que la série en cours. */
+/* --- Les repères : une bande compacte, pas une carte de plus --- */
+
 .lecteur-reperes {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px 22px;
-  background: var(--carte);
-  border-radius: 22px;
-  padding: 16px 18px;
+  align-items: center;
+  gap: 6px 18px;
+  background: var(--papier-2);
+  border-radius: 16px;
+  padding: 10px 13px;
 }
 .lecteur-reperes > section {
   min-width: 0;
 }
+.lecteur-reperes .eyebrow {
+  font-size: 9px;
+}
 .lecteur-repere-valeur {
-  margin-top: 4px;
+  margin-top: 1px;
   font-family: var(--font-heading);
-  font-size: 19px;
+  font-size: 16px;
   font-weight: 550;
   color: var(--encre);
 }
 /* Une absence de repère est une information — pas une performance à moitié
    effacée. Elle se lit donc comme du texte, jamais comme un chiffre. */
 .lecteur-repere-vide {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.4;
+  margin-top: 1px;
+  font-size: 11px;
+  line-height: 1.35;
   color: var(--encre-3);
-  max-width: 22ch;
+  max-width: 24ch;
 }
 .lecteur-repere-detail {
-  margin-top: 4px;
-  font-size: 13px;
+  margin-top: 1px;
+  font-size: 12px;
   color: var(--encre-2);
 }
 .lecteur-reperes > button {
   margin-left: auto;
   min-height: 44px;
-  padding: 0 14px;
-  border-radius: 13px;
-  background: var(--papier-2);
+  padding: 0 13px;
+  border-radius: 12px;
+  background: var(--carte);
   color: var(--encre-2);
   font-size: 12px;
   font-weight: 600;
@@ -266,29 +314,29 @@
 
 .lecteur-faites {
   display: grid;
-  gap: 6px;
+  gap: 5px;
 }
 .lecteur-faites > li {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   background: var(--gain-fond);
-  border-radius: 16px;
-  padding: 11px 14px;
-  min-height: 52px;
+  border-radius: 14px;
+  padding: 8px 12px;
+  min-height: 46px;
 }
 .lecteur-faites > li > svg {
   color: var(--gain);
   flex-shrink: 0;
 }
 .lecteur-faite-nom {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--encre-2);
   flex-shrink: 0;
 }
 .lecteur-faite-valeur {
   font-family: var(--font-heading);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 550;
   color: var(--encre);
   min-width: 0;
@@ -300,10 +348,12 @@
   align-items: center;
   gap: 5px;
   flex-shrink: 0;
-  min-height: 40px;
-  padding: 0 10px;
+  /* « Modifier » rouvre une série enregistrée : c'est un geste qu'on vise, il
+     tient donc le plancher d'iOS comme les autres. */
+  min-height: 44px;
+  padding: 0 9px;
   border-radius: 11px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--encre-2);
 }
@@ -312,23 +362,24 @@
 }
 
 /* ---------------------------------------------------------------------------
-   LA SÉRIE EN COURS — la seule chose qui domine l'écran
-   ---------------------------------------------------------------------------
-   Surface sombre, comme le hero de l'accueil : c'est ce qui la détache de tout
-   le reste sans avoir besoin d'une bordure. Les valeurs sont énormes parce
-   qu'on les lit à bout de bras, essoufflé, et le geste est en lime — le vert
-   électrique que l'application réserve à son action principale. */
+   LA SÉRIE EN COURS — un bloc DANS la carte
+
+   Elle garde la surface sombre : c'est ce qui la détache sans une bordure de
+   plus. Mais elle ne fait plus la hauteur d'un écran — charge et répétitions se
+   partagent une rangée, les crans ont fondu de 60 à 48 px (au-dessus des 44 px
+   d'iOS), et le contexte de l'exercice reste visible au-dessus.
+   --------------------------------------------------------------------------- */
 
 .serie-en-cours {
   background: var(--hero);
   color: var(--hero-ink);
-  border-radius: 26px;
-  padding: 20px 18px 18px;
+  border-radius: 22px;
+  padding: 14px 13px;
   display: grid;
-  gap: 16px;
+  gap: 11px;
 }
 .serie-en-cours-titre {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 650;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -336,34 +387,52 @@
 }
 .serie-en-cours-titre .chiffres {
   color: var(--electric);
-  font-size: 13px;
+  font-size: 12px;
 }
 .serie-en-cours .eyebrow {
   color: #9fb3a1;
+  font-size: 9px;
 }
 
+.mesures-paire {
+  display: grid;
+  /*
+   * `minmax(0, 1fr)` et non `1fr`.
+   *
+   * Le minimum implicite d'une colonne de grille est `auto`, c'est-à-dire la
+   * taille MINIMALE DU CONTENU : un champ de saisie revendique la largeur de
+   * son attribut `size`, la colonne refusait de descendre en dessous, et la
+   * valeur débordait puis se faisait rogner. À 320 px, « 32,5 » s'affichait
+   * « 32. » — un chiffre faux, sur l'écran qui sert à charger la machine.
+   */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
 .mesure {
   display: grid;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 }
 .mesure-ligne {
   display: grid;
-  grid-template-columns: 60px 1fr 60px;
+  /* La colonne du nombre ne descend jamais sous son contenu : `minmax(0, 1fr)`
+     partout où un champ vit dans une grille, sinon il déborde et se fait rogner. */
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
   align-items: center;
-  gap: 10px;
+  gap: 4px;
 }
 .mesure-ligne > button {
   display: grid;
   place-items: center;
-  height: 60px;
-  border-radius: 18px;
+  height: 48px;
+  border-radius: 14px;
   background: #ffffff14;
   color: var(--hero-ink);
   transition: background-color 140ms ease, transform 140ms ease;
 }
 .mesure-ligne > button:active {
   background: #ffffff2b;
-  transform: scale(0.96);
+  transform: scale(0.95);
 }
 /* La valeur reste un champ : toucher le nombre ouvre le clavier. Le parcours
    normal passe par les crans, les cas particuliers par la saisie. */
@@ -374,7 +443,15 @@
   border: none;
   text-align: center;
   font-family: var(--font-heading);
-  font-size: clamp(38px, 12vw, 52px);
+  /*
+   * Dimensionné pour « 32,5 » à 320 px, pas pour « 60 ».
+   *
+   * Une charge à décimale est le cas courant sur les machines à pile ; c'est
+   * elle qui décide de la taille, et non le nombre le plus court. Avec le
+   * palier précédent la valeur se faisait couper et « 32,5 » s'affichait
+   * « 32. » — un nombre faux sur l'écran qui sert à charger la machine.
+   */
+  font-size: clamp(21px, 6vw, 30px);
   font-weight: 500;
   letter-spacing: -0.04em;
   line-height: 1;
@@ -392,15 +469,15 @@
 .mesure-choix {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
+  gap: 5px;
 }
 .mesure-choix > button {
-  min-height: 52px;
-  border-radius: 15px;
+  min-height: 46px;
+  border-radius: 13px;
   background: #ffffff14;
   color: var(--hero-ink);
   font-family: var(--font-heading);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 550;
   transition: background-color 140ms ease;
 }
@@ -411,38 +488,59 @@
 
 .mesure-alerte {
   display: grid;
-  gap: 7px;
+  gap: 6px;
 }
 .mesure-alerte > p {
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.4;
   /* Le signal garde sa couleur de signal, même sur fond sombre. */
   color: #f0c675;
 }
 .mesure-alerte > div {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
 }
 .mesure-alerte button {
   min-height: 44px;
-  padding: 0 16px;
-  border-radius: 12px;
+  padding: 0 14px;
+  border-radius: 11px;
   background: #ffffff1a;
   color: var(--hero-ink);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 550;
 }
 
-/* LE GESTE. Le seul bouton de cette taille dans tout l'écran. */
+
+/*
+   LE GESTE. Le seul bouton de cette taille dans tout l'écran.
+
+   ET IL NE PASSE JAMAIS SOUS LA BARRE DE GESTES.
+
+   Sur les séances les plus chargées — consigne de calibration, motif de
+   substitution, une série déjà faite — la carte dépasse le premier écran et le
+   CTA tombait derrière la zone réservée du bas de l'iPhone : visible, et
+   intouchable. C'est le contrôle `captures.mts` qui l'a trouvé, en mesurant
+   l'intersection réelle plutôt qu'en regardant une capture.
+
+   La réponse n'est PAS un bouton collant : épinglé, il recouvrait la rangée de
+   pastilles de réserve — on ne voyait plus laquelle était choisie, et on ne
+   pouvait plus la changer. Un CTA atteignable qui masque le contrôle qu'il
+   valide n'est pas une correction.
+
+   Ce qui a été fait à la place : la hauteur de la carte a fondu — crans de 60 à
+   48 px, charge et répétitions sur une rangée, repères en bande compacte — et
+   la consigne de calibration est repliée par défaut, comme dans l'application.
+   Le CTA tient alors dans le premier écran, à sa place, sans rien recouvrir.
+*/
 .serie-valider {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
   width: 100%;
-  min-height: 62px;
-  border-radius: 19px;
+  min-height: 56px;
+  border-radius: 17px;
   background: var(--electric);
   color: #263727;
   font-family: var(--font-heading);
@@ -462,10 +560,10 @@
 
 .lecteur-fin {
   background: var(--gain-fond);
-  border-radius: 24px;
-  padding: 20px 18px;
+  border-radius: 20px;
+  padding: 16px 14px;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 .lecteur-fin .eyebrow {
   color: var(--gain);
@@ -476,7 +574,7 @@
   align-items: baseline;
   gap: 4px 10px;
   font-family: var(--font-heading);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 550;
   letter-spacing: -0.03em;
   color: var(--encre);
@@ -496,8 +594,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 6px;
-  min-height: 52px;
+  margin-top: 4px;
+  min-height: 50px;
   padding: 0 20px;
   border-radius: 16px;
   background: var(--encre);
@@ -532,7 +630,9 @@
   min-height: 48px;
   padding: 0 16px;
   border-radius: 15px;
-  background: var(--carte);
+  /* Dans la carte Focus, le fond est déjà blanc : un bouton blanc y serait
+     invisible. La surface secondaire du système fait la séparation. */
+  background: var(--papier-2);
   color: var(--encre-2);
   font-size: 13px;
   font-weight: 600;
@@ -545,7 +645,7 @@
 }
 .lecteur-actions button:active,
 .live-carte-actions button:active {
-  background: var(--papier-2);
+  background: var(--filet-doux);
 }
 
 /* L'appoint : des gestes rares, à leur juste poids visuel. */
@@ -562,7 +662,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px;
   font-size: 12px;
   font-weight: 550;
   color: var(--encre-3);
@@ -1005,33 +1105,61 @@
   .live-carte-compteur {
     font-size: 19px;
   }
+  /* 320 px, séance la plus chargée : consigne de phase, motif de substitution
+     et une série déjà faite au-dessus de la série en cours. Chaque interligne
+     compte pour que le CTA reste dans le premier écran — c'est le contrôle
+     `captures.mts` qui arbitre, pas l'œil. */
+  .focus-carte {
+    padding: 14px 12px 12px;
+    border-radius: 24px;
+    gap: 10px;
+  }
   .lecteur-hero {
-    gap: 12px;
-    padding: 15px;
+    gap: 11px;
   }
   .lecteur-illustration {
-    width: 60px;
-    height: 60px;
-    border-radius: 17px;
+    width: 78px;
+    height: 78px;
+    border-radius: 20px;
+  }
+  .lecteur-reperes {
+    padding: 8px 12px;
+  }
+  .lecteur-faites > li {
+    min-height: 42px;
+    padding: 7px 11px;
+  }
+  .lecteur-avancement {
+    font-size: 20px;
+  }
+  /* Les crans passent sous la valeur : à 320 px, trois colonnes par mesure et
+     deux mesures par rangée ne laissent plus 44 px au bouton. La cible reste
+     entière, c'est la disposition qui cède. */
+  .mesures-paire {
+    gap: 8px;
   }
   .mesure-ligne {
-    grid-template-columns: 52px 1fr 52px;
-    gap: 7px;
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    gap: 3px;
   }
   .mesure-ligne > button {
-    height: 54px;
-    border-radius: 16px;
+    height: 46px;
+    border-radius: 12px;
+  }
+  /* « 32,5 » doit tenir en entier : c'est la charge d'une pile, pas un cas rare. */
+  .mesure-valeur {
+    font-size: 20px;
   }
   .mesure-choix {
     gap: 4px;
   }
   .mesure-choix > button {
-    min-height: 48px;
+    min-height: 46px;
     font-size: 15px;
-    border-radius: 13px;
+    border-radius: 12px;
   }
   .serie-en-cours {
-    padding: 18px 14px 16px;
+    padding: 13px 11px;
   }
   .lecteur-faites > li {
     flex-wrap: wrap;

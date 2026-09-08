@@ -280,7 +280,7 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
     rendu: () => {
       seance([fait(B, 1, 32.5, 11, 7)]);
       return enveloppe(
-        `<details class="live-calibration" open><summary><span class="eyebrow">Calibration</span>Après la série, indique combien de reps il te restait.</summary><p>C'est cette réponse qui fixera tes charges.</p></details>` +
+        `<details class="live-calibration"><summary><span class="eyebrow">Calibration</span>Après la série, indique combien de reps il te restait.</summary><p>C'est cette réponse qui fixera tes charges.</p></details>` +
           rendre(
             <LecteurExercice
               exercice={{ ...PRESSE, id: B } as never}

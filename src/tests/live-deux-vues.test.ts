@@ -425,17 +425,36 @@ describe("le Live dégage les zones réservées d'iOS", () => {
      * l'invariant est la taille, pas l'endroit où elle est écrite.
      */
     const css = lire("app/live-session.css");
-    /** Chaque cible tactile du Live, et la hauteur qu'elle promet. */
-    const cibles: [string, RegExp][] = [
-      [".serie-champ", /\.serie-champ\s*\{[^}]*min-height:\s*44px/],
-      [".live-serie-geste", /\.live-serie-geste\s*\{[^}]*height:\s*48px/],
-      [".mesure-ligne > button", /\.mesure-ligne > button\s*\{[^}]*height:\s*60px/],
-      [".mesure-choix > button", /\.mesure-choix > button\s*\{[^}]*min-height:\s*52px/],
-      [".serie-valider", /\.serie-valider\s*\{[^}]*min-height:\s*62px/],
-      [".focus-nav > button", /\.focus-nav > button\s*\{[^}]*min-height:\s*48px/],
-    ];
-    for (const [nom, motif] of cibles) {
-      expect(css, `${nom} descend sous la cible tactile`).toMatch(motif);
+
+    /**
+     * La hauteur déclarée par un sélecteur, en pixels.
+     *
+     * Le garde LIT la valeur au lieu de l'imposer : figer « 60px » revenait à
+     * interdire toute recomposition du Focus, alors que la promesse est un
+     * plancher de 44 px, pas une taille précise. Un garde qui casse à chaque
+     * ajustement finit par être mis à jour sans être relu.
+     */
+    const hauteurDe = (selecteur: string): number | null => {
+      const bloc = css.match(
+        new RegExp(`${selecteur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`),
+      )?.[1];
+      const px = bloc?.match(/(?:^|[\s;])(?:min-)?height:\s*(\d+)px/)?.[1];
+      return px ? Number(px) : null;
+    };
+
+    const CIBLE_IOS = 44;
+    for (const selecteur of [
+      ".serie-champ",
+      ".live-serie-geste",
+      ".mesure-ligne > button",
+      ".mesure-choix > button",
+      ".serie-valider",
+      ".focus-nav > button",
+    ]) {
+      const h = hauteurDe(selecteur);
+      expect(h, `${selecteur} ne déclare plus de hauteur`).not.toBeNull();
+      expect(h, `${selecteur} descend sous la cible tactile d'iOS`)
+        .toBeGreaterThanOrEqual(CIBLE_IOS);
     }
 
     /*
@@ -445,6 +464,27 @@ describe("le Live dégage les zones réservées d'iOS", () => {
      */
     const etroit = css.slice(css.indexOf("@media (max-width: 359px)"));
     expect(etroit, "le palier 320 px n'existe plus").toBeTruthy();
-    expect(etroit).not.toMatch(/(min-)?height:\s*(1?[0-9]|[2-3][0-9]|4[0-3])px/);
+
+    /*
+     * On vise les CIBLES, pas toutes les hauteurs déclarées : une rangée de
+     * liste peut légitimement mesurer 42 px, un bouton non. La version
+     * précédente interdisait les deux et se serait fait désarmer au premier
+     * ajustement de mise en page.
+     */
+    for (const selecteur of [
+      ".live-serie-geste",
+      ".mesure-ligne > button",
+      ".mesure-choix > button",
+    ]) {
+      const bloc = etroit.match(
+        new RegExp(`${selecteur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`),
+      )?.[1];
+      // Absent du palier étroit : la règle générale s'applique, déjà vérifiée.
+      if (!bloc) continue;
+      const px = bloc.match(/(?:^|[\s;])(?:min-)?height:\s*(\d+)px/)?.[1];
+      if (!px) continue;
+      expect(Number(px), `${selecteur} rétrécit sous 44 px à 320 px`)
+        .toBeGreaterThanOrEqual(44);
+    }
   });
 });

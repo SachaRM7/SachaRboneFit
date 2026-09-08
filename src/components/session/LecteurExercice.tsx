@@ -16,7 +16,21 @@ import { libelleCibleEffort } from "@/components/programme/cible-effort";
 import type { ExercicePrescrit } from "./types";
 
 /**
- * UN EXERCICE, UNE SÉRIE, UN GESTE — le lecteur de séance.
+ * LA CARTE DE L'EXERCICE, AU PREMIER PLAN — le lecteur de séance.
+ *
+ * CE QUE « FOCUS » VEUT DIRE, ET CE QU'IL NE VEUT PAS DIRE
+ *
+ * Une première version avait lu « Focus » comme « le formulaire de saisie prend
+ * tout l'écran ». Elle empilait sept surfaces indépendantes — hero, repères,
+ * séries faites, un énorme bloc sombre de compteurs, fin, actions, appoint — et
+ * on se retrouvait à remplir trois compteurs plutôt qu'à être SUR le Deadlift.
+ *
+ * Le Focus est la CARTE de l'exercice qui passe au premier plan. Tout ce qui
+ * appartient à cet exercice — son dessin, son nom, sa machine, sa prescription,
+ * son avancement, son repère, ses séries faites, sa série en cours, sa
+ * technique, ses actions — vit dans UNE composition, parce que c'est UN
+ * exercice. La série en cours y ressort nettement, mais elle est un bloc DANS
+ * la carte, pas une scène qui écrase le reste.
  *
  * POURQUOI CE COMPOSANT N'EST PAS `TableauSeries`
  *
@@ -83,9 +97,9 @@ export function LecteurExercice({
   const derniereFois = resumeDesSeries(exercice.historique ?? []);
 
   return (
-    <article className="lecteur">
+    <article className="focus-carte">
       {/* ------------------------------------------------------------------
-          L'EXERCICE — ce qu'on va faire, en grand.
+          LE HERO — l'identité de l'exercice, dessin compris.
           ------------------------------------------------------------------ */}
       <header className="lecteur-hero">
         {exercice.slug && (
@@ -117,6 +131,12 @@ export function LecteurExercice({
             <p>{libelleCibleEffort(exercice.rpeCible)}</p>
           )}
         </div>
+        {/* L'avancement du SLOT : après substitution il compte aussi ce qui a
+            été fait sur l'ancienne machine. */}
+        <span className="lecteur-avancement chiffres">
+          {avancement.faites}
+          <span>/{avancement.cibles}</span>
+        </span>
       </header>
 
       {(exercice.raisonSubstitution || exercice.messageProgression) && (
@@ -287,11 +307,20 @@ export function LecteurExercice({
 }
 
 /**
- * La série qu'on est en train de faire.
+ * La série qu'on est en train de faire — un bloc DANS la carte.
  *
- * Trois mesures, chacune sur sa ligne, chacune avec ses crans. Pas de tableau,
- * pas de libellé de colonne, pas de seconde copie de la même série ailleurs sur
- * l'écran : c'est LA représentation éditable, et il n'y en a qu'une.
+ * CE QUI A CHANGÉ, ET POURQUOI
+ *
+ * Trois mesures empilées, chacune sur sa ligne pleine largeur avec des crans de
+ * 60 px, mangeaient toute la hauteur : le contexte de l'exercice était repoussé
+ * hors de l'écran et le bouton Valider tombait sous la zone du home indicator.
+ * L'écran disait « remplis trois compteurs » plutôt que « tu es sur le
+ * Deadlift ».
+ *
+ * Charge et répétitions se partagent maintenant une rangée — ce sont les deux
+ * nombres qu'on ajuste ensemble — et la réserve garde sa rangée de pastilles,
+ * qui se lit d'un coup d'œil. Les cibles tactiles restent au-dessus des 44 px
+ * d'iOS : c'est la hauteur qui a fondu, pas la surface qu'on vise.
  *
  * Les valeurs restent tapables — toucher le nombre ouvre le clavier. Le
  * parcours normal n'en a pas besoin, les cas particuliers oui.
@@ -327,8 +356,11 @@ function SerieEnCours({
         <span className="chiffres">{total}</span>
       </p>
 
-      {/* --- La charge, aux crans de l'appareil --- */}
-      <div className="mesure">
+      {/* Charge et répétitions se partagent une rangée : ce sont les deux
+          nombres qu'on ajuste ensemble, et les empiler coûtait un demi-écran. */}
+      <div className="mesures-paire">
+        {/* --- La charge, aux crans de l'appareil --- */}
+        <div className="mesure">
         <p className="eyebrow">{libelleChampCharge(exercice.natureCharge)}</p>
         <div className="mesure-ligne">
           {/* Les boutons encadrent la valeur : les pouces atteignent les bords de
@@ -367,33 +399,11 @@ function SerieEnCours({
             <span />
           )}
         </div>
-        {/*
-          Une charge que l'appareil ne produit pas. Elle n'est PAS remplacée en
-          silence : la corriger d'autorité ferait enregistrer autre chose que ce
-          qui a été soulevé. L'écran dit ce qui existe autour, et laisse choisir.
-        */}
-        {alerte && (
-          <div className="mesure-alerte">
-            <p>{alerte.message}</p>
-            <div>
-              {alerte.choix.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => ecrire("charge", String(c))}
-                  className="chiffres"
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* --- Les répétitions : un cran est un cran --- */}
-      <div className="mesure">
-        <p className="eyebrow">Répétitions</p>
+        {/* --- Les répétitions : un cran est un cran --- */}
+        <div className="mesure">
+          <p className="eyebrow">Reps</p>
         <div className="mesure-ligne">
           <button
             type="button"
@@ -419,7 +429,34 @@ function SerieEnCours({
             <Plus className="w-5 h-5" aria-hidden />
           </button>
         </div>
+        </div>
       </div>
+
+      {/*
+        Une charge que l'appareil ne produit pas. Elle n'est PAS remplacée en
+        silence : la corriger d'autorité ferait enregistrer autre chose que ce
+        qui a été soulevé. L'écran dit ce qui existe autour, et laisse choisir.
+
+        Hors de la paire : elle appartient à la série, et coincée dans une
+        demi-colonne son message serait illisible.
+      */}
+      {alerte && (
+        <div className="mesure-alerte">
+          <p>{alerte.message}</p>
+          <div>
+            {alerte.choix.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => ecrire("charge", String(c))}
+                className="chiffres"
+              >
+                {c}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* --- L'effort : une réserve en calibration, un RPE sinon --- */}
       <div className="mesure">
