@@ -30,8 +30,36 @@ import type { Poster } from "./arret-sur-douleur";
  * comme pour `arreterSurDouleur` et `envoyerIncident`.
  */
 
+/**
+ * L'horloge des INTENTIONS — monotone, et jamais réattribuée.
+ *
+ * `Date.now()` suffirait presque : deux gestes humains sont rarement dans la
+ * même milliseconde. « Rarement » n'est pas « jamais », et une horloge système
+ * peut reculer (synchronisation NTP, changement d'heure). Deux intentions à la
+ * même révision, ou une révision qui recule, redonneraient exactement le défaut
+ * qu'on ferme : la plus ancienne pourrait gagner.
+ *
+ * On garantit donc la stricte croissance nous-mêmes.
+ */
+let derniereRevision = 0;
+
+export function revisionSuivante(): number {
+  const maintenant = Date.now();
+  derniereRevision = maintenant > derniereRevision ? maintenant : derniereRevision + 1;
+  return derniereRevision;
+}
+
 /** Une série telle que la route l'attend. */
 export interface SerieAPousser {
+  /**
+   * La révision de l'INTENTION, décidée au moment du geste.
+   *
+   * Elle est calculée une fois et transportée telle quelle par les reprises :
+   * c'est ce qui distingue l'ordre des intentions de l'ordre des arrivées. Une
+   * reprise armée avant une correction porte donc une révision plus ancienne,
+   * et le serveur la refuse.
+   */
+  revision: number;
   exerciseInstanceId: string;
   numeroSerie: number;
   repsEffectuees: number;
@@ -81,17 +109,35 @@ export function pousserSerie(
   serie: SerieAPousser,
   options: OptionsPoussee = {},
 ): void {
-  const poster: Poster = options.poster ?? ((url, init) => fetch(url, init));
-  const attendre = options.attendre ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  envoyerAvecReprises(
+    sessionLogId,
+    {
+      method: "POST",
+      // La requête survit au démontage du composant, et à la fermeture de
+      // l'onglet. C'est le mécanisme du lot 16, pour la même raison.
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(serie),
+    },
+    options,
+  );
+}
 
-  const init: RequestInit = {
-    method: "POST",
-    // La requête survit au démontage du composant, et à la fermeture de
-    // l'onglet. C'est le mécanisme du lot 16, pour la même raison.
-    keepalive: true,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(serie),
-  };
+/**
+ * La boucle de reprises, commune à l'écriture et à la suppression.
+ *
+ * Le corps est figé AVANT la première tentative : chaque reprise renvoie
+ * exactement la même intention, révision comprise. Recalculer le corps à
+ * chaque essai ferait porter à une vieille reprise une révision fraîche, et
+ * elle écraserait la correction qu'elle est censée laisser passer.
+ */
+function envoyerAvecReprises(
+  sessionLogId: string,
+  init: RequestInit,
+  options: OptionsPoussee,
+): void {
+  const poster: Poster = options.poster ?? ((url, init2) => fetch(url, init2));
+  const attendre = options.attendre ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
 
   void (async () => {
     for (let essai = 0; ; essai += 1) {
@@ -111,8 +157,8 @@ export function pousserSerie(
 
       const delai = REPRISES_MS[essai];
       if (delai === undefined) {
-        // Le brouillon local tient toujours la série, et la clôture réécrira
-        // la liste complète : abandonner ici ne perd rien tant que l'onglet vit.
+        // Le brouillon local tient toujours l'état, et la clôture réécrira la
+        // liste complète : abandonner ici ne perd rien tant que l'onglet vit.
         options.onAbandon?.("réseau indisponible");
         return;
       }
@@ -121,21 +167,27 @@ export function pousserSerie(
   })();
 }
 
-/** Retirer de la base une série décochée. Même contrat : rien n'est attendu. */
+/**
+ * Retirer de la base une série décochée. Même contrat : rien n'est attendu.
+ *
+ * ET LES MÊMES REPRISES QUE L'ÉCRITURE. La première version tirait une fois et
+ * oubliait : une suppression perdue par le réseau restait perdue, et la série
+ * décochée réapparaissait à la reprise suivante. Une suppression est une
+ * intention comme une autre — elle porte sa révision, et elle insiste autant.
+ */
 export function retirerSerieEnVol(
   sessionLogId: string,
-  cle: { exerciseInstanceId: string; numeroSerie: number },
+  cle: { revision: number; exerciseInstanceId: string; numeroSerie: number },
   options: OptionsPoussee = {},
 ): void {
-  const poster: Poster = options.poster ?? ((url, init) => fetch(url, init));
-  try {
-    void Promise.resolve(poster(cheminSeries(sessionLogId), {
+  envoyerAvecReprises(
+    sessionLogId,
+    {
       method: "DELETE",
       keepalive: true,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cle),
-    })).catch(() => {});
-  } catch {
-    // Même règle qu'ailleurs : l'écran ne s'arrête pas pour ça.
-  }
+    },
+    options,
+  );
 }

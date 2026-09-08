@@ -28,7 +28,23 @@ import {
 
 export const runtime = "nodejs";
 
+/**
+ * La RÉVISION accompagne chaque écriture, et c'est elle qui ordonne.
+ *
+ * Elle est décidée par le client au moment de l'INTENTION — pas à l'envoi — et
+ * transportée telle quelle par les reprises. Une reprise ancienne porte donc
+ * une révision ancienne, et le serveur la refuse au profit de la correction
+ * faite entre-temps. Sans elle, l'ordre d'ARRIVÉE des requêtes décidait, ce
+ * qui n'a aucun rapport avec l'ordre des gestes de l'athlète.
+ *
+ * Facultative pour ne casser aucun appelant : absente, elle vaut l'instant du
+ * serveur, ce qui redonne exactement l'ancien comportement « le dernier arrivé
+ * gagne ».
+ */
+const revisionSchema = z.number().int().nonnegative().optional();
+
 const serieSchema = z.object({
+  revision: revisionSchema,
   exerciseInstanceId: z.string().uuid(),
   numeroSerie: z.number().int().positive(),
   repsEffectuees: z.number().int().nonnegative(),
@@ -40,6 +56,7 @@ const serieSchema = z.object({
 });
 
 const retraitSchema = z.object({
+  revision: revisionSchema,
   exerciseInstanceId: z.string().uuid(),
   numeroSerie: z.number().int().positive(),
 });
@@ -81,8 +98,20 @@ export async function POST(
   }
 
   try {
-    await enregistrerSerie({ userId, sessionLogId: id, serie: parsed.data });
-    return NextResponse.json({ ok: true }, { status: 200 });
+    const { revision, ...serie } = parsed.data;
+    const issue = await enregistrerSerie({
+      userId, sessionLogId: id, serie,
+      revision: revision ?? Date.now(),
+    });
+    /*
+     * `perimee` rend 200, pas une erreur.
+     *
+     * Une reprise réseau qui arrive après une intention plus récente a fait
+     * exactement ce qu'on attend d'elle : rien. La refuser avec un code
+     * d'erreur ferait réessayer le client, qui insisterait pour écraser une
+     * correction — le défaut qu'on vient de fermer.
+     */
+    return NextResponse.json({ ok: true, issue }, { status: 200 });
   } catch (error) {
     if (error instanceof SeanceIntrouvable) {
       return NextResponse.json({ error: error.message }, { status: 404 });
@@ -118,8 +147,12 @@ export async function DELETE(
   }
 
   try {
-    await retirerSerie({ userId, sessionLogId: id, ...parsed.data });
-    return NextResponse.json({ ok: true });
+    const { revision, ...cle } = parsed.data;
+    const issue = await retirerSerie({
+      userId, sessionLogId: id, ...cle,
+      revision: revision ?? Date.now(),
+    });
+    return NextResponse.json({ ok: true, issue });
   } catch (error) {
     if (error instanceof SeanceIntrouvable) {
       return NextResponse.json({ error: error.message }, { status: 404 });

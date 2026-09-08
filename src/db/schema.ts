@@ -523,6 +523,41 @@ export const sessionIncidents = pgTable("session_incidents", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/**
+ * L'ordre des INTENTIONS de série — qui n'est pas l'ordre des requêtes.
+ *
+ * Voir `migrations/0017_revisions_de_serie.sql` pour le raisonnement complet.
+ * En deux lignes : une reprise réseau ancienne portait sa charge d'origine et
+ * écrasait la correction faite entre-temps, ou ressuscitait une série décochée.
+ * Chaque écriture porte désormais la révision de son INTENTION, et le serveur
+ * refuse tout ce qui n'est pas strictement plus récent.
+ *
+ * `supprime` est la pierre tombale : effacer la ligne de `set_logs` effacerait
+ * la mémoire de la suppression, et le prochain POST retardé n'aurait plus rien
+ * à quoi se comparer.
+ *
+ * Table à part, et non deux colonnes sur `set_logs` : cette table-là est lue
+ * par une douzaine de chemins, et une suppression logique aurait obligé chacun
+ * à filtrer. Une ligne de `set_logs` reste une série réalisée, sans exception.
+ */
+export const setLogRevisions = pgTable("set_log_revisions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sessionLogId: uuid("session_log_id")
+    .references(() => sessionLogs.id, { onDelete: "cascade" }).notNull(),
+  exerciseInstanceId: uuid("exercise_instance_id")
+    .references(() => exerciseInstances.id).notNull(),
+  numeroSerie: integer("numero_serie").notNull(),
+  /** Horloge du client au moment de l'intention. Monotone, jamais réattribuée. */
+  revision: bigint("revision", { mode: "number" }).notNull(),
+  supprime: boolean("supprime").default(false).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Le point de rendez-vous des écritures concurrentes : deux requêtes sur la
+  // même clé se sérialisent ici au lieu de s'ignorer.
+  cleUnique: uniqueIndex("set_log_revisions_cle_unique")
+    .on(table.sessionLogId, table.exerciseInstanceId, table.numeroSerie),
+}));
+
 export const precalcSessions = pgTable("precalc_sessions", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id").references(() => users.id).notNull(),

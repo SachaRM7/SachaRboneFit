@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { pousserSerie, retirerSerieEnVol } from "@/components/session/serie-en-vol";
+import { pousserSerie, retirerSerieEnVol, revisionSuivante } from "@/components/session/serie-en-vol";
 
 /**
  * La persistance serveur est branchée ICI, et pas dans les écrans.
@@ -154,6 +154,14 @@ export const useSessionStore = create<SessionStore>()(
         if (envoiDesactive.actif
           && newSet.repsEffectuees !== null && newSet.charge !== null) {
           pousserSerie(state.active.id, {
+            /*
+             * La révision est prise ICI, au moment du geste — pas à l'envoi.
+             *
+             * C'est ce qui rend inoffensive une reprise réseau qui aboutirait
+             * après une correction : elle porte la révision de son intention
+             * d'origine, et le serveur la refuse.
+             */
+            revision: revisionSuivante(),
             exerciseInstanceId: newSet.exerciseInstanceId,
             numeroSerie: newSet.numeroSerie,
             repsEffectuees: newSet.repsEffectuees,
@@ -177,7 +185,11 @@ export const useSessionStore = create<SessionStore>()(
         // Décocher retire aussi la ligne en base : sans cela, elle
         // ressusciterait à la reprise après un crash.
         if (envoiDesactive.actif) {
-          retirerSerieEnVol(state.active.id, { exerciseInstanceId, numeroSerie });
+          // Une suppression est une intention comme une autre : elle porte sa
+          // révision, et elle empêche un vieux POST de ressusciter la série.
+          retirerSerieEnVol(state.active.id, {
+            revision: revisionSuivante(), exerciseInstanceId, numeroSerie,
+          });
         }
         return { active: { ...state.active, sets, lastActionTimestamp: Date.now() } };
       }),
