@@ -10,6 +10,7 @@
     "seed": "tsx src/scripts/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:composants": "vitest run --config vitest.composants.config.mts",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "verifier:migrations": "tsx src/scripts/verifier-migrations.ts"
   },
@@ -41,6 +42,10 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/node": "^20.19.39",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -50,6 +55,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
+    "jsdom": "^30.0.1",
     "meshoptimizer": "1.2.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
