@@ -7,6 +7,7 @@ import {
   resoudreMascotteFinDeSeance,
   resoudreMascotteProgression,
   resoudreMascotteProgramme,
+  resoudreMascotteAccueil,
 } from "./resoudre-mascotte";
 import { ETATS_MASCOTTE } from "./mascotte-assets";
 
@@ -110,17 +111,35 @@ describe("les conflits, et qui l'emporte", () => {
       .toBe("attention");
   });
 
-  it("calibration + exercice terminé → calibration", () => {
+  it("calibration + exercice terminé → encouragement", () => {
     /*
-     * L'EXCEPTION QUI COMPTE.
+     * LE RENVERSEMENT.
      *
-     * Pendant une reprise, la série sert à construire un repère : la terminer
-     * ne prouve rien qu'on puisse saluer. Féliciter ici apprendrait à
-     * l'athlète que le Coach félicite tout — et son applaudissement ne
-     * vaudrait plus rien le jour d'un vrai progrès.
+     * L'ordre inverse a été essayé, et il produisait une reprise entière sans
+     * le moindre retour de fin d'exercice — parce que `calibration`, une fois
+     * ambiant, mangeait tout.
+     *
+     * `encouragement` ne revendique aucune performance : il salue un exercice
+     * mené à son terme, ce qui reste vrai pendant qu'on construit un repère.
+     * Ce que la calibration doit empêcher, c'est le FAUX RECORD, et cela se
+     * joue face à `progres` — vérifié juste en dessous, et sur chaque surface.
      */
     expect(resoudreMascotteLive({ calibration: true, exerciceTermine: true }))
+      .toBe("encouragement");
+  });
+
+  it("mais une baseline ne devient JAMAIS un progrès, sur aucune surface", () => {
+    // La règle que le renversement ci-dessus ne doit pas avoir entamée.
+    expect(resoudreMascotteFinDeSeance({ calibration: true, progresConfirme: true }))
       .toBe("calibration");
+    expect(resoudreMascotteProgression({ sansRepere: true, progresConfirme: true }))
+      .toBe("calibration");
+    expect(resoudreMascotteAccueil({ calibration: true, progresConfirme: true }))
+      .toBe("calibration");
+    // Et le Live ne sait même pas dire « progrès » : il n'a pas cette réponse.
+    for (const c of [{ calibration: true }, { calibration: true, exerciceTermine: true }]) {
+      expect(resoudreMascotteLive(c)).not.toBe("progres");
+    }
   });
 
   it("et la résolution suit exactement l'ordre déclaré", () => {
@@ -129,10 +148,69 @@ describe("les conflits, et qui l'emporte", () => {
     const rang = (e: string) => PRIORITE_MASCOTTE.indexOf(e as never);
     expect(rang("attention")).toBeLessThan(rang("intervention"));
     expect(rang("intervention")).toBeLessThan(rang("repos"));
-    expect(rang("repos")).toBeLessThan(rang("calibration"));
+    expect(rang("repos")).toBeLessThan(rang("encouragement"));
+    expect(rang("encouragement")).toBeLessThan(rang("calibration"));
+    // LE RANG QUI PORTE LA RÈGLE : une baseline ne peut pas devenir un progrès.
     expect(rang("calibration")).toBeLessThan(rang("progres"));
-    expect(rang("progres")).toBeLessThan(rang("encouragement"));
-    expect(rang("encouragement")).toBeLessThan(rang("training"));
+    expect(rang("progres")).toBeLessThan(rang("debrief"));
+    expect(rang("debrief")).toBeLessThan(rang("planification"));
+    expect(rang("planification")).toBeLessThan(rang("training"));
+  });
+});
+
+describe("l'accueil dit la journée, sans jamais la forcer", () => {
+  it("séance prête et rien d'autre : ready", () => {
+    expect(resoudreMascotteAccueil({ seancePrete: true })).toBe("ready");
+  });
+
+  it("un signal de récupération passe devant la séance prête", () => {
+    // Le feu du jour dit « récupérer » : proposer « on y va » par-dessus
+    // reviendrait à contredire, en image, ce que l'écran écrit en toutes lettres.
+    expect(resoudreMascotteAccueil({ recuperationRequise: true, seancePrete: true }))
+      .toBe("attention");
+  });
+
+  it("un vrai progrès passe devant la séance prête", () => {
+    expect(resoudreMascotteAccueil({ progresConfirme: true, seancePrete: true }))
+      .toBe("progres");
+  });
+
+  it("journée d'entraînement derrière soi : debrief", () => {
+    expect(resoudreMascotteAccueil({ bilanDisponible: true })).toBe("debrief");
+    // Et le bilan passe devant l'organisation restante.
+    expect(resoudreMascotteAccueil({ bilanDisponible: true, organisationRequise: true }))
+      .toBe("debrief");
+  });
+
+  it("une décision d'organisation en attente : planification", () => {
+    expect(resoudreMascotteAccueil({ organisationRequise: true }))
+      .toBe("planification");
+  });
+
+  it("aucun fait : AUCUNE mascotte", () => {
+    /*
+     * `null` est une réponse, pas un trou.
+     *
+     * Une image posée pour ne pas laisser de vide finit par ne plus vouloir
+     * dire qu'une chose — « il y a une image » — et c'est précisément ce que
+     * ce lot cherche à éviter.
+     */
+    expect(resoudreMascotteAccueil({})).toBeNull();
+  });
+
+  it("ne rend jamais beast, quelle que soit la combinaison", () => {
+    const drapeaux = [
+      "recuperationRequise", "progresConfirme", "bilanDisponible",
+      "organisationRequise", "calibration", "seancePrete",
+    ] as const;
+    // Les 64 combinaisons : un easter egg ne doit pas se glisser dans un cas
+    // que personne n'a pensé à énumérer.
+    for (let masque = 0; masque < 1 << drapeaux.length; masque++) {
+      const ctx = Object.fromEntries(
+        drapeaux.map((d, i) => [d, Boolean(masque & (1 << i))]),
+      );
+      expect(resoudreMascotteAccueil(ctx)).not.toBe("beast");
+    }
   });
 });
 

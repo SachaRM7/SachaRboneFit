@@ -14,6 +14,8 @@ import { Records } from "@/components/progression/Records";
 import { BilanProgression } from "@/components/progression/BilanProgression";
 import type { Bilan } from "@/lib/engine/bilan-progression";
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
+import { resoudreMascotteProgression } from "@/lib/coach/resoudre-mascotte";
 
 /**
  * Progression.
@@ -213,7 +215,38 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
   return (
     <div className="progression-v3 min-h-dvh bg-papier text-encre">
       <DeclarerContexte ecran="progression" />
-      <header className="dashboard-header">
+      <header className="dashboard-header progression-entete">
+        {/*
+          LE COACH QUI LIT TES DONNÉES.
+
+          Trois visages, et chacun tient à un fait que le moteur a déjà établi
+          (voir `lib/engine/bilan-progression`) :
+
+            — `calibration` tant qu'il n'existe qu'une seule date de séance.
+              Une première mesure produit mécaniquement le meilleur résultat
+              jamais vu ; l'appeler un progrès serait un faux record, et cet
+              écran est précisément celui où on le croirait.
+
+            — `progres` quand `enProgression` n'est pas vide. Cette liste ne
+              contient que des exercices comparés à EUX-MÊMES sur la même
+              entrée, avec un score strictement positif : c'est la définition
+              du dépôt, et ce lot n'en écrit aucune autre.
+
+            — `analyse` sinon, qui est le cas ordinaire : on vient regarder.
+
+          L'ORDRE COMPTE : `sansRepere` est testé en premier dans le résolveur.
+        */}
+        <div className="progression-mascotte">
+          <MascotteCoach
+            etat={resoudreMascotteProgression({
+              sansRepere: bilan.etat !== "en_route",
+              progresConfirme: bilan.enProgression.length > 0,
+            })}
+            taille="normal"
+            presence="forte"
+            anime
+          />
+        </div>
         <p className="eyebrow">La régularité fait la différence</p>
         <h1>Tes progrès.</h1>
         {bilan?.periode && (

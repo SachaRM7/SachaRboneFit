@@ -714,14 +714,30 @@ function ContenuSeanceLive() {
    * temps, et la mascotte cesserait de vouloir dire quoi que ce soit.
    *
    * Ce que ce calcul NE fait pas : décider. Il lit des faits déjà établis —
-   * une modale de douleur ouverte, un minuteur en cours, une phase de cycle —
-   * et choisit l'image. Voir `lib/coach/resoudre-mascotte.ts`.
+   * une modale de douleur ouverte, un minuteur en cours, l'historique de
+   * l'entrée affichée — et choisit l'image. Voir `lib/coach/resoudre-mascotte.ts`.
+   *
+   * `calibration` NE VIENT PLUS DE LA PHASE DU CYCLE.
+   *
+   * `modeSaisieEffort(phaseCycle) === "reserve"` était vrai d'un bout à l'autre
+   * d'un bloc « Reprise & calibration » : la mascotte de calibration devenait
+   * l'état ambiant de séances entières, y compris sur des machines dont
+   * l'historique était complet. Le fait qu'on voulait montrer est plus étroit —
+   * l'application est en train de construire un repère SUR CETTE ENTRÉE — et
+   * l'écran le connaît déjà : c'est exactement ce que `LecteurExercice` écrit
+   * sous « Dernière fois » quand il n'a rien à y mettre.
+   *
+   * La phase du cycle continue de piloter ce qu'elle pilotait : la SAISIE
+   * (réserve plutôt que RPE), plus bas. Ces deux questions étaient confondues,
+   * elles ne le sont plus.
    */
+  const sansRepereIci = (courant?.historique?.length ?? 0) === 0;
+
   const etatMascotte = resoudreMascotteLive({
     douleur: modaleSOS === "douleur",
     symptome: modaleSOS === "symptome",
     repos: timerVisible,
-    calibration: modeSaisieEffort(seance.phaseCycle) === "reserve",
+    calibration: sansRepereIci,
     exerciceTermine: exerciceSalue,
   });
 
@@ -1073,7 +1089,7 @@ function ContenuSeanceLive() {
             {/* Elle accompagne le compte à rebours sans jamais le masquer, ni
                 « Passer », ni « +30 s ». Voir `.repos-mascotte`. */}
             <div className="repos-mascotte">
-              <MascotteCoach etat="repos" taille="normal" presence="normale" anime />
+              <MascotteCoach etat="repos" taille="normal" presence="forte" anime />
             </div>
             <RestTimer
               prochaine={prochaineSerie}

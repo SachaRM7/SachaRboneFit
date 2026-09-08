@@ -52,11 +52,19 @@ export type Sujet = (typeof SUJETS)[number];
 /**
  * Le TYPE de constat d'où l'on ouvre la conversation.
  *
+ * UN INDICE DE CONTEXTE NON AUTORITAIRE — et le mot compte.
+ *
  * C'est une désignation, pas une donnée : une valeur d'une liste fermée, jamais
- * du texte libre. Elle dit de quoi l'athlète veut parler ; elle n'affirme rien.
- * Les nombres, eux, viennent de la séance que le serveur relit lui-même — un
- * client qui prétendrait « effort au-delà de la cible » sur une séance calme ne
- * ferait donc pas mentir le Coach, il désignerait juste un sujet vide.
+ * du texte libre. Elle dit de quoi l'athlète veut parler ; elle n'affirme rien
+ * et n'a AUCUN POUVOIR MÉTIER — aucune décision déterministe du dépôt ne la
+ * lit. Les nombres viennent de la séance que le serveur relit lui-même, sur le
+ * compte authentifié.
+ *
+ * Ce qui reste ouvert est écrit noir sur blanc dans `services/contexte-coach`,
+ * là où la valeur est employée : un client modifié peut désigner un sujet qui
+ * ne correspond à rien, et le modèle peut reprendre cette désignation dans sa
+ * phrase. C'est une limite acceptée, pas une chose que la formulation du
+ * message réglerait.
  *
  * Reprend les types de `engine/evenements-seance` : deux listes qui divergent
  * laisseraient passer un signal que plus personne ne sait produire.

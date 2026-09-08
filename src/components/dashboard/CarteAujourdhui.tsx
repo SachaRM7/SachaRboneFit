@@ -10,6 +10,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { EtatDuJour, NomEtat } from "@/lib/engine/etat-du-jour";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
+import type { EtatVisuelMascotte } from "@/lib/coach/mascotte-assets";
 
 /**
  * La seule carte qui compte à l'ouverture de l'application.
@@ -74,7 +76,22 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
   },
 };
 
-export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
+export function CarteAujourdhui({
+  etat,
+  mascotte,
+}: {
+  etat: EtatDuJour;
+  /**
+   * L'UNIQUE présence forte du Coach sur cet écran.
+   *
+   * Elle est résolue par le parent, jamais ici : deux cartes qui décideraient
+   * chacune de leur mascotte finiraient par en afficher deux, et la règle
+   * « une présence forte par surface » ne serait plus vérifiable nulle part.
+   *
+   * `null` est une réponse normale — voir `resoudreMascotteAccueil`.
+   */
+  mascotte?: EtatVisuelMascotte | null;
+}) {
   const f = FORMULATIONS[etat.etat];
   const Icone = f.icone;
 
@@ -94,6 +111,22 @@ export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
           {etat.seance?.lettre || <Icone size={92} strokeWidth={1} />}
         </span>
       </div>
+      {/*
+        LE COACH T'ACCUEILLE — une présence, pas une icône.
+
+        Elle occupe le quart droit que `.hero-copy` laisse libre (max-width
+        75 %), au-dessus du pli : elle ne touche ni au titre, ni au texte, ni au
+        bouton, qui restent la hiérarchie 1 de cette carte.
+
+        Quand elle est là, la grande lettre filigranée s'efface — voir
+        `.session-hero:has(.hero-mascotte)`. Deux ancres visuelles dans le même
+        coin se disputeraient le regard, et la lettre est déjà dans le titre.
+      */}
+      {mascotte && (
+        <div className="hero-mascotte">
+          <MascotteCoach etat={mascotte} taille="normal" presence="forte" anime />
+        </div>
+      )}
       <div className="hero-copy">
         <p className="hero-category">
           Aujourd’hui ·{" "}

@@ -10,6 +10,7 @@ import {
 } from "./execution-client";
 import { LIMITE_NOTE_EXERCICE } from "@/lib/validators/exercise-instance";
 import { DeclarerReglage } from "./DeclarerReglage";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { Mannequin } from "@/components/anatomie/Mannequin";
 import { faceLaPlusParlante, type Face } from "@/lib/referentiels/anatomie";
 import { libelleMuscles } from "@/lib/referentiels/libelles";
@@ -288,8 +289,18 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
         className="w-full max-h-[92vh] bg-papier rounded-t-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center justify-between px-4 py-3 border-b border-filet shrink-0">
-          <h2 className="font-semibold text-encre truncate pr-3">{nom}</h2>
+        <header className="flex items-center gap-2.5 px-4 py-3 border-b border-filet shrink-0">
+          {/*
+            LE COACH QUI EXPLIQUE — et qui ne remplace rien.
+
+            Cette feuille porte la technique et les réglages. La mascotte y est
+            le Coach en train d'expliquer, à 40 px, dans l'en-tête. Elle ne
+            prend la place NI de l'illustration de l'exercice, NI de la
+            démonstration du mouvement, NI de la fiche, NI des réglages : ce
+            sont eux qui portent l'information, elle ne porte qu'une intention.
+          */}
+          <MascotteCoach etat="technique" taille="compact" presence="discrete" />
+          <h2 className="font-semibold text-encre truncate flex-1 min-w-0">{nom}</h2>
           <button
             type="button" onClick={() => { quitterLaNote(); onFermer(); }} aria-label="Fermer"
             className="shrink-0 w-11 h-11 -mr-2 flex items-center justify-center rounded-full text-encre-2"

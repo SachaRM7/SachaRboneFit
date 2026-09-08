@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { urlIllustration } from "@/lib/referentiels/catalogue";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
 
 interface Props {
   slug: string;
@@ -56,8 +57,14 @@ export function DemonstrationMouvement({ slug, nom, onFermer }: Props) {
       aria-label={`Démonstration : ${nom}`}
       className="fixed inset-0 z-50 bg-papier flex flex-col"
     >
-      <header className="flex items-center justify-between px-4 py-3 border-b border-filet shrink-0">
-        <h2 className="font-semibold text-encre truncate pr-3">{nom}</h2>
+      <header className="flex items-center gap-2.5 px-4 py-3 border-b border-filet shrink-0">
+        {/*
+          Le Coach qui montre le geste. Dans l'en-tête, à 40 px : la séquence
+          des trois phases reste le sujet entier de cet écran, et c'est elle
+          qu'on est venu regarder.
+        */}
+        <MascotteCoach etat="technique" taille="compact" presence="discrete" />
+        <h2 className="font-semibold text-encre truncate flex-1 min-w-0">{nom}</h2>
         {/* 44 px de côté : la cible tactile recommandée, atteignable au pouce
             sans regarder, ce qui est la situation réelle en salle. */}
         <button

@@ -16,13 +16,21 @@
  * Le choix de l'état vit dans les résolveurs (`resoudre-mascotte.ts`), la
  * vérité métier vit dans le moteur et la base.
  *
- * LES MASTERS NE SONT PAS SERVIS
+ * LES MASTERS NE SONT PAS SERVIS — ET NE SONT PLUS DANS `public/`
  *
- * `public/coach-mascot/*.png` sont les sources fournies : ~1,2 Mo chacune, pour
- * 1250 px de côté. Ce sont elles qu'on archive et qu'on retouche si besoin ;
- * ce ne sont jamais elles qu'un téléphone télécharge. Le runtime lit les dérivés
- * WebP de `public/coach-mascot/w/`, produits par
- * `src/scripts/mascotte-derives.mts` sans le moindre recadrage.
+ * `assets/coach-mascot/masters/*.png` sont les sources fournies : ~1,2 Mo
+ * chacune, 15 Mo au total, pour 1250 px de côté. Ce sont elles qu'on archive et
+ * qu'on retouche si besoin ; ce ne sont jamais elles qu'un téléphone télécharge.
+ *
+ * Elles ont d'abord vécu dans `public/coach-mascot/`, ce qui les rendait
+ * PUBLIQUEMENT TÉLÉCHARGEABLES et les embarquait dans chaque déploiement — 15 Mo
+ * expédiés pour zéro octet utile. Les déplacer hors de `public/` ne change rien
+ * au runtime, qui ne les a jamais lues, et les garde versionnées comme sources
+ * canoniques. `lectures-publiques-mascotte` vérifie qu'aucune ne revient.
+ *
+ * Le runtime lit les dérivés WebP de `public/coach-mascot/w/` (888 Ko pour
+ * 13 × 3), produits par `src/scripts/mascotte-derives.mts` sans le moindre
+ * recadrage.
  */
 
 /**
@@ -167,14 +175,21 @@ export function urlMascotte(
   return `/coach-mascot/w/${ASSETS_MASCOTTE[etat].base}-${taille}.webp`;
 }
 
+/** Où vivent les sources, hors de `public/`. Un chemin de dépôt, pas une URL. */
+export const DOSSIER_MASTERS_MASCOTTE = "assets/coach-mascot/masters";
+
 /**
- * Le master d'origine — pour l'archivage et les outils, pas pour le runtime.
+ * Le master d'origine — un CHEMIN DE DÉPÔT, pas une adresse servie.
  *
- * Aucun composant ne devrait l'appeler : servir 1,2 Mo là où 8 Ko suffisent est
- * exactement ce que les dérivés existent pour éviter.
+ * Ce qu'il retournait avant : `/coach-mascot/<base>.png`, c'est-à-dire une URL
+ * publique valide. La forme même de la valeur invitait à l'employer dans un
+ * `src`, et servir 1,2 Mo là où 8 Ko suffisent est exactement ce que les
+ * dérivés existent pour éviter. Il retourne désormais un chemin relatif au
+ * dépôt, qu'aucun navigateur ne saura résoudre — les outils et les tests s'en
+ * servent, le runtime ne le peut plus.
  */
 export function masterMascotte(etat: EtatVisuelMascotte): string {
-  return `/coach-mascot/${ASSETS_MASCOTTE[etat].base}.png`;
+  return `${DOSSIER_MASTERS_MASCOTTE}/${ASSETS_MASCOTTE[etat].base}.png`;
 }
 
 /**

@@ -1372,18 +1372,33 @@
   justify-content: center;
   /* Au-dessus de l'anneau, jamais par-dessus : le compte à rebours, « Passer »
      et « +30 s » restent intégralement visibles et atteignables. */
-  padding: 16px 0 0;
+  padding: 14px 0 0;
+  line-height: 0;
+}
+/* 108 px, et non plus 72.
+   À 72 px la mascotte lisait comme une icône posée au-dessus du chrono : on
+   voyait qu'il y avait quelque chose, pas ce que c'était. À 108 elle devient
+   une vraie présence — la deuxième de la feuille, jamais la première. Le
+   compte à rebours garde son anneau, sa taille et sa place ; c'est lui qu'on
+   regarde, et `apercus.tsx` mesure que « Passer » et « +30 s » restent dans
+   le premier écran sur 320, 390 et 430 px. */
+.repos-mascotte .mascotte {
+  width: 108px !important;
+  height: 108px !important;
 }
 
 @media (max-width: 359px) {
   /* À 320 px, la feuille de repos est déjà haute : la mascotte se resserre
      plutôt que de repousser les boutons sous la barre de gestes. */
   .repos-mascotte {
-    padding-top: 10px;
+    padding-top: 8px;
   }
+  /* 96 px : le plancher de la fourchette voulue. En dessous de 360 px de
+     large, la feuille est déjà haute et chaque pixel gagné ici est un pixel
+     que « Passer » ne descend pas sous la barre de gestes. */
   .repos-mascotte .mascotte {
-    width: 56px !important;
-    height: 56px !important;
+    width: 96px !important;
+    height: 96px !important;
   }
   .coach-constat {
     gap: 10px;

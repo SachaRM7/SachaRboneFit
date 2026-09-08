@@ -12,6 +12,8 @@ import { VueCycle, OptionsAvancees } from "@/components/programme/VueCycle";
 import { vueDuProgramme } from "@/services/cycle";
 import { lireBlocs } from "@/services/blocs";
 import { onboardingTermine } from "@/services/profil-cache";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
+import { resoudreMascotteProgramme } from "@/lib/coach/resoudre-mascotte";
 
 /**
  * Programme : comprendre et inspecter la programmation.
@@ -115,7 +117,29 @@ export default async function ProgrammePage() {
 
   return (
     <div className="min-h-dvh bg-papier text-encre p-4 space-y-5">
-      <EnTeteSecondaire titre="Programme" vers="/settings" libelleRetour="Retour à Plus" />
+      {/*
+        LE COACH QUI MONTRE LE PLAN.
+
+        Cet écran répond à « qu'est-ce qui est prévu, et pourquoi » : c'est la
+        définition même de `planification`. La mascotte prend la place d'action
+        de l'en-tête — celle qui existait déjà — plutôt qu'une carte de plus :
+        l'écran est une lecture, pas une célébration.
+
+        Le moteur de programmation n'est pas touché. `resoudreMascotteProgramme`
+        ne lit rien et ne calcule rien ; il nomme une intention.
+      */}
+      <EnTeteSecondaire
+        titre="Programme"
+        vers="/settings"
+        libelleRetour="Retour à Plus"
+        action={
+          <MascotteCoach
+            etat={resoudreMascotteProgramme()}
+            taille="normal"
+            presence="normale"
+          />
+        }
+      />
 
       <VueCycle vue={vue} />
 

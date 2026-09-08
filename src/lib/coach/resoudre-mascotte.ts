@@ -44,14 +44,28 @@ import type { EtatVisuelMascotte } from "./mascotte-assets";
  * qu'une douleur vient d'être signalée.
  *
  * `beast` n'y figure pas — il n'entre jamais en concurrence, il est dormant.
+ *
+ * POURQUOI `encouragement` PASSE AVANT `calibration`
+ *
+ * La raison d'être de `calibration` est d'empêcher un FAUX RECORD : une
+ * première mesure produit mécaniquement le meilleur résultat jamais vu, et la
+ * saluer comme un progrès apprendrait à l'athlète que le Coach ne sait pas
+ * distinguer une mesure d'un gain. C'est de `progres` que `calibration` doit
+ * gagner — et elle continue de le faire, ici comme dans chaque résolveur.
+ *
+ * `encouragement` ne revendique rien de tel. Il salue un exercice MENÉ À SON
+ * TERME, ce qui est vrai que l'on soit en train de construire un repère ou non.
+ * Le placer sous `calibration` avait un effet qu'aucune règle produit ne
+ * demandait : pendant toute une reprise, terminer un exercice ne produisait
+ * plus aucun retour.
  */
 export const PRIORITE_MASCOTTE: EtatVisuelMascotte[] = [
   "attention",
   "intervention",
   "repos",
+  "encouragement",
   "calibration",
   "progres",
-  "encouragement",
   "debrief",
   "technique",
   "planification",
@@ -101,7 +115,20 @@ export interface ContexteLive {
   observation?: boolean;
   /** Le minuteur de repos est ouvert. */
   repos?: boolean;
-  /** La phase du cycle demande une réserve de répétitions plutôt qu'un RPE. */
+  /**
+   * L'application est en train de CONSTRUIRE un repère sur l'entrée affichée.
+   *
+   * Ce n'est pas la phase du cycle. `modeSaisieEffort(phase) === "reserve"`
+   * était le premier branchement, et il était trop large d'un ordre de
+   * grandeur : pendant tout un bloc « Reprise & calibration », il rendait
+   * `calibration` ambiant du début à la fin de chaque séance, y compris sur des
+   * machines dont l'historique était fourni. Le fait exact est plus étroit —
+   * cette entrée n'a encore rien de comparable — et l'écran le connaît déjà,
+   * puisqu'il écrit « Pas encore de repère sur cette machine » au même moment.
+   *
+   * Voir `lib/live/repere-precedent.ts` : c'est la même question, et il n'en
+   * existe qu'une seule réponse dans le dépôt.
+   */
   calibration?: boolean;
   /** La validation qui vient d'avoir lieu a terminé l'exercice. */
   exerciceTermine?: boolean;
@@ -126,14 +153,20 @@ export function resoudreMascotteLive(ctx: ContexteLive): EtatVisuelMascotte {
   if (ctx.repos) return "repos";
 
   /*
-   * La calibration passe AVANT la fin d'exercice.
+   * La fin d'exercice passe AVANT la calibration — et c'est un renversement.
    *
-   * Pendant une reprise, terminer un exercice ne prouve rien qu'on puisse
-   * célébrer : la série servait à construire un repère. Féliciter ici
-   * apprendrait à l'athlète que le Coach félicite tout.
+   * L'ordre inverse partait d'une intuition juste appliquée trop loin : ne pas
+   * célébrer une baseline. Mais `encouragement` ne célèbre pas une performance,
+   * il salue un exercice terminé — un fait qui reste vrai pendant qu'on
+   * construit un repère. Sous l'ancien ordre, une reprise entière se déroulait
+   * sans le moindre retour de fin d'exercice.
+   *
+   * Ce qui reste interdit est ailleurs et n'a pas bougé : une baseline ne
+   * devient jamais `progres`. Voir `resoudreMascotteFinDeSeance` et
+   * `resoudreMascotteProgression`, où `calibration` garde la priorité sur lui.
    */
-  if (ctx.calibration) return "calibration";
   if (ctx.exerciceTermine) return "encouragement";
+  if (ctx.calibration) return "calibration";
   if (ctx.avantDemarrage) return "ready";
   return "training";
 }
@@ -257,4 +290,71 @@ export function resoudreMascotteProgression(
  */
 export function resoudreMascotteProgramme(): EtatVisuelMascotte {
   return "planification";
+}
+
+// ---------------------------------------------------------------------------
+// AUJOURD'HUI
+// ---------------------------------------------------------------------------
+
+/**
+ * Ce que l'accueil sait de la journée — et rien qu'il aurait déduit lui-même.
+ *
+ * Chaque champ correspond à un fait déjà établi ailleurs : l'état du jour vient
+ * de `lib/engine/etat-du-jour`, le feu de `lib/engine/feu-biologique`. L'accueil
+ * les traduit, il ne les recalcule pas.
+ */
+export interface ContexteAccueil {
+  /** Le feu du jour dit « récupérer » : ce n'est pas un jour à charger. */
+  recuperationRequise?: boolean;
+  /**
+   * Un progrès notable, établi par le moteur.
+   *
+   * AUCUNE SURFACE NE LE RENSEIGNE AUJOURD'HUI, et c'est délibéré : rien de ce
+   * que l'accueil lit sur son chemin critique n'établit un progrès comparable.
+   * Le bilan qui le sait — `lib/engine/bilan-progression` — vit dans le
+   * complément, derrière une limite de suspension, et l'y remonter rendrait
+   * l'accueil bloquant pour une image. Le champ existe, il est ordonné, il est
+   * testé ; il attend une source honnête plutôt qu'une approximation.
+   */
+  progresConfirme?: boolean;
+  /** La journée d'entraînement est derrière : il y a un bilan à lire. */
+  bilanDisponible?: boolean;
+  /** L'application attend une décision d'organisation : un lieu, du matériel. */
+  organisationRequise?: boolean;
+  /** Les premiers repères sont encore à construire. */
+  calibration?: boolean;
+  /** Une séance existe et attend d'être lancée. */
+  seancePrete?: boolean;
+}
+
+/**
+ * Le visage du Coach à l'ouverture de l'application.
+ *
+ * `null` EST UNE RÉPONSE. Quand aucun fait ne s'applique, l'accueil n'affiche
+ * pas de mascotte plutôt que d'en choisir une par défaut : une image posée là
+ * pour ne pas laisser de vide finit par ne plus vouloir dire qu'une chose,
+ * « il y a une image ».
+ *
+ * `analyse` n'apparaît pas ici, et ce n'est pas un oubli : l'accueil dit ce
+ * qu'on va faire aujourd'hui, l'analyse est la question de l'écran Progression,
+ * et c'est lui qui la porte.
+ */
+export function resoudreMascotteAccueil(
+  ctx: ContexteAccueil,
+): EtatVisuelMascotte | null {
+  if (ctx.recuperationRequise) return "attention";
+
+  /*
+   * La calibration avant le progrès, comme partout ailleurs dans ce fichier.
+   *
+   * Un compte qui pose ses premiers repères peut très bien voir son bilan
+   * signaler un « meilleur résultat » : c'est arithmétiquement vrai et
+   * produitement faux. La même règle, au même rang, sur les quatre résolveurs.
+   */
+  if (ctx.calibration) return "calibration";
+  if (ctx.progresConfirme) return "progres";
+  if (ctx.bilanDisponible) return "debrief";
+  if (ctx.organisationRequise) return "planification";
+  if (ctx.seancePrete) return "ready";
+  return null;
 }

@@ -18,8 +18,11 @@ import {
  * le disque plutôt que de faire confiance au registre.
  */
 
-const PUBLIC = path.join(process.cwd(), "public");
+const RACINE = process.cwd();
+const PUBLIC = path.join(RACINE, "public");
 const local = (url: string) => path.join(PUBLIC, url.replace(/^\//, ""));
+/** Les masters sont des chemins de dépôt, plus des URL : ils se lisent ainsi. */
+const depot = (chemin: string) => path.join(RACINE, chemin);
 
 describe("les treize assets existent, et rien de plus", () => {
   it("le registre couvre exactement les états déclarés", () => {
@@ -27,10 +30,14 @@ describe("les treize assets existent, et rien de plus", () => {
     expect(ETATS_MASCOTTE).toHaveLength(13);
   });
 
-  it("chaque état a son master sur le disque", () => {
+  it("chaque état a son master sur le disque, HORS de public/", () => {
     for (const etat of ETATS_MASCOTTE) {
-      const f = local(masterMascotte(etat));
-      expect(existsSync(f), `master manquant : ${etat}`).toBe(true);
+      const chemin = masterMascotte(etat);
+      expect(existsSync(depot(chemin)), `master manquant : ${etat}`).toBe(true);
+      // Un master ne doit pas pouvoir redevenir une URL par distraction.
+      expect(chemin.startsWith("/"), `${etat} : le master ressemble à une URL`)
+        .toBe(false);
+      expect(chemin).toMatch(/^assets\/coach-mascot\/masters\//);
     }
   });
 
@@ -89,6 +96,47 @@ describe("ce qui part sur le téléphone reste léger", () => {
       expect(urlMascotte(etat)).toMatch(/^\/coach-mascot\/w\/.+\.webp$/);
       expect(urlMascotte(etat)).not.toMatch(/\.png$/);
     }
+  });
+
+  it("et AUCUN master n'est publié : `public/` n'en contient plus un seul", () => {
+    /*
+     * LE TEST QUI TIENT LE GAIN.
+     *
+     * Les 13 masters ont vécu dans `public/coach-mascot/` : 15 Mo publiquement
+     * téléchargeables, embarqués dans chaque déploiement, et jamais demandés
+     * une seule fois puisque le runtime lit les dérivés. Rien dans le code ne
+     * les y ramènerait — mais un simple `cp` au moment d'ajouter un état le
+     * ferait, et personne ne s'en apercevrait avant la facture de bande
+     * passante. Le dossier entier est donc inspecté, récursivement.
+     */
+    const pngPublies: string[] = [];
+    const parcourir = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) parcourir(p);
+        else if (/\.(png|jpg|jpeg|tiff?|psd)$/i.test(e.name)) {
+          pngPublies.push(path.relative(PUBLIC, p));
+        }
+      }
+    };
+    parcourir(path.join(PUBLIC, "coach-mascot"));
+
+    expect(pngPublies, "un master est revenu dans public/").toEqual([]);
+  });
+
+  it("le dossier servi tient sous 1,5 Mo", () => {
+    // 15 Mo avant ce nettoyage. Le plafond attrape un master oublié — le plus
+    // petit d'entre eux pèse déjà davantage que la marge laissée ici.
+    let octets = 0;
+    const parcourir = (dir: string) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) parcourir(p);
+        else octets += statSync(p).size;
+      }
+    };
+    parcourir(path.join(PUBLIC, "coach-mascot"));
+    expect(octets / 1024 / 1024).toBeLessThan(1.5);
   });
 });
 

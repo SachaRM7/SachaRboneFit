@@ -2326,3 +2326,84 @@ h3,
 .movement-demo > h2 {
   font: 500 22px var(--font-heading);
 }
+
+/* ---------------------------------------------------------------------------
+   LE COACH SUR L'ACCUEIL
+
+   Une seule présence forte par écran, et c'est celle-ci. Les autres cartes de
+   l'accueil — récupération, alertes, séances récentes, programme — gardent
+   leurs informations et n'ont pas de mascotte : le Coach de la journée est un,
+   pas un par section.
+   --------------------------------------------------------------------------- */
+.hero-mascotte {
+  position: absolute;
+  /* Dans le quart droit que `.hero-copy` laisse libre (max-width: 75%), et
+     au-dessus du pli : ni le titre, ni le bouton ne sont touchés. */
+  top: 16px;
+  right: 14px;
+  z-index: 1;
+  pointer-events: none;
+  line-height: 0;
+}
+.hero-mascotte .mascotte {
+  width: 108px !important;
+  height: 108px !important;
+}
+
+/* Écrit APRÈS `.hero-letter` : c'est la cascade qui fait la règle, et un
+   `:has()` placé avant la règle de base ne l'emporterait pas. */
+.session-hero:has(.hero-mascotte) .hero-letter {
+  display: none;
+}
+
+@media (max-width: 359px) {
+  /* À 320 px, le titre descend d'une ligne : la mascotte se resserre plutôt
+     que de venir chercher la deuxième ligne du titre. */
+  .hero-mascotte .mascotte {
+    width: 84px !important;
+    height: 84px !important;
+  }
+}
+
+/* La reprise porte la même présence, au même endroit : la carte du jour et
+   elle ne sont jamais à l'écran en même temps (`canResume`), donc cela reste
+   UNE mascotte. `position` est nécessaire pour que `.hero-mascotte` s'ancre
+   sur ce panneau et non sur la page. */
+.resume-panel {
+  position: relative;
+}
+/* `h2` fait 36 px et le titre est court : on lui réserve la place plutôt que
+   de laisser la mascotte venir chercher sa deuxième ligne. */
+.resume-panel h2,
+.resume-panel > p:not(.eyebrow) {
+  padding-right: 108px;
+}
+
+/* Le Coach de l'écran Progression : une présence, à droite du titre, sur la
+   colonne que « Tes progrès. » laisse libre. Le titre reste hiérarchie 1. */
+.progression-entete {
+  position: relative;
+}
+.progression-mascotte {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  line-height: 0;
+  pointer-events: none;
+}
+.progression-entete h1,
+.progression-entete .eyebrow,
+.progression-entete > p {
+  padding-right: 108px;
+}
+@media (max-width: 359px) {
+  .progression-mascotte .mascotte {
+    width: 84px !important;
+    height: 84px !important;
+  }
+  .progression-entete h1,
+  .progression-entete .eyebrow,
+  .progression-entete > p {
+    padding-right: 84px;
+  }
+}
