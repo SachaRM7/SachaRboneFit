@@ -141,8 +141,28 @@ export function choisirRepere(
  */
 export function resumeRepere(repere: RepereChoisi): string | null {
   if (!repere.candidat) return null;
-  const s = repere.candidat.series;
-  const charges = [...new Set(s.map((x) => x.charge))];
-  const charge = charges.length === 1 ? `${charges[0]}` : `${Math.min(...charges)}–${Math.max(...charges)}`;
-  return `${charge} · ${s.map((x) => x.reps).join(" / ")}`;
+  return resumeDesSeries(repere.candidat.series);
+}
+
+/**
+ * Une performance passée en une ligne : « 60 · 10 / 9 / 8 ».
+ *
+ * Extrait de `resumeRepere` pour que le Focus puisse afficher son bloc
+ * « Dernière fois » sans se réécrire un second format. Deux formats pour la
+ * même donnée finissent par ne plus dire la même chose — l'un arrondissant,
+ * l'autre non — et l'écart se lit comme une progression.
+ *
+ * `null` quand il n'y a rien : c'est à l'appelant d'afficher son message, pas
+ * à cette fonction de fabriquer un texte qui ressemblerait à une performance.
+ */
+export function resumeDesSeries(
+  series: { charge: number; reps: number }[],
+): string | null {
+  if (series.length === 0) return null;
+  const charges = [...new Set(series.map((x) => x.charge))];
+  const charge =
+    charges.length === 1
+      ? `${charges[0]}`
+      : `${Math.min(...charges)}–${Math.max(...charges)}`;
+  return `${charge} · ${series.map((x) => x.reps).join(" / ")}`;
 }

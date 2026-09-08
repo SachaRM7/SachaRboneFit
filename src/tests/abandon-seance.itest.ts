@@ -105,7 +105,19 @@ describe("8 — abandonner une séance vide fonctionne, et ne touche à rien d'a
     expect(machines[0]?.etat).toBe("disponible");
   });
 
-  it("une séance qui porte des séries est refusée, pas effacée", async () => {
+  /**
+   * LA RÉGRESSION QUE LA PERSISTANCE SÉRIE PAR SÉRIE A INTRODUITE.
+   *
+   * Cette garde a été écrite quand `set_logs` ne recevait rien avant la
+   * clôture : une ligne présente voulait dire « séance terminée ». Depuis que
+   * chaque série validée y arrive immédiatement, elle veut dire « une série a
+   * été cochée » — donc toute séance en cours, dès la première.
+   *
+   * Abandonner devenait impossible dès qu'on avait commencé, c'est-à-dire
+   * exactement quand on en a besoin : on quitte la salle, on ne « termine » pas
+   * une séance qu'on n'a pas faite. Constaté en séance.
+   */
+  it("sans consentement, une séance qui porte des séries est refusée", async () => {
     const seance = await creerSeance({
       userId: MOI, date: "2026-09-12", seanceTemplateId: gabarit, gymId: salle,
     });
@@ -114,16 +126,62 @@ describe("8 — abandonner une séance vide fonctionne, et ne touche à rien d'a
       numeroSerie: 1, repsEffectuees: 10, charge: 45,
     });
 
+    // Le refus subsiste : effacer un travail réel d'un bouton reste interdit.
     await expect(abandonnerSeance(MOI, seance.id)).rejects.toBeInstanceOf(SeanceNonVide);
     expect(await db.query.sessionLogs.findFirst({
       where: eq(schema.sessionLogs.id, seance.id),
     })).toBeDefined();
+  });
 
-    // Elle reste ouverte, et c'est bien ce qu'on veut : l'athlète doit la
-    // terminer. On la clôture ici pour que les cas suivants partent au propre.
+  it("et il dit COMBIEN de séries partiraient, pour que l'écran le nomme", async () => {
+    const seance = await creerSeance({
+      userId: MOI, date: "2026-09-19", seanceTemplateId: gabarit, gymId: salle,
+    });
+    for (const n of [1, 2, 3]) {
+      await db.insert(schema.setLogs).values({
+        sessionLogId: seance.id, exerciseInstanceId: instance,
+        numeroSerie: n, repsEffectuees: 10, charge: 45,
+      });
+    }
+
+    // Un « es-tu sûr ? » qui ne dit pas ce qu'il efface ne fait pas consentir.
+    await expect(abandonnerSeance(MOI, seance.id))
+      .rejects.toMatchObject({ name: "SeanceNonVide", series: 3 });
+
     await db.update(schema.sessionLogs)
       .set({ dureeMinutes: 40 })
       .where(eq(schema.sessionLogs.id, seance.id));
+  });
+
+  it("AVEC consentement, la séance commencée s'abandonne bel et bien", async () => {
+    const seance = await creerSeance({
+      userId: MOI, date: "2026-09-12", seanceTemplateId: gabarit, gymId: salle,
+    });
+    await db.insert(schema.setLogs).values({
+      sessionLogId: seance.id, exerciseInstanceId: instance,
+      numeroSerie: 1, repsEffectuees: 10, charge: 45,
+    });
+    // Une révision accompagne toute série persistée depuis ce lot.
+    await db.insert(schema.setLogRevisions).values({
+      sessionLogId: seance.id, exerciseInstanceId: instance,
+      numeroSerie: 1, revision: 1000,
+    });
+
+    await abandonnerSeance(MOI, seance.id, { avecSeries: true });
+
+    expect(await db.query.sessionLogs.findFirst({
+      where: eq(schema.sessionLogs.id, seance.id),
+    }), "la séance survit à son abandon").toBeUndefined();
+
+    // Rien ne doit rester derrière : une série orpheline compterait dans un
+    // volume, et une révision orpheline ferait refuser une future série au
+    // même numéro.
+    expect(await db.query.setLogs.findMany({
+      where: eq(schema.setLogs.sessionLogId, seance.id),
+    })).toHaveLength(0);
+    expect(await db.query.setLogRevisions.findMany({
+      where: eq(schema.setLogRevisions.sessionLogId, seance.id),
+    })).toHaveLength(0);
   });
 
   it("la séance d'un autre compte est intouchable", async () => {

@@ -342,14 +342,36 @@ export async function terminerSeance(donnees: CloturSeance): Promise<SessionLog>
 }
 
 /**
- * Erreur métier : abandonner une séance qui contient déjà des séries.
+ * Erreur métier : abandonner une séance qui porte des séries, sans le dire.
  *
- * Abandonner efface. Une séance où quelque chose a réellement été fait ne
- * s'efface pas d'un bouton : elle se termine, ou elle reste ouverte.
+ * CE QUE CETTE GARDE PROTÉGEAIT, ET CE QU'ELLE EST DEVENUE
+ *
+ * Elle a été écrite quand `set_logs` ne recevait RIEN avant la clôture : une
+ * séance en cours n'y avait aucune ligne, et une ligne présente signifiait donc
+ * « séance terminée ». Refuser l'abandon dans ce cas était juste.
+ *
+ * La persistance série par série a changé ce que la table veut dire. Chaque
+ * série validée y arrive immédiatement — c'est tout son intérêt : une séance
+ * d'une heure ne tient plus dans un `localStorage` que Safari peut purger. Une
+ * ligne présente signifie maintenant « une série a été validée », ce qui est le
+ * cas de toute séance en cours dès la première coche.
+ *
+ * La garde s'est donc retournée : abandonner devenait impossible dès qu'on
+ * avait commencé, ce qui est exactement le moment où on en a besoin — on quitte
+ * la salle, on ne « termine » pas une séance qu'on n'a pas faite.
+ *
+ * Elle reste, mais comme garde-fou de DERNIER RECOURS : elle n'arrête plus que
+ * l'appelant qui n'a pas dit explicitement qu'il acceptait de perdre ces
+ * séries. Le consentement remplace le refus.
  */
 export class SeanceNonVide extends Error {
-  constructor() {
-    super("Cette séance contient des séries : termine-la plutôt que de l'abandonner");
+  constructor(
+    /** Combien de séries partiraient — l'écran doit pouvoir le dire. */
+    readonly series: number = 0,
+  ) {
+    super(
+      "Cette séance contient des séries : confirme leur suppression pour l'abandonner",
+    );
     this.name = "SeanceNonVide";
   }
 }
@@ -383,11 +405,19 @@ export async function seanceOuverte(userId: string): Promise<SessionLog | null> 
  * réapparaissait, et une nouvelle tentative en créait une de plus. C'est ce
  * qui a produit les séances fantômes et le « 4 séances cette semaine ».
  *
- * Ce qui part : la ligne et son plan, qui n'ont jamais rien mesuré. Ce qui ne
- * bouge pas : le gabarit, le bloc, l'inventaire, et toute séance qui porte des
- * séries — la suppression est refusée dans ce cas plutôt que silencieuse.
+ * Ce qui part : la ligne, son plan, ses incidents, et — seulement si l'appelant
+ * l'a explicitement demandé — les séries déjà validées. Ce qui ne bouge pas :
+ * le gabarit, le bloc, l'inventaire.
+ *
+ * `avecSeries` n'est pas une formalité. Depuis la persistance série par série,
+ * toute séance commencée porte des séries : sans consentement explicite, on
+ * effacerait d'un bouton un travail réellement effectué. Voir `SeanceNonVide`.
  */
-export async function abandonnerSeance(userId: string, sessionLogId: string): Promise<void> {
+export async function abandonnerSeance(
+  userId: string,
+  sessionLogId: string,
+  { avecSeries = false }: { avecSeries?: boolean } = {},
+): Promise<void> {
   const seance = await db.query.sessionLogs.findFirst({
     where: and(
       eq(sessionLogs.id, sessionLogId),
@@ -401,9 +431,15 @@ export async function abandonnerSeance(userId: string, sessionLogId: string): Pr
     where: eq(setLogs.sessionLogId, sessionLogId),
     columns: { id: true },
   });
-  if (series.length > 0) throw new SeanceNonVide();
+  if (series.length > 0 && !avecSeries) throw new SeanceNonVide(series.length);
 
   await db.transaction(async (tx) => {
+    // Les séries d'abord : elles citent la séance. `set_log_revisions` part
+    // avec la séance par cascade — sa clé étrangère est en ON DELETE CASCADE,
+    // et une révision orpheline ferait refuser une future série au même numéro.
+    if (series.length > 0) {
+      await tx.delete(setLogs).where(eq(setLogs.sessionLogId, sessionLogId));
+    }
     // Le plan cite la séance : il part avec elle, et lui seul. Les lignes de
     // gabarit qu'il référence ne sont pas touchées.
     await tx.delete(sessionPlanItems).where(eq(sessionPlanItems.sessionLogId, sessionLogId));

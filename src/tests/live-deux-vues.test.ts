@@ -45,6 +45,9 @@ function fichiers(relatif: string, suffixes: string[]): string[] {
 
 const PAGE = "app/(app)/sessions/new/[templateId]/page.tsx";
 const FOCUS = "components/session/VueFocus.tsx";
+const LECTEUR = "components/session/LecteurExercice.tsx";
+const TABLEAU = "components/session/TableauSeries.tsx";
+const CONTROLEUR = "components/session/useSaisieSeries.ts";
 const LISTE_COMPACTE = "components/session/ListeCompacte.tsx";
 const SELECTEUR = "components/session/SelecteurVue.tsx";
 const VUE_LIVE = "lib/live/vue-live.ts";
@@ -52,23 +55,59 @@ const STORE = "stores/sessionStore.ts";
 const SERIE_EN_VOL = "components/session/serie-en-vol.ts";
 
 describe("il n'y a rien à synchroniser entre les deux vues", () => {
-  it("Focus rend le MÊME composant de saisie que la Liste", () => {
+  it("les deux vues passent par le MÊME contrôleur de saisie", () => {
     /*
-     * La forme exacte à empêcher : un tracker réécrit pour Focus. Il aurait sa
-     * propre validation, son propre historique, sa propre réouverture de série
-     * — et la première correction faite d'un côté manquerait de l'autre.
+     * CE QUE CE GARDE PROTÈGE A CHANGÉ DE FORME, PAS DE NATURE.
+     *
+     * Il exigeait que le Focus rende `TableauSeries` — le composant de la vue
+     * Liste. C'était la façon la plus simple de garantir qu'il n'existe qu'une
+     * validation, qu'un historique, qu'une réouverture de série ; c'était aussi
+     * ce qui rendait les deux vues presque identiques, et donc le Focus inutile.
+     *
+     * La séparation des deux compositions est délibérée. Ce qui reste interdit
+     * est la duplication de ce qui DÉCIDE : les deux vues doivent lire le même
+     * contrôleur. La forme à empêcher est toujours la même — un tracker réécrit
+     * pour l'une des deux, dont la première correction manquerait à l'autre.
      */
-    const focus = lire(FOCUS);
-    expect(focus).toMatch(/<TableauSeries\s/);
-    expect(focus, "Focus parle au store directement au lieu de passer par TableauSeries")
-      .not.toMatch(/useSessionStore/);
+    for (const vue of [LECTEUR, TABLEAU]) {
+      expect(lire(vue), `${vue} n'utilise pas useSaisieSeries`)
+        .toMatch(/useSaisieSeries\(\{/);
+    }
+    // La vue Focus est une COMPOSITION : elle navigue, elle ne saisit pas.
+    expect(lire(FOCUS), "VueFocus court-circuite le lecteur")
+      .toMatch(/<LecteurExercice\s/);
   });
 
-  it("et Focus n'écrit aucune série lui-même", () => {
-    const focus = lire(FOCUS);
-    for (const interdit of ["upsertSet", "removeSet", "fetch(", "/api/"]) {
-      expect(focus, `VueFocus contient ${interdit}`).not.toContain(interdit);
+  it("et aucune vue n'écrit de série elle-même", () => {
+    /*
+     * `useSaisieSeries` est le seul à toucher au store. Une vue qui appelle
+     * `upsertSet` directement contourne la validation qui refuse une série
+     * vide, et la série disparaît silencieusement à la clôture.
+     */
+    for (const vue of [FOCUS, LECTEUR, TABLEAU]) {
+      for (const interdit of ["upsertSet", "removeSet", "fetch(", "/api/"]) {
+        expect(lire(vue), `${vue} contient ${interdit}`).not.toContain(interdit);
+      }
     }
+  });
+
+  it("les lignes rendues ne sont pas les slots restants", () => {
+    /*
+     * LE DÉFAUT DU DEADLIFT.
+     *
+     * `slotsARemplir` rend ce qu'il RESTE à faire : la liste rétrécit à chaque
+     * validation, c'est sa raison d'être. La passer à une vue comme liste de
+     * lignes faisait disparaître la série qu'on venait de valider — 1/2 affiché,
+     * et S1 introuvable.
+     *
+     * Aucune vue ne doit donc appeler `slotsARemplir` pour décider de son rendu.
+     * Elles passent par `lignesAAfficher`, qui réunit le fait et le restant.
+     */
+    for (const vue of [FOCUS, LECTEUR, TABLEAU]) {
+      expect(lire(vue), `${vue} rend les slots libres au lieu des lignes`)
+        .not.toContain("slotsARemplir");
+    }
+    expect(lire(CONTROLEUR)).toMatch(/lignesAAfficher\(/);
   });
 
   it("l'avancement est calculé une seule fois, pour les deux vues", () => {
@@ -202,7 +241,9 @@ describe("le pas du stepper vient du matériel, pas de l'écran", () => {
   });
 
   it("aucun composant de séance n'écrit d'incrément en dur", () => {
-    for (const f of [FOCUS, "components/session/TableauSeries.tsx", "components/session/PasDeCharge.tsx"]) {
+    // Le Focus rend désormais ses propres boutons de cran : il est le premier
+    // endroit où un `charge + 2.5` écrit à la main serait tentant.
+    for (const f of [FOCUS, LECTEUR, TABLEAU, "components/session/crans-de-charge.ts"]) {
       const source = lire(f);
       expect(source, `${f} ajoute un incrément écrit à la main`)
         .not.toMatch(/charge\s*[+-]\s*[0-9]/);
@@ -210,7 +251,7 @@ describe("le pas du stepper vient du matériel, pas de l'écran", () => {
   });
 
   it("le stepper demande au moteur, il ne calcule pas", () => {
-    const source = lire("components/session/PasDeCharge.tsx");
+    const source = lire("components/session/crans-de-charge.ts");
     expect(source).toMatch(/voisineCharge\(/);
     // `prochaineCharge` suivrait la PROGRESSION, qui descend sur une
     // assistance : le `+` allègerait l'exercice sans rien dire.
@@ -224,10 +265,18 @@ describe("le pas du stepper vient du matériel, pas de l'écran", () => {
      * soulevé. L'écran informe et propose les voisines réelles ; c'est
      * l'utilisateur qui choisit.
      */
-    const source = lire("components/session/PasDeCharge.tsx");
+    const source = lire("components/session/crans-de-charge.ts");
     expect(source).toMatch(/export function alerteChargeIrrealisable/);
     expect(source).toMatch(/chargeAtteignable\(/);
-    expect(lire("components/session/TableauSeries.tsx")).toMatch(/alerteChargeIrrealisable\(/);
+    /*
+     * L'alerte est calculée dans le contrôleur, donc pour LES DEUX vues à la
+     * fois : elle vivait dans le tableau, où seule la Liste en profitait.
+     */
+    expect(lire(CONTROLEUR)).toMatch(/alerteChargeIrrealisable\(/);
+    for (const vue of [LECTEUR, TABLEAU]) {
+      expect(lire(vue), `${vue} n'affiche pas l'alerte de charge`)
+        .toMatch(/alerte/);
+    }
   });
 
   it("la grille complète de l'appareil atteint bien la prescription", () => {
@@ -331,7 +380,9 @@ describe("le Live dégage les zones réservées d'iOS", () => {
 
     const css = lire("app/live-session.css");
     expect(page).toMatch(/className="live-session-header sticky/);
-    expect(css).toMatch(/\.live-session-persistent\s*\{[^}]*min-height:44px/);
+    // L'espace après `:` est optionnel : ce garde protège une hauteur de cible
+    // tactile, pas un style de mise en forme du CSS.
+    expect(css).toMatch(/\.live-session-persistent\s*\{[^}]*min-height:\s*44px/);
     expect(css).not.toContain(".live-session-context");
   });
 
@@ -365,10 +416,75 @@ describe("le Live dégage les zones réservées d'iOS", () => {
   });
 
   it("les contrôles de saisie gardent une cible tactile suffisante", () => {
-    // 44 px est le minimum d'iOS. Des boutons plus petits se ratent avec les
-    // mains moites, entre deux séries.
-    const stepper = lire("components/session/PasDeCharge.tsx");
-    expect(stepper).toMatch(/w-11 h-11/);
-    expect(lire("components/session/TableauSeries.tsx")).toMatch(/w-11 h-11/);
+    /*
+     * 44 px est le minimum d'iOS. Des boutons plus petits se ratent avec les
+     * mains moites, entre deux séries.
+     *
+     * Les tailles vivaient dans les classes utilitaires des composants ; elles
+     * sont passées dans la feuille du Live avec la refonte. Le garde suit —
+     * l'invariant est la taille, pas l'endroit où elle est écrite.
+     */
+    const css = lire("app/live-session.css");
+
+    /**
+     * La hauteur déclarée par un sélecteur, en pixels.
+     *
+     * Le garde LIT la valeur au lieu de l'imposer : figer « 60px » revenait à
+     * interdire toute recomposition du Focus, alors que la promesse est un
+     * plancher de 44 px, pas une taille précise. Un garde qui casse à chaque
+     * ajustement finit par être mis à jour sans être relu.
+     */
+    const hauteurDe = (selecteur: string): number | null => {
+      const bloc = css.match(
+        new RegExp(`${selecteur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`),
+      )?.[1];
+      const px = bloc?.match(/(?:^|[\s;])(?:min-)?height:\s*(\d+)px/)?.[1];
+      return px ? Number(px) : null;
+    };
+
+    const CIBLE_IOS = 44;
+    for (const selecteur of [
+      ".serie-champ",
+      ".live-serie-geste",
+      ".mesure-ligne > button",
+      ".mesure-choix > button",
+      ".serie-valider",
+      ".focus-nav > button",
+    ]) {
+      const h = hauteurDe(selecteur);
+      expect(h, `${selecteur} ne déclare plus de hauteur`).not.toBeNull();
+      expect(h, `${selecteur} descend sous la cible tactile d'iOS`)
+        .toBeGreaterThanOrEqual(CIBLE_IOS);
+    }
+
+    /*
+     * Et à 320 px, la largeur qui force vraiment les arbitrages : rétrécir sous
+     * 44 px pour faire tenir trois champs est exactement ce qu'il ne faut pas
+     * faire — c'est la ligne qui passe en deux rangées, pas la cible.
+     */
+    const etroit = css.slice(css.indexOf("@media (max-width: 359px)"));
+    expect(etroit, "le palier 320 px n'existe plus").toBeTruthy();
+
+    /*
+     * On vise les CIBLES, pas toutes les hauteurs déclarées : une rangée de
+     * liste peut légitimement mesurer 42 px, un bouton non. La version
+     * précédente interdisait les deux et se serait fait désarmer au premier
+     * ajustement de mise en page.
+     */
+    for (const selecteur of [
+      ".live-serie-geste",
+      ".mesure-ligne > button",
+      ".mesure-choix > button",
+    ]) {
+      const bloc = etroit.match(
+        new RegExp(`${selecteur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`),
+      )?.[1];
+      // Absent du palier étroit : la règle générale s'applique, déjà vérifiée.
+      if (!bloc) continue;
+      const px = bloc.match(/(?:^|[\s;])(?:min-)?height:\s*(\d+)px/)?.[1];
+      if (!px) continue;
+      expect(Number(px), `${selecteur} rétrécit sous 44 px à 320 px`)
+        .toBeGreaterThanOrEqual(44);
+    }
   });
 });

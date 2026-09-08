@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, List } from "lucide-react";
-import { TableauSeries } from "./TableauSeries";
+import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { LecteurExercice } from "./LecteurExercice";
 import { ListeCompacte } from "./ListeCompacte";
 import type { ExercicePrescrit } from "./types";
 import type { AvancementExercice } from "@/lib/live/vue-live";
@@ -17,19 +17,16 @@ import type { AvancementExercice } from "@/lib/live/vue-live";
  * courant se perd au milieu, et il faut chercher où l'on en est entre deux
  * séries, une main sur le téléphone.
  *
- * Les deux besoins sont réels, et ils ne se satisfont pas au même moment. D'où
- * deux vues — celle-ci pour faire, la Liste pour relire.
+ * CE QUI A CHANGÉ
  *
- * CE QU'ELLE NE FAIT PAS
+ * Cette vue rendait auparavant le tableau de la vue Liste avec un exercice au
+ * lieu de six. Les deux se ressemblaient donc au point qu'on ne savait pas
+ * laquelle on regardait. Elle compose maintenant son propre lecteur — voir
+ * `LecteurExercice` — et la parenté avec la Liste ne passe plus par le DOM mais
+ * par `useSaisieSeries` : le même store, les mêmes lignes, la même validation.
  *
- * Elle ne réimplémente aucun tracker. La saisie, la validation, l'historique
- * « Dernière », la réouverture d'une série, la fiche d'exécution : tout vient
- * de `TableauSeries`, exactement comme en vue Liste. La seule différence entre
- * les deux vues est le NOMBRE d'exercices rendus — un ici, tous là-bas.
- *
- * C'est ce qui garantit qu'une série validée en Focus est immédiatement
- * validée en Liste : ce n'est pas une synchronisation, c'est le même composant
- * lisant le même store.
+ * Ce fichier ne garde donc que ce qui est propre à la NAVIGATION : où l'on est
+ * dans la séance, et comment aller ailleurs.
  */
 
 interface Props {
@@ -44,12 +41,6 @@ interface Props {
   modeReserve?: boolean;
   /** Les actions propres à un exercice — remplacement, réglages — déjà montées. */
   actions?: (exercice: ExercicePrescrit) => ReactNode;
-  /** Les slots de prescription restants — voir `TableauSeries`. */
-  slotsDe?: (exercice: ExercicePrescrit) => number[];
-  avancementDe?: (exercice: ExercicePrescrit) => {
-    faites: number;
-    cibles: number;
-  };
 }
 
 export function VueFocus({
@@ -61,16 +52,12 @@ export function VueFocus({
   onSerieValidee,
   modeReserve = false,
   actions,
-  slotsDe,
-  avancementDe,
 }: Props) {
   const [listeOuverte, setListeOuverte] = useState(false);
   const exercice = exercices[courant];
 
   if (!exercice) {
-    return (
-      <p className="text-encre-3 text-sm px-1">Aucun exercice à afficher.</p>
-    );
+    return <p className="text-encre-3 text-sm px-1">Aucun exercice à afficher.</p>;
   }
 
   const precedent = courant > 0 ? courant - 1 : null;
@@ -82,72 +69,87 @@ export function VueFocus({
   };
 
   return (
-    <div className="focus-v2 space-y-4">
+    <div className="focus-v2">
       {/*
-        La barre de navigation : où l'on est, et comment aller ailleurs.
-
-        Les deux flèches encadrent le compteur plutôt que d'être empilées avec
-        lui : les pouces atteignent les bords de l'écran, pas son centre.
+        Où l'on est dans la séance — porté par le rang de l'exercice plutôt que
+        par un contrôle utilitaire posé à côté. Les flèches encadrent le
+        compteur : les pouces atteignent les bords de l'écran, pas son centre.
       */}
-      <div className="flex items-center gap-2">
+      <nav className="focus-nav" aria-label="Navigation entre les exercices">
         <button
           onClick={() => precedent !== null && aller(precedent)}
           disabled={precedent === null}
           aria-label="Exercice précédent"
-          className="shrink-0 rounded-2xl border border-filet-doux bg-carte p-2.5 disabled:opacity-30 active:bg-filet"
         >
-          <ChevronLeft className="w-5 h-5 text-encre-2" aria-hidden />
+          <ChevronLeft className="w-5 h-5" aria-hidden />
         </button>
 
+        {/* Le rang ouvre la séance entière : le nom de l'exercice est déjà en
+            grand dans le lecteur, le répéter ici ne dirait rien de plus. */}
         <button
-          onClick={() => setListeOuverte((v) => !v)}
+          onClick={() => setListeOuverte(true)}
           aria-expanded={listeOuverte}
-          className="flex-1 min-w-0 rounded-2xl border border-filet-doux bg-carte px-3 py-2 active:bg-filet"
+          aria-haspopup="dialog"
+          className="focus-nav-rang"
         >
-          <span className="flex items-center justify-center gap-2">
-            <List className="w-4 h-4 text-encre-3 shrink-0" aria-hidden />
-            <span className="text-encre text-sm font-medium truncate">
-              {exercice.nom}
-            </span>
-            <span className="chiffres text-xs text-encre-3 shrink-0">
-              {courant + 1}/{exercices.length}
-            </span>
+          <span className="eyebrow">Exercice</span>
+          <span className="chiffres">
+            {courant + 1} / {exercices.length}
           </span>
+          <ChevronDown className="w-4 h-4" aria-hidden />
         </button>
 
         <button
           onClick={() => suivant !== null && aller(suivant)}
           disabled={suivant === null}
           aria-label="Exercice suivant"
-          className="shrink-0 rounded-2xl border border-filet-doux bg-carte p-2.5 disabled:opacity-30 active:bg-filet"
         >
-          <ChevronRight className="w-5 h-5 text-encre-2" aria-hidden />
+          <ChevronRight className="w-5 h-5" aria-hidden />
         </button>
-      </div>
+      </nav>
 
-      {/*
-        Toute la séance, à un appui. Repliée par défaut : elle sert à s'orienter,
-        pas à occuper l'écran pendant qu'on soulève.
-      */}
-      {listeOuverte && (
-        <div className="rounded-3xl border border-filet-doux bg-carte p-3">
-          <ListeCompacte etats={etats} courant={courant} onChoisir={aller} />
-        </div>
-      )}
-
-      {/*
-        Le même composant qu'en vue Liste, avec le même store derrière. Une
-        série validée ici est validée là-bas — il n'y a rien à synchroniser.
-      */}
-      <TableauSeries
+      <LecteurExercice
         exercice={exercice}
         rpeReduction={rpeReduction(exercice.id)}
-        onSerieValidee={onSerieValidee}
         modeReserve={modeReserve}
+        onSerieValidee={onSerieValidee}
         actions={actions?.(exercice)}
-        slots={slotsDe?.(exercice)}
-        avancementSlot={avancementDe?.(exercice)}
+        onSuivant={suivant !== null ? () => aller(suivant) : null}
       />
+
+      {/*
+        Toute la séance, à un appui — en feuille plutôt qu'en accordéon : elle
+        sert à s'orienter, et une liste qui pousse le lecteur vers le bas fait
+        perdre la place qu'on venait justement regarder.
+      */}
+      {listeOuverte && (
+        <div
+          className="focus-feuille"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Exercices de la séance"
+        >
+          <button
+            type="button"
+            className="focus-feuille-fond"
+            aria-label="Fermer"
+            onClick={() => setListeOuverte(false)}
+          />
+          <div className="focus-feuille-panneau">
+            <header>
+              <p className="eyebrow">Séance</p>
+              <button
+                type="button"
+                onClick={() => setListeOuverte(false)}
+                aria-label="Fermer"
+              >
+                <X className="w-5 h-5" aria-hidden />
+              </button>
+            </header>
+            <ListeCompacte etats={etats} courant={courant} onChoisir={aller} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

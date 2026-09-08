@@ -18,7 +18,6 @@ import {
   vueParDefaut,
   ligneeDe,
   slotsARemplir,
-  avancementDeLaLignee,
   type VueLive,
 } from "@/lib/live/vue-live";
 import { BandeauAdaptation } from "@/components/session/BandeauAdaptation";
@@ -645,6 +644,32 @@ function ContenuSeanceLive() {
   const termines = etats.filter((e) => e.statut === "termine").length;
 
   /*
+   * Ce que le minuteur de repos annonce.
+   *
+   * Purement informatif, et volontairement DÉRIVÉ de `slotsARemplir` plutôt que
+   * recompté : un second décompte de « la prochaine série » finirait par
+   * annoncer la série 3 pendant que l'écran en demande une autre. `null` quand
+   * l'exercice est fini — il n'y a alors pas de prochaine série ici, et en
+   * inventer une serait un mensonge.
+   */
+  const prochaineSerie = (() => {
+    if (!courant) return null;
+    const [prochain] = slotsARemplir(
+      ligneeDe(active?.lignees ?? [], courant.id),
+      active?.sets ?? [],
+      courant.seriesCibles,
+    );
+    if (prochain === undefined) return null;
+    const charge = courant.chargeSuggeree ?? courant.historique?.[0]?.charge;
+    return [
+      `Série ${prochain}`,
+      charge != null ? `${charge} × ${courant.fourchetteRepsMin}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  })();
+
+  /*
    * Les actions d'un exercice — montées UNE fois, employées par les deux vues.
    *
    * Le remplacement a besoin du parc de la salle et de la séance en cours, que
@@ -653,27 +678,12 @@ function ContenuSeanceLive() {
    * substitution possible en Liste et pas en Focus, sans que rien ne le dise.
    */
   /*
-   * Les numéros de série que CETTE entrée doit encore demander.
-   *
-   * Après une substitution, ce n'est plus « 1 à seriesCibles » : les slots
-   * consommés sur l'ancienne machine sont retirés, et les numéros restants
-   * gardent leur valeur d'origine — la série 2 reste la série 2.
+   * Les lignes d'un exercice et l'avancement de son slot ne sont plus calculés
+   * ici puis passés en propriété : `useSaisieSeries` les dérive du store, pour
+   * les deux vues à la fois. C'est ce découplage qui a fermé le défaut où une
+   * série validée disparaissait de sa carte — l'écran passait au tableau les
+   * SLOTS LIBRES en croyant lui passer les LIGNES À RENDRE.
    */
-  const slotsDe = (exercice: (typeof visibles)[number]) =>
-    slotsARemplir(
-      ligneeDe(active?.lignees ?? [], exercice.id),
-      active?.sets ?? [],
-      exercice.seriesCibles,
-    );
-
-  /** L'avancement du slot, toutes machines confondues. */
-  const avancementDe = (exercice: (typeof visibles)[number]) =>
-    avancementDeLaLignee(
-      ligneeDe(active?.lignees ?? [], exercice.id),
-      active?.sets ?? [],
-      exercice.seriesCibles,
-    );
-
   const ouvrirIncidentExercice = (
     exerciceId: string,
     incident: "machine" | "douleur",
@@ -870,6 +880,29 @@ function ContenuSeanceLive() {
           </div>
         )}
 
+        {/*
+          La consigne de calibration : UNE fois, en tête de séance.
+
+          Elle était répétée sur chaque carte d'exercice — six bandes disant la
+          même chose sur une séance de six exercices, à relire à chaque
+          défilement. C'est une consigne de phase, pas une propriété d'un
+          exercice : elle appartient à la séance. Le détail complet reste à un
+          appui, pour qui découvre la notion.
+        */}
+        {visibles.length > 0 && modeSaisieEffort(seance.phaseCycle) === "reserve" && (
+          <details className="live-calibration">
+            <summary>
+              <span className="eyebrow">Calibration</span>
+              Après la série, indique combien de reps il te restait.
+            </summary>
+            <p>
+              C&apos;est cette réponse qui fixera tes charges. Tu peux ajuster la
+              charge entre les séries pour viser ~3 répétitions en réserve — rien
+              n&apos;est modifié automatiquement, la mesure reste ce qui est saisi.
+            </p>
+          </details>
+        )}
+
         {visibles.length === 0 ? (
           <p className="text-encre-3">Aucun exercice dans cette séance.</p>
         ) : vue === "focus" ? (
@@ -882,12 +915,10 @@ function ContenuSeanceLive() {
             modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
             onSerieValidee={lancerRepos}
             actions={actionsDeLExercice}
-            slotsDe={slotsDe}
-            avancementDe={avancementDe}
           />
         ) : (
-          /* La vue Liste, inchangée : toute la séance d'un coup, pour scanner
-             ce qui reste ou corriger plusieurs séries d'affilée. */
+          /* La vue Liste : toute la séance d'un coup, pour scanner ce qui reste
+             ou corriger plusieurs séries d'affilée. */
           visibles.map((exercice) => (
             <TableauSeries
               key={exercice.id}
@@ -896,8 +927,6 @@ function ContenuSeanceLive() {
               modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
               onSerieValidee={lancerRepos}
               actions={actionsDeLExercice(exercice)}
-              slots={slotsDe(exercice)}
-              avancementSlot={avancementDe(exercice)}
             />
           ))
         )}
@@ -913,10 +942,14 @@ function ContenuSeanceLive() {
         </Button>
       </div>
 
+      {/* Le repos est une feuille qui monte du bas, comme les autres feuilles de
+          l'application — et non plus une boîte posée au milieu d'un voile. La
+          logique du minuteur, elle, n'a pas changé. */}
       {timerVisible && active?.restDurationSeconds && (
-        <div className="fixed inset-0 z-50 bg-encre/80 flex items-center justify-center p-4">
-          <div className="bg-carte rounded-xl border border-filet">
+        <div className="repos-feuille">
+          <div className="repos-panneau">
             <RestTimer
+              prochaine={prochaineSerie}
               durationSeconds={active.restDurationSeconds}
               onComplete={playBeep}
               onSkip={passerRepos}

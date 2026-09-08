@@ -8,7 +8,17 @@ import {
   SeanceNonVide,
 } from "@/services/seances";
 
-const schema = z.object({ sessionLogId: z.string().uuid().optional() });
+const schema = z.object({
+  sessionLogId: z.string().uuid().optional(),
+  /**
+   * L'accord explicite pour perdre les séries déjà validées.
+   *
+   * Depuis la persistance série par série, toute séance commencée en porte :
+   * sans ce drapeau, le service refuse et dit combien partiraient. C'est
+   * l'écran qui recueille le consentement, pas le serveur qui le suppose.
+   */
+  supprimerLesSeries: z.boolean().optional(),
+});
 
 /**
  * Abandonner la séance en cours.
@@ -37,14 +47,20 @@ export async function POST(request: Request) {
     // l'écran doit pouvoir se remettre d'aplomb sans afficher un échec.
     if (!cible) return NextResponse.json({ ok: true, abandonnee: false });
 
-    await abandonnerSeance(userId, cible);
+    await abandonnerSeance(userId, cible, {
+      avecSeries: parsed.data.supprimerLesSeries === true,
+    });
     return NextResponse.json({ ok: true, abandonnee: true });
   } catch (error) {
     if (error instanceof SeanceIntrouvable) {
       return NextResponse.json({ error: "Séance introuvable" }, { status: 404 });
     }
     if (error instanceof SeanceNonVide) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
+      // Le compte des séries permet à l'écran de nommer ce qui serait perdu.
+      return NextResponse.json(
+        { error: error.message, series: error.series },
+        { status: 409 },
+      );
     }
     console.error("[sessions/abandon POST]", error);
     return NextResponse.json({ error: "Abandon impossible" }, { status: 500 });
