@@ -417,6 +417,21 @@ export function TableauSeries({
         </p>
       )}
 
+      {/*
+        L'aveu, quand il n'y a rien à comparer.
+
+        Après une substitution, la nouvelle machine n'a pas d'historique. La
+        colonne « Dernière » affiche alors des tirets, ce qui se lit comme une
+        absence de données plutôt que comme une information. Le dire
+        explicitement évite surtout la tentation inverse : emprunter la charge
+        de l'ancienne machine, où le même nombre ne déplace pas la même chose.
+      */}
+      {(exercice.historique ?? []).length === 0 && (
+        <p className="px-3.5 py-2 text-xs text-encre-3 border-b border-filet-doux">
+          Pas encore de repère sur cette machine.
+        </p>
+      )}
+
       {(exercice.raisonSubstitution || exercice.messageProgression) && (
         <p className="px-3.5 py-2 text-xs border-b border-filet-doux">
           {exercice.raisonSubstitution && (
