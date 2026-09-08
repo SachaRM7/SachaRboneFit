@@ -8,7 +8,6 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import {
   CHART_THEME,
@@ -155,12 +154,6 @@ export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
                 color: couleursGraphique().trace,
               }}
             />
-            <Legend
-              wrapperStyle={{
-                fontSize: CHART_THEME.fontSize.sm,
-                color: CHART_THEME.textColor,
-              }}
-            />
             {series.map((pilier) => (
               <Bar
                 key={pilier}
@@ -173,6 +166,14 @@ export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <ul className="pillar-legend" aria-label="Piliers du graphique">
+        {series.map((pilier) => (
+          <li key={pilier}>
+            <span style={{ backgroundColor: getPillarColor(pilier) }} aria-hidden />
+            {nomDeSerie(pilier)}
+          </li>
+        ))}
+      </ul>
       <p className="text-encre-3 text-xs text-center">
         Volume soulevé par semaine — charge × répétitions, empilé par pilier.
       </p>

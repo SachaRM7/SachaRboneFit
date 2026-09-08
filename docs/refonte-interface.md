@@ -68,3 +68,4 @@ La carte de séance interrompue place désormais les actions sous le message sur
 - Contrôle mobile à 390 et 320 px sur une route temporaire retirée : accueil, groupes et détails musculaires, navigation aller/retour des quatre vues, première référence, volume nul, records/références et absence de pesées. Les données de démonstration étaient isolées ; aucune séance ni pesée réelle n’a été écrite.
 - 1 384 tests réussis ; ESLint ciblé et TypeScript sans erreur.
 - Compilation de production Next.js réussie après retrait de la route de contrôle.
+Contrôle connecté : accueil, récupération et volume réel vérifiés en lecture seule. La légende des neuf piliers est séparée du graphique pour éviter de chevaucher les dates sur mobile.

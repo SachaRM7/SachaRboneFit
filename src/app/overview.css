@@ -326,3 +326,6 @@
   font-size: 0.8rem;
   line-height: 1.5;
 }
+.pillar-legend { display:flex; flex-wrap:wrap; gap:.6rem 1rem; padding:.5rem; }
+.pillar-legend li { display:flex; align-items:center; gap:.4rem; font-size:.75rem; color:var(--encre-2); }
+.pillar-legend li > span { width:.65rem; height:.65rem; border-radius:3px; flex-shrink:0; }
