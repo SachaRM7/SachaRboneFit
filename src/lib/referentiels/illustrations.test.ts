@@ -74,7 +74,7 @@ describe("le manifeste reste ancré au disque", () => {
   it("un dessin retiré entièrement est remplacé par une source explicite", () => {
     for (const slug of Object.keys(ANOMALIES_ILLUSTRATIONS)) {
       if (imagesAffichables(slug).length === 0) {
-        expect(ANOMALIES_ILLUSTRATIONS[slug].demonstration?.url, slug).toMatch(
+        expect(ANOMALIES_ILLUSTRATIONS[slug]?.demonstration?.url, slug).toMatch(
           /^https:\/\//,
         );
       }

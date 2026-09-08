@@ -1,4 +1,6 @@
 "use client";
+import { versMuscles } from "@/lib/referentiels/muscles";
+import { libelleMuscles } from "@/lib/referentiels/libelles";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { useState, useMemo } from "react";
 import { ExerciseFilters } from "./ExerciseFilters";
@@ -40,6 +42,7 @@ export function ExerciseLibrary({ exercises, salles }: ExerciseLibraryProps) {
         [
           ex.nom,
           ...(ex.musclesPrincipaux ?? []),
+          libelleMuscles(versMuscles(ex.musclesPrincipaux)),
           ...ex.instances.map((i) => i.machineNom),
         ].join(" "),
       );

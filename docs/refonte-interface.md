@@ -39,3 +39,5 @@ La carte de séance interrompue place désormais les actions sous le message sur
 - Vérification mobile à 390 × 844 avec réponses API fictives dans une route temporaire retirée : salle présélectionnée, options de shift et matériel, ouverture des courbatures, présentation des fiches et sélection d’image. Aucun état sportif réel enregistré pour ces essais.
 - 1 378 tests passent, dont une régression empêchant la réapparition des dessins de presse sur le hack squat.
 - Compilation Next.js/TypeScript réussie et ESLint sans erreur (89 avertissements). Le contrôle ciblé des illustrations passe après la seconde exclusion.
+
+- Contrôle connecté sur l’aperçu déployé : nom réel St-Martin-Du-Touch dans l’état du jour, accès Mon espace → Banque, catalogue de 120 exercices et fiche Cable Crunch (muscles et consignes) vérifiés en lecture seule. Les anciens codes de muscles sont normalisés dans les cartes et la recherche.
