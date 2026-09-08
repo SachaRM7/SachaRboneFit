@@ -102,13 +102,27 @@ export function ContenuTableauDeBord({
   const [abandonEnCours, setAbandonEnCours] = useState(false);
   const [confirmationAbandon, setConfirmationAbandon] = useState(false);
 
+  /** Ce que l'abandon effacerait — le brouillon le sait déjà. */
+  const seriesEnregistrees = active?.sets?.length ?? 0;
+
   const handleAbandon = async () => {
     setAbandonEnCours(true);
     try {
       const res = await fetch("/api/sessions/abandon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionLogId: active?.id }),
+        /*
+         * Le consentement voyage avec la demande.
+         *
+         * La feuille de confirmation nomme les séries qui partiront ; c'est
+         * elle qui recueille l'accord, et le serveur refuse tant qu'il ne l'a
+         * pas reçu. Sans ce drapeau, abandonner devenait impossible dès la
+         * première série validée — c'est-à-dire dès qu'on en avait besoin.
+         */
+        body: JSON.stringify({
+          sessionLogId: active?.id,
+          supprimerLesSeries: true,
+        }),
       });
       const corps = await res.json().catch(() => null);
       if (!res.ok) throw new Error(corps?.error ?? "Abandon impossible");
@@ -278,6 +292,20 @@ export function ContenuTableauDeBord({
           <DialogHeader>
             <DialogTitle>Abandonner la séance en cours ?</DialogTitle>
             <DialogDescription>
+              {/* Ce qui part est nommé, et compté. Un « es-tu sûr ? » qui ne dit
+                  pas ce qu'il efface ne fait pas consentir, il fait cliquer. */}
+              {seriesEnregistrees > 0 ? (
+                <>
+                  <strong>
+                    {seriesEnregistrees} série
+                    {seriesEnregistrees > 1 ? "s" : ""} déjà enregistrée
+                    {seriesEnregistrees > 1 ? "s" : ""}
+                  </strong>{" "}
+                  {seriesEnregistrees > 1 ? "seront perdues" : "sera perdue"}.
+                  Pour les garder, termine la séance plutôt que de l&apos;abandonner.
+                  <br />
+                </>
+              ) : null}
               Ton programme, ton bloc et le matériel de ta salle ne changent
               pas.
             </DialogDescription>
