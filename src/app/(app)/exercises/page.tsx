@@ -4,7 +4,10 @@ import { db } from "@/db/client";
 import { exercises, exerciseInstances, gyms } from "@/db/schema";
 import { eq, and, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { ExerciseLibrary, type ExerciceAvecInstances } from "@/components/exercises/ExerciseLibrary";
+import {
+  ExerciseLibrary,
+  type ExerciceAvecInstances,
+} from "@/components/exercises/ExerciseLibrary";
 
 export default async function ExercisesPage() {
   const userId = await getAuthenticatedUserId();
@@ -14,11 +17,16 @@ export default async function ExercisesPage() {
   // la bibliotheque affichait le catalogue entier quelle que soit la salle.
   const [tousExercices, instances, salles] = await Promise.all([
     db.query.exercises.findMany(),
-    db.query.exerciseInstances.findMany({ where: isNull(exerciseInstances.archiveLe) }),
+    db.query.exerciseInstances.findMany({
+      where: isNull(exerciseInstances.archiveLe),
+    }),
     db.query.gyms.findMany({ where: isNull(gyms.archiveLe) }),
   ]);
 
-  const instancesParExercice = new Map<string, ExerciceAvecInstances["instances"]>();
+  const instancesParExercice = new Map<
+    string,
+    ExerciceAvecInstances["instances"]
+  >();
   for (const i of instances) {
     const liste = instancesParExercice.get(i.exerciseId) ?? [];
     liste.push({ id: i.id, machineNom: i.machineNom, gymId: i.gymId });
@@ -33,8 +41,16 @@ export default async function ExercisesPage() {
   return (
     <div className="pb-4">
       <div className="p-4 pb-0">
-        <EnTeteSecondaire titre="Bibliothèque" vers="/settings" libelleRetour="Retour à Plus" />
+        <EnTeteSecondaire
+          titre="Banque d’exercices"
+          vers="/settings"
+          libelleRetour="Retour à Mon espace"
+        />
       </div>
+      <p className="px-4 pb-5 text-encre-2 text-sm">
+        Explore les mouvements, les muscles sollicités et les consignes
+        disponibles pour chaque exercice.
+      </p>
       <ExerciseLibrary
         exercises={avecInstances}
         salles={salles.map((g) => ({ id: g.id, nom: g.nom }))}

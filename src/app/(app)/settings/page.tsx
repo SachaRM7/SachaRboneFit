@@ -57,8 +57,8 @@ const ENTRAINEMENT: Entree[] = [
   },
   {
     href: "/exercises",
-    libelle: "Bibliothèque",
-    description: "Tous les exercices",
+    libelle: "Banque d’exercices",
+    description: "Mouvements, muscles et conseils techniques",
     icone: BookOpen,
   },
   {

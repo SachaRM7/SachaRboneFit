@@ -30,3 +30,12 @@ Recherche et examen visuel le 8 septembre 2026. La première passe n'avait pas u
 - [Fitbod](https://fitbod.me/) : référence fonctionnelle pour l'articulation entraînement, matériel et récupération ; aucune reprise de logique ou de contenu.
 
 La carte de séance interrompue place désormais les actions sous le message sur téléphone. La consigne de calibration est raccourcie tout en conservant la demande de réserve de répétitions.
+
+## État du jour et banque d’exercices
+
+- État du jour organisé en trois groupes ; nom de salle rendu par un sélecteur natif, indicateurs sommeil/énergie, matériel et horaires repliables, validation ancrée au-dessus de la navigation. Le chargement, l’échec et l’absence de salles sont distingués. Les valeurs et le corps de la requête restent identiques ; une salle inconnue ne peut plus être envoyée.
+- Accès « Banque d’exercices » depuis Mon espace. Fiches avec muscles principaux/secondaires, consignes pas à pas, points clés, erreurs, sensations et sécurité selon le contenu disponible. Les données enregistrées sont prioritaires ; les fiches déjà rédigées pour le seed servent de repli sans écriture en base.
+- Illustration avec animation et sélection de position. Le contrôle visuel a identifié deux erreurs préexistantes : images de presse à cuisses associées au hack squat, et variante incompatible avec la fiche à genoux du cable crunch. Ces dessins sont écartés partout via le manifeste commun. Liens de remplacement consultés : [hack squat](https://www.strengthlog.com/hack-squat-machine/) et [cable crunch](https://www.strengthlog.com/cable-crunch/) chez StrengthLog. Le reste du corpus n’a pas fait l’objet d’une validation exhaustive du geste.
+- Vérification mobile à 390 × 844 avec réponses API fictives dans une route temporaire retirée : salle présélectionnée, options de shift et matériel, ouverture des courbatures, présentation des fiches et sélection d’image. Aucun état sportif réel enregistré pour ces essais.
+- 1 378 tests passent, dont une régression empêchant la réapparition des dessins de presse sur le hack squat.
+- Compilation Next.js/TypeScript réussie et ESLint sans erreur (89 avertissements). Le contrôle ciblé des illustrations passe après la seconde exclusion.

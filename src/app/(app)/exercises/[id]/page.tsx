@@ -4,17 +4,30 @@ import { db } from "@/db/client";
 import { exercises, exerciseInstances } from "@/db/schema";
 import { eq, and } from "drizzle-orm";
 import { PilierBadge } from "@/components/exercises/PilierBadge";
-import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
+import { DemonstrationExercice } from "@/components/exercises/DemonstrationExercice";
+import { TechniqueExercice } from "@/components/exercises/TechniqueExercice";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { EquiperDansSalle } from "@/components/exercises/EquiperDansSalle";
+import { FICHES_TECHNIQUES } from "@/lib/referentiels/fiches-techniques";
+import { ficheRenseignee } from "@/lib/engine/execution";
 import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
 import { Badge } from "@/components/ui/badge";
-import { libelleProfilTension, libelleTypeMouvement, libelleMuscles } from "@/lib/referentiels/libelles";
+import {
+  libelleProfilTension,
+  libelleTypeMouvement,
+  libelleMuscles,
+} from "@/lib/referentiels/libelles";
 import { LIBELLES_CONVENTION } from "@/lib/validators/exercise-instance";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mannequin } from "@/components/anatomie/Mannequin";
 import { versMuscles } from "@/lib/referentiels/muscles";
 
-export default async function ExerciseDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ExerciseDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   // Mémoïsé pour la durée du rendu : le layout vient de faire cet
   // aller-retour vers le serveur d'authentification, inutile de le refaire.
   const userId = await getAuthenticatedUserId();
@@ -36,29 +49,29 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
   // L'illustration n'etait affichee que dans la liste et les records : la fiche
   // d'un exercice, seul endroit ou l'on vient justement verifier un mouvement,
   // n'en montrait aucune.
-  const fiche = exercise.slug ? CATALOGUE_PAR_SLUG.get(exercise.slug) : undefined;
+  const fiche = exercise.slug
+    ? CATALOGUE_PAR_SLUG.get(exercise.slug)
+    : undefined;
 
   // Passés par le référentiel : de vieilles lignes portent encore le
   // vocabulaire d'avant, et une clé inconnue n'a rien à faire dans le dessin.
+  // Le contenu enregistré est prioritaire ; les fiches du seed restent
+  // consultables même si le catalogue distant n’a pas encore été enrichi.
+  const technique = ficheRenseignee(exercise.ficheTechnique)
+    ? exercise.ficheTechnique
+    : exercise.slug ? FICHES_TECHNIQUES[exercise.slug] : null;
+
   const principaux = versMuscles(exercise.musclesPrincipaux);
   const secondaires = versMuscles(exercise.musclesSecondaires);
 
   return (
-    <div className="p-4 space-y-4">
-      {fiche && exercise.slug && (
-        <div className="flex justify-center rounded-xl border border-filet bg-carte py-6">
-          <IllustrationExercice
-            slug={exercise.slug}
-            nom={exercise.nom}
-            nbFrames={fiche.nbFrames}
-            anime
-            className="h-44 w-44 text-encre"
-          />
-        </div>
-      )}
+    <div className="movement-page p-4 space-y-6">
+      <Link href="/exercises" className="movement-back">
+        <ArrowLeft size={18} aria-hidden /> Banque d’exercices
+      </Link>
 
       <div>
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
           <PilierBadge pilier={exercise.pilier} />
           <Badge variant="outline" className="border-filet text-encre-3">
             {libelleProfilTension(exercise.profilTension)}
@@ -69,6 +82,14 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
         </div>
         <h1 className="text-xl font-bold text-encre">{exercise.nom}</h1>
       </div>
+
+      {fiche && exercise.slug && (
+        <DemonstrationExercice
+          slug={exercise.slug}
+          nom={exercise.nom}
+          nbFrames={fiche.nbFrames}
+        />
+      )}
 
       {/*
         Le MÊME mannequin que la fiche d'exécution, pas une seconde
@@ -83,7 +104,9 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
       */}
       {(principaux.length > 0 || secondaires.length > 0) && (
         <section className="rounded-xl border border-filet bg-carte p-4">
-          <h2 className="text-lg font-semibold text-encre mb-1">Muscles travaillés</h2>
+          <h2 className="text-lg font-semibold text-encre mb-1">
+            Muscles travaillés
+          </h2>
           <p className="text-encre-2 text-sm">{libelleMuscles(principaux)}</p>
           {secondaires.length > 0 && (
             <p className="text-encre-3 text-sm">
@@ -98,27 +121,35 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
             />
           </div>
           <p className="text-xs text-encre-3 mt-2">
-            Teinte pleine : ce que l&apos;exercice vise. Teinte légère : ce qui participe
-            sans être visé.
+            Teinte pleine : ce que l&apos;exercice vise. Teinte légère : ce qui
+            participe sans être visé.
           </p>
         </section>
       )}
 
+      <TechniqueExercice fiche={technique} />
       <div>
         <h2 className="text-lg font-semibold text-encre mb-3">Où le faire</h2>
         {instances.length === 0 ? (
-          <p className="text-encre-3 mb-3">Cet exercice n&apos;est équipé dans aucune de tes salles.</p>
+          <p className="text-encre-3 mb-3">
+            Cet exercice n&apos;est équipé dans aucune de tes salles.
+          </p>
         ) : (
           <div className="space-y-3">
             {instances.map((inst) => (
               <Card key={inst.id} className="bg-carte border-filet">
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-encre text-sm">{inst.machineNom}</CardTitle>
+                  <CardTitle className="text-encre text-sm">
+                    {inst.machineNom}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
                   <p className="text-encre-2 text-xs">{inst.gym?.nom}</p>
                   <p className="text-encre-3 text-xs">
-                    {LIBELLES_CONVENTION[inst.conventionCharge as keyof typeof LIBELLES_CONVENTION] ?? inst.conventionCharge} · incréments {inst.incrementsPossibles?.join(", ")} kg
+                    {LIBELLES_CONVENTION[
+                      inst.conventionCharge as keyof typeof LIBELLES_CONVENTION
+                    ] ?? inst.conventionCharge}{" "}
+                    · incréments {inst.incrementsPossibles?.join(", ")} kg
                   </p>
                   {inst.poidsNonCompte && (
                     <p className="text-encre-3 text-xs">
@@ -138,7 +169,9 @@ export default async function ExerciseDetailPage({ params }: { params: Promise<{
           <EquiperDansSalle
             exerciseId={exercise.id}
             exerciceNom={exercise.nom}
-            sallesDejaEquipees={instances.map((i) => i.gymId).filter((id): id is string => Boolean(id))}
+            sallesDejaEquipees={instances
+              .map((i) => i.gymId)
+              .filter((id): id is string => Boolean(id))}
           />
         </div>
       </div>

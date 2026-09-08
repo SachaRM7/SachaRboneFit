@@ -1,7 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { urlIllustration } from "@/lib/referentiels/catalogue";
-import { imagesAffichables, sequenceAnimation } from "@/lib/referentiels/illustrations";
+import {
+  imagesAffichables,
+  sequenceAnimation,
+} from "@/lib/referentiels/illustrations";
 
 interface Props {
   slug: string;
@@ -10,6 +13,8 @@ interface Props {
   nbFrames?: number;
   /** Fait defiler les frames pour animer le mouvement. */
   anime?: boolean;
+  /** Position choisie pour observer un arrêt sur image. */
+  imageFixe?: number;
   /** Millisecondes par frame. */
   vitesseMs?: number;
   className?: string;
@@ -28,6 +33,7 @@ export function IllustrationExercice({
   nom,
   nbFrames = 3,
   anime = false,
+  imageFixe,
   vitesseMs = 700,
   className = "",
 }: Props) {
@@ -70,8 +76,8 @@ export function IllustrationExercice({
       aria-label={`Illustration : ${nom}`}
       className={`inline-block bg-current ${className}`}
       style={{
-        maskImage: `url(${urlIllustration(slug, frame)})`,
-        WebkitMaskImage: `url(${urlIllustration(slug, frame)})`,
+        maskImage: `url(${urlIllustration(slug, imageFixe && images.includes(imageFixe) ? imageFixe : frame)})`,
+        WebkitMaskImage: `url(${urlIllustration(slug, imageFixe && images.includes(imageFixe) ? imageFixe : frame)})`,
         maskSize: "contain",
         WebkitMaskSize: "contain",
         maskRepeat: "no-repeat",

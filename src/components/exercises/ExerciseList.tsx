@@ -1,4 +1,5 @@
 "use client";
+import { libelleMuscles } from "@/lib/referentiels/libelles";
 import { libelleProfilTension } from "@/lib/referentiels/libelles";
 import { libelleTypeMouvement } from "@/lib/referentiels/libelles";
 import Link from "next/link";
@@ -44,6 +45,11 @@ export function ExerciseList({ exercises, salleId = null }: ExerciseListProps) {
               )}
               <div className="flex-1 min-w-0">
                 <p className="text-encre font-medium text-sm">{ex.nom}</p>
+                {!!ex.musclesPrincipaux?.length && (
+                  <p className="text-encre-2 text-xs mt-1">
+                    {libelleMuscles(ex.musclesPrincipaux)}
+                  </p>
+                )}
                 {salleId && (
                   <p className="text-encre-3 text-xs mt-0.5">
                     {ex.instances?.find((i) => i.gymId === salleId)?.machineNom}

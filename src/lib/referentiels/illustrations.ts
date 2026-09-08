@@ -50,15 +50,28 @@ export interface AnomalieIllustration {
    * source, sous la même licence, et décrivent le même mouvement.
    */
   imagesEcartees: number[];
+  /** Démonstration externe quand le dessin local ne représente pas le mouvement. */
+  demonstration?: { nom: string; url: string };
 }
 
 export const ANOMALIES_ILLUSTRATIONS: Record<string, AnomalieIllustration> = {
+  "hack-squat": {
+    constat:
+      "Contrôle visuel du 8 septembre 2026 : les trois images montrent une presse à cuisses, assise avec les pieds sur une plateforme mobile, et non le hack squat avec appuis sur les épaules décrit par la fiche. Retirées dans tous les écrans.",
+    imagesEcartees: [1, 2, 3],
+    demonstration: {
+      nom: "StrengthLog",
+      url: "https://www.strengthlog.com/hack-squat-machine/",
+    },
+  },
   "cable-crunch": {
     constat:
-      "L'image 2 est d'un autre style de tracé que les images 1 et 3 — figure " +
-      "ombrée contre tracé fin — et porte un objet isolé sans rapport avec le " +
-      "mouvement. Les images 1 et 3 forment, elles, un aller-retour cohérent.",
-    imagesEcartees: [2],
+      "Contrôle du 8 septembre 2026 : les images 1 et 3 restantes ne montrent pas la position à genoux décrite par la fiche, avec les genoux au sol. L’image 2 était déjà exclue pour incohérence de rendu. Les trois images sont retirées pour ne pas enseigner une autre variante.",
+    imagesEcartees: [1, 2, 3],
+    demonstration: {
+      nom: "StrengthLog",
+      url: "https://www.strengthlog.com/cable-crunch/",
+    },
   },
 };
 

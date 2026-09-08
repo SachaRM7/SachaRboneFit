@@ -1876,3 +1876,453 @@ h3,
     margin-top: 20px;
   }
 }
+/* Préparation de séance : trois groupes lisibles et une action accessible. */
+.checkin-intro h1 {
+  font: 600 clamp(2rem, 5vw, 3rem) / 1.1 var(--font-heading);
+  letter-spacing: -0.04em;
+  margin: 10px 0;
+}
+.checkin-intro > p:last-child,
+.checkin-help {
+  color: var(--encre-2);
+  font-size: 14px;
+  line-height: 1.6;
+}
+.daily-checkin {
+  display: grid;
+  gap: 30px;
+  padding-bottom: 85px;
+}
+.checkin-place {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  background: var(--carte);
+  padding: 18px 20px;
+  border-radius: 22px;
+}
+.checkin-place > svg {
+  color: var(--primary);
+}
+.checkin-place > div {
+  flex: 1;
+  min-width: 0;
+}
+.checkin-place label {
+  display: block;
+  font-size: 12px;
+  color: var(--encre-2);
+  margin-bottom: 5px;
+}
+.daily-checkin select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  color: var(--encre);
+  background: var(--carte);
+  font-size: 16px;
+  border: 1px solid var(--filet);
+  border-radius: 12px;
+  padding: 9px 30px 9px 10px;
+  text-overflow: ellipsis;
+}
+.checkin-place select {
+  font-weight: 600;
+  border: 0;
+  padding-left: 0;
+}
+.checkin-error {
+  flex-basis: 100%;
+  color: var(--perte);
+  font-size: 13px;
+}
+.checkin-error a {
+  text-decoration: underline;
+}
+.checkin-section-heading {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.checkin-section-heading > span {
+  font-size: 12px;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+.checkin-section-heading h2 {
+  font: 500 20px var(--font-heading);
+  flex: 1;
+}
+.checkin-section-heading > svg {
+  color: var(--encre-3);
+}
+.checkin-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.checkin-metric {
+  background: var(--papier-2);
+  border-radius: 22px;
+  padding: 20px;
+}
+.checkin-energy {
+  background: var(--brand-soft);
+}
+.checkin-metric-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  min-height: 36px;
+}
+.checkin-metric output {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+  font: 500 40px var(--font-heading);
+  margin: 12px 0;
+  line-height: 1;
+  min-height: 54px;
+}
+.checkin-metric output small {
+  font: 400 12px var(--font-sans);
+  color: var(--encre-2);
+}
+.checkin-metric input[type="range"] {
+  width: 100%;
+  height: 36px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+.checkin-scale {
+  display: flex;
+  justify-content: space-between;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--encre-2);
+}
+.checkin-toggles {
+  background: var(--carte);
+  border-radius: 22px;
+  padding: 4px 18px;
+  margin-top: 12px;
+}
+.checkin-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 18px 0;
+}
+.checkin-toggle + .checkin-toggle {
+  border-top: 1px solid var(--filet-doux);
+}
+.checkin-toggle label {
+  font-size: 14px;
+}
+.checkin-toggle p {
+  font-size: 12px;
+  color: var(--encre-2);
+  margin-top: 5px;
+}
+.checkin-shifts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 0 0 16px;
+  font-size: 14px;
+}
+.checkin-shifts legend {
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--encre-2);
+}
+.checkin-shifts label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+}
+.checkin-shifts input {
+  accent-color: var(--primary);
+  width: 18px;
+  height: 18px;
+}
+.checkin-body {
+  background: var(--carte);
+  border-radius: 22px;
+  padding: 20px;
+  display: grid;
+  gap: 20px;
+  margin-top: 14px;
+}
+.checkin-body h3 {
+  font-size: 13px;
+  color: var(--encre-2);
+  margin-bottom: 8px;
+}
+.checkin-body > div > button {
+  width: 100%;
+  text-align: left;
+}
+.checkin-body > div > button > span {
+  min-height: 48px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+.checkin-details {
+  background: var(--carte);
+  border-radius: 20px;
+  margin-top: 10px;
+}
+.checkin-details summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+  padding: 18px;
+  min-height: 72px;
+  font-size: 14px;
+}
+.checkin-details summary::-webkit-details-marker {
+  display: none;
+}
+.checkin-details summary > span {
+  flex: 1;
+}
+.checkin-details summary small {
+  display: block;
+  font-size: 12px;
+  color: var(--encre-2);
+  margin-top: 5px;
+}
+.checkin-details[open] summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.checkin-equipment {
+  padding: 0 18px 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.checkin-equipment button {
+  font-size: 13px;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid var(--filet);
+  border-radius: 12px;
+}
+.checkin-equipment button[aria-pressed="true"] {
+  background: var(--encre);
+  color: var(--papier);
+  border-color: var(--encre);
+}
+.checkin-times {
+  padding: 0 18px 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.checkin-times label {
+  font-size: 12px;
+}
+.checkin-times select {
+  margin-top: 8px;
+}
+.checkin-submit {
+  position: fixed;
+  bottom: var(--barre-nav);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  background: var(--papier);
+  padding: 12px 20px;
+  border-top: 1px solid var(--filet-doux);
+}
+.checkin-submit button {
+  max-width: 728px;
+  margin: auto;
+  border-radius: 16px;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+@media (min-width: 1120px) {
+  .checkin-submit {
+    left: 232px;
+  }
+}
+@media (max-width: 380px) {
+  .checkin-metric {
+    padding: 16px 12px;
+  }
+  .checkin-metric-label {
+    font-size: 12px;
+  }
+  .checkin-scale {
+    font-size: 10px;
+  }
+}
+/* Banque d'exercices : apprendre le mouvement avant de l'équiper. */
+.movement-page {
+  max-width: 900px !important;
+  margin: auto;
+}
+.movement-back {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--encre-2);
+}
+.movement-page h1 {
+  font: 600 clamp(1.8rem, 4vw, 2.8rem) / 1.12 var(--font-heading);
+  letter-spacing: -0.035em;
+}
+.movement-demo {
+  background: var(--papier-2);
+  border-radius: 28px;
+  padding: 20px;
+}
+.movement-demo-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+.movement-demo-heading > span:last-child {
+  font-size: 12px;
+  color: var(--encre-2);
+}
+.movement-illustration {
+  display: block !important;
+  width: 100%;
+  height: 260px;
+  color: var(--encre);
+  margin: 16px auto;
+}
+.movement-controls {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.movement-controls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: var(--carte);
+  font-size: 14px;
+}
+.movement-controls button[aria-pressed="true"] {
+  background: var(--encre);
+  color: var(--papier);
+}
+.movement-controls > div {
+  display: flex;
+  gap: 6px;
+}
+.movement-demo > p.movement-attribution {
+  font-size: 10px;
+  color: var(--encre-2);
+  margin-top: 16px;
+  line-height: 1.5;
+}
+.movement-demo a {
+  text-decoration: underline;
+}
+.movement-technique {
+  display: grid;
+  gap: 24px;
+}
+.movement-technique h2 {
+  font: 500 22px var(--font-heading);
+  margin-bottom: 16px;
+}
+.movement-technique p {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--encre-2);
+}
+.movement-description {
+  font-size: 16px !important;
+}
+.movement-steps {
+  background: var(--carte);
+  border-radius: 24px;
+  padding: 6px 20px;
+  list-style: none;
+}
+.movement-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 0;
+}
+.movement-steps li + li {
+  border-top: 1px solid var(--filet-doux);
+}
+.movement-steps li > span {
+  font: 500 13px var(--font-heading);
+  color: var(--primary);
+  padding-top: 3px;
+}
+.movement-steps h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.movement-practices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 14px;
+}
+.movement-practices > section {
+  border-radius: 24px;
+  padding: 22px;
+}
+.movement-practices h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+}
+.movement-practices ul {
+  list-style: disc;
+  padding-left: 18px;
+  display: grid;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.65;
+}
+.movement-good {
+  background: var(--papier-2);
+}
+.movement-errors {
+  background: var(--brand-soft);
+}
+.movement-note {
+  border-left: 3px solid var(--primary);
+  padding: 0 0 0 18px;
+}
+
+.movement-demo > p:not(.movement-attribution) {
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--encre-2);
+  margin: 12px 0;
+}
+.movement-demo > h2 {
+  font: 500 22px var(--font-heading);
+}
