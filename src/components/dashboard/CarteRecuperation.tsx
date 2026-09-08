@@ -32,59 +32,77 @@ import {
  * appui.
  */
 
-const TEINTES: Record<string, string> = {
-  pret: "text-encre-3",
-  en_cours: "text-encre-2",
-  a_menager: "text-perte",
-};
-
 export function CarteRecuperation({ etat }: { etat: RecuperationMusculaire }) {
   // Rien à dire : ni muscle en cours, ni contrainte, ni exposition récente.
   // Une carte vide n'apprendrait qu'une chose — que la carte existe.
   if (etat.muscles.length === 0) return null;
 
+  const groupes = [
+    { cle: "a_menager", titre: LIBELLES_ETAT_RECUPERATION.a_menager },
+    { cle: "en_cours", titre: LIBELLES_ETAT_RECUPERATION.en_cours },
+    { cle: "pret", titre: LIBELLES_ETAT_RECUPERATION.pret },
+  ] as const;
   return (
     <Card className="recovery-panel bg-carte border-filet">
       <CardHeader>
         <CardTitle className="text-encre-2 flex items-center gap-2">
           <HeartPulse className="w-4 h-4" />
-          Récupération
+          Ton état musculaire
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2">
-        {etat.muscles.map((m) => (
-          <details key={m.muscle} className="recovery-muscle group">
-            <summary className="flex items-baseline justify-between gap-3 cursor-pointer list-none">
-              <span className="text-encre text-sm flex items-center gap-2">
-                <span
-                  className={`recovery-dot recovery-${m.etat}`}
-                  aria-hidden
-                />
-                {m.libelle}
-              </span>
-              <span
-                className={`text-xs shrink-0 ${TEINTES[m.etat] ?? "text-encre-3"}`}
-              >
-                {LIBELLES_ETAT_RECUPERATION[m.etat]}{" "}
-                <ChevronDown
-                  size={12}
-                  className="inline transition-transform group-open:rotate-180"
-                  aria-hidden
-                />
-              </span>
-            </summary>
-            {/* L'explication vient du service, qui la tient des motifs du
-                moteur. Reformuler ici ferait diverger le texte de la règle. */}
-            <p className="text-encre-3 text-xs mt-1 pl-0.5">
-              {resumeRecuperation(m)}
-            </p>
-            {m.severiteContrainte !== null && (
-              <p className="text-encre-3 text-xs pl-0.5">
-                Zone ménagée à ta demande, sévérité {m.severiteContrainte}/10.
-              </p>
-            )}
-          </details>
-        ))}
+        <div className="recovery-counts">
+          {groupes.map((g) => (
+            <div key={g.cle} className={`recovery-count recovery-${g.cle}`}>
+              <strong>
+                {etat.muscles.filter((m) => m.etat === g.cle).length}
+              </strong>
+              <span>{g.titre}</span>
+            </div>
+          ))}
+        </div>
+        {groupes.map((g) => {
+          const muscles = etat.muscles.filter((m) => m.etat === g.cle);
+          if (!muscles.length) return null;
+          return (
+            <details
+              key={g.cle}
+              id={`muscles-${g.cle}`}
+              className="recovery-group"
+              open={g.cle === "a_menager"}
+            >
+              <summary>
+                <span>
+                  <span
+                    className={`recovery-dot recovery-${g.cle}`}
+                    aria-hidden
+                  />
+                  {g.titre}
+                </span>
+                <span>
+                  {muscles.length} <ChevronDown size={14} aria-hidden />
+                </span>
+              </summary>
+              <div className="recovery-chips">
+                {muscles.map((m) => (
+                  <details key={m.muscle} className="recovery-muscle">
+                    <summary>
+                      {m.libelle}
+                      <ChevronDown size={12} aria-hidden />
+                    </summary>
+                    <p>{resumeRecuperation(m)}</p>
+                    {m.severiteContrainte !== null && (
+                      <p>
+                        Zone ménagée à ta demande, sévérité{" "}
+                        {m.severiteContrainte}/10.
+                      </p>
+                    )}
+                  </details>
+                ))}
+              </div>
+            </details>
+          );
+        })}
 
         {etat.neutresMasques > 0 && (
           <p className="text-encre-3 text-xs pt-1">

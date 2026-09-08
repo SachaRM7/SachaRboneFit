@@ -1,6 +1,15 @@
 "use client";
+import Link from "next/link";
+import { RepereEnConstruction } from "./RepereEnConstruction";
 import { useEffect, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { CHART_THEME, couleursGraphique } from "@/lib/chart-theme";
 import { jourCourt } from "@/lib/format-date";
 
@@ -26,14 +35,25 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
    * clé ne correspond pas, c'est qu'on charge — et changer de période ne peut
    * pas afficher les chiffres de l'ancienne.
    */
-  const [resultat, setResultat] = useState<{ cle: number; pesees: Pesee[]; echec: boolean } | null>(null);
+  const [resultat, setResultat] = useState<{
+    cle: number;
+    pesees: Pesee[];
+    echec: boolean;
+  } | null>(null);
 
   useEffect(() => {
     let annule = false;
     fetch(`/api/progression/bodyweight?months=${months}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((r) =>
+        r.ok ? r.json() : Promise.reject(new Error(String(r.status))),
+      )
       .then((d) => {
-        if (!annule) setResultat({ cle: months, pesees: Array.isArray(d) ? d : [], echec: false });
+        if (!annule)
+          setResultat({
+            cle: months,
+            pesees: Array.isArray(d) ? d : [],
+            echec: false,
+          });
       })
       /*
        * Sans ce `catch`, une réponse en erreur laissait le chargement à vrai
@@ -44,7 +64,9 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
       .catch(() => {
         if (!annule) setResultat({ cle: months, pesees: [], echec: true });
       });
-    return () => { annule = true; };
+    return () => {
+      annule = true;
+    };
   }, [months]);
 
   const chargement = resultat?.cle !== months;
@@ -58,16 +80,25 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
   if (echec) {
     return (
       <p className="text-encre-2 text-sm py-8 text-center">
-        Impossible de lire tes pesées pour l&apos;instant. Réessaie dans un moment.
+        Impossible de lire tes pesées pour l&apos;instant. Réessaie dans un
+        moment.
       </p>
     );
   }
 
   if (data.length === 0) {
     return (
-      <p className="text-encre-3 text-sm py-8 text-center">
-        Pas encore de pesée enregistrée.
-      </p>
+      <RepereEnConstruction
+        titre="Suivre ton poids, si tu le souhaites"
+        href="/bodyweight"
+        action="Ajouter une pesée"
+      >
+        <p>
+          Optionnel. Quelques mesures permettent de suivre ton évolution
+          corporelle et de prendre du recul sur les variations du quotidien.
+        </p>
+        <p>Ton entraînement reste accessible sans renseigner ton poids.</p>
+      </RepereEnConstruction>
     );
   }
 
@@ -85,11 +116,16 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
       <div className="rounded-xl border border-filet bg-carte p-5 space-y-1">
         <p className="text-encre-2 text-sm">Première pesée</p>
         <p className="text-encre text-3xl font-bold chiffres">
-          {derniere.poids} <span className="text-lg font-medium text-encre-2">kg</span>
+          {derniere.poids}{" "}
+          <span className="text-lg font-medium text-encre-2">kg</span>
         </p>
         <p className="text-encre-3 text-sm">
-          Le {jourCourt(derniere.date)}. Une deuxième pesée suffira à tracer une tendance.
+          Le {jourCourt(derniere.date)}. Une deuxième pesée permettra de relier
+          tes mesures.
         </p>
+        <Link className="context-link" href="/bodyweight">
+          Ajouter une pesée →
+        </Link>
       </div>
     );
   }
@@ -108,17 +144,26 @@ export function BodyWeightChart({ months }: BodyWeightChartProps) {
 
   return (
     <div className="space-y-4">
+      <Link className="context-link" href="/bodyweight">
+        Ajouter une pesée →
+      </Link>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData}>
             <XAxis
               dataKey="date"
-              tick={{ fill: CHART_THEME.textColor, fontSize: CHART_THEME.fontSize.sm }}
+              tick={{
+                fill: CHART_THEME.textColor,
+                fontSize: CHART_THEME.fontSize.sm,
+              }}
               axisLine={{ stroke: CHART_THEME.gridColor }}
             />
             <YAxis
               domain={[yMin, yMax]}
-              tick={{ fill: CHART_THEME.textColor, fontSize: CHART_THEME.fontSize.sm }}
+              tick={{
+                fill: CHART_THEME.textColor,
+                fontSize: CHART_THEME.fontSize.sm,
+              }}
               axisLine={{ stroke: CHART_THEME.gridColor }}
               width={40}
             />

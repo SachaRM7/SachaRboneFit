@@ -15,7 +15,7 @@ export function BoutonCoach() {
           type="button"
           onClick={() => ouvrir()}
           aria-label="Demander au coach"
-          className="coach-trigger"
+          className={`coach-trigger ${contexte?.ecran === "progression" ? "coach-quiet" : ""}`}
           style={{
             bottom: "calc(var(--barre-nav) - var(--rangee-nav) + 0.25rem)",
           }}

@@ -57,3 +57,14 @@ La carte de séance interrompue place désormais les actions sous le message sur
 - Contrôle navigateur à 320 et 390 px avec les vrais composants sur une route de démonstration temporaire, retirée ensuite. Aucun entraînement réel enregistré ou terminé. Vérification des deux vues, des noms longs et du ciblage des actions dans la démonstration.
 - 1 384 tests réussis ; ESLint ciblé sans erreur (quatre avertissements existants).
 - Compilation de production Next.js et contrôle TypeScript réussis après retrait de la route de démonstration.
+## Accueil et progression : comprendre avant d’explorer
+
+- État du jour remonté avant la séance, à partir du feu réellement calculé. La phase affiche son objectif et ses séances mesurées. Aucun score global /100 ou pourcentage de récupération n’est inventé.
+- Récupération regroupée par états du moteur ; compte des muscles affichés, groupes repliables et détail de la dernière exposition. Les muscles neutres restent explicitement comptés à part. Les libellés restent centralisés dans le service.
+- Pré-calcul renommé « Préparer la suite » : le service lit une cible du jour, et ne justifiait pas le titre « Séance de demain ». Le contenu reste accessible et mène au programme. Les séances récentes gardent leurs dates, durée, énergie et lien d’analyse.
+- Progression ouverte sur sa phase d’historique et quatre cartes alimentées par le bilan. Le détail reste accessible sous une section repliable, y compris les règles d’attente du moteur. Les alias de muscles sont traduits dans le bilan.
+- Une seule mesure d’exercice devient une référence lisible ; un volume nul ne dessine plus d’axes vides. Records améliorés et premières références sont séparés, avec charge et répétitions réelles en premier. Les pesées sont présentées comme optionnelles et reliées à leur formulaire existant. Les erreurs de lecture des records et de l’exercice ne passent plus pour des historiques vides.
+- Coach plus discret dans Progrès. Aucun endpoint d’écriture, calcul sportif ou flux d’enregistrement modifié.
+- Contrôle mobile à 390 et 320 px sur une route temporaire retirée : accueil, groupes et détails musculaires, navigation aller/retour des quatre vues, première référence, volume nul, records/références et absence de pesées. Les données de démonstration étaient isolées ; aucune séance ni pesée réelle n’a été écrite.
+- 1 384 tests réussis ; ESLint ciblé et TypeScript sans erreur.
+- Compilation de production Next.js réussie après retrait de la route de contrôle.

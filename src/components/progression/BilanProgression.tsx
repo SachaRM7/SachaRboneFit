@@ -9,7 +9,7 @@ import {
   HelpCircle,
   Sparkles,
 } from "lucide-react";
-import { LIBELLES as LIBELLES_MUSCLES } from "@/lib/referentiels/muscles";
+import { LIBELLES as LIBELLES_MUSCLES, versMuscle } from "@/lib/referentiels/muscles";
 import type { Bilan } from "@/lib/engine/bilan-progression";
 import { nombre, pluriel } from "@/lib/format";
 
@@ -26,7 +26,7 @@ import { nombre, pluriel } from "@/lib/format";
  */
 
 const nomMuscle = (m: string) =>
-  (LIBELLES_MUSCLES as Record<string, string>)[m] ?? m;
+  (LIBELLES_MUSCLES as Record<string, string>)[versMuscle(m) ?? m] ?? m;
 
 /** « il y a » lisible : on ne compte pas en jours au-delà d'un mois. */
 function ilYA(jours: number): string {
@@ -82,7 +82,7 @@ function EtatVide() {
     <div className="progress-empty">
       <Sparkles className="w-5 h-5 text-encre-2" aria-hidden />
       <h2 className="text-encre text-3xl font-medium">
-        Rien à comparer, pour l&apos;instant
+        Ton histoire commence ici
       </h2>
       <p className="text-encre-2 text-sm leading-relaxed">
         Ta première séance ne sera pas une performance : elle posera tes
@@ -397,7 +397,9 @@ export function BilanProgression({ bilan }: { bilan: Bilan }) {
 
       {/* ------------------------------------------------------------------ */}
       {bilan.enAttente.length > 0 && (
-        <div className="rounded-xl border border-filet bg-carte p-4 space-y-1.5">
+        <div className="learning-panel rounded-xl border border-filet bg-carte p-4 space-y-1.5">
+          <h2>Ton historique se construit</h2>
+          <p>Chaque séance ajoute un point de comparaison.</p>
           {bilan.enAttente.map((phrase) => (
             <p
               key={phrase}

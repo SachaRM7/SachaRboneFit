@@ -20,10 +20,20 @@ export async function CarteProgramme({ userId }: { userId: string }) {
   return (
     <Link href="/programme" className="programme-overview">
       <div className="section-heading">
-        <span className="eyebrow">Le fil conducteur</span>
+        <span className="eyebrow">Phase actuelle</span>
         <ChevronRight size={17} aria-hidden />
       </div>
-      <h2>{blocActif.libelleCycle}</h2>
+      <h2>
+        {blocActif.enCalibration
+          ? "Construire tes repères"
+          : blocActif.libelleCycle}
+      </h2>
+      {blocActif.enCalibration && <p>{blocActif.libelleCycle}</p>}
+      <p className="phase-purpose">
+        {blocActif.enCalibration
+          ? "Trouver tes charges de départ avant de progresser."
+          : "Avancer dans ton programme, au rythme de tes séances."}
+      </p>
       <div className="programme-position">
         <strong>
           {blocActif.enCalibration

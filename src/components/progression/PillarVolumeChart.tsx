@@ -1,7 +1,20 @@
 "use client";
+import { RepereEnConstruction } from "./RepereEnConstruction";
 import { useEffect, useState } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { CHART_THEME, couleursGraphique, getPillarColor } from "@/lib/chart-theme";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
+import {
+  CHART_THEME,
+  couleursGraphique,
+  getPillarColor,
+} from "@/lib/chart-theme";
 import { PILIERS } from "@/lib/schemas/exercise";
 import { libellePilier } from "@/lib/referentiels/libelles";
 import { jourCourt } from "@/lib/format-date";
@@ -32,14 +45,25 @@ export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
   // Même forme qu'ailleurs : la période demandée fait partie du résultat,
   // plutôt qu'un `setState` synchrone dans le corps de l'effet.
   type Semaine = Record<string, string | number>;
-  const [resultat, setResultat] = useState<{ cle: number; semaines: Semaine[]; echec: boolean } | null>(null);
+  const [resultat, setResultat] = useState<{
+    cle: number;
+    semaines: Semaine[];
+    echec: boolean;
+  } | null>(null);
 
   useEffect(() => {
     let annule = false;
     fetch(`/api/progression/pillar-volume?months=${months}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then((r) =>
+        r.ok ? r.json() : Promise.reject(new Error(String(r.status))),
+      )
       .then((d) => {
-        if (!annule) setResultat({ cle: months, semaines: Array.isArray(d) ? d : [], echec: false });
+        if (!annule)
+          setResultat({
+            cle: months,
+            semaines: Array.isArray(d) ? d : [],
+            echec: false,
+          });
       })
       // Sans ce `catch`, une réponse en erreur laissait le squelette pulser
       // indéfiniment : le chargement ne finissait jamais, ni en données ni en
@@ -47,7 +71,9 @@ export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
       .catch(() => {
         if (!annule) setResultat({ cle: months, semaines: [], echec: true });
       });
-    return () => { annule = true; };
+    return () => {
+      annule = true;
+    };
   }, [months]);
 
   const chargement = resultat?.cle !== months;
@@ -61,16 +87,28 @@ export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
   if (echec) {
     return (
       <p className="text-encre-2 text-sm py-8 text-center">
-        Impossible de lire ton volume pour l&apos;instant. Réessaie dans un moment.
+        Impossible de lire ton volume pour l&apos;instant. Réessaie dans un
+        moment.
       </p>
     );
   }
 
-  if (data.length === 0) {
+  if (
+    !data.some((s) =>
+      ORDRE.some((k) => typeof s[k] === "number" && Number(s[k]) > 0),
+    )
+  ) {
     return (
-      <p className="text-encre-3 text-sm py-8 text-center">
-        Pas encore de volume à répartir — enregistre une séance.
-      </p>
+      <RepereEnConstruction titre="Ton volume prend forme">
+        <p>
+          Pas encore de volume chargé mesurable sur cette période. Tes séances
+          alimenteront ici la répartition entre les mouvements.
+        </p>
+        <p>
+          Une charge nulle ne signifie pas une séance inutile : le poids du
+          corps n’est pas compté dans ce graphique.
+        </p>
+      </RepereEnConstruction>
     );
   }
 
@@ -95,11 +133,17 @@ export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
           <BarChart data={parSemaine}>
             <XAxis
               dataKey="semaine"
-              tick={{ fill: CHART_THEME.textColor, fontSize: CHART_THEME.fontSize.xs }}
+              tick={{
+                fill: CHART_THEME.textColor,
+                fontSize: CHART_THEME.fontSize.xs,
+              }}
               axisLine={{ stroke: CHART_THEME.gridColor }}
             />
             <YAxis
-              tick={{ fill: CHART_THEME.textColor, fontSize: CHART_THEME.fontSize.sm }}
+              tick={{
+                fill: CHART_THEME.textColor,
+                fontSize: CHART_THEME.fontSize.sm,
+              }}
               axisLine={{ stroke: CHART_THEME.gridColor }}
               width={50}
             />
@@ -112,7 +156,10 @@ export function PillarVolumeChart({ months }: PillarVolumeChartProps) {
               }}
             />
             <Legend
-              wrapperStyle={{ fontSize: CHART_THEME.fontSize.sm, color: CHART_THEME.textColor }}
+              wrapperStyle={{
+                fontSize: CHART_THEME.fontSize.sm,
+                color: CHART_THEME.textColor,
+              }}
             />
             {series.map((pilier) => (
               <Bar

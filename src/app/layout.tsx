@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Outfit, Geist } from "next/font/google";
 import "./globals.css";
 import "./live-session.css";
+import "./overview.css";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 
 // Polices variables auto-hébergées par Next pour toute l'interface.

@@ -147,6 +147,74 @@ export function ContenuTableauDeBord({
           Mon historique <ArrowUpRight size={16} aria-hidden />
         </Link>
       </header>
+      <section className="readiness-section" aria-labelledby="readiness-title">
+        <div className="section-heading">
+          <h2 id="readiness-title">Ta forme aujourd’hui</h2>
+          <span>Ton ressenti avant l’effort</span>
+        </div>
+        <div className="readiness-grid">
+          <div className="metric-tile">
+            <span className="metric-icon">
+              <HeartPulse size={20} aria-hidden />
+            </span>
+            <p>Aujourd’hui</p>
+            <div className="metric-value">
+              {data.feuJour ? (
+                <FeuBiologique
+                  feu={data.feuJour}
+                  label={
+                    {
+                      vert: "Favorable",
+                      orange: "À adapter",
+                      rouge: "Récupérer",
+                    }[data.feuJour]
+                  }
+                  size="lg"
+                />
+              ) : (
+                <span className="metric-empty">À renseigner</span>
+              )}
+            </div>
+            <span className="metric-caption">Ton état avant la séance</span>
+          </div>
+          <div className="metric-tile">
+            <span className="metric-icon">
+              <Activity size={20} aria-hidden />
+            </span>
+            <p>Tendance</p>
+            <div className="metric-value">
+              {data.feuTendance ? (
+                <FeuBiologique feu={data.feuTendance} size="lg" />
+              ) : (
+                <span className="metric-empty">À découvrir</span>
+              )}
+            </div>
+            <span className="metric-caption">Tes derniers ressentis</span>
+          </div>
+          <Link href="/bodyweight" className="metric-tile weight-tile">
+            <span className="metric-icon">
+              <Scale size={20} aria-hidden />
+            </span>
+            <p>
+              Poids de corps <ArrowUpRight size={14} aria-hidden />
+            </p>
+            <div className="metric-value">
+              {data.user.poidsActuel != null ? (
+                <span className="metric-number">
+                  {data.user.poidsActuel}
+                  <small> kg</small>
+                </span>
+              ) : (
+                <span className="metric-empty">Ajouter une mesure</span>
+              )}
+              {weightData.length >= 2 && (
+                <Sparkline data={weightData} width={80} height={28} />
+              )}
+            </div>
+            <span className="metric-caption">Voir l’évolution</span>
+          </Link>
+        </div>
+      </section>
       <div className="dashboard-primary">
         <div className="dashboard-action">
           {canResume && (
@@ -210,64 +278,6 @@ export function ContenuTableauDeBord({
           <ActionsCoach />
         </aside>
       </div>
-      <section className="readiness-section" aria-labelledby="readiness-title">
-        <div className="section-heading">
-          <h2 id="readiness-title">Tes repères</h2>
-          <span>À l’écoute de ton rythme</span>
-        </div>
-        <div className="readiness-grid">
-          <div className="metric-tile">
-            <span className="metric-icon">
-              <HeartPulse size={20} aria-hidden />
-            </span>
-            <p>Aujourd’hui</p>
-            <div className="metric-value">
-              {data.feuJour ? (
-                <FeuBiologique feu={data.feuJour} size="lg" />
-              ) : (
-                <span className="metric-empty">À renseigner</span>
-              )}
-            </div>
-            <span className="metric-caption">Ton état avant la séance</span>
-          </div>
-          <div className="metric-tile">
-            <span className="metric-icon">
-              <Activity size={20} aria-hidden />
-            </span>
-            <p>Tendance</p>
-            <div className="metric-value">
-              {data.feuTendance ? (
-                <FeuBiologique feu={data.feuTendance} size="lg" />
-              ) : (
-                <span className="metric-empty">À découvrir</span>
-              )}
-            </div>
-            <span className="metric-caption">Tes derniers ressentis</span>
-          </div>
-          <Link href="/bodyweight" className="metric-tile weight-tile">
-            <span className="metric-icon">
-              <Scale size={20} aria-hidden />
-            </span>
-            <p>
-              Poids de corps <ArrowUpRight size={14} aria-hidden />
-            </p>
-            <div className="metric-value">
-              {data.user.poidsActuel != null ? (
-                <span className="metric-number">
-                  {data.user.poidsActuel}
-                  <small> kg</small>
-                </span>
-              ) : (
-                <span className="metric-empty">Ajouter une mesure</span>
-              )}
-              {weightData.length >= 2 && (
-                <Sparkline data={weightData} width={80} height={28} />
-              )}
-            </div>
-            <span className="metric-caption">Voir l’évolution</span>
-          </Link>
-        </div>
-      </section>
       <div className="dashboard-insights">{complement}</div>
       <Dialog open={confirmationAbandon} onOpenChange={setConfirmationAbandon}>
         <DialogContent>

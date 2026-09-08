@@ -64,14 +64,14 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
     titre: () => "C'est fait pour aujourd'hui",
     texte:
       "Séance enregistrée. La récupération fait partie du travail, pas une pause dedans.",
-    bouton: "Voir ma progression",
+    bouton: "Voir ton évolution",
   },
   semaine_complete: {
     icone: TrendingUp,
     titre: () => "Semaine complète",
     texte:
       "Tu as atteint le rythme que tu t'es fixé. Rien ne t'empêche d'y retourner, mais rien ne l'exige.",
-    bouton: "Voir ma progression",
+    bouton: "Voir ton évolution",
   },
 };
 

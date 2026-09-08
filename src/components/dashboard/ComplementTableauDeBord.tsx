@@ -58,11 +58,19 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
           <CardHeader>
             <CardTitle className="text-encre-2 flex items-center gap-2">
               <Calendar className="w-4 h-4" />
-              Séance de demain
+              Préparer la suite
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-encre-2 text-sm whitespace-pre-wrap">{data.precalcSession.contenu}</p>
+            <details className="coach-preview">
+              <summary>Ce que le coach a prévu</summary>
+              <p className="text-encre-2 text-sm whitespace-pre-wrap">
+                {data.precalcSession.contenu}
+              </p>
+            </details>
+            <Link className="context-link" href="/programme">
+              Voir la prochaine séance →
+            </Link>
           </CardContent>
         </Card>
       )}
@@ -104,22 +112,36 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
                 key={s.id}
                 href={`/sessions/${s.id}?templateLettre=${encodeURIComponent(s.templateLettre || "")}&sessionDate=${encodeURIComponent(s.date)}`}
                 prefetch={false}
-                className="w-full flex items-center justify-between p-3 rounded-lg bg-papier-2 transition-colors text-left"
+                className="recent-session-story"
               >
                 <div>
                   <p className="text-encre font-medium text-sm">
                     {s.templateNom || "Séance libre"}
-                    {s.templateLettre && <span className="text-encre-3 ml-1">({s.templateLettre})</span>}
+                    {s.templateLettre && (
+                      <span className="text-encre-3 ml-1">
+                        ({s.templateLettre})
+                      </span>
+                    )}
                   </p>
                   <p className="text-encre-3 text-xs">
-                    {s.date}
+                    {new Date(`${s.date}T12:00:00`).toLocaleDateString(
+                      "fr-FR",
+                      { day: "numeric", month: "short" },
+                    )}
                     {s.gymNom && ` — ${s.gymNom}`}
                   </p>
                 </div>
                 <div className="text-right">
-                  {s.dureeMinutes && <p className="text-encre-2 text-sm">{s.dureeMinutes} min</p>}
-                  {s.energieFin && <p className="text-encre-3 text-xs">Énergie {s.energieFin}/10</p>}
+                  {s.dureeMinutes != null && (
+                    <p className="text-encre-2 text-sm">{s.dureeMinutes} min</p>
+                  )}
+                  {s.energieFin != null && (
+                    <p className="text-encre-3 text-xs">
+                      Énergie {s.energieFin}/10
+                    </p>
+                  )}
                 </div>
+                <span className="recent-session-link">Voir mon analyse ↗</span>
               </Link>
             ))}
           </CardContent>
