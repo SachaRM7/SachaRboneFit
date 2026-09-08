@@ -16,6 +16,9 @@ import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
 import { avancement } from "@/lib/live/vue-live";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { ETATS_MASCOTTE } from "@/lib/coach/mascotte-assets";
+import { CarteAujourdhui } from "@/components/dashboard/CarteAujourdhui";
+import { mascotteDeLAccueil } from "@/lib/coach/accueil-mascotte";
+import type { NomEtat } from "@/lib/engine/etat-du-jour";
 
 const A = "instance-a";
 const B = "instance-b";
@@ -132,6 +135,33 @@ const etatsDe = (exercices: { id: string; nom: string; seriesCibles: number }[])
     useSessionStore.getState().active?.sets ?? [],
     useSessionStore.getState().active?.lignees ?? [],
   );
+
+/**
+ * L'accueil, rendu comme la page le rend.
+ *
+ * `CarteAujourdhui` reçoit la mascotte déjà résolue — exactement comme dans
+ * `ContenuTableauDeBord`, où le calcul a lieu une seule fois. La reproduire ici
+ * par une chaîne écrite à la main photographierait une composition qui
+ * n'existe pas.
+ */
+function accueil(etat: NomEtat, feuJour: "vert" | "orange" | "rouge" | null) {
+  const etatDuJour = {
+    etat,
+    salle: { id: "salle", nom: "Basic Fit République" },
+    seance: { templateId: "t1", lettre: "A", nom: "Haut du corps" },
+    action: { type: "demarrer_seance", href: "#", templateId: "t1" },
+    enAttenteDeDonnees: false,
+  };
+  return `<div class="dashboard-v2 min-h-screen bg-papier" style="padding-top:var(--marge-haut)">
+    <header class="page-intro"><div><h1>Salut Sacha<span class="greeting-dot">.</span></h1></div></header>
+    <div class="dashboard-primary"><div class="dashboard-action">${rendre(
+      <CarteAujourdhui
+        etat={etatDuJour as never}
+        mascotte={mascotteDeLAccueil({ etat, feuJour })}
+      />,
+    )}</div></div>
+  </div>`;
+}
 
 const scenes: { nom: string; titre: string; rendu: () => string }[] = [
   {
@@ -261,31 +291,16 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
       );
     },
   },
-  {
-    nom: "6-repos",
-    titre: "Repos",
-    rendu: () => {
-      seance([fait(A, 1, 60, 10, 7)]);
-      return `${enveloppe(
-        rendre(
-          <TableauSeries
-            exercice={DEADLIFT as never}
-            rpeReduction={0}
-            onSerieValidee={rien}
-          />,
-        ),
-      )}
-      <div class="repos-feuille"><div class="repos-panneau">${rendre(
-        <RestTimer
-          durationSeconds={120}
-          onComplete={rien}
-          onSkip={rien}
-          onExtend={rien}
-          prochaine="Série 2 · 60 × 8"
-        />,
-      )}</div></div>`;
-    },
-  },
+  /*
+   * « 6-repos » a été RETIRÉE, et c'est volontaire.
+   *
+   * Elle rendait la feuille de repos SANS mascotte — un état que l'écran ne
+   * produit plus : `page.tsx` place toujours `.repos-mascotte` dans
+   * `.repos-panneau` quand le minuteur est ouvert. Une scène qui photographie
+   * une composition disparue ne contrôle rien ; elle donne seulement l'air de
+   * contrôler quelque chose. La feuille de repos est couverte par
+   * « 10-mascotte-repos », qui elle correspond à l'application.
+   */
   {
     nom: "7-focus-calibration",
     titre: "Focus — calibration (RIR)",
@@ -388,7 +403,10 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
       )}
       <div class="repos-feuille"><div class="repos-panneau">
         <div class="repos-mascotte">${rendre(
-          <MascotteCoach etat="repos" taille="normal" presence="normale" />,
+          /* `forte`, comme `page.tsx`. Une scène qui rend une AUTRE taille que
+             l'application mesure autre chose que l'application — c'est
+             exactement ainsi que ce harnais a déjà menti trois fois. */
+          <MascotteCoach etat="repos" taille="normal" presence="forte" />,
         )}</div>
         ${rendre(
           <RestTimer
@@ -448,9 +466,24 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
       );
     },
   },
+  {
+    nom: "13-accueil-ready",
+    titre: "Aujourd'hui — séance prête, le Coach dit « on y va »",
+    rendu: () => accueil("prete", "vert"),
+  },
+  {
+    nom: "14-accueil-attention",
+    titre: "Aujourd'hui — feu rouge, le Coach dit d'abord de récupérer",
+    rendu: () => accueil("prete", "rouge"),
+  },
+  {
+    nom: "15-accueil-debrief",
+    titre: "Aujourd'hui — la séance est faite, il reste le bilan",
+    rendu: () => accueil("deja_entraine", "vert"),
+  },
 ];
 
-for (const largeur of [320, 390]) {
+for (const largeur of [320, 390, 430]) {
   for (const s of scenes) {
     const f = ecrire(s.nom, s.titre, s.rendu(), largeur);
     console.log(f);

@@ -61,4 +61,23 @@ const matchMedia = (query: string) => ({
 if (!fenetre.matchMedia) fenetre.matchMedia = matchMedia;
 global.matchMedia ??= matchMedia;
 
+/*
+ * `self`, que Node n'a pas.
+ *
+ * Le chargeur de modules de Next l'attend — `next/link` et les composants qui
+ * l'importent le touchent au moment de leur évaluation, avant tout rendu. Sans
+ * lui, importer une carte de l'accueil suffisait à faire tomber le script
+ * entier sur un « self is not defined » qui ne dit rien de la cause.
+ *
+ * C'est un alias de la fenêtre, comme dans un navigateur : on ne fabrique
+ * aucun environnement qui n'existe pas ailleurs.
+ */
+if (typeof (globalThis as { self?: unknown }).self === "undefined") {
+  Object.defineProperty(globalThis, "self", {
+    value: globalThis,
+    configurable: true,
+    writable: true,
+  });
+}
+
 export {};
