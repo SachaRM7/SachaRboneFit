@@ -1,4 +1,5 @@
 "use client";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
 
 import { useEffect, useState } from "react";
 import { jourEnToutesLettres } from "@/lib/format-date";
@@ -71,7 +72,19 @@ export function SessionDebrief({ sessionLogId }: SessionDebriefProps) {
 
   return (
     <div className="bg-carte border border-filet rounded-lg p-4 space-y-2">
-      <h3 className="text-sm font-medium text-encre-2">Débrief du coach</h3>
+      <h3 className="text-sm font-medium text-encre-2 flex items-center gap-2">
+        {/*
+          Le bilan, et rien de plus.
+
+          `debrief` est le défaut assumé : célébrer une séance ordinaire ferait
+          de la mascotte un applaudissement automatique, qui ne voudrait plus
+          rien dire le jour d'un vrai progrès. La distinction progrès/bilan
+          appartient au moteur, pas à cet écran — voir
+          `resoudreMascotteFinDeSeance`.
+        */}
+        <MascotteCoach etat="debrief" taille="compact" presence="discrete" />
+        Débrief du coach
+      </h3>
 
       {chargement ? (
         <div className="flex gap-1 py-2" role="status" aria-label="Lecture du débrief">

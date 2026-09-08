@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import {
   evenementsDeLaSeance,
   interventionsUtiles,
@@ -78,7 +79,13 @@ export function ObservateurSeance({
 
   return (
     <div className="px-4 pb-2">
-      <div className="bg-carte border border-filet rounded-xl p-3 flex items-start gap-3">
+      <div className="coach-constat">
+        {/*
+          Le Coach qui lève l'index : « j'ai remarqué quelque chose ».
+          Elle accompagne le constat — le titre et le fait restent écrits en
+          toutes lettres, et l'encart se lit entièrement sans elle.
+        */}
+        <MascotteCoach etat="intervention" taille="compact" presence="discrete" anime />
         <div className="min-w-0 flex-1">
           <p className="text-encre text-sm font-medium">{titre(evenement)}</p>
           <p className="text-encre-2 text-xs mt-0.5">{fait}</p>
@@ -86,7 +93,7 @@ export function ObservateurSeance({
             <button
               type="button"
               onClick={() => onDemanderCoach(evenement, fait)}
-              className="mt-2 text-xs text-encre underline underline-offset-4"
+              className="coach-constat-action"
             >
               En parler au coach
             </button>
@@ -96,7 +103,7 @@ export function ObservateurSeance({
           type="button"
           onClick={() => setEcartes((l) => [...l, cle(evenement)])}
           aria-label="Masquer ce constat"
-          className="shrink-0 p-1 text-encre-3 hover:text-encre"
+          className="coach-constat-fermer"
         >
           <X className="w-4 h-4" aria-hidden />
         </button>

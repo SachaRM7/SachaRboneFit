@@ -20,6 +20,12 @@ import {
 } from "lucide-react";
 import { useCoach } from "./ContexteCoach";
 import { amorce, suggestions } from "@/lib/coach/contexte-ecran";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
+import {
+  resoudreMascotteCoach,
+  type SujetCoach,
+} from "@/lib/coach/resoudre-mascotte";
+import type { ContexteEcran } from "@/lib/coach/contexte-ecran";
 import { CarteProposition, type Proposition } from "./CarteProposition";
 
 interface Message {
@@ -34,6 +40,44 @@ interface ConversationPreview {
   title: string | null;
   lastMessage: { role: string; preview: string } | null;
   updatedAt: string;
+}
+
+/**
+ * Du contexte d'écran au sujet visuel.
+ *
+ * L'intention déclarée prime — c'est le geste le plus précis dont on dispose.
+ * À défaut, l'écran suffit à dire de quoi on va parler. Aucune de ces valeurs
+ * ne vient du modèle.
+ */
+function sujetDuCoach(contexte: ContexteEcran | null): SujetCoach | null {
+  switch (contexte?.sujet) {
+    case "observation_seance":
+      return "observation_seance";
+    case "modifier_programme":
+      return "modifier_programme";
+    case "materiel":
+      return "materiel";
+    case "decharge":
+      return "adaptation_programme";
+    case "stagnation":
+      return "stagnation";
+    case "expliquer_seance":
+      return "analyse_seance";
+  }
+  switch (contexte?.ecran) {
+    case "seance":
+      return "live";
+    case "programme":
+      return "modifier_programme";
+    case "progression":
+      return "stagnation";
+    case "exercices":
+      return "expliquer_exercice";
+    default:
+      // Sans contexte, le Coach réfléchit : c'est ce qu'il fait quand on
+      // l'ouvre sans rien lui demander de précis.
+      return null;
+  }
 }
 
 export function CoachDrawer({
@@ -258,8 +302,19 @@ export function CoachDrawer({
           <DrawerHeader className="border-b border-filet pb-2">
             <div className="flex items-center justify-between">
               <DrawerTitle className="text-encre flex items-center gap-3">
+                {/*
+                  Le visage du Coach vient du CONTEXTE d'ouverture — l'écran,
+                  le sujet — jamais de ce que le modèle vient de répondre.
+                  Laisser un texte généré choisir l'illustration reviendrait à
+                  lui confier une part du produit, et à voir l'image changer
+                  d'une exécution à l'autre pour la même question.
+                */}
                 <span className="coach-avatar">
-                  <Sparkles size={20} aria-hidden />
+                  <MascotteCoach
+                    etat={resoudreMascotteCoach(sujetDuCoach(contexte))}
+                    taille="compact"
+                    presence="discrete"
+                  />
                 </span>
                 Ton coach
               </DrawerTitle>

@@ -14,6 +14,8 @@ import { RestTimer } from "@/components/session/RestTimer";
 import { VueFocus } from "@/components/session/VueFocus";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
 import { avancement } from "@/lib/live/vue-live";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
+import { ETATS_MASCOTTE } from "@/lib/coach/mascotte-assets";
 
 const A = "instance-a";
 const B = "instance-b";
@@ -357,6 +359,81 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
               ?.click();
           },
         ),
+      );
+    },
+  },
+  {
+    nom: "10-mascotte-repos",
+    titre: "Repos — la mascotte accompagne le minuteur",
+    rendu: () => {
+      seance([fait(A, 1, 60, 10, 7)]);
+      return `${enveloppe(
+        rendre(
+          <TableauSeries
+            exercice={DEADLIFT as never}
+            rpeReduction={0}
+            onSerieValidee={rien}
+          />,
+        ),
+      )}
+      <div class="repos-feuille"><div class="repos-panneau">
+        <div class="repos-mascotte">${rendre(
+          <MascotteCoach etat="repos" taille="normal" presence="normale" />,
+        )}</div>
+        ${rendre(
+          <RestTimer
+            durationSeconds={120}
+            onComplete={rien}
+            onSkip={rien}
+            onExtend={rien}
+            prochaine="Shoulder Press · Série 1 · 32,5 × 8"
+          />,
+        )}
+      </div></div>`;
+    },
+  },
+  {
+    nom: "11-mascotte-constat",
+    titre: "Constat de séance — intervention",
+    rendu: () => {
+      seance([fait(A, 1, 60, 10, 7)]);
+      return enveloppe(
+        `<div class="px-4 pb-2"><div class="coach-constat">${rendre(
+          <MascotteCoach etat="intervention" taille="compact" presence="discrete" />,
+        )}
+          <div class="min-w-0 flex-1">
+            <p class="text-encre text-sm font-medium">Cette série a été plus dure que visé</p>
+            <p class="text-encre-2 text-xs mt-0.5">Effort ressenti 10 pour une cible de 8, sur le Deadlift.</p>
+            <button class="coach-constat-action">En parler au coach</button>
+          </div>
+          <button class="coach-constat-fermer" aria-label="Masquer ce constat">×</button>
+        </div></div>`
+          + rendre(
+            <LecteurExercice
+              exercice={DEADLIFT as never}
+              rpeReduction={0}
+              modeReserve={false}
+              onSerieValidee={rien}
+              onSuivant={rien}
+            />,
+          ),
+      );
+    },
+  },
+  {
+    nom: "12-mascotte-planche",
+    titre: "Les treize états, côte à côte",
+    rendu: () => {
+      // La planche de contrôle : elle sert à vérifier que chaque fichier se
+      // charge et se lit à la taille où il est employé.
+      seance();
+      return enveloppe(
+        `<div class="mascotte-planche">${ETATS_MASCOTTE.map(
+          (e) =>
+            `<figure>${rendre(
+              <MascotteCoach etat={e} taille="normal" presence="normale" />,
+            )}<figcaption>${e}</figcaption></figure>`,
+        ).join("")}</div>`,
       );
     },
   },

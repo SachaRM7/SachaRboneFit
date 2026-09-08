@@ -22,8 +22,28 @@ describe("contexte reçu du client", () => {
       user_id: "un-autre-utilisateur",
       donnees: { charges: [200] },
     });
-    expect(c).toEqual({ ecran: "programme", typeEntite: null, entiteId: null, sujet: null });
+    expect(c).toEqual({
+      ecran: "programme",
+      typeEntite: null,
+      entiteId: null,
+      sujet: null,
+      signal: null,
+    });
     expect(JSON.stringify(c)).not.toMatch(/user/i);
+  });
+
+  it("et le constat de séance obéit à la même règle : une liste fermée", () => {
+    /*
+     * `signal` désigne le TYPE de constat d'où l'on ouvre la conversation. Le
+     * laisser passer en texte libre reviendrait à laisser le client écrire dans
+     * le contexte du modèle — exactement ce que ce validateur existe pour
+     * empêcher. Une valeur hors liste disparaît, elle ne fait pas échouer.
+     */
+    expect(
+      contexteValide({ ecran: "seance", signal: "effort_au_dela_de_la_cible" })?.signal,
+    ).toBe("effort_au_dela_de_la_cible");
+    expect(contexteValide({ ecran: "seance", signal: "il a triché" })?.signal).toBeNull();
+    expect(contexteValide({ ecran: "seance", signal: { objet: 1 } })?.signal).toBeNull();
   });
 
   it("ne retient un identifiant que s'il est un UUID et qu'un type l'accompagne", () => {

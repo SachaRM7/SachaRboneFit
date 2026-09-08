@@ -193,6 +193,25 @@ export async function resoudreContexte(
     lignes.push(`Intention déclarée en ouvrant la conversation : ${contexte.sujet}.`);
   }
 
+  /*
+   * Le type de constat d'où l'on vient — DÉCLARÉ PAR L'ÉCRAN, et présenté
+   * comme tel.
+   *
+   * Il désigne un sujet de conversation, il n'établit rien. Les nombres, eux,
+   * viennent des outils que le Coach appelle sur la séance authentifiée : un
+   * client qui prétendrait « effort au-delà de la cible » sur une séance calme
+   * ne ferait donc pas mentir le Coach, il désignerait un sujet vide. C'est
+   * pourquoi cette ligne dit « signalé par l'écran » plutôt que d'affirmer le
+   * fait — la formulation EST la garantie.
+   */
+  if (contexte.signal) {
+    lignes.push(
+      `Constat signalé par l'écran au moment de l'ouverture : ${contexte.signal}. `
+        + "C'est une désignation du sujet, pas une mesure : vérifie les données "
+        + "de la séance avant d'affirmer quoi que ce soit.",
+    );
+  }
+
   return { texte: lignes.length ? lignes.join("\n") : null, refs };
 }
 

@@ -20,7 +20,17 @@ interface Etat {
   contexte: ContexteEcran | null;
   ouvert: boolean;
   declarer: (c: ContexteEcran | null) => void;
-  ouvrir: (sujet?: Sujet) => void;
+  /**
+   * Ouvrir le tiroir, éventuellement en désignant un sujet précis.
+   *
+   * `precisions` sert au constat de séance : il désigne l'exercice concerné et
+   * le TYPE de constat. Rien d'autre ne transite — le serveur relit la séance
+   * depuis la session authentifiée.
+   */
+  ouvrir: (
+    sujet?: Sujet,
+    precisions?: Pick<ContexteEcran, "typeEntite" | "entiteId" | "signal">,
+  ) => void;
   fermer: () => void;
 }
 
@@ -32,9 +42,15 @@ export function FournisseurCoach({ children }: { children: React.ReactNode }) {
 
   const declarer = useCallback((c: ContexteEcran | null) => setContexte(c), []);
 
-  const ouvrir = useCallback(
-    (sujet?: Sujet) => {
-      if (sujet) setContexte((c) => (c ? { ...c, sujet } : { ecran: "plus", sujet }));
+  const ouvrir = useCallback<Etat["ouvrir"]>(
+    (sujet, precisions) => {
+      if (sujet || precisions) {
+        setContexte((c) => ({
+          ...(c ?? { ecran: "plus" }),
+          ...(sujet ? { sujet } : {}),
+          ...(precisions ?? {}),
+        }));
+      }
       setOuvert(true);
     },
     [],
@@ -44,7 +60,9 @@ export function FournisseurCoach({ children }: { children: React.ReactNode }) {
     setOuvert(false);
     // L'intention ne survit pas à la fermeture : elle valait pour cette
     // ouverture-là. L'écran, lui, reste celui où l'on se trouve.
-    setContexte((c) => (c?.sujet ? { ...c, sujet: null } : c));
+    // L'intention ET le constat qui l'accompagnait valaient pour cette
+    // ouverture-là : les garder ferait répondre le Coach sur un fait dépassé.
+    setContexte((c) => (c?.sujet || c?.signal ? { ...c, sujet: null, signal: null } : c));
   }, []);
 
   const valeur = useMemo(
