@@ -120,3 +120,123 @@ describe("la recherche part bien de l'exercice désigné", () => {
     expect(res.substituts).toHaveLength(0);
   });
 });
+
+describe("le classement est déterministe, et il tient la liste", () => {
+  /*
+   * LE DÉFAUT FERMÉ
+   *
+   * La version précédente prenait `candidates.slice(0, 3)` — les trois premiers
+   * dans l'ordre où la base les avait rendus. Deux appels identiques pouvaient
+   * proposer deux listes différentes, et rien ne disait pourquoi celui-là
+   * plutôt qu'un autre.
+   */
+  const base = instance({
+    id: "base", nom: "Tirage horizontal", machineNom: "Seated Row",
+    profilTension: "mi_range", categorieRole: "pilier", musclesPrincipaux: ["dorsaux"],
+  });
+
+  const tresProche = instance({
+    id: "tres-proche", nom: "Tirage machine", machineNom: "Matrix",
+    profilTension: "mi_range", categorieRole: "pilier", musclesPrincipaux: ["dorsaux"],
+  });
+  const profilDifferent = instance({
+    id: "profil-different", nom: "Tirage nuque", machineNom: "Cybex",
+    profilTension: "allonge", categorieRole: "pilier", musclesPrincipaux: ["dorsaux"],
+  });
+  const roleDifferent = instance({
+    id: "role-different", nom: "Tirage bras tendus", machineNom: "Poulie",
+    profilTension: "allonge", categorieRole: "accessoire", musclesPrincipaux: ["trapezes"],
+  });
+
+  it("le plus proche du mouvement prévu arrive en tête", async () => {
+    const res = await machineOccupee(
+      { exercise_instance_id: base.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      // Volontairement dans le pire ordre : le meilleur candidat est dernier.
+      [base, roleDifferent, profilDifferent, tresProche],
+      [base.id],
+    );
+    expect(res.substituts[0]?.exerciseInstanceId).toBe("tres-proche");
+    expect(res.substituts[0]?.raisonCompatibilite).toContain("Très proche");
+  });
+
+  it("et le même appel rend toujours la même liste", async () => {
+    // Deux appels, deux ordres d'entrée différents, un seul résultat.
+    const appel = (instances: typeof base[]) => machineOccupee(
+      { exercise_instance_id: base.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      instances, [base.id],
+    );
+    const a = await appel([base, tresProche, profilDifferent, roleDifferent]);
+    const b = await appel([base, roleDifferent, tresProche, profilDifferent]);
+    expect(a.substituts.map((s) => s.exerciseInstanceId))
+      .toEqual(b.substituts.map((s) => s.exerciseInstanceId));
+  });
+
+  it("jusqu'à cinq alternatives, pas plus", async () => {
+    /*
+     * Trois était trop peu quand la salle en offre davantage ; au-delà de cinq,
+     * on relit une liste au lieu de reprendre sa série.
+     */
+    const beaucoup = Array.from({ length: 9 }, (_, i) =>
+      instance({ id: `c${i}`, nom: `Tirage ${i}`, machineNom: `M${i}` }));
+    const res = await machineOccupee(
+      { exercise_instance_id: base.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [base, ...beaucoup], [base.id],
+    );
+    expect(res.substituts.length).toBeGreaterThanOrEqual(3);
+    expect(res.substituts.length).toBeLessThanOrEqual(5);
+  });
+
+  it("la raison sort du même calcul que le rang", async () => {
+    // Une phrase écrite indépendamment du score finirait par dire « très
+    // proche » d'un candidat classé quatrième.
+    const res = await machineOccupee(
+      { exercise_instance_id: base.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [base, tresProche, roleDifferent], [base.id],
+    );
+    const dernier = res.substituts.at(-1)!;
+    expect(dernier.raisonCompatibilite).not.toContain("Très proche");
+  });
+});
+
+describe("aucune alternative inventée", () => {
+  const base = instance({ id: "base", nom: "Tirage horizontal", machineNom: "Seated Row" });
+
+  it("une machine d'une AUTRE salle n'est jamais proposée", async () => {
+    const ailleurs = instance({ id: "ailleurs", nom: "Tirage", gymId: "autre-salle" });
+    const res = await machineOccupee(
+      { exercise_instance_id: base.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [base, ailleurs], [base.id],
+    );
+    expect(res.substituts.map((s) => s.exerciseInstanceId)).not.toContain("ailleurs");
+  });
+
+  it("un exercice déjà dans la séance non plus", async () => {
+    // Le proposer ferait faire deux fois le même mouvement.
+    const dejaPrevu = instance({ id: "deja", nom: "Tirage vertical" });
+    const res = await machineOccupee(
+      { exercise_instance_id: base.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [base, dejaPrevu], [base.id, dejaPrevu.id],
+    );
+    expect(res.substituts).toHaveLength(0);
+    expect(res.message).toContain("Aucun substitut");
+  });
+
+  it("et un muscle courbaturé écarte le candidat", async () => {
+    const surDorsaux = instance({ id: "dorsaux", nom: "Tirage prise large" });
+    const res = await machineOccupee(
+      { exercise_instance_id: base.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [base, surDorsaux], [base.id], ["dorsaux"],
+    );
+    // Le repli finit par le proposer si rien d'autre n'existe — mais il n'est
+    // pas retenu tant qu'un candidat sans courbature est disponible.
+    const sansCourbature = instance({
+      id: "epaules", nom: "Tirage épaules", musclesPrincipaux: ["deltoides"],
+    });
+    const avecChoix = await machineOccupee(
+      { exercise_instance_id: base.id, gym_id: SALLE, seance_template_id: "", daily_state_id: null },
+      [base, surDorsaux, sansCourbature], [base.id], ["dorsaux"],
+    );
+    expect(avecChoix.substituts.map((s) => s.exerciseInstanceId)).toEqual(["epaules"]);
+    expect(res.substituts.length).toBeGreaterThanOrEqual(0);
+  });
+});

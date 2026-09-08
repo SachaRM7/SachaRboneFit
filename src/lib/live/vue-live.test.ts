@@ -269,3 +269,40 @@ describe("la lignée d'un slot se construit substitution après substitution", (
     expect(ligneeDe(apres, "B").origine).toBe("A");
   });
 });
+
+describe("l'avancement affiché après substitution", () => {
+  it("compte les séries de toute la lignée, pas de la seule machine visible", () => {
+    /*
+     * Après une substitution, l'exercice visible est B. `avancement` comptait
+     * par ENTRÉE : B n'ayant aucune série, la liste compacte affichait « 0/3 »
+     * pendant que l'en-tête du tableau affichait « 1/3 ». Deux nombres pour la
+     * même chose — exactement ce que ce module existe pour empêcher.
+     */
+    const exercices: ExercicePourLaVue[] = [{ id: "B", nom: "Chest Press B", seriesCibles: 3 }];
+    const lignees = [{ origine: "A", instances: ["A", "B"] }];
+
+    const sans = avancement(exercices, [serie("A", 1)]);
+    expect(sans[0]!.faites, "le décor doit exposer le défaut").toBe(0);
+
+    const avec = avancement(exercices, [serie("A", 1)], lignees);
+    expect(avec[0]!.faites).toBe(1);
+    expect(avec[0]!.statut).toBe("en_cours");
+  });
+
+  it("et l'exercice se termine quand la lignée a rempli tous les slots", () => {
+    const exercices: ExercicePourLaVue[] = [{ id: "B", nom: "Chest Press B", seriesCibles: 3 }];
+    const lignees = [{ origine: "A", instances: ["A", "B"] }];
+    const etats = avancement(
+      exercices, [serie("A", 1), serie("B", 2), serie("B", 3)], lignees,
+    );
+    expect(etats[0]!.statut).toBe("termine");
+    expect(etats[0]!.faites).toBe(3);
+  });
+
+  it("sans substitution, rien ne change", () => {
+    // La lignée par défaut d'une entrée est elle-même : le comportement
+    // d'origine est strictement conservé.
+    const etats = avancement(EX, [serie("a", 1)], []);
+    expect(etats[0]!.faites).toBe(1);
+  });
+});
