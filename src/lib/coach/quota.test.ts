@@ -24,7 +24,7 @@ describe("quota du coach", () => {
     vi.stubGlobal("fetch", fetch);
     expect((await appelerLLM(options)).texte).toContain("séance est C");
     expect(attendre).toHaveBeenCalledTimes(1);
-    expect(Number(vi.mocked(attendre).mock.calls[0][0])).toBeGreaterThan(1500);
+    expect(Number(vi.mocked(attendre).mock.calls[0]?.[0])).toBeGreaterThan(1500);
     expect(fetch).toHaveBeenCalledTimes(3);
   });
   it("ne boucle pas si le quota reste épuisé", async () => {

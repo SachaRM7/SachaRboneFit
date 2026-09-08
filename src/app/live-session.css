@@ -1,8 +1,13 @@
 /* Live sessions: actions belong to their exercise, never over the input fields. */
 .live-session { min-width: 0; padding-bottom: 1rem; }
-.live-session-context { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:4px 12px; padding:8px 16px; }
-.live-time-context { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.live-time-context > div { padding:0; flex-wrap:wrap; }
+.live-session-persistent { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:44px; margin-top:2px; border-top:1px solid var(--filet-doux); }
+.live-time-context { display:flex; align-items:center; min-width:0; }
+.live-time-context > div { min-width:0; padding:0; flex-wrap:wrap; }
+.live-persistent-actions { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.live-persistent-action { min-height:44px; padding:7px 12px; border-radius:10px; color:var(--encre-2); font-size:12px; font-weight:600; cursor:pointer; transition:background-color 180ms ease, color 180ms ease, transform 180ms ease; }
+.live-persistent-action:hover { background:var(--papier-2); color:var(--encre); }
+.live-persistent-action:active { transform:translateY(1px); }
+.live-persistent-action:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
 .live-context-action { min-height:44px; padding:8px 10px; font-size:12px; line-height:1.3; color:var(--encre-2); border-radius:10px; text-decoration:underline; text-underline-offset:3px; cursor:pointer; }
 .live-context-action:hover { background:var(--papier-2); }
 .live-exercise-actions { display:flex; flex-wrap:wrap; align-items:center; gap:2px 8px; padding:4px 12px; border-bottom:1px solid var(--filet-doux); }
@@ -18,7 +23,8 @@
 @media(max-width:600px) {
   .live-session > main { padding-top:8px; }
   .live-session-header h1 { font-size:16px; }
-  .live-session-context { gap:0 8px; padding-block:2px; }
+  .live-session-header { padding-bottom:0; }
+  .live-session-persistent { margin-inline:-4px; }
   .live-session .focus-v2 { margin-top:8px; }
   .live-session .live-series-table thead { display:none; }
   .live-session .live-series-table tbody { display:block; }

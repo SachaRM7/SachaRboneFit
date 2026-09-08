@@ -83,14 +83,14 @@ describe("semaine du programme", () => {
       { seanceTemplateId: "b", date: "2026-09-06", createdAt: new Date("2026-09-06T12:00:00Z"), adaptee: false },
       { seanceTemplateId: "a", date: "2026-09-06", createdAt: new Date("2026-09-06T10:00:00Z"), adaptee: false },
     ] });
-    expect(s[2].etat).toBe("prochaine");
+    expect(s[2]?.etat).toBe("prochaine");
   });
 
   it("revient à A après le dernier gabarit, même si B a été sautée", () => {
     const s = semaineDuProgramme({ gabarits, aujourdhui: "2026-09-07", seancesFaites: [
       { seanceTemplateId: "c", date: "2026-09-06", adaptee: false },
     ] });
-    expect(s[0].etat).toBe("prochaine");
+    expect(s[0]?.etat).toBe("prochaine");
   });
 
   it("marque la première séance non faite comme prochaine, les autres à venir", () => {

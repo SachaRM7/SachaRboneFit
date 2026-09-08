@@ -763,6 +763,45 @@ function ContenuSeanceLive() {
             exercices
           </span>
         </div>
+        <nav
+          className="live-session-persistent"
+          aria-label="Ajustements permanents de la séance"
+        >
+          <div className="live-time-context">
+            {active?.startedAt && (
+              <ChronoSeance
+                demarreeA={active.startedAt}
+                dureeCibleMinutes={seance.dureeCibleMinutes}
+                dureeMaxMinutes={seance.dureeMaxMinutes}
+              />
+            )}
+          </div>
+          <div className="live-persistent-actions">
+            <button
+              type="button"
+              className="live-persistent-action"
+              aria-label="Mon état a changé"
+              onClick={() => setModaleSOS("etat")}
+            >
+              État
+            </button>
+            <button
+              type="button"
+              className="live-persistent-action"
+              aria-label="Adapter la durée"
+              onClick={() => {
+                setDureeSOSMin(
+                  active
+                    ? Math.floor((Date.now() - active.startedAt) / 60000)
+                    : 0,
+                );
+                setModaleSOS("temps");
+              }}
+            >
+              Temps
+            </button>
+          </div>
+        </nav>
       </header>
 
       {/* L'ajustement était calculé, stocké, puis jamais montré — et seul le
@@ -773,42 +812,6 @@ function ContenuSeanceLive() {
         volumeAjusteRaison={seance.volumeAjusteRaison}
         exercices={visibles}
       />
-
-      {/* Le temps écoulé, discrètement. Il n'existait pas : les durées idéale
-          et maximale de l'onboarding n'étaient relues nulle part. */}
-      <div className="live-session-context">
-        <div className="live-time-context">
-          {active?.startedAt && (
-            <ChronoSeance
-              demarreeA={active.startedAt}
-              dureeCibleMinutes={seance.dureeCibleMinutes}
-              dureeMaxMinutes={seance.dureeMaxMinutes}
-            />
-          )}
-
-          <button
-            type="button"
-            className="live-context-action"
-            onClick={() => {
-              setDureeSOSMin(
-                active
-                  ? Math.floor((Date.now() - active.startedAt) / 60000)
-                  : 0,
-              );
-              setModaleSOS("temps");
-            }}
-          >
-            Adapter la durée
-          </button>
-        </div>
-        <button
-          type="button"
-          className="live-context-action"
-          onClick={() => setModaleSOS("etat")}
-        >
-          Mon état a changé
-        </button>
-      </div>
 
       {/*
         Le Coach regarde la séance pendant qu'elle a lieu. Ce que le moteur

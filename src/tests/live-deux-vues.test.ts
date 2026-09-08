@@ -317,6 +317,24 @@ describe("le Live dégage les zones réservées d'iOS", () => {
     expect(page).toMatch(/top: "var\(--marge-haut\)"/);
   });
 
+  it("État et Temps restent dans la surface persistante du Live", () => {
+    const page = lire(PAGE);
+    const header = page.match(/<header[\s\S]*?<\/header>/)?.[0];
+
+    expect(header, "le Live n'a plus d'en-tête persistant").toBeDefined();
+    expect(header).toContain("live-session-persistent");
+    expect(header).toMatch(/setModaleSOS\("etat"\)/);
+    expect(header).toMatch(/setModaleSOS\("temps"\)/);
+    expect(header).toContain("État");
+    expect(header).toContain("Temps");
+    expect(header).toContain("<ChronoSeance");
+
+    const css = lire("app/live-session.css");
+    expect(page).toMatch(/className="live-session-header sticky/);
+    expect(css).toMatch(/\.live-session-persistent\s*\{[^}]*min-height:44px/);
+    expect(css).not.toContain(".live-session-context");
+  });
+
   it("les actions restent dans le contenu, sans barre SOS fixe", () => {
     // À `bottom-0`, elle passait sous une barre de navigation fixée au même
     // endroit et de z-index supérieur.
