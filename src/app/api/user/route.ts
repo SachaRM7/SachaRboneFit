@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, isNull, or } from "drizzle-orm";
 import { z } from "zod";
 import { MUSCLES } from "@/lib/referentiels/muscles";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
@@ -85,7 +85,23 @@ export async function POST(request: Request) {
       email,
       nom: nom || (authUser.user_metadata?.nom as string | undefined) || email.split("@")[0],
     })
+    .onConflictDoUpdate({
+      target: users.email,
+      // Certains comptes créés avant Supabase Auth possèdent déjà un profil
+      // applicatif vide sous un autre UUID. L'adresse vérifiée permet de
+      // rattacher uniquement ce brouillon au compte Auth courant. Un profil
+      // dont l'onboarding est terminé reste intouchable.
+      set: { id: authUser.id, updatedAt: new Date() },
+      setWhere: or(eq(users.id, authUser.id), isNull(users.onboardingTermineLe)),
+    })
     .returning();
+
+  if (!user || user.id !== authUser.id) {
+    return NextResponse.json(
+      { error: "Cette adresse est déjà rattachée à un autre profil." },
+      { status: 409 },
+    );
+  }
 
   publier("api/user");
   return NextResponse.json({ user }, { status: 201 });
