@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db/client";
 import { users, gyms, contraintes, programmeBlocs, bodyWeights } from "@/db/schema";
 import { REEVALUATION_JOURS, decalerDe } from "@/lib/engine/contraintes";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { createClient } from "@/lib/supabase/server";
 import { detailErreur } from "@/lib/erreurs";
@@ -60,15 +60,31 @@ export async function POST(request: Request) {
       // appareil n'y passe jamais. Sans ce filet, la mise à jour ci-dessous
       // toucherait zéro ligne sans rien signaler, et l'utilisateur reviendrait
       // indéfiniment sur l'onboarding.
-      const existant = await tx.query.users.findFirst({ where: eq(users.id, userId) });
-      if (!existant) {
-        await tx.insert(users).values({
-          id: userId,
-          email: emailAuth ?? `${userId}@inconnu.local`,
-          nom: emailAuth?.split("@")[0] ?? "Athlète",
-        });
-      }
+      await tx.insert(users).values({
+        id: userId,
+        email: emailAuth ?? `${userId}@inconnu.local`,
+        nom: emailAuth?.split("@")[0] ?? "Athlète",
+      }).onConflictDoNothing();
 
+      // Verrou transactionnel : deux requêtes parties presque ensemble voient
+      // la même fin d'onboarding, puis la seconde sort sans recréer de bloc.
+      await tx.execute(sql`select id from users where id = ${userId} for update`);
+      const existant = await tx.query.users.findFirst({ where: eq(users.id, userId) });
+      if (existant?.onboardingTermineLe) {
+        const blocActif = await tx.query.programmeBlocs.findFirst({
+          where: and(eq(programmeBlocs.userId, userId), eq(programmeBlocs.actif, true)),
+        });
+        return {
+          salleId: existant.prefSalleParDefautId,
+          blocId: blocActif?.id ?? null,
+          reprise: estUneReprise(existant.moisDInterruption ?? 0),
+          niveau: niveauDeReprise({
+            moisDInterruption: existant.moisDInterruption ?? 0,
+            anneesDePratique: existant.anneesDePratique ?? 0,
+          }),
+          deja: true,
+        };
+      }
       await tx.update(users).set({
         objectifType: d.objectifType,
         objectifMusclesPrioritaires: d.musclesPrioritaires,
@@ -96,7 +112,7 @@ export async function POST(request: Request) {
       }).where(eq(users.id, userId));
 
       /*
-       * Le poids devient la PREMIÈRE PESÉE, datée du jour.
+       * Le poids devient la PREMIÈRE PESÉE, à la date déclarée.
        *
        * Il était demandé par le schéma de validation — `poids` y figurait —
        * puis jeté : la route ne l'écrivait ni dans `users`, ni dans
@@ -108,13 +124,13 @@ export async function POST(request: Request) {
        * divergeraient dès la deuxième pesée — celle saisie depuis l'écran
        * Poids de corps ne mettant pas l'autre à jour.
        *
-       * `onConflictDoNothing` : refaire l'onboarding le même jour ne doit pas
+       * `onConflictDoNothing` : refaire l'onboarding à la même date ne doit pas
        * écrire deux pesées pour la même date.
        */
       if (d.poids !== undefined) {
         await tx.insert(bodyWeights).values({
           userId,
-          date: new Date().toISOString().slice(0, 10),
+          date: d.poidsDate,
           poids: d.poids,
         }).onConflictDoNothing();
       }

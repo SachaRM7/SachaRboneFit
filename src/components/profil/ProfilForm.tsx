@@ -74,6 +74,7 @@ export function ProfilForm({ initial }: { initial: ProfilInitial }) {
     sexe: initial.sexe ?? "",
     taille: initial.taille !== null ? String(initial.taille) : "",
     poids: "",
+    poidsDate: "",
   });
   const [frequence, setFrequence] = useState<Fourchette>({
     min: initial.frequenceMinParSemaine ?? FREQUENCE_PAR_DEFAUT.min,

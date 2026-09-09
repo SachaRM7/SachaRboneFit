@@ -14,9 +14,9 @@ import {
  * existaient en base sans qu'aucun écran ne les demande, et le poids était
  * accepté par le schéma de validation de l'onboarding puis jeté.
  *
- * Tout est facultatif. Refuser de répondre ne doit empêcher ni de s'entraîner
- * ni de terminer l'inscription : le moteur fonctionne sans, et une valeur
- * inventée serait pire qu'une absence.
+ * L'inscription demande ces repères explicitement ; l'édition depuis le profil
+ * reste souple. « non précisé » est une vraie réponse et ne devient jamais une
+ * valeur physiologique inventée.
  */
 
 export interface MesuresDuCorps {
@@ -24,10 +24,11 @@ export interface MesuresDuCorps {
   sexe: string;
   taille: string;
   poids: string;
+  poidsDate: string;
 }
 
 export const MESURES_VIDES: MesuresDuCorps = {
-  dateNaissance: "", sexe: "", taille: "", poids: "",
+  dateNaissance: "", sexe: "", taille: "", poids: "", poidsDate: "",
 };
 
 interface Props {
@@ -41,13 +42,16 @@ interface Props {
   avecPoids?: boolean;
   /** Ce que devient la donnée. Dit une fois, là où on la demande. */
   aide?: string;
+  /** L'inscription exige ces données ; le profil garde son édition souple. */
+  requis?: boolean;
+  erreurs?: Partial<Record<keyof MesuresDuCorps, string>>;
 }
 
 const carte = "rounded-xl border text-left transition-colors w-full";
 const actif = "border-encre bg-encre text-papier";
 const inactif = "border-filet bg-carte text-encre";
 
-export function QuiTuEs({ valeurs, onChange, avecPoids = true, aide }: Props) {
+export function QuiTuEs({ valeurs, onChange, avecPoids = true, aide, requis = false, erreurs = {} }: Props) {
   const bornes = bornesDeNaissance();
   const modifier = (patch: Partial<MesuresDuCorps>) => onChange({ ...valeurs, ...patch });
 
@@ -55,7 +59,7 @@ export function QuiTuEs({ valeurs, onChange, avecPoids = true, aide }: Props) {
     <div className="space-y-5">
       <div className="space-y-1.5">
         <label htmlFor="dateNaissance" className="text-encre-2 text-sm block">
-          Date de naissance <span className="text-encre-3">· facultatif</span>
+          Date de naissance {!requis && <span className="text-encre-3">· facultatif</span>}
         </label>
         <Input
           id="dateNaissance"
@@ -68,12 +72,14 @@ export function QuiTuEs({ valeurs, onChange, avecPoids = true, aide }: Props) {
           value={valeurs.dateNaissance}
           onChange={(e) => modifier({ dateNaissance: e.target.value })}
           className="bg-carte border-filet text-encre h-12 text-base"
+          aria-invalid={Boolean(erreurs.dateNaissance)}
         />
+        {erreurs.dateNaissance && <p className="text-sm text-perte">{erreurs.dateNaissance}</p>}
       </div>
 
       <div className="space-y-1.5">
         <p className="text-encre-2 text-sm">
-          Sexe <span className="text-encre-3">· facultatif</span>
+          Sexe {!requis && <span className="text-encre-3">· facultatif</span>}
         </p>
         <div className="grid gap-1.5">
           {SEXES.map((s) => (
@@ -88,27 +94,48 @@ export function QuiTuEs({ valeurs, onChange, avecPoids = true, aide }: Props) {
             </button>
           ))}
         </div>
+        {erreurs.sexe && <p className="text-sm text-perte">{erreurs.sexe}</p>}
       </div>
 
       <ChampNombre
         id="taille"
-        label="Taille · facultatif"
+        label={`Taille${requis ? "" : " · facultatif"}`}
         valeur={valeurs.taille}
         onChange={(taille) => modifier({ taille })}
         placeholder={String(BORNES_CORPS.taille.min + 75)}
         unite="cm"
       />
+      {erreurs.taille && <p className="-mt-3 text-sm text-perte">{erreurs.taille}</p>}
 
       {avecPoids && (
         <ChampNombre
           id="poids"
-          label="Poids actuel · facultatif"
+          label={`Dernier poids connu${requis ? "" : " · facultatif"}`}
           valeur={valeurs.poids}
           onChange={(poids) => modifier({ poids })}
           placeholder="75"
           unite="kg"
-          aide="Ce sera ta première pesée. Tu pourras en ajouter d'autres quand tu veux."
+          aide="Il restera une pesée datée, jamais une valeur figée dans ton profil."
         />
+      )}
+      {avecPoids && erreurs.poids && <p className="-mt-3 text-sm text-perte">{erreurs.poids}</p>}
+
+      {avecPoids && (
+        <div className="space-y-1.5">
+          <label htmlFor="poidsDate" className="text-encre-2 text-sm block">
+            Date de cette pesée {!requis && <span className="text-encre-3">· facultatif</span>}
+          </label>
+          <Input
+            id="poidsDate"
+            type="date"
+            max={new Date().toISOString().slice(0, 10)}
+            value={valeurs.poidsDate}
+            onChange={(e) => modifier({ poidsDate: e.target.value })}
+            className="bg-carte border-filet text-encre h-12 text-base"
+            aria-invalid={Boolean(erreurs.poidsDate)}
+          />
+          {erreurs.poidsDate && <p className="text-sm text-perte">{erreurs.poidsDate}</p>}
+        </div>
       )}
 
       {aide && <p className="text-encre-3 text-xs leading-relaxed">{aide}</p>}

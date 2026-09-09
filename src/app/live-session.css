@@ -155,6 +155,40 @@
   color: var(--encre);
   font-weight: 600;
 }
+
+.premier-repere-estimation {
+  margin: 0.9rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--filet));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--accent) 8%, var(--carte));
+}
+
+.premier-repere-estimation > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.premier-repere-estimation span,
+.premier-repere-estimation small {
+  color: var(--encre-2);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.premier-repere-estimation strong {
+  font-size: 1.35rem;
+}
+
+.premier-repere-estimation p {
+  margin-top: 0.45rem;
+  color: var(--encre-2);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
 .premier-repere-cible {
   display: flex;
   flex-wrap: wrap;

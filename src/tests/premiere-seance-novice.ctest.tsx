@@ -99,6 +99,23 @@ describe("cas 1 — première machine sans historique", () => {
     expect(screen.getByText("Commence volontairement léger.")).toBeInTheDocument();
   });
 
+  it("affiche et préremplit le premier cran documenté comme estimation explicable", () => {
+    rendre({
+      ...EXERCICE,
+      premiereCharge: {
+        charge: 5,
+        confiance: "faible",
+        origine: "minimum_materiel",
+        explication: "Premier réglage réellement documenté sur cet appareil.",
+        versionModele: "cold-start-v1.0.0",
+      },
+    } as never);
+    expect(screen.getByLabelText("Charge série 1")).toHaveValue("5");
+    const estimation = screen.getByTestId("charge-essai-estimee");
+    expect(within(estimation).getByText("5 kg")).toBeInTheDocument();
+    expect(within(estimation).getByText(/Estimé · confiance faible/i)).toBeInTheDocument();
+  });
+
   it("sépare la cible du ressenti et ne présélectionne aucune réponse", () => {
     rendre();
     expect(screen.getByText(/Objectif : environ 3 en réserve/)).toBeInTheDocument();

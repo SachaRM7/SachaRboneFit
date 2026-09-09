@@ -4,12 +4,19 @@ import { onboardingSchema, estUneReprise, OBJECTIFS, LIBELLES_OBJECTIF } from ".
 const base = {
   objectifType: "prise_de_muscle",
   niveauExperience: "intermediaire",
+  anneesDePratique: 3,
+  moisDInterruption: 0,
   frequenceCibleParSemaine: 3,
   frequenceMinParSemaine: 2,
   frequenceMaxParSemaine: 4,
   dureeSeanceCibleMinutes: 60,
   dureeSeanceMaxMinutes: 75,
   nouvelleSalleNom: "St-Martin-Du-Touch",
+  dateNaissance: "1994-04-18",
+  sexe: "non_precise",
+  taille: 178,
+  poids: 75,
+  poidsDate: "2026-09-01",
 };
 
 const echec = (patch: Record<string, unknown>) => {
@@ -19,7 +26,7 @@ const echec = (patch: Record<string, unknown>) => {
 };
 
 describe("onboardingSchema", () => {
-  it("accepte le strict nécessaire et complète le reste", () => {
+  it("accepte le profil de cold-start complet et complète le reste", () => {
     const r = onboardingSchema.safeParse(base);
     expect(r.success).toBe(true);
     if (!r.success) return;
@@ -50,6 +57,19 @@ describe("onboardingSchema", () => {
 
   it("refuse une durée idéale supérieure au maximum", () => {
     expect(echec({ dureeSeanceCibleMinutes: 90 })).toContain("dureeSeanceMaxMinutes");
+  });
+
+  it("exige les données corporelles datées sans imposer un sexe binaire", () => {
+    for (const champ of ["dateNaissance", "sexe", "taille", "poids", "poidsDate"] as const) {
+      expect(echec({ [champ]: undefined })).toContain(champ);
+    }
+    expect(onboardingSchema.safeParse({ ...base, sexe: "non_precise" }).success).toBe(true);
+    expect(echec({ poidsDate: "2099-01-01" })).toContain("poidsDate");
+  });
+
+  it("exige une durée d'expérience et d'interruption explicitement saisies", () => {
+    expect(echec({ anneesDePratique: undefined })).toContain("anneesDePratique");
+    expect(echec({ moisDInterruption: undefined })).toContain("moisDInterruption");
   });
 
   it("ne demande jamais une ancienne charge ni un ancien record", () => {

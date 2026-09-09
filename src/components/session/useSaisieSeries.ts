@@ -131,7 +131,7 @@ export function useSaisieSeries({
   );
   const sansRepereComparable = (exercice.historique ?? []).length === 0;
   const chargeParDefaut = modeReserve && sansRepereComparable
-    ? null
+    ? exercice.premiereCharge?.charge ?? null
     : exercice.chargeSuggeree ?? exercice.historique?.[0]?.charge ?? null;
 
   /** Valeurs proposées pour une ligne, avant toute saisie de l'utilisateur. */

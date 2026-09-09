@@ -11,6 +11,7 @@ import { indexerRefus } from "@/lib/engine/refus";
 import { computeVolumeAdjustment } from "@/lib/engine/volume-adjustment";
 import { applyVolumeAdjustment, type ExerciseInTemplateWithDetails } from "@/lib/engine/apply-adjustment";
 import { configurationDe } from "@/lib/engine/charges";
+import { estimerDepuisInstance, type EstimationPremiereCharge } from "@/lib/engine/cold-start-strength";
 import { computeNextSets, type MotifProgression } from "@/lib/engine/double-progression";
 import { resoudrePourSalle, type InstanceResolvable } from "@/lib/engine/resolution-salle";
 import { versMuscles } from "@/lib/referentiels/muscles";
@@ -19,6 +20,7 @@ import type { DailyStateInput } from "@/lib/validators/daily-state";
 import type { SessionLog, SessionPlanItem } from "@/db/schema";
 import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { seriesRealisees } from "@/lib/engine/serie-realisee";
+import { chargerContexteColdStart } from "@/services/cold-start";
 
 /**
  * Construction de la seance du jour.
@@ -578,6 +580,8 @@ export interface ItemPlanEnrichi {
    */
   lignee: string[];
   historique: { charge: number; reps: number; rpe: number | null }[];
+  /** Proposition explicable de cold-start, calculée à la lecture et jamais persistée. */
+  premiereCharge: EstimationPremiereCharge;
 }
 
 /**
@@ -646,11 +650,26 @@ export async function lirePlan(userId: string, sessionLogId: string) {
   // Même lecture groupée que la construction : un plan de six exercices
   // demandait six lectures d'historique, l'écran de séance les attendait
   // toutes avant d'afficher quoi que ce soit.
-  const references = await dernieresSeriesPour(userId, lignes.map((l) => l.exerciseInstanceId));
+  const [references, contexteColdStart] = await Promise.all([
+    dernieresSeriesPour(userId, lignes.map((l) => l.exerciseInstanceId)),
+    chargerContexteColdStart(userId),
+  ]);
 
   const items: ItemPlanEnrichi[] = await Promise.all(
     lignes.map(async (l) => {
       const derniere = references.get(l.exerciseInstanceId) ?? null;
+      const historique = (derniere?.sets ?? []).map((s) => ({
+        charge: s.charge,
+        reps: s.reps,
+        rpe: null,
+      }));
+      const premiereCharge = estimerDepuisInstance({
+        instance: l,
+        chargeSuggereeHistorique: l.chargeSuggeree,
+        historiqueInstance: historique,
+        conventionCharge: l.conventionCharge,
+        profil: contexteColdStart.coldStart,
+      });
       return {
         motifProgression: motifDuMessagePersiste(l, derniere),
         id: l.exerciseInstanceId,
@@ -698,7 +717,8 @@ export async function lirePlan(userId: string, sessionLogId: string) {
           ?? (l.exerciseInstancePrevuId && l.exerciseInstancePrevuId !== l.exerciseInstanceId
             ? [l.exerciseInstancePrevuId, l.exerciseInstanceId]
             : []),
-        historique: (derniere?.sets ?? []).map((s) => ({ charge: s.charge, reps: s.reps, rpe: null })),
+        historique,
+        premiereCharge,
       };
     }),
   );
@@ -720,16 +740,11 @@ export async function lirePlan(userId: string, sessionLogId: string) {
    * rien à quoi se comparer sans elles. Elles voyagent avec le plan plutôt que
    * dans une requête de plus — l'écran de séance en fait déjà trois.
    */
-  const profil = await db.query.users.findFirst({
-    where: eq(users.id, userId),
-    columns: { dureeSeanceCibleMinutes: true, dureeSeanceMaxMinutes: true },
-  });
-
   return {
     seance,
     items,
     phaseCycle: bloc?.typeCycle ?? null,
-    dureeCibleMinutes: profil?.dureeSeanceCibleMinutes ?? null,
-    dureeMaxMinutes: profil?.dureeSeanceMaxMinutes ?? null,
+    dureeCibleMinutes: contexteColdStart.dureeCibleMinutes,
+    dureeMaxMinutes: contexteColdStart.dureeMaxMinutes,
   };
 }

@@ -44,6 +44,17 @@ export function GuidagePremiereSerie({
         </div>
       </div>
 
+      {exercice.premiereCharge?.charge != null && (
+        <div className="premier-repere-estimation" data-testid="charge-essai-estimee">
+          <div>
+            <span>Charge d’essai</span>
+            <strong>{exercice.premiereCharge.charge} kg</strong>
+          </div>
+          <small>Estimé · confiance {exercice.premiereCharge.confiance}</small>
+          <p>{exercice.premiereCharge.explication}</p>
+        </div>
+      )}
+
       {consigne && <p className="premier-repere-convention">{consigne}</p>}
       <p>
         Fais {exercice.fourchetteRepsMin}–{exercice.fourchetteRepsMax} répétitions
@@ -70,7 +81,7 @@ export function GuidagePremiereSerie({
           <li>Choisis ta réserve seulement après la série.</li>
           <li>L’app te guidera ensuite vers le cran matériel suivant.</li>
         </ol>
-        {premierCran !== null && (
+        {premierCran !== null && exercice.premiereCharge?.charge == null && (
           <p>
             Premier cran déclaré sur cette machine : {premierCran} kg. C’est un
             repère matériel, pas une charge recommandée.
