@@ -14,6 +14,7 @@ import {
 } from "@/lib/engine/declaration-reglage";
 import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
 import { versMuscles, type Muscle } from "@/lib/referentiels/muscles";
+import { FICHES_TECHNIQUES } from "@/lib/referentiels/fiches-techniques";
 
 /**
  * Ce qu'il faut charger pour exécuter un mouvement, et rien d'autre.
@@ -302,7 +303,7 @@ export async function contexteExecution(entrees: {
   const exercice = await db.query.exercises.findFirst({
     where: eq(exercises.id, exerciseId),
     columns: {
-      ficheTechnique: true, tempoParDefaut: true, type: true,
+      slug: true, ficheTechnique: true, tempoParDefaut: true, type: true,
       musclesPrincipaux: true, musclesSecondaires: true,
     },
   });
@@ -317,7 +318,19 @@ export async function contexteExecution(entrees: {
     typeExercice: exercice?.type,
   });
 
-  const fiche = ficheRenseignee(exercice?.ficheTechnique) ? exercice!.ficheTechnique! : null;
+  const ficheStockee = ficheRenseignee(exercice?.ficheTechnique)
+    ? exercice!.ficheTechnique!
+    : null;
+  const phasesVersionnees = exercice?.slug
+    ? FICHES_TECHNIQUES[exercice.slug]?.libellesPhasesTempo
+    : undefined;
+  // Les nouveaux mots du geste sont disponibles dans la preview sans écrire
+  // la fiche en base. La fiche stockée garde toutes ses autres rubriques et
+  // reste la source de vérité ; seul ce champ versionné complète une ancienne
+  // ligne qui ne le porte pas encore.
+  const fiche = ficheStockee && phasesVersionnees && !ficheStockee.libellesPhasesTempo
+    ? { ...ficheStockee, libellesPhasesTempo: phasesVersionnees }
+    : ficheStockee;
 
   // `versMuscles` plutôt que la valeur brute : la colonne porte encore, pour de
   // vieilles lignes, le vocabulaire d'avant le référentiel unique. Une clé

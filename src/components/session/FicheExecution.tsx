@@ -5,7 +5,8 @@ import { MemoireDeSaisie } from "@/lib/engine/memoire-de-saisie";
 import { prochaineIntention } from "@/lib/engine/intention";
 import { useSessionStore } from "@/stores/sessionStore";
 import {
-  messageDeRefus, phasesDuTempo, validerReglage,
+  messageDeRefus, phasesDuTempo, tempoAvecSecondes, tempoEnLangageHumain,
+  validerReglage,
   type ContexteExecutionClient,
 } from "./execution-client";
 import { LIMITE_NOTE_EXERCICE } from "@/lib/validators/exercise-instance";
@@ -115,6 +116,7 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
   const phases = contexte.tempo
     ? phasesDuTempo(contexte.tempo.tempo, f?.libellesPhasesTempo)
     : [];
+  const tempoHumain = tempoEnLangageHumain(phases);
 
   /**
    * Envoie une modification. Le corps ne porte QUE ce qui a changé : envoyer
@@ -384,11 +386,21 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
                 Réglages de cet appareil
               </h3>
               {contexte.reglages.length === 0 && (
-                <p className="text-sm text-encre-3">
-                  {contexte.peutDecrire
-                    ? "Aucun réglage décrit sur cet appareil."
-                    : "Aucun réglage décrit. Le compte qui tient cette salle à jour peut les décrire."}
-                </p>
+                <div className="space-y-1">
+                  <p className="text-sm text-encre-3">
+                    Aucun réglage spécifique n’est encore documenté pour cette machine.
+                  </p>
+                  {f?.installation && (
+                    <p className="text-sm text-encre-2">
+                      Les consignes d’installation du mouvement restent disponibles ci-dessous.
+                    </p>
+                  )}
+                  {!contexte.peutDecrire && (
+                    <p className="text-xs text-encre-3">
+                      Le compte qui tient cette salle à jour peut décrire les réglages physiques.
+                    </p>
+                  )}
+                </div>
               )}
               <div className="space-y-3">
                 {contexte.reglages.map((r) => (
@@ -525,12 +537,18 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
               >
                 <h3 className="text-xs uppercase tracking-wide text-encre-3">Tempo</h3>
                 <p className="chiffres text-encre tabular-nums">
-                  {contexte.tempo.brut}
+                  {tempoAvecSecondes(phases)}
                   <span className="text-encre-3 text-xs ml-2 underline underline-offset-4">
                     {expliqueTempo ? "masquer" : "que veut dire ce nombre ?"}
                   </span>
                 </p>
+                <p className="text-xs text-encre-3 mt-1">
+                  Notation technique : {contexte.tempo.brut}
+                </p>
               </button>
+              {tempoHumain && (
+                <p className="text-sm text-encre-2 mt-2">{tempoHumain}</p>
+              )}
               {expliqueTempo && (
                 <ul className="mt-2 space-y-1">
                   {/*
@@ -548,8 +566,8 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
                   */}
                   {phases.map((p) => (
                     <li key={p.cle} className="text-sm text-encre-2 flex gap-2">
-                      <span className="chiffres tabular-nums w-4 shrink-0 text-encre">
-                        {p.secondes}
+                      <span className="chiffres tabular-nums w-9 shrink-0 text-encre">
+                        {p.secondes} s
                       </span>
                       <span>
                         <span className="text-encre">{p.libelle}</span>

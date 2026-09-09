@@ -105,10 +105,167 @@
 .live-calibration > summary::-webkit-details-marker {
   display: none;
 }
-.live-calibration > p {
+.live-calibration > div {
   margin-top: 8px;
   color: var(--encre-3);
   font-size: 12px;
+  display: grid;
+  gap: 8px;
+}
+.live-calibration-echelle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 12px;
+  color: var(--encre-2);
+}
+
+/* Le chaînon entre « je vois le mouvement » et « je commence ma série ». */
+.premier-repere,
+.preparation-machine {
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.premier-repere {
+  background: var(--brand-soft);
+  color: var(--encre-2);
+}
+.premier-repere-titre,
+.preparation-machine-titre {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.premier-repere-titre > svg,
+.preparation-machine-titre > svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--primary);
+}
+.premier-repere-titre strong {
+  display: block;
+  color: var(--encre);
+  font-size: 14px;
+}
+.premier-repere-convention {
+  color: var(--encre);
+  font-weight: 600;
+}
+
+.premier-repere-estimation {
+  margin: 0.9rem 0;
+  padding: 0.9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--filet));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--accent) 8%, var(--carte));
+}
+
+.premier-repere-estimation > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.premier-repere-estimation span,
+.premier-repere-estimation small {
+  color: var(--encre-2);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.premier-repere-estimation strong {
+  font-size: 1.35rem;
+}
+
+.premier-repere-estimation p {
+  margin-top: 0.45rem;
+  color: var(--encre-2);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+.premier-repere-cible {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+  align-items: baseline;
+}
+.premier-repere-cible > span {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.premier-repere-conseil {
+  border-radius: 12px;
+  padding: 9px 10px;
+  background: var(--carte);
+  color: var(--encre);
+  font-weight: 600;
+}
+.premier-repere-conseil[data-etat="adapte"] {
+  color: var(--gain);
+}
+.premier-repere > details > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--encre);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.premier-repere > details > ol {
+  display: grid;
+  gap: 5px;
+  padding-left: 20px;
+  list-style: decimal;
+}
+.premier-repere > details > p {
+  margin-top: 8px;
+  color: var(--encre-3);
+}
+.preparation-machine {
+  background: var(--papier-2);
+  color: var(--encre-2);
+}
+.preparation-machine > div:not(.preparation-machine-titre) {
+  display: grid;
+  gap: 3px;
+}
+.preparation-machine strong {
+  color: var(--encre);
+  font-size: 12px;
+}
+.preparation-machine ul {
+  display: grid;
+  gap: 5px;
+}
+.preparation-machine li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.preparation-machine li b {
+  color: var(--encre);
+  font-weight: 650;
+  text-align: right;
+}
+.preparation-machine > button {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 13px;
+  border-radius: 12px;
+  background: var(--carte);
+  color: var(--encre);
+  font-weight: 600;
 }
 
 /* ===========================================================================
@@ -511,6 +668,19 @@
 }
 .mesure-valeur::placeholder {
   color: #ffffff40;
+}
+.mesure-aide,
+.reserve-question,
+.reserve-objectif {
+  font-size: 10px;
+  line-height: 1.4;
+}
+.mesure-aide,
+.reserve-objectif {
+  color: #9fb3a1;
+}
+.reserve-question {
+  color: var(--hero-ink);
 }
 
 /* Les crans de réserve : des pastilles, pas un menu déroulant. */

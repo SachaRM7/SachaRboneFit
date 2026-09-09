@@ -139,8 +139,13 @@ export async function POST(request: Request) {
       typePoulie: parsed.data.typePoulie,
       conventionCharge: parsed.data.conventionCharge,
       incrementsPossibles: parsed.data.incrementsPossibles,
+      paliersCharges: parsed.data.paliersCharges ?? null,
+      chargeMinimale: parsed.data.chargeMinimale ?? null,
       poidsNonCompte: parsed.data.poidsNonCompte ?? null,
       chargeMax: parsed.data.chargeMax ?? null,
+      natureCharge: parsed.data.natureCharge,
+      etat: parsed.data.etat,
+      quantite: parsed.data.quantite ?? null,
       notesMachine: parsed.data.notesMachine ?? null,
     }).returning();
 

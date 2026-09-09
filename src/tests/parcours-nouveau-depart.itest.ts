@@ -118,6 +118,7 @@ afterAll(async () => {
   await db.delete(schema.programmeBlocs).where(eq(schema.programmeBlocs.userId, UTILISATEUR));
   await db.delete(schema.exerciseInstances).where(eq(schema.exerciseInstances.userId, UTILISATEUR));
   await db.delete(schema.contraintes).where(eq(schema.contraintes.userId, UTILISATEUR));
+  await db.delete(schema.bodyWeights).where(eq(schema.bodyWeights.userId, UTILISATEUR));
   if (salleId) await db.delete(schema.gyms).where(eq(schema.gyms.id, salleId));
   if (idsExercices.length) {
     await db.delete(schema.exercises).where(inArray(schema.exercises.id, idsExercices));
@@ -157,6 +158,10 @@ describe("parcours d'un nouveau départ", () => {
         exercicesRefuses: [],
         nouvelleSalleNom: NOM_SALLE,
         taille: 178,
+        dateNaissance: "1994-04-18",
+        sexe: "non_precise",
+        poids: 75,
+        poidsDate: AUJOURDHUI,
       }),
     );
     expect(res.status, await res.clone().text()).toBe(201);
@@ -173,11 +178,43 @@ describe("parcours d'un nouveau départ", () => {
     expect(profil?.frequenceMaxParSemaine).toBe(4);
     expect(profil?.prefSalleParDefautId).toBe(salleId);
 
+    const pesees = await db.query.bodyWeights.findMany({
+      where: eq(schema.bodyWeights.userId, UTILISATEUR),
+    });
+    expect(pesees).toHaveLength(1);
+    expect(pesees[0]).toMatchObject({ poids: 75, date: AUJOURDHUI });
+
     const bloc = await db.query.programmeBlocs.findFirst({
       where: eq(schema.programmeBlocs.userId, UTILISATEUR),
     });
     expect(bloc?.typeCycle).toBe("calibration");
     expect(bloc?.actif).toBe(true);
+  });
+
+  it("2b. un double envoi ne crée ni deuxième bloc ni deuxième pesée", async () => {
+    const res = await onboarding.POST(
+      poste("http://test/api/onboarding", {
+        objectifType: "prise_de_muscle",
+        niveauExperience: "intermediaire",
+        anneesDePratique: 4,
+        moisDInterruption: 8,
+        frequenceCibleParSemaine: 3,
+        frequenceMinParSemaine: 2,
+        frequenceMaxParSemaine: 4,
+        dureeSeanceCibleMinutes: 60,
+        dureeSeanceMaxMinutes: 75,
+        salleId,
+        dateNaissance: "1994-04-18",
+        sexe: "non_precise",
+        taille: 178,
+        poids: 75,
+        poidsDate: AUJOURDHUI,
+      }),
+    );
+    expect(res.status).toBe(201);
+    expect((await res.json()).deja).toBe(true);
+    expect(await db.query.programmeBlocs.findMany({ where: eq(schema.programmeBlocs.userId, UTILISATEUR) })).toHaveLength(1);
+    expect(await db.query.bodyWeights.findMany({ where: eq(schema.bodyWeights.userId, UTILISATEUR) })).toHaveLength(1);
   });
 
   it("3. l'accueil demande le matériel, pas une séance impossible", async () => {
@@ -203,6 +240,7 @@ describe("parcours d'un nouveau départ", () => {
           machineNom: "Machine de test",
           conventionCharge: "poids_total",
           incrementsPossibles: [2.5, 5],
+          chargeMinimale: 5,
         }),
       );
       expect(res.status, await res.clone().text()).toBe(201);
@@ -294,9 +332,16 @@ describe("parcours d'un nouveau départ", () => {
       expect(item.seriesCibles).toBe(2);
       // RPE 7 côté prescription = « 3 de plus » proposé à l'écran.
       expect(rpeVersReserve(item.rpeCible)).toBe(3);
-      // Première séance : aucune charge suggérée ne peut être inventée.
+      // La force réelle reste inconnue : rien n'est persisté comme suggestion.
       expect(item.chargeSuggeree).toBeNull();
       expect(item.historique).toEqual([]);
+      // Le seul nombre proposé est le premier réglage documenté de l'appareil.
+      expect(item.premiereCharge).toMatchObject({
+        charge: 5,
+        origine: "minimum_materiel",
+        confiance: "faible",
+        versionModele: "cold-start-v1.0.0",
+      });
     }
   });
 

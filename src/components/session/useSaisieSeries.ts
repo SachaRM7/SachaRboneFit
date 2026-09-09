@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { ExercicePrescrit } from "./types";
-import { effortSaisi, champEffortPropose } from "./effort-propose";
+import { effortSaisi, champEffortInitial } from "./effort-propose";
 import {
   LIBELLES_MOTIF_INVALIDE,
   motifSerieInvalide,
@@ -124,9 +124,15 @@ export function useSaisieSeries({
 
   // Vide quand aucun effort n'est prescrit : le champ pré-rempli à 8 partait
   // en base à la validation, sans que personne l'ait ressenti ni saisi.
-  const rpeParDefaut = champEffortPropose(exercice.rpeCible, rpeReduction);
-  const chargeParDefaut =
-    exercice.chargeSuggeree ?? exercice.historique?.[0]?.charge ?? null;
+  const rpeParDefaut = champEffortInitial(
+    modeReserve,
+    exercice.rpeCible,
+    rpeReduction,
+  );
+  const sansRepereComparable = (exercice.historique ?? []).length === 0;
+  const chargeParDefaut = modeReserve && sansRepereComparable
+    ? exercice.premiereCharge?.charge ?? null
+    : exercice.chargeSuggeree ?? exercice.historique?.[0]?.charge ?? null;
 
   /** Valeurs proposées pour une ligne, avant toute saisie de l'utilisateur. */
   const proposition = (numero: number): Brouillon => ({

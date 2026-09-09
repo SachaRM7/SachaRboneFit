@@ -138,7 +138,7 @@ describe("la section des réglages ne disparaît plus quand elle est vide", () =
 
   it("le vide se dit, et se comble au même endroit", () => {
     const source = lire(path.join(RACINE, "components/session/FicheExecution.tsx"));
-    expect(source).toMatch(/Aucun réglage décrit/);
+    expect(source).toMatch(/Aucun réglage spécifique n’est encore documenté/);
     expect(source).toMatch(/DeclarerReglage/);
     // Proposé seulement à qui peut le faire : le serveur refuserait les autres,
     // et découvrir le refus après avoir tout saisi n'est pas une politesse.

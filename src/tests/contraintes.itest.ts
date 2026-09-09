@@ -221,6 +221,9 @@ describe("aucun chemin n'échappe au cycle de vie", () => {
   it("une gêne déclarée à l'inscription porte une échéance et son origine", async () => {
     await purger();
     const { POST } = await import("@/app/api/onboarding/route");
+    await db.update(schema.users)
+      .set({ onboardingTermineLe: null })
+      .where(eq(schema.users.id, U));
 
     // L'onboarding insérait directement en base, sans échéance ni origine : la
     // gêne la plus susceptible de devenir périmée — saisie une fois, jamais
@@ -231,7 +234,14 @@ describe("aucun chemin n'échappe au cycle de vie", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           objectifType: "prise_de_muscle",
+          dateNaissance: "1994-04-18",
+          sexe: "non_precise",
+          taille: 178,
+          poids: 75,
+          poidsDate: "2026-01-15",
           niveauExperience: "intermediaire",
+          anneesDePratique: 2,
+          moisDInterruption: 0,
           contraintes: [{ muscle: "epaules", severite: 6, notes: "vieille gêne" }],
           frequenceCibleParSemaine: 3,
           frequenceMinParSemaine: 2,

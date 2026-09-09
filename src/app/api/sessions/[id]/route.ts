@@ -8,6 +8,7 @@ import { computeNextSets } from "@/lib/engine/double-progression";
 import { REPOS_PAR_DEFAUT_SECONDES } from "@/services/plan-seance";
 import { CHARGE_INCONNUE, configurationDe } from "@/lib/engine/charges";
 import { detailErreur } from "@/lib/erreurs";
+import { estimerDepuisInstance } from "@/lib/engine/cold-start-strength";
 
 /**
  * Le repli du gabarit — et pourquoi le segment s'appelle `id`.
@@ -98,6 +99,15 @@ export async function GET(
           seriesCibles: eit.seriesCibles,
           charge: inst ? configurationDe(inst) : CHARGE_INCONNUE,
         });
+        const historique = (derniere?.sets ?? []).map((s) => ({ charge: s.charge, reps: s.reps }));
+        const premiereCharge = inst
+          ? estimerDepuisInstance({
+              instance: inst,
+              chargeSuggereeHistorique: suggestion.charge,
+              historiqueInstance: historique,
+              conventionCharge: inst.conventionCharge,
+            })
+          : null;
 
         return {
           id: inst?.id,
@@ -120,12 +130,13 @@ export async function GET(
           profilTension: inst?.exercise?.profilTension || "",
           musclesPrincipaux: inst?.exercise?.musclesPrincipaux || [],
           chargeSuggeree: suggestion.charge,
+          premiereCharge,
           repsSuggerees: suggestion.reps,
           messageProgression: suggestion.messageProgression,
           // Ce chemin rend la suggestion directement, sans passer par la base :
           // le motif y voyage tel quel, sans avoir à être redérivé.
           motifProgression: suggestion.motifProgression,
-          historique: (derniere?.sets ?? []).map((s) => ({ charge: s.charge, reps: s.reps })),
+          historique,
         };
       }),
     );

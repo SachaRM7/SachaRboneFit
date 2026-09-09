@@ -127,9 +127,9 @@ export const onboardingSchema = z
     musclesPrioritaires: z.array(z.enum(MUSCLES as unknown as [string, ...string[]])).max(4).default([]),
 
     niveauExperience: z.enum(NIVEAUX),
-    anneesDePratique: z.number().int().min(0).max(60).default(0),
+    anneesDePratique: z.number().int().min(0).max(60),
     // Zéro signifie « je m'entraîne actuellement », pas « je débute ».
-    moisDInterruption: z.number().int().min(0).max(600).default(0),
+    moisDInterruption: z.number().int().min(0).max(600),
 
     contraintes: z.array(contrainteSchema).max(10).default([]),
 
@@ -155,17 +155,14 @@ export const onboardingSchema = z
     nouvelleSalleNom: z.string().min(2).max(80).optional(),
 
     /**
-     * Qui s'entraîne. Tout est facultatif : refuser de répondre ne doit pas
-     * empêcher de s'entraîner, et le moteur fonctionne sans.
-     *
-     * `poids` n'atterrit pas dans `users` mais dans `body_weights`, daté du
-     * jour : c'est la première pesée. Une colonne de plus dans `users`
-     * divergerait de la courbe dès la deuxième pesée.
+     * Profil minimal du cold-start. Le poids reste exclusivement une pesée
+     * datée dans `body_weights` ; aucune copie n'est ajoutée à `users`.
      */
-    dateNaissance: z.string().date().optional(),
-    sexe: z.enum(SEXES).optional(),
-    taille: z.number().int().min(BORNES_CORPS.taille.min).max(BORNES_CORPS.taille.max).optional(),
-    poids: z.number().min(BORNES_CORPS.poids.min).max(BORNES_CORPS.poids.max).optional(),
+    dateNaissance: z.string().date(),
+    sexe: z.enum(SEXES),
+    taille: z.number().int().min(BORNES_CORPS.taille.min).max(BORNES_CORPS.taille.max),
+    poids: z.number().min(BORNES_CORPS.poids.min).max(BORNES_CORPS.poids.max),
+    poidsDate: z.string().date(),
   })
   .refine((d) => d.frequenceMinParSemaine <= d.frequenceCibleParSemaine, {
     message: "Le minimum ne peut pas dépasser l'objectif",
@@ -182,6 +179,17 @@ export const onboardingSchema = z
   .refine((d) => Boolean(d.salleId) || Boolean(d.nouvelleSalleNom), {
     message: "Indique une salle",
     path: ["nouvelleSalleNom"],
+  })
+  .refine((d) => d.poidsDate <= new Date().toISOString().slice(0, 10), {
+    message: "La date du poids ne peut pas être dans le futur",
+    path: ["poidsDate"],
+  })
+  .refine((d) => {
+    const bornes = bornesDeNaissance();
+    return d.dateNaissance >= bornes.min && d.dateNaissance <= bornes.max;
+  }, {
+    message: `L’âge doit être compris entre ${BORNES_CORPS.age.min} et ${BORNES_CORPS.age.max} ans`,
+    path: ["dateNaissance"],
   });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;

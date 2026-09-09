@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { champEffortPropose, effortPropose, effortSaisi } from "./effort-propose";
+import {
+  champEffortInitial,
+  champEffortPropose,
+  effortPropose,
+  effortSaisi,
+} from "./effort-propose";
 import { rpeVersReserve } from "@/lib/engine/reserve";
 
 /**
@@ -79,8 +84,15 @@ describe("en calibration, le menu réserve n'invente pas de réponse", () => {
     expect(rpeVersReserve(effortSaisi(""))).toBeNull();
   });
 
-  it("une cible de calibration se retrouve dans le menu", () => {
-    // `RPE_CALIBRATION = 7`, inchangé par ce chantier : 3 reps en réserve.
-    expect(rpeVersReserve(effortSaisi(champEffortPropose(7, 0)))).toBe(3);
+  it("la cible reste un objectif et ne devient pas le ressenti", () => {
+    // `RPE_CALIBRATION = 7` reste bien l'objectif de 3 en réserve.
+    expect(rpeVersReserve(effortPropose(7, 0))).toBe(3);
+    // Mais le champ observé attend désormais le geste explicite de la personne.
+    expect(champEffortInitial(true, 7, 0)).toBe("");
+    expect(rpeVersReserve(effortSaisi(champEffortInitial(true, 7, 0)))).toBeNull();
+  });
+
+  it("hors calibration, le comportement historique reste intact", () => {
+    expect(champEffortInitial(false, 8, 1)).toBe("7");
   });
 });

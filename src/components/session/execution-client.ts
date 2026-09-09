@@ -8,7 +8,8 @@
  * savoir avant l'aller-retour.
  */
 export {
-  messageDeRefus, PHASES_TEMPO, phasesDuTempo, validerReglage,
+  messageDeRefus, PHASES_TEMPO, phasesDuTempo, tempoAvecSecondes,
+  tempoEnLangageHumain, validerReglage,
 } from "@/lib/engine/execution";
 export type {
   DefinitionReglage, FicheTechnique, PhaseAffichee, PhaseTempo,

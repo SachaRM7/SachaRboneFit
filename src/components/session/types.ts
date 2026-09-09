@@ -1,4 +1,5 @@
 import type { MotifProgression } from "@/lib/engine/double-progression";
+import type { EstimationPremiereCharge } from "@/lib/engine/cold-start-strength";
 /**
  * Description d'un exercice tel qu'il est prescrit pour la séance du jour.
  *
@@ -40,6 +41,8 @@ export interface ExercicePrescrit {
   conventionCharge?: string | null;
   natureCharge?: string | null;
   chargeSuggeree?: number | null;
+  /** Cold-start traçable ; absent sur les anciens payloads mis en cache. */
+  premiereCharge?: EstimationPremiereCharge;
   repsSuggerees?: number[] | null;
   messageProgression?: string | null;
   /** La nature de `messageProgression`, pour la peindre sans la relire. */
