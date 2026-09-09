@@ -7,6 +7,36 @@ import { consigneDeSaisie } from "@/lib/validators/exercise-instance";
 import type { ContexteExecutionClient } from "./execution-client";
 import type { Brouillon } from "./useSaisieSeries";
 import type { ExercicePrescrit } from "./types";
+import type { EstimationPremiereCharge } from "@/lib/engine/cold-start-strength";
+
+type ChargeAffichable = EstimationPremiereCharge | (
+  Omit<EstimationPremiereCharge, "origine"> & { origine: "estimation_personnelle" }
+);
+
+/** Le futur modèle personnel aura sa sémantique sans modifier celle des faits matériels. */
+export function libellesPremiereCharge(estimation: ChargeAffichable) {
+  if (estimation.origine === "minimum_materiel") {
+    return {
+      titre: "Point de départ",
+      badge: "Repère matériel",
+      explication: "Premier cran disponible sur cette machine. On ajuste après ta première série.",
+    };
+  }
+
+  if (estimation.origine === "estimation_personnelle") {
+    return {
+      titre: "Charge d’essai",
+      badge: `Estimé · confiance ${estimation.confiance}`,
+      explication: estimation.explication,
+    };
+  }
+
+  return {
+    titre: "Charge de référence",
+    badge: estimation.origine === "serie_courante" ? "Série en cours" : "Historique réel",
+    explication: estimation.explication,
+  };
+}
 
 export function GuidagePremiereSerie({
   exercice,
@@ -44,16 +74,17 @@ export function GuidagePremiereSerie({
         </div>
       </div>
 
-      {exercice.premiereCharge?.charge != null && (
-        <div className="premier-repere-estimation" data-testid="charge-essai-estimee">
+      {exercice.premiereCharge?.charge != null && (() => {
+        const libelles = libellesPremiereCharge(exercice.premiereCharge);
+        return <div className="premier-repere-estimation" data-testid="charge-essai">
           <div>
-            <span>Charge d’essai</span>
+            <span>{libelles.titre}</span>
             <strong>{exercice.premiereCharge.charge} kg</strong>
           </div>
-          <small>Estimé · confiance {exercice.premiereCharge.confiance}</small>
-          <p>{exercice.premiereCharge.explication}</p>
-        </div>
-      )}
+          <small>{libelles.badge}</small>
+          <p>{libelles.explication}</p>
+        </div>;
+      })()}
 
       {consigne && <p className="premier-repere-convention">{consigne}</p>}
       <p>

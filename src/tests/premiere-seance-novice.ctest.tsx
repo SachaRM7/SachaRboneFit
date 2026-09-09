@@ -17,6 +17,7 @@ vi.mock("@/components/session/useContexteExecution", () => ({
 }));
 
 const { LecteurExercice } = await import("@/components/session/LecteurExercice");
+const { libellesPremiereCharge } = await import("@/components/session/GuidagePremiereSerie");
 const { useSessionStore } = await import("@/stores/sessionStore");
 
 const EXERCICE = {
@@ -91,6 +92,18 @@ beforeEach(() => {
 });
 
 describe("cas 1 — première machine sans historique", () => {
+  it("réserve le libellé estimé à une future estimation personnelle", () => {
+    const libelles = libellesPremiereCharge({
+      charge: 12.5,
+      confiance: "moyenne",
+      origine: "estimation_personnelle",
+      explication: "Capacité personnelle estimée par un futur modèle documenté.",
+      versionModele: "cold-start-v1.0.0",
+    });
+    expect(libelles.badge).toBe("Estimé · confiance moyenne");
+    expect(libelles.titre).toBe("Charge d’essai");
+  });
+
   it("ne devine aucune charge et réutilise la convention de la vue Focus", () => {
     rendre();
     expect(screen.getByLabelText("Charge série 1")).toHaveValue("");
@@ -99,7 +112,7 @@ describe("cas 1 — première machine sans historique", () => {
     expect(screen.getByText("Commence volontairement léger.")).toBeInTheDocument();
   });
 
-  it("affiche et préremplit le premier cran documenté comme estimation explicable", () => {
+  it("affiche et préremplit le premier cran documenté comme repère matériel", () => {
     rendre({
       ...EXERCICE,
       premiereCharge: {
@@ -111,9 +124,12 @@ describe("cas 1 — première machine sans historique", () => {
       },
     } as never);
     expect(screen.getByLabelText("Charge série 1")).toHaveValue("5");
-    const estimation = screen.getByTestId("charge-essai-estimee");
+    const estimation = screen.getByTestId("charge-essai");
+    expect(within(estimation).getByText("Point de départ")).toBeInTheDocument();
     expect(within(estimation).getByText("5 kg")).toBeInTheDocument();
-    expect(within(estimation).getByText(/Estimé · confiance faible/i)).toBeInTheDocument();
+    expect(within(estimation).getByText("Repère matériel")).toBeInTheDocument();
+    expect(within(estimation).getByText("Premier cran disponible sur cette machine. On ajuste après ta première série.")).toBeInTheDocument();
+    expect(estimation).not.toHaveTextContent(/estimé/i);
   });
 
   it("sépare la cible du ressenti et ne présélectionne aucune réponse", () => {
