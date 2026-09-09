@@ -1,5 +1,5 @@
 "use client";
-import { DeclarerContexte } from "@/components/coach/ContexteCoach";
+import { DeclarerContexte, useCoach } from "@/components/coach/ContexteCoach";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
@@ -38,6 +38,8 @@ import { ObservateurSeance } from "@/components/session/ObservateurSeance";
 import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { Feu } from "@/components/carnet/Feu";
 import { modeSaisieEffort } from "@/lib/engine/reserve";
+import { resoudreMascotteLive } from "@/lib/coach/resoudre-mascotte";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import type {
   ExerciseInstanceWithExercise,
   SubstituteResult,
@@ -131,6 +133,16 @@ function ContenuSeanceLive() {
   // le premier qui s'est produit.
   const [echecLecture, setEchecLecture] = useState(false);
   const [timerVisible, setTimerVisible] = useState(false);
+  /* Le tiroir du Coach : ouvert par un geste, jamais par un événement. */
+  const { ouvrir: ouvrirCoach } = useCoach();
+  /*
+   * Un exercice vient d'être bouclé : le Coach le salue, brièvement.
+   *
+   * État d'écran, pas de donnée : rien n'est persisté, et il s'efface tout
+   * seul. La navigation, elle, a déjà eu lieu — la mascotte accompagne la
+   * transition, elle ne la commande pas.
+   */
+  const [exerciceSalue, setExerciceSalue] = useState(false);
   const [audioPret, setAudioPret] = useState(false);
   const [modaleSOS, setModaleSOS] = useState<ModaleSOS>(null);
 
@@ -488,6 +500,12 @@ function ContenuSeanceLive() {
      * termine la séance.
      */
     if (!exerciceTermine) return;
+
+    /* Deux à trois secondes, puis l'écran reprend son cours. Le comportement de
+       navigation ci-dessous est celui d'avant ce lot, inchangé. */
+    setExerciceSalue(true);
+    setTimeout(() => setExerciceSalue(false), 2600);
+
     const suivant = indexTermine + 1;
     if (suivant < visibles.length) setCurrentExerciseIndex(suivant);
   };
@@ -688,6 +706,41 @@ function ContenuSeanceLive() {
    * l'exercice est fini — il n'y a alors pas de prochaine série ici, et en
    * inventer une serait un mensonge.
    */
+  /*
+   * LE VISAGE DU COACH PENDANT CETTE SÉANCE — un seul, résolu une fois.
+   *
+   * La règle absolue : UNE présence forte par surface. Sans ce point unique,
+   * le Live pourrait montrer « repos », « intervention » et « training » en même
+   * temps, et la mascotte cesserait de vouloir dire quoi que ce soit.
+   *
+   * Ce que ce calcul NE fait pas : décider. Il lit des faits déjà établis —
+   * une modale de douleur ouverte, un minuteur en cours, l'historique de
+   * l'entrée affichée — et choisit l'image. Voir `lib/coach/resoudre-mascotte.ts`.
+   *
+   * `calibration` NE VIENT PLUS DE LA PHASE DU CYCLE.
+   *
+   * `modeSaisieEffort(phaseCycle) === "reserve"` était vrai d'un bout à l'autre
+   * d'un bloc « Reprise & calibration » : la mascotte de calibration devenait
+   * l'état ambiant de séances entières, y compris sur des machines dont
+   * l'historique était complet. Le fait qu'on voulait montrer est plus étroit —
+   * l'application est en train de construire un repère SUR CETTE ENTRÉE — et
+   * l'écran le connaît déjà : c'est exactement ce que `LecteurExercice` écrit
+   * sous « Dernière fois » quand il n'a rien à y mettre.
+   *
+   * La phase du cycle continue de piloter ce qu'elle pilotait : la SAISIE
+   * (réserve plutôt que RPE), plus bas. Ces deux questions étaient confondues,
+   * elles ne le sont plus.
+   */
+  const sansRepereIci = (courant?.historique?.length ?? 0) === 0;
+
+  const etatMascotte = resoudreMascotteLive({
+    douleur: modaleSOS === "douleur",
+    symptome: modaleSOS === "symptome",
+    repos: timerVisible,
+    calibration: sansRepereIci,
+    exerciceTermine: exerciceSalue,
+  });
+
   const prochaineSerie = (() => {
     if (!courant) return null;
     const [prochain] = slotsARemplir(
@@ -815,6 +868,27 @@ function ContenuSeanceLive() {
             </h1>
           </div>
           <span className="flex items-center gap-2 text-xs text-encre-3 shrink-0">
+            {/*
+              LA PRÉSENCE AMBIANTE DU COACH — la seule du Live.
+
+              Elle ne montre jamais `repos` ni `intervention` : ces deux-là ont
+              leur propre surface — la feuille de repos et l'encart de constat —
+              et les doubler ici donnerait deux mascottes à l'écran pour un seul
+              état. C'est la règle « une présence forte par surface », appliquée
+              en creux.
+
+              Discrète (40 px), dans l'en-tête : elle ne dispute rien à
+              l'illustration de l'exercice, à la charge, aux répétitions ni au
+              bouton de validation.
+            */}
+            {etatMascotte !== "repos" && (
+              <MascotteCoach
+                etat={etatMascotte}
+                taille="compact"
+                presence="discrete"
+                anime={etatMascotte === "encouragement"}
+              />
+            )}
             <Feu niveau={seance.feuBiologiqueJour} />
             <span className="chiffres">
               {termines}/{visibles.length}
@@ -876,7 +950,22 @@ function ContenuSeanceLive() {
         Le Coach regarde la séance pendant qu'elle a lieu. Ce que le moteur
         retient — et lui seul décide quoi — s'affiche ici, sans appel au modèle.
       */}
+      {/*
+        « En parler au coach » ouvre le tiroir SANS quitter la séance.
+
+        Aucun appel au modèle n'a lieu ici : le tiroir s'ouvre avec le sujet et
+        l'exercice désignés, et c'est l'utilisateur qui parle en premier. Le
+        constat lui-même n'est pas transporté — le serveur relit la séance
+        depuis la session authentifiée.
+      */}
       <ObservateurSeance
+        onDemanderCoach={(evenement) =>
+          ouvrirCoach("observation_seance", {
+            typeEntite: "instance",
+            entiteId: evenement.exerciseInstanceId,
+            signal: evenement.type,
+          })
+        }
         prescriptions={visibles.map((e) => ({
           exerciseInstanceId: e.id,
           seriesCibles: e.seriesCibles,
@@ -997,6 +1086,11 @@ function ContenuSeanceLive() {
       {timerVisible && active?.restDurationSeconds && (
         <div className="repos-feuille">
           <div className="repos-panneau">
+            {/* Elle accompagne le compte à rebours sans jamais le masquer, ni
+                « Passer », ni « +30 s ». Voir `.repos-mascotte`. */}
+            <div className="repos-mascotte">
+              <MascotteCoach etat="repos" taille="normal" presence="forte" anime />
+            </div>
             <RestTimer
               prochaine={prochaineSerie}
               durationSeconds={active.restDurationSeconds}

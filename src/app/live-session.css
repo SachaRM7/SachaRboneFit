@@ -1267,3 +1267,160 @@
     margin-left: auto;
   }
 }
+
+/* ===========================================================================
+   LA MASCOTTE DU COACH
+   ===========================================================================
+   Elle accompagne, elle ne prend jamais la place de ce qu'elle illustre. Ces
+   règles ne décident d'aucun état — le composant reçoit le sien — elles disent
+   seulement combien de place il occupe et comment il apparaît. */
+
+.mascotte {
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Le repli, quand un fichier manque : la même boîte, jamais un cadre cassé. */
+.mascotte-repli {
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--papier-2);
+  color: var(--encre-3);
+}
+
+/*
+   Une apparition, une seule fois.
+
+   Pas de mouvement permanent : l'écran d'une séance est déjà occupé, et une
+   image qui bouge en continu à côté d'un compte à rebours devient un
+   parasite. `prefers-reduced-motion` coupe tout.
+*/
+@keyframes mascotte-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.94);
+  }
+}
+.mascotte-entre {
+  animation: mascotte-arrive 320ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .mascotte-entre {
+    animation: none;
+  }
+}
+
+/* --- Le constat de l'observateur de séance --- */
+
+/*
+   L'encart de constat s'ajoute AU-DESSUS de la carte Focus : chaque pixel qu'il
+   prend est un pixel de moins pour le bouton de validation, et le contrôle de
+   capture a montré qu'il le poussait sous la barre de gestes à 390 px. Il est
+   donc dimensionné au plus juste — sans descendre les cibles tactiles.
+*/
+.coach-constat {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  background: var(--carte);
+  border-radius: 18px;
+  padding: 9px 12px;
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--encre) 5%, transparent),
+    0 10px 24px -16px color-mix(in srgb, var(--encre) 24%, transparent);
+}
+/* Le constat tient en deux lignes serrées : c'est ce qui laisse le bouton de
+   validation au-dessus de la barre de gestes quand les deux coexistent. */
+.coach-constat p {
+  line-height: 1.35;
+}
+.coach-constat-action {
+  margin-top: 0;
+  /* La cible reste pleine : c'est la marge autour qui a été rendue. */
+  min-height: 44px;
+  padding: 0 11px;
+  margin-left: -11px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--encre);
+}
+.coach-constat-action:active {
+  background: var(--papier-2);
+}
+.coach-constat-fermer {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  margin: -6px -6px 0 0;
+  border-radius: 12px;
+  color: var(--encre-3);
+}
+.coach-constat-fermer:hover {
+  color: var(--encre);
+  background: var(--papier-2);
+}
+
+/* --- Le repos : la mascotte accompagne, le minuteur garde la vedette --- */
+
+.repos-mascotte {
+  display: flex;
+  justify-content: center;
+  /* Au-dessus de l'anneau, jamais par-dessus : le compte à rebours, « Passer »
+     et « +30 s » restent intégralement visibles et atteignables. */
+  padding: 14px 0 0;
+  line-height: 0;
+}
+/* 108 px, et non plus 72.
+   À 72 px la mascotte lisait comme une icône posée au-dessus du chrono : on
+   voyait qu'il y avait quelque chose, pas ce que c'était. À 108 elle devient
+   une vraie présence — la deuxième de la feuille, jamais la première. Le
+   compte à rebours garde son anneau, sa taille et sa place ; c'est lui qu'on
+   regarde, et `apercus.tsx` mesure que « Passer » et « +30 s » restent dans
+   le premier écran sur 320, 390 et 430 px. */
+.repos-mascotte .mascotte {
+  width: 108px !important;
+  height: 108px !important;
+}
+
+@media (max-width: 359px) {
+  /* À 320 px, la feuille de repos est déjà haute : la mascotte se resserre
+     plutôt que de repousser les boutons sous la barre de gestes. */
+  .repos-mascotte {
+    padding-top: 8px;
+  }
+  /* 96 px : le plancher de la fourchette voulue. En dessous de 360 px de
+     large, la feuille est déjà haute et chaque pixel gagné ici est un pixel
+     que « Passer » ne descend pas sous la barre de gestes. */
+  .repos-mascotte .mascotte {
+    width: 96px !important;
+    height: 96px !important;
+  }
+  .coach-constat {
+    gap: 10px;
+    padding: 11px 12px;
+  }
+}
+
+/* La planche de contrôle des treize états — écran d'aperçu uniquement. */
+.mascotte-planche {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 14px;
+}
+.mascotte-planche figure {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  background: var(--carte);
+  border-radius: 16px;
+  padding: 10px 6px;
+}
+.mascotte-planche figcaption {
+  font-size: 10px;
+  color: var(--encre-3);
+}

@@ -38,14 +38,54 @@ export const SUJETS = [
   "materiel",
   "stagnation",
   "expliquer_seance",
+  /**
+   * « J'ai remarqué quelque chose » — l'observateur de séance.
+   *
+   * Ouvert depuis un constat affiché pendant la séance. Le fait lui-même n'est
+   * pas transporté : seule l'INTENTION l'est, et le serveur retrouve la séance
+   * depuis la session authentifiée.
+   */
+  "observation_seance",
 ] as const;
 export type Sujet = (typeof SUJETS)[number];
+
+/**
+ * Le TYPE de constat d'où l'on ouvre la conversation.
+ *
+ * UN INDICE DE CONTEXTE NON AUTORITAIRE — et le mot compte.
+ *
+ * C'est une désignation, pas une donnée : une valeur d'une liste fermée, jamais
+ * du texte libre. Elle dit de quoi l'athlète veut parler ; elle n'affirme rien
+ * et n'a AUCUN POUVOIR MÉTIER — aucune décision déterministe du dépôt ne la
+ * lit. Les nombres viennent de la séance que le serveur relit lui-même, sur le
+ * compte authentifié.
+ *
+ * Ce qui reste ouvert est écrit noir sur blanc dans `services/contexte-coach`,
+ * là où la valeur est employée : un client modifié peut désigner un sujet qui
+ * ne correspond à rien, et le modèle peut reprendre cette désignation dans sa
+ * phrase. C'est une limite acceptée, pas une chose que la formulation du
+ * message réglerait.
+ *
+ * Reprend les types de `engine/evenements-seance` : deux listes qui divergent
+ * laisseraient passer un signal que plus personne ne sait produire.
+ */
+export const SIGNAUX_OBSERVATION = [
+  "repos_ecourte",
+  "repos_rallonge",
+  "effort_au_dela_de_la_cible",
+  "effort_en_deca_de_la_cible",
+  "series_hors_prescription",
+  "reps_sous_la_fourchette",
+] as const;
+export type SignalObservation = (typeof SIGNAUX_OBSERVATION)[number];
 
 export interface ContexteEcran {
   ecran: Ecran;
   typeEntite?: TypeEntite | null;
   entiteId?: string | null;
   sujet?: Sujet | null;
+  /** Le type de constat à l'origine de l'ouverture — voir `SIGNAUX_OBSERVATION`. */
+  signal?: SignalObservation | null;
 }
 
 export interface Suggestion {
@@ -128,6 +168,9 @@ const AMORCES_SUJET: Record<Sujet, string> = {
   decharge: "Tu veux parler de la décharge que je t'ai proposée.",
   materiel: "Tu veux adapter ton programme à ton matériel.",
   stagnation: "Tu veux comprendre une stagnation.",
+  // Le constat est déjà affiché à l'écran d'où l'on vient : l'amorce ouvre la
+  // conversation, elle ne répète pas le fait ni ne l'interprète.
+  observation_seance: "Tu veux parler de ce que j'ai remarqué pendant ta séance.",
   expliquer_seance: "Tu veux comprendre la séance que je t'ai proposée.",
 };
 
@@ -180,10 +223,18 @@ export function contexteValide(brut: unknown): ContexteEcran | null {
       ? (o.sujet as Sujet)
       : null;
 
+  // Même politique que le reste : une valeur hors de la liste fermée disparaît
+  // silencieusement plutôt que d'atteindre le serveur.
+  const signal =
+    typeof o.signal === "string" && (SIGNAUX_OBSERVATION as readonly string[]).includes(o.signal)
+      ? (o.signal as SignalObservation)
+      : null;
+
   return {
     ecran,
     typeEntite,
     entiteId: typeEntite && estUuid(o.entiteId) ? (o.entiteId as string) : null,
     sujet,
+    signal,
   };
 }

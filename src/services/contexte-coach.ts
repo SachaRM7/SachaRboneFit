@@ -193,6 +193,52 @@ export async function resoudreContexte(
     lignes.push(`Intention déclarée en ouvrant la conversation : ${contexte.sujet}.`);
   }
 
+  /*
+   * `signal` EST UN INDICE DE CONTEXTE NON AUTORITAIRE. Rien de plus.
+   *
+   * CE QUI LE REND SANS DANGER — et ce n'est PAS la phrase ci-dessous.
+   *
+   * Une consigne adressée à un modèle n'est jamais une garantie : elle
+   * influence une réponse, elle ne contraint pas un système. Ce qui protège
+   * ici est structurel, et tient en trois points vérifiables :
+   *
+   *   1. AUCUN POUVOIR MÉTIER. `signal` ne touche ni une charge, ni une
+   *      substitution, ni une protection, ni un arrêt. Aucune décision
+   *      déterministe du dépôt ne le lit — il n'apparaît que dans ce texte.
+   *   2. LISTE FERMÉE. `contexteValide` n'accepte que les valeurs de
+   *      `SIGNAUX_OBSERVATION`, qui recopient les types d'événements du
+   *      moteur. Un texte libre est jeté, pas transmis : ce n'est donc pas un
+   *      canal par lequel on ferait passer des instructions.
+   *   3. AUCUNE IDENTITÉ CHOISIE PAR LE CLIENT. Le compte vient de la session
+   *      authentifiée ; `entiteId` est vérifié par `nommerEntite`, qui rend
+   *      `null` pour ce qui n'appartient pas à l'utilisateur.
+   *
+   * CE QUE ÇA LAISSE OUVERT, ET QU'IL FAUT DIRE.
+   *
+   * Un client modifié peut désigner « effort au-delà de la cible » sur une
+   * séance calme. Les nombres, eux, viennent des outils que le Coach appelle
+   * sur la séance authentifiée — le sujet serait donc vide plutôt que faux —
+   * mais RIEN N'EMPÊCHE le modèle de reprendre la désignation à son compte
+   * dans sa phrase d'ouverture. La conséquence maximale est une phrase
+   * inexacte adressée à celui-là même qui l'a provoquée, sans effet sur les
+   * données ni sur la programmation. C'est le niveau de risque qu'on accepte
+   * ici, en connaissance de cause, et pas une faille qu'on couvrirait d'une
+   * formulation.
+   *
+   * LE CONFIRMER COÛTERAIT UN SECOND MOTEUR. Recalculer l'événement côté
+   * serveur demanderait de relire les `set_logs` de la séance et d'y
+   * réappliquer les règles de `engine/evenements-seance` — c'est-à-dire une
+   * deuxième implémentation de la même règle, qui divergerait de la première.
+   * Le dépôt s'y refuse ailleurs (`lectures-set-logs`), et il s'y refuse ici.
+   */
+  if (contexte.signal) {
+    lignes.push(
+      `Constat signalé par l'écran au moment de l'ouverture : ${contexte.signal}. `
+        + "C'est une désignation du sujet, pas une mesure : vérifie les données "
+        + "de la séance avant d'affirmer quoi que ce soit.",
+    );
+  }
+
   return { texte: lignes.length ? lignes.join("\n") : null, refs };
 }
 

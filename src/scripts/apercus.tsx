@@ -14,6 +14,11 @@ import { RestTimer } from "@/components/session/RestTimer";
 import { VueFocus } from "@/components/session/VueFocus";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
 import { avancement } from "@/lib/live/vue-live";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
+import { ETATS_MASCOTTE } from "@/lib/coach/mascotte-assets";
+import { CarteAujourdhui } from "@/components/dashboard/CarteAujourdhui";
+import { mascotteDeLAccueil } from "@/lib/coach/accueil-mascotte";
+import type { NomEtat } from "@/lib/engine/etat-du-jour";
 
 const A = "instance-a";
 const B = "instance-b";
@@ -108,9 +113,19 @@ const entete = `
   </nav>
 </header>`;
 
-const enveloppe = (contenu: string, pad = true) =>
+/**
+ * La coque du Live, dans l'ordre exact de la page.
+ *
+ * `avantMain` reçoit ce que la page rend ENTRE l'en-tête et `<main>` — le
+ * bandeau d'adaptation, le constat de séance. L'empiler dans `main` donnerait
+ * des interlignes que l'application n'a pas, et ferait mesurer une hauteur
+ * fausse : c'est exactement le genre d'écart qui pousse à corriger un défaut
+ * qui n'existe que dans le harnais.
+ */
+const enveloppe = (contenu: string, pad = true, avantMain = "") =>
   `<div class="live-session min-h-screen bg-papier" style="padding-top:var(--marge-haut)">
      ${entete}
+     ${avantMain}
      <main class="${pad ? "px-4 py-4 space-y-3" : ""}">${contenu}</main>
    </div>`;
 
@@ -120,6 +135,33 @@ const etatsDe = (exercices: { id: string; nom: string; seriesCibles: number }[])
     useSessionStore.getState().active?.sets ?? [],
     useSessionStore.getState().active?.lignees ?? [],
   );
+
+/**
+ * L'accueil, rendu comme la page le rend.
+ *
+ * `CarteAujourdhui` reçoit la mascotte déjà résolue — exactement comme dans
+ * `ContenuTableauDeBord`, où le calcul a lieu une seule fois. La reproduire ici
+ * par une chaîne écrite à la main photographierait une composition qui
+ * n'existe pas.
+ */
+function accueil(etat: NomEtat, feuJour: "vert" | "orange" | "rouge" | null) {
+  const etatDuJour = {
+    etat,
+    salle: { id: "salle", nom: "Basic Fit République" },
+    seance: { templateId: "t1", lettre: "A", nom: "Haut du corps" },
+    action: { type: "demarrer_seance", href: "#", templateId: "t1" },
+    enAttenteDeDonnees: false,
+  };
+  return `<div class="dashboard-v2 min-h-screen bg-papier" style="padding-top:var(--marge-haut)">
+    <header class="page-intro"><div><h1>Salut Sacha<span class="greeting-dot">.</span></h1></div></header>
+    <div class="dashboard-primary"><div class="dashboard-action">${rendre(
+      <CarteAujourdhui
+        etat={etatDuJour as never}
+        mascotte={mascotteDeLAccueil({ etat, feuJour })}
+      />,
+    )}</div></div>
+  </div>`;
+}
 
 const scenes: { nom: string; titre: string; rendu: () => string }[] = [
   {
@@ -249,31 +291,16 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
       );
     },
   },
-  {
-    nom: "6-repos",
-    titre: "Repos",
-    rendu: () => {
-      seance([fait(A, 1, 60, 10, 7)]);
-      return `${enveloppe(
-        rendre(
-          <TableauSeries
-            exercice={DEADLIFT as never}
-            rpeReduction={0}
-            onSerieValidee={rien}
-          />,
-        ),
-      )}
-      <div class="repos-feuille"><div class="repos-panneau">${rendre(
-        <RestTimer
-          durationSeconds={120}
-          onComplete={rien}
-          onSkip={rien}
-          onExtend={rien}
-          prochaine="Série 2 · 60 × 8"
-        />,
-      )}</div></div>`;
-    },
-  },
+  /*
+   * « 6-repos » a été RETIRÉE, et c'est volontaire.
+   *
+   * Elle rendait la feuille de repos SANS mascotte — un état que l'écran ne
+   * produit plus : `page.tsx` place toujours `.repos-mascotte` dans
+   * `.repos-panneau` quand le minuteur est ouvert. Une scène qui photographie
+   * une composition disparue ne contrôle rien ; elle donne seulement l'air de
+   * contrôler quelque chose. La feuille de repos est couverte par
+   * « 10-mascotte-repos », qui elle correspond à l'application.
+   */
   {
     nom: "7-focus-calibration",
     titre: "Focus — calibration (RIR)",
@@ -360,9 +387,103 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
       );
     },
   },
+  {
+    nom: "10-mascotte-repos",
+    titre: "Repos — la mascotte accompagne le minuteur",
+    rendu: () => {
+      seance([fait(A, 1, 60, 10, 7)]);
+      return `${enveloppe(
+        rendre(
+          <TableauSeries
+            exercice={DEADLIFT as never}
+            rpeReduction={0}
+            onSerieValidee={rien}
+          />,
+        ),
+      )}
+      <div class="repos-feuille"><div class="repos-panneau">
+        <div class="repos-mascotte">${rendre(
+          /* `forte`, comme `page.tsx`. Une scène qui rend une AUTRE taille que
+             l'application mesure autre chose que l'application — c'est
+             exactement ainsi que ce harnais a déjà menti trois fois. */
+          <MascotteCoach etat="repos" taille="normal" presence="forte" />,
+        )}</div>
+        ${rendre(
+          <RestTimer
+            durationSeconds={120}
+            onComplete={rien}
+            onSkip={rien}
+            onExtend={rien}
+            prochaine="Shoulder Press · Série 1 · 32,5 × 8"
+          />,
+        )}
+      </div></div>`;
+    },
+  },
+  {
+    nom: "11-mascotte-constat",
+    titre: "Constat de séance — intervention",
+    rendu: () => {
+      seance([fait(A, 1, 60, 10, 7)]);
+      return enveloppe(
+        rendre(
+          <LecteurExercice
+            exercice={DEADLIFT as never}
+            rpeReduction={0}
+            modeReserve={false}
+            onSerieValidee={rien}
+            onSuivant={rien}
+          />,
+        ),
+        true,
+        `<div class="px-4 pb-1"><div class="coach-constat">${rendre(
+          <MascotteCoach etat="intervention" taille="compact" presence="discrete" />,
+        )}
+          <div class="min-w-0 flex-1">
+            <p class="text-encre text-sm font-medium">Cette série a été plus dure que visé</p>
+            <p class="text-encre-2 text-xs mt-0.5">Effort ressenti 10 pour une cible de 8, sur le Deadlift.</p>
+            <button class="coach-constat-action">En parler au coach</button>
+          </div>
+          <button class="coach-constat-fermer" aria-label="Masquer ce constat">×</button>
+        </div></div>`,
+      );
+    },
+  },
+  {
+    nom: "12-mascotte-planche",
+    titre: "Les treize états, côte à côte",
+    rendu: () => {
+      // La planche de contrôle : elle sert à vérifier que chaque fichier se
+      // charge et se lit à la taille où il est employé.
+      seance();
+      return enveloppe(
+        `<div class="mascotte-planche">${ETATS_MASCOTTE.map(
+          (e) =>
+            `<figure>${rendre(
+              <MascotteCoach etat={e} taille="normal" presence="normale" />,
+            )}<figcaption>${e}</figcaption></figure>`,
+        ).join("")}</div>`,
+      );
+    },
+  },
+  {
+    nom: "13-accueil-ready",
+    titre: "Aujourd'hui — séance prête, le Coach dit « on y va »",
+    rendu: () => accueil("prete", "vert"),
+  },
+  {
+    nom: "14-accueil-attention",
+    titre: "Aujourd'hui — feu rouge, le Coach dit d'abord de récupérer",
+    rendu: () => accueil("prete", "rouge"),
+  },
+  {
+    nom: "15-accueil-debrief",
+    titre: "Aujourd'hui — la séance est faite, il reste le bilan",
+    rendu: () => accueil("deja_entraine", "vert"),
+  },
 ];
 
-for (const largeur of [320, 390]) {
+for (const largeur of [320, 390, 430]) {
   for (const s of scenes) {
     const f = ecrire(s.nom, s.titre, s.rendu(), largeur);
     console.log(f);

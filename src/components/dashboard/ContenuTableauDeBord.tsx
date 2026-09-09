@@ -27,6 +27,8 @@ import {
 import { useSessionStore } from "@/stores/sessionStore";
 import type { EtatDuJour } from "@/lib/engine/etat-du-jour";
 import { CarteAujourdhui } from "@/components/dashboard/CarteAujourdhui";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
+import { mascotteDeLAccueil } from "@/lib/coach/accueil-mascotte";
 
 interface DonneesEssentielles {
   user: { nom: string; poidsActuel: number | null };
@@ -138,6 +140,27 @@ export function ContenuTableauDeBord({
     }
   };
 
+  /*
+   * LE COACH DE LA JOURNÉE — résolu ici, une fois, pour tout l'écran.
+   *
+   * Aujourd'hui, le Coach t'accueille et te situe ; le Live, lui, t'accompagne
+   * pendant l'action. C'est la même mascotte et deux contextes : la séance
+   * prête affiche `ready` (« on y va »), et le Live qu'elle ouvre affiche
+   * `training`.
+   *
+   * UNE SEULE PRÉSENCE FORTE, et c'est structurel plutôt que promis : l'état
+   * est calculé à cet unique endroit, et les deux emplacements qui le rendent —
+   * la reprise et la carte du jour — s'excluent l'un l'autre par `canResume`.
+   * Récupération, alertes, séances récentes et programme n'en reçoivent aucune.
+   *
+   * Rien n'est décidé ici : `data.etat` vient de `lib/engine/etat-du-jour` et
+   * `data.feuJour` de `lib/engine/feu-biologique`. Voir `accueil-mascotte.ts`.
+   */
+  const mascotteDuJour = mascotteDeLAccueil({
+    etat: data.etat.etat,
+    feuJour: data.feuJour,
+  });
+
   // Weight sparkline data
   const weightData =
     data.poids30jours
@@ -227,6 +250,11 @@ export function ContenuTableauDeBord({
         <div className="dashboard-action">
           {canResume && (
             <section className="resume-panel">
+              {/* La séance est déjà commencée : le Coach est en train de
+                  s'entraîner avec toi, pas en train de t'accueillir. */}
+              <div className="hero-mascotte">
+                <MascotteCoach etat="training" taille="normal" presence="forte" anime />
+              </div>
               <div className="resume-icon">
                 <Play size={24} aria-hidden />
               </div>
@@ -249,7 +277,9 @@ export function ContenuTableauDeBord({
               </div>
             </section>
           )}
-          {data.etat && !canResume && <CarteAujourdhui etat={data.etat} />}
+          {data.etat && !canResume && (
+            <CarteAujourdhui etat={data.etat} mascotte={mascotteDuJour} />
+          )}
           {active && isSessionStale && (
             <section className="stale-session">
               <TimerReset size={21} aria-hidden />

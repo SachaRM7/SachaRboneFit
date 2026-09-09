@@ -193,6 +193,48 @@ for (const fichier of readdirSync(APERCUS).filter((f) => f.endsWith(".html")).so
     return petits;
   });
 
+  /*
+   * LA TAILLE RÉELLE DE LA MASCOTTE, MESURÉE — pas déclarée.
+   *
+   * Le `!important` du CSS l'emporte sur le style en ligne du composant : la
+   * valeur qu'on croit avoir posée n'est pas nécessairement celle qui est
+   * peinte. On lit donc la boîte rendue.
+   */
+  const mascottes = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>(".mascotte")].map(function (m) {
+      const r = m.getBoundingClientRect();
+      return `${m.dataset.etat}:${Math.round(r.width)}px`;
+    }),
+  );
+
+  /*
+   * LA FEUILLE DE REPOS : le chrono reste hiérarchie 1, et rien n'est poussé
+   * hors de l'écran par la mascotte.
+   *
+   * C'est la condition exacte à laquelle son agrandissement était soumis. La
+   * vérifier à l'œil sur trois largeurs est précisément ce qu'on ne sait pas
+   * faire — d'où cette mesure.
+   */
+  const repos = await page.evaluate(() => {
+    const panneau = document.querySelector(".repos-panneau");
+    if (!panneau) return null;
+    const bande = document.querySelector(".apercu-indicateur")!.getBoundingClientRect();
+    const perdus: string[] = [];
+    const critiques: [string, Element | null][] = [
+      ["chrono", panneau.querySelector(".chiffres")],
+      ...[...panneau.querySelectorAll("button")].map(function (b): [string, Element] {
+        return [b.textContent?.trim().slice(0, 12) ?? "bouton", b];
+      }),
+    ];
+    for (const [nom, el] of critiques) {
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      if (r.bottom > bande.top) perdus.push(`${nom} (bas ${Math.round(r.bottom)} > ${Math.round(bande.top)})`);
+    }
+    const m = panneau.querySelector(".mascotte")?.getBoundingClientRect();
+    return { perdus, mascotte: m ? Math.round(m.width) : 0 };
+  });
+
   const verdictCta =
     ctaDansLEcran === null
       ? ""
@@ -205,11 +247,21 @@ for (const fichier of readdirSync(APERCUS).filter((f) => f.endsWith(".html")).so
       `  illustrations:${illustrations.total}` +
       (illustrations.casses ? ` (${illustrations.casses} CASSÉES)` : "") +
       verdictCta +
+      (mascottes.length ? `  mascotte ${mascottes.join(" ")}` : "") +
+      (repos ? `  repos: chrono+boutons ${repos.perdus.length ? "PERDUS" : "dans l'écran"}` : "") +
       (safeArea.fautifs.length ? `  SOUS LA SAFE AREA: ${safeArea.fautifs.join(", ")}` : "") +
       (rognes.length ? `  VALEURS ROGNÉES: ${rognes.join(", ")}` : "") +
       (trop.length ? `  cibles trop petites: ${trop.join(", ")}` : ""),
   );
 
+  if (repos && repos.perdus.length > 0) {
+    echecs.push(`${fichier}: la feuille de repos pousse hors de l'écran — ${repos.perdus.join(", ")}`);
+  }
+  if (repos && (repos.mascotte < 96 || repos.mascotte > 120)) {
+    // La fourchette demandée. En sortir vers le bas rend la mascotte
+    // méconnaissable ; vers le haut, elle dispute la vedette au chrono.
+    echecs.push(`${fichier}: mascotte de repos à ${repos.mascotte}px, hors de 96–120`);
+  }
   if (safeArea.fautifs.length > 0) echecs.push(`${fichier}: ${safeArea.fautifs.join(", ")}`);
   if (deborde) echecs.push(`${fichier}: débordement horizontal`);
   if (illustrations.casses > 0) echecs.push(`${fichier}: illustration cassée`);

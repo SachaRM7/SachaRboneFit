@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, AlertTriangle } from "lucide-react";
+import { X } from "lucide-react";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { checkPauseLongue, type ProactiveCheckResult } from "@/lib/coach/proactive-checks";
 import { useSessionStore } from "@/stores/sessionStore";
 
@@ -63,7 +64,9 @@ export function ProactiveAlert({ onShowSOS }: ProactiveAlertProps) {
 
   return (
     <div className="bg-feu-orange/10 border border-feu-orange/25 rounded-lg p-3 flex items-start gap-3 animate-in slide-in-from-top">
-      <AlertTriangle className="w-5 h-5 text-feu-orange mt-0.5 shrink-0" />
+      {/* « Attends, regardons ça. » Le message reste écrit en toutes lettres :
+          la mascotte accompagne, elle n'est jamais la seule à porter le fait. */}
+      <MascotteCoach etat="attention" taille="compact" presence="discrete" anime />
       <div className="flex-1 min-w-0">
         <p className="text-feu-orange text-sm">{message}</p>
         {onShowSOS && (
