@@ -1030,14 +1030,27 @@ function ContenuSeanceLive() {
         {visibles.length > 0 && modeSaisieEffort(seance.phaseCycle) === "reserve" && (
           <details className="live-calibration">
             <summary>
-              <span className="eyebrow">Calibration</span>
-              Après la série, indique combien de reps il te restait.
+              <span className="eyebrow">Tes premiers repères</span>
+              2 séries par exercice, puis du repos.
             </summary>
-            <p>
-              C&apos;est cette réponse qui fixera tes charges. Tu peux ajuster la
-              charge entre les séries pour viser ~3 répétitions en réserve — rien
-              n&apos;est modifié automatiquement, la mesure reste ce qui est saisi.
-            </p>
+            <div>
+              <p>
+                Une série, c&apos;est plusieurs répétitions du même mouvement, puis une
+                pause. Arrête-toi alors que tu pourrais encore faire quelques
+                répétitions propres.
+              </p>
+              <p>
+                Après la série, imagine que tu continues avec une technique propre :
+                combien de répétitions supplémentaires aurais-tu pu faire ?
+              </p>
+              <p className="live-calibration-echelle chiffres">
+                <span>0 = aucune</span>
+                <span>1 = encore une</span>
+                <span>2 = encore deux</span>
+                <span>3 = encore trois</span>
+                <span>5+ = très facile</span>
+              </p>
+            </div>
           </details>
         )}
 

@@ -79,16 +79,26 @@ export default function PreparationCalibrationPage() {
   return (
     <Cadre>
       <div className="space-y-2">
-        <p className="text-xs uppercase tracking-wide text-encre-3">Phase de calibration</p>
+        <p className="text-xs uppercase tracking-wide text-encre-3">Tes premiers repères</p>
         <h1 className="text-2xl font-bold text-encre">
-          {reponse.deja ? "Ta calibration est déjà prête" : "Ta calibration est prête"}
+          {reponse.deja ? "Ta première séance est prête" : "On construit tes premiers repères"}
         </h1>
         <p className="text-encre-2 text-sm leading-relaxed">
-          {reponse.seances.length} séance{reponse.seances.length > 1 ? "s" : ""} construite
-          {reponse.seances.length > 1 ? "s" : ""} à partir de ce que ta salle permet. Deux séries par
-          exercice, jamais près de l&apos;échec : on cherche tes charges, pas encore tes limites.
+          Pour chaque exercice, tu feras 2 séries. Une série, c&apos;est plusieurs
+          répétitions du même mouvement, puis une pause. Aujourd&apos;hui, arrête-toi
+          alors que tu pourrais encore faire quelques répétitions propres.
         </p>
       </div>
+
+      <Card className="bg-[var(--brand-soft)] border-transparent">
+        <CardContent className="py-4">
+          <p className="text-encre text-sm font-semibold">Concrètement</p>
+          <p className="text-encre-2 text-sm leading-relaxed mt-1">
+            L&apos;app t&apos;aide à choisir un premier poids léger, puis l&apos;ajuste à partir
+            de ton ressenti. Tu n&apos;as pas à connaître ta charge avant de commencer.
+          </p>
+        </CardContent>
+      </Card>
 
       <Card className="bg-carte border-filet">
         <CardContent className="py-4 space-y-2">

@@ -44,6 +44,20 @@ export function champEffortPropose(
 }
 
 /**
+ * Valeur initiale du champ réellement observé.
+ *
+ * En mode réserve, la cible reste affichée comme objectif mais ne devient
+ * jamais la réponse de la personne. Elle devra choisir après sa série.
+ */
+export function champEffortInitial(
+  modeReserve: boolean,
+  rpeCible: number | null | undefined,
+  rpeReduction: number,
+): string {
+  return modeReserve ? "" : champEffortPropose(rpeCible, rpeReduction);
+}
+
+/**
  * Ce qui a été saisi dans le champ RPE, tel qu'il partira en base.
  *
  * Un champ vide, des espaces, un texte : autant de façons de ne rien dire.

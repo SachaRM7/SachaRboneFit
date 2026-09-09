@@ -121,6 +121,12 @@ export const FICHES_TECHNIQUES: Record<string, FicheTechnique> = {
       "Descendre au point d'enrouler le bas du dos",
       "Pousser sur la pointe des pieds",
     ],
+    libellesPhasesTempo: {
+      excentrique: "Descends le chariot",
+      pause_etire: "Reste en bas",
+      concentrique: "Pousse le chariot",
+      pause_contracte: "Garde les jambes presque tendues",
+    },
   },
 
   // -------------------------------------------------------------------------
@@ -429,6 +435,12 @@ export const FICHES_TECHNIQUES: Record<string, FicheTechnique> = {
       "Reculer d'un pas pour donner de l'élan",
       "Balancer le buste en fin de série",
     ],
+    libellesPhasesTempo: {
+      excentrique: "Redescends les mains",
+      pause_etire: "Garde les bras presque tendus",
+      concentrique: "Remonte les mains",
+      pause_contracte: "Garde les biceps contractés",
+    },
   },
 
   "hammer-curl": {
@@ -443,6 +455,12 @@ export const FICHES_TECHNIQUES: Record<string, FicheTechnique> = {
     sensation: "Tu devrais surtout sentir l'avant du bras et le dessus de l'avant-bras.",
     pointsCles: ["Coudes fixes", "Prise neutre tenue"],
     erreursFrequentes: ["Balancer le buste pour lancer l'haltère"],
+    libellesPhasesTempo: {
+      excentrique: "Redescends les haltères",
+      pause_etire: "Garde les bras presque tendus",
+      concentrique: "Remonte les haltères",
+      pause_contracte: "Garde les biceps contractés",
+    },
   },
 
   // -------------------------------------------------------------------------

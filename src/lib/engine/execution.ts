@@ -253,6 +253,42 @@ export function phasesDuTempo(
   });
 }
 
+function dureeEnSecondes(secondes: number): string {
+  return `${secondes} seconde${secondes > 1 ? "s" : ""}`;
+}
+
+function commencerEnMinuscule(texte: string): string {
+  return texte.length === 0 ? texte : texte[0]!.toLocaleLowerCase("fr-FR") + texte.slice(1);
+}
+
+/**
+ * Le tempo converti en geste, seulement quand la fiche sait nommer les deux
+ * phases actives du mouvement. Sans ces mots, « excentrique » reste affiché et
+ * expliqué comme repère général : le moteur ne transforme jamais, à tort,
+ * toute phase excentrique en « descente ».
+ */
+export function tempoEnLangageHumain(phases: PhaseAffichee[]): string | null {
+  const excentrique = phases.find((p) => p.cle === "excentrique");
+  const pauseEtire = phases.find((p) => p.cle === "pause_etire");
+  const concentrique = phases.find((p) => p.cle === "concentrique");
+  const pauseContracte = phases.find((p) => p.cle === "pause_contracte");
+  if (!excentrique?.propreAuMouvement || !concentrique?.propreAuMouvement) return null;
+
+  const premierePause = pauseEtire && pauseEtire.secondes > 0
+    ? `${commencerEnMinuscule(pauseEtire.propreAuMouvement ? pauseEtire.libelle : "Reste en position étirée")} pendant ${dureeEnSecondes(pauseEtire.secondes)}`
+    : "sans pause";
+  const dernierePause = pauseContracte && pauseContracte.secondes > 0
+    ? `, puis ${commencerEnMinuscule(pauseContracte.propreAuMouvement ? pauseContracte.libelle : "reste en position contractée")} pendant ${dureeEnSecondes(pauseContracte.secondes)}`
+    : ", sans pause en fin de répétition";
+
+  return `${excentrique.libelle} en ${dureeEnSecondes(excentrique.secondes)}, ${premierePause}, puis ${commencerEnMinuscule(concentrique.libelle)} en ${dureeEnSecondes(concentrique.secondes)}${dernierePause}.`;
+}
+
+/** La notation technique, avec son unité visible sur chacun des quatre temps. */
+export function tempoAvecSecondes(phases: PhaseAffichee[]): string {
+  return phases.map((phase) => `${phase.secondes} s`).join(" · ");
+}
+
 export function tempoEffectif(entrees: {
   seance?: string | null;
   programme?: string | null;

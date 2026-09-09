@@ -15,6 +15,8 @@ import {
   libelleChampCharge,
 } from "@/lib/validators/exercise-instance";
 import { useSaisieSeries, type SerieValidee } from "./useSaisieSeries";
+import { GuidagePremiereSerie, PreparationMachine } from "./GuidagePremiereSerie";
+import { phasesDuTempo, tempoAvecSecondes } from "./execution-client";
 
 interface Props {
   exercice: ExercicePrescrit;
@@ -102,6 +104,18 @@ export function TableauSeries({
 
   const champ = "serie-champ";
   const complet = avancement.faites >= avancement.cibles;
+  const faites = lignes.filter(estValidee);
+  const sansRepere = (exercice.historique ?? []).length === 0;
+  const afficheGuidagePremierRepere = sansRepere && modeReserve;
+  const numeroDuDernierEssai = faites.at(-1) ?? serieCourante;
+  const valeursDuDernierEssai = numeroDuDernierEssai === null
+    ? null
+    : valeurs(numeroDuDernierEssai);
+  const tempoCourt = contexte?.tempo
+    ? tempoAvecSecondes(
+        phasesDuTempo(contexte.tempo.tempo, contexte.fiche?.libellesPhasesTempo),
+      )
+    : null;
 
   return (
     <section
@@ -166,7 +180,7 @@ export function TableauSeries({
         >
           {contexte.tempo && (
             <span>
-              Tempo <b className="chiffres">{contexte.tempo.brut}</b>
+              Tempo <b className="chiffres">{tempoCourt}</b>
             </span>
           )}
           {contexte.resumeReglages && <span>{contexte.resumeReglages}</span>}
@@ -186,6 +200,18 @@ export function TableauSeries({
             </span>
           )}
         </p>
+      )}
+
+      {sansRepere && faites.length === 0 && contexte && (
+        <PreparationMachine contexte={contexte} onOuvrir={() => setFiche(true)} />
+      )}
+
+      {afficheGuidagePremierRepere && (
+        <GuidagePremiereSerie
+          exercice={exercice}
+          rpeReduction={rpeReduction}
+          valeurs={valeursDuDernierEssai}
+        />
       )}
 
       {/*
@@ -302,7 +328,7 @@ export function TableauSeries({
                         />
                       </label>
                       <label>
-                        <span>{modeReserve ? "RIR" : "RPE"}</span>
+                        <span>{modeReserve ? "Ressenti" : "RPE"}</span>
                         {modeReserve ? (
                           <select
                             /* Rien de sélectionné quand rien n'est saisi : le
@@ -411,11 +437,11 @@ export function TableauSeries({
           qu'empilées en bandes séparées.
         */}
         {(seriesEnPlus > 0 ||
-          consigne ||
+          (!afficheGuidagePremierRepere && consigne) ||
           exercice.poidsNonCompte ||
           (exercice.seriesPrevuesAvantAjustement != null &&
             exercice.seriesPrevuesAvantAjustement !== exercice.seriesCibles) ||
-          (exercice.historique ?? []).length === 0) && (
+          (sansRepere && !afficheGuidagePremierRepere)) && (
           <div className="live-carte-notes">
             {/*
               L'aveu, quand il n'y a rien à comparer. Après une substitution, la
@@ -423,7 +449,7 @@ export function TableauSeries({
               tentation inverse : emprunter la charge de l'ancienne machine, où
               le même nombre ne déplace pas la même chose.
             */}
-            {(exercice.historique ?? []).length === 0 && (
+            {sansRepere && !afficheGuidagePremierRepere && (
               <p>Pas encore de repère sur cette machine.</p>
             )}
             {seriesEnPlus > 0 && (
@@ -441,7 +467,7 @@ export function TableauSeries({
               ou le total, et deux séances saisies autrement font une courbe qui
               bouge sans effort supplémentaire.
             */}
-            {consigne && <p>{consigne}</p>}
+            {!afficheGuidagePremierRepere && consigne && <p>{consigne}</p>}
             {exercice.poidsNonCompte ? (
               <p>
                 {/* La résistance annoncée par le constructeur se lit, elle ne

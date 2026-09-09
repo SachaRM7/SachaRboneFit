@@ -7,12 +7,17 @@ import { FicheExecution } from "./FicheExecution";
 import { useContexteExecution } from "./useContexteExecution";
 import { useSaisieSeries, type SerieValidee } from "./useSaisieSeries";
 import { cransDeCharge } from "./crans-de-charge";
-import { effortSaisi } from "./effort-propose";
+import { effortPropose, effortSaisi } from "./effort-propose";
 import { classeDuMotif } from "./motif-progression";
 import { CHOIX_RESERVE, reserveVersRpe, rpeVersReserve } from "@/lib/engine/reserve";
 import { resumeDesSeries } from "@/lib/live/repere-precedent";
-import { libelleChampCharge } from "@/lib/validators/exercise-instance";
+import {
+  consigneDeSaisie,
+  libelleChampCharge,
+} from "@/lib/validators/exercise-instance";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
+import { GuidagePremiereSerie, PreparationMachine } from "./GuidagePremiereSerie";
+import { phasesDuTempo, tempoAvecSecondes } from "./execution-client";
 import type { ExercicePrescrit } from "./types";
 
 /**
@@ -95,6 +100,16 @@ export function LecteurExercice({
 
   const faites = lignes.filter(estValidee);
   const derniereFois = resumeDesSeries(exercice.historique ?? []);
+  const sansRepere = (exercice.historique ?? []).length === 0;
+  const numeroDuDernierEssai = faites.at(-1) ?? serieCourante;
+  const valeursDuDernierEssai = numeroDuDernierEssai === null
+    ? null
+    : valeurs(numeroDuDernierEssai);
+  const tempoCourt = contexte?.tempo
+    ? tempoAvecSecondes(
+        phasesDuTempo(contexte.tempo.tempo, contexte.fiche?.libellesPhasesTempo),
+      )
+    : null;
 
   return (
     <article className="focus-carte">
@@ -154,23 +169,23 @@ export function LecteurExercice({
           LES REPÈRES — ce qu'on sait déjà, sans voler la vedette à la série.
           ------------------------------------------------------------------ */}
       <div className="lecteur-reperes">
-        <section>
-          <p className="eyebrow">Dernière fois</p>
-          {/* Jamais de faux repère : après une substitution, la nouvelle machine
-              n'a pas d'historique, et emprunter la charge de l'ancienne ferait
-              croire à une progression là où le même nombre ne déplace pas la
-              même chose. */}
-          <p className={derniereFois ? "lecteur-repere-valeur chiffres" : "lecteur-repere-vide"}>
-            {derniereFois ?? "Pas encore de repère sur cette machine"}
-          </p>
-        </section>
+        {derniereFois && (
+          <section>
+            <p className="eyebrow">Dernière fois</p>
+            {/* Jamais de faux repère : après une substitution, la nouvelle machine
+                n'a pas d'historique, et emprunter la charge de l'ancienne ferait
+                croire à une progression là où le même nombre ne déplace pas la
+                même chose. */}
+            <p className="lecteur-repere-valeur chiffres">{derniereFois}</p>
+          </section>
+        )}
 
         {contexte && (contexte.tempo || contexte.resumeReglages || contexte.note) && (
           <section>
             <p className="eyebrow">Repères</p>
             <p className="lecteur-repere-detail">
               {[
-                contexte.tempo ? `Tempo ${contexte.tempo.brut}` : null,
+                tempoCourt ? `Tempo ${tempoCourt}` : null,
                 contexte.resumeReglages,
                 contexte.note,
               ]
@@ -188,6 +203,18 @@ export function LecteurExercice({
           </button>
         )}
       </div>
+
+      {sansRepere && faites.length === 0 && contexte && (
+        <PreparationMachine contexte={contexte} onOuvrir={() => setFiche(true)} />
+      )}
+
+      {sansRepere && modeReserve && (
+        <GuidagePremiereSerie
+          exercice={exercice}
+          rpeReduction={rpeReduction}
+          valeurs={valeursDuDernierEssai}
+        />
+      )}
 
       {/* ------------------------------------------------------------------
           CE QUI EST FAIT — compacté, jamais effacé.
@@ -251,6 +278,9 @@ export function LecteurExercice({
             derniereEnPlus === serieCourante ? retirerLaDerniereSerie : null
           }
           modeReserve={modeReserve}
+          rpeReduction={rpeReduction}
+          afficherConsigne={!sansRepere}
+          premierEssai={sansRepere}
           valeurs={valeurs(serieCourante)}
           ecrire={(champ, valeur) => ecrire(serieCourante, champ, valeur)}
           alerte={alerte}
@@ -347,6 +377,9 @@ function SerieEnCours({
   numero,
   total,
   modeReserve,
+  rpeReduction,
+  afficherConsigne,
+  premierEssai,
   valeurs,
   ecrire,
   alerte,
@@ -357,6 +390,9 @@ function SerieEnCours({
   numero: number;
   total: number;
   modeReserve: boolean;
+  rpeReduction: number;
+  afficherConsigne: boolean;
+  premierEssai: boolean;
   valeurs: { charge: string; reps: string; rpe: string };
   ecrire: (champ: "charge" | "reps" | "rpe", valeur: string) => void;
   alerte: { message: string; choix: number[] } | null;
@@ -368,6 +404,14 @@ function SerieEnCours({
   const reps = Number.parseInt(valeurs.reps, 10) || 0;
   const reserve = rpeVersReserve(effortSaisi(valeurs.rpe));
   const rpe = Number.parseFloat(valeurs.rpe.replace(",", "."));
+  const reserveCible = rpeVersReserve(effortPropose(exercice.rpeCible, rpeReduction));
+  const consigne = consigneDeSaisie(
+    exercice.conventionCharge,
+    exercice.natureCharge,
+    exercice.poidsNonCompte,
+  );
+  const afficherCrans = crans.disponible
+    && (!premierEssai || valeurs.charge.trim().length > 0);
 
   return (
     <section className="serie-en-cours" aria-label={`Série ${numero}`}>
@@ -402,7 +446,7 @@ function SerieEnCours({
               l'écran, pas son centre. Ils disparaissent quand l'appareil n'a pas
               de grille connue — un pas par défaut décrirait une machine que
               personne n'a mesurée. */}
-          {crans.disponible ? (
+          {afficherCrans ? (
             <button
               type="button"
               onClick={crans.descendre}
@@ -422,7 +466,7 @@ function SerieEnCours({
             className="mesure-valeur chiffres"
             placeholder="—"
           />
-          {crans.disponible ? (
+          {afficherCrans ? (
             <button
               type="button"
               onClick={crans.monter}
@@ -434,6 +478,9 @@ function SerieEnCours({
             <span />
           )}
         </div>
+        {afficherConsigne && consigne && (
+          <p className="mesure-aide">{consigne}</p>
+        )}
       </div>
 
         {/* --- Les répétitions : un cran est un cran --- */}
@@ -496,26 +543,47 @@ function SerieEnCours({
       {/* --- L'effort : une réserve en calibration, un RPE sinon --- */}
       <div className="mesure">
         <p className="eyebrow">
-          {modeReserve ? "Répétitions en réserve" : "Effort perçu"}
+          {modeReserve ? "Ton ressenti" : "Effort perçu"}
         </p>
         {modeReserve ? (
-          <div className="mesure-choix" role="group" aria-label="Répétitions en réserve">
-            {CHOIX_RESERVE.map((r) => (
-              <button
-                key={r}
-                type="button"
-                aria-pressed={reserve === r}
-                onClick={() =>
-                  // Un second appui efface : c'est le seul moyen de revenir à
-                  // « rien saisi », et rien saisi doit rester possible.
-                  ecrire("rpe", reserve === r ? "" : String(reserveVersRpe(r)))
-                }
-                className="chiffres"
-              >
-                {r === 5 ? "5+" : r}
-              </button>
-            ))}
-          </div>
+          <>
+            <p className="reserve-question">
+              Combien de répétitions propres aurais-tu encore pu faire ?
+            </p>
+            {reserveCible !== null && (
+              <p className="reserve-objectif">
+                Objectif : environ {reserveCible} en réserve · choisis après la série
+              </p>
+            )}
+            <div
+              className="mesure-choix"
+              role="group"
+              aria-label="Ton ressenti : répétitions encore possibles"
+            >
+              {CHOIX_RESERVE.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  aria-pressed={reserve === r}
+                  aria-label={
+                    r === 0
+                      ? "0, aucune répétition possible"
+                      : r === 5
+                        ? "5 ou plus, très facile"
+                        : `${r} répétition${r > 1 ? "s" : ""} possible${r > 1 ? "s" : ""}`
+                  }
+                  onClick={() =>
+                    // Un second appui efface : c'est le seul moyen de revenir à
+                    // « rien saisi », et rien saisi doit rester possible.
+                    ecrire("rpe", reserve === r ? "" : String(reserveVersRpe(r)))
+                  }
+                  className="chiffres"
+                >
+                  {r === 5 ? "5+" : r}
+                </button>
+              ))}
+            </div>
+          </>
         ) : (
           <div className="mesure-ligne">
             <button
