@@ -60,10 +60,102 @@ describe("recherche de substituts", () => {
       ({ pilier: 0, substitut: 1, accessoire: 2 })[a] - ({ pilier: 0, substitut: 1, accessoire: 2 })[b]));
   });
 
-  it("plafonne a cinq propositions", () => {
+  it("garde une recommandation et au plus deux alternatives", () => {
     const beaucoup = Array.from({ length: 12 }, (_, i) =>
       inst(`ex-${i}`, "lalande", "P2_tirage", "mi_range", "accessoire", ["dos"]));
-    expect(findSubstitutes(beaucoup, criteres)).toHaveLength(5);
+    expect(findSubstitutes(beaucoup, criteres)).toHaveLength(3);
+  });
+
+  it("une raison trop compliqué privilégie seulement un mouvement plus simple et documenté", () => {
+    const actuel = {
+      ...inst("bench", "lalande", "P1_poussee", "mi_range", "pilier", ["pectoraux"]),
+      type: "polyarticulaire",
+      equipement: "barre",
+      slug: "bench-press",
+    };
+    const guide = {
+      ...inst("chest", "lalande", "P1_poussee", "mi_range", "substitut", ["pectoraux"]),
+      type: "polyarticulaire",
+      equipement: "machine",
+      slug: "machine-chest-press",
+    };
+    const nonDocumente = {
+      ...guide,
+      id: "inconnu",
+      exerciseId: "inconnu",
+      nom: "Mouvement inconnu",
+      slug: "mouvement-inconnu",
+    };
+
+    const r = findSubstitutes([actuel, guide, nonDocumente], {
+      pilier: "P1_poussee",
+      profilTension: "mi_range",
+      type: "polyarticulaire",
+      equipementActuel: "barre",
+      gymId: "lalande",
+      excludeExerciseIds: ["bench"],
+      raison: "trop_complique",
+      exigerDocumentation: true,
+    });
+
+    expect(r.map((x) => x.exerciseInstanceId)).toEqual(["chest"]);
+    expect(r[0]?.raisonCompatibilite).toBe("Plus simple à apprendre");
+    expect(r[0]?.documentationSuffisante).toBe(true);
+  });
+
+  it("machine occupée et trop compliqué ne produisent pas le même classement", () => {
+    const libreMaisComplexe = {
+      ...inst("libre", "lalande", "P1_poussee", "mi_range", "pilier", ["pectoraux"]),
+      type: "polyarticulaire",
+      equipement: "halteres",
+      slug: "incline-dumbbell-press",
+    };
+    const guide = {
+      ...inst("guide", "lalande", "P1_poussee", "mi_range", "substitut", ["pectoraux"]),
+      type: "polyarticulaire",
+      equipement: "machine",
+      slug: "machine-chest-press",
+    };
+    const commun = {
+      pilier: "P1_poussee",
+      profilTension: "mi_range",
+      type: "polyarticulaire",
+      equipementActuel: "barre",
+      gymId: "lalande",
+      excludeExerciseIds: [] as string[],
+    };
+    expect(findSubstitutes([libreMaisComplexe, guide], { ...commun, raison: "occupee" })[0]?.exerciseInstanceId)
+      .toBe("libre");
+    expect(findSubstitutes([libreMaisComplexe, guide], {
+      ...commun,
+      raison: "trop_complique",
+      exigerDocumentation: true,
+    })[0]?.exerciseInstanceId).toBe("guide");
+  });
+
+  it("un débutant ne reçoit jamais un exercice non documenté en recommandation", () => {
+    const candidat = {
+      ...inst("sans-fiche", "lalande", "P2_tirage", "mi_range", "pilier", ["dos"]),
+      equipement: "machine",
+      slug: "slug-absent",
+    };
+    expect(findSubstitutes([candidat], { ...criteres, exigerDocumentation: true }))
+      .toEqual([]);
+  });
+
+  it("une fiche dont la démonstration a été entièrement écartée ne suffit pas", () => {
+    const candidat = {
+      ...inst("hack", "lalande", "P3_squat", "stretch", "pilier", ["quadriceps"]),
+      equipement: "machine",
+      slug: "hack-squat",
+    };
+    expect(findSubstitutes([candidat], {
+      pilier: "P3_squat",
+      profilTension: "stretch",
+      gymId: "lalande",
+      excludeExerciseIds: [],
+      exigerDocumentation: true,
+    })).toEqual([]);
   });
 
   it("ecarte les exercices sollicitant un muscle courbature, malgre les vocabulaires differents", () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 
 /**
  * LE DEADLIFT QUI PERDAIT SA PREMIÈRE SÉRIE.
@@ -387,5 +388,76 @@ describe("le Focus n'affiche qu'UNE représentation éditable de la série", () 
     expect(faites).toHaveLength(1);
     expect(within(faites[0] as HTMLElement).getByRole("button", { name: /Modifier/ }))
       .toBeInTheDocument();
+  });
+});
+
+describe("série supplémentaire — même vérité en Focus et Liste", () => {
+  it("annonce immédiatement la série, sans afficher 3 sur 2", async () => {
+    const user = userEvent.setup();
+    const annonce = vi.spyOn(toast, "success").mockImplementation(() => "toast-id");
+    const vue = focus();
+    await user.click(screen.getByRole("button", { name: "Série en plus" }));
+
+    expect(annonce).toHaveBeenCalledWith("SÉRIE 3 AJOUTÉE");
+    expect(useSessionStore.getState().active?.additionalSetCounts?.[A]).toBe(1);
+    vue.unmount();
+    liste();
+    expect(screen.getByText("Supplémentaire")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("3 sur 2");
+  });
+
+  it("reste visible après un changement de vue puis se retire sans changer la prescription", async () => {
+    const user = userEvent.setup();
+    const vue = focus();
+    await user.click(screen.getByRole("button", { name: "Série en plus" }));
+    vue.unmount();
+
+    liste();
+    expect(screen.getByText("Supplémentaire")).toBeInTheDocument();
+    expect(document.querySelector(".live-carte-prescription")?.textContent).toContain("2 ×");
+    await user.click(screen.getByRole("button", { name: "Supprimer la série 3" }));
+    expect(screen.queryByText("Supplémentaire")).not.toBeInTheDocument();
+  });
+
+  it("peut être validée puis supprimée sans laisser de série fantôme dans le store", async () => {
+    const user = userEvent.setup();
+    focus();
+    await user.click(screen.getByRole("button", { name: "Série en plus" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await user.click(screen.getByRole("button", { name: "Supprimer la série 3" }));
+    expect(useSessionStore.getState().active?.sets.some((s) => s.numeroSerie === 3)).toBe(false);
+    expect(useSessionStore.getState().active?.additionalSetCounts?.[A]).toBe(0);
+  });
+});
+
+describe("report — état de navigation, jamais réécriture de l'exécution", () => {
+  it("conserve la série déjà faite et revient après hydratation", () => {
+    const store = useSessionStore.getState();
+    store.upsertSet({
+      exerciseInstanceId: A,
+      numeroSerie: 1,
+      repsEffectuees: 8,
+      charge: 60,
+      rpeEffectif: 8,
+    });
+    store.deferExercise(A);
+    store.hydraterDeferredExercises([A]);
+
+    expect(useSessionStore.getState().active?.sets).toEqual([
+      expect.objectContaining({ exerciseInstanceId: A, numeroSerie: 1, charge: 60 }),
+    ]);
+    expect(useSessionStore.getState().active?.deferredExerciseIds).toEqual([A]);
+  });
+
+  it("suit la lignée quand un exercice reporté est ensuite remplacé", () => {
+    const store = useSessionStore.getState();
+    store.deferExercise(A);
+    store.noterSubstitution(A, B);
+    expect(useSessionStore.getState().active?.deferredExerciseIds).toEqual([B]);
+    expect(useSessionStore.getState().active?.lignees?.[0]?.instances).toEqual([A, B]);
   });
 });

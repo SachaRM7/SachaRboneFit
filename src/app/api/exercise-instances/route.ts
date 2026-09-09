@@ -78,7 +78,9 @@ export async function GET(request: Request) {
         profilTension: exercises.profilTension,
         categorieRole: exercises.categorieRole,
         type: exercises.type,
+        equipement: exercises.equipement,
         musclesPrincipaux: exercises.musclesPrincipaux,
+        musclesSecondaires: exercises.musclesSecondaires,
       })
       .from(exerciseInstances)
       .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))

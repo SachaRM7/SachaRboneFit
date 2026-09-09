@@ -37,6 +37,7 @@ interface Props {
    * bouton déjà monté et se contente de lui donner sa place.
    */
   actions?: ReactNode;
+  reporte?: boolean;
 }
 
 /**
@@ -69,6 +70,7 @@ export function TableauSeries({
   onSerieValidee,
   modeReserve = false,
   actions,
+  reporte = false,
 }: Props) {
   const {
     lignes,
@@ -121,6 +123,7 @@ export function TableauSeries({
     <section
       className="live-carte"
       data-termine={complet ? "" : undefined}
+      data-reporte={reporte ? "" : undefined}
     >
       <header className="live-carte-tete">
         {exercice.slug && (
@@ -146,6 +149,7 @@ export function TableauSeries({
           {/* La machine porte souvent le nom de l'exercice : le répéter sous le
               titre n'apprend rien et allonge la ligne pour rien. */}
           <p className="live-carte-prescription">
+            {reporte && <strong className="live-reporte">Reporté · </strong>}
             {exercice.machineNom && exercice.machineNom !== exercice.nom
               ? `${exercice.machineNom} · `
               : ""}
@@ -275,7 +279,7 @@ export function TableauSeries({
                   <span className="live-serie-numero chiffres">
                     S{numero}
                     {horsPrescription && (
-                      <b title="Au-delà de la prescription">+</b>
+                      <small className="serie-supplementaire">Supplémentaire</small>
                     )}
                   </span>
 

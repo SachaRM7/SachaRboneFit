@@ -42,6 +42,7 @@ interface Props {
   modeReserve?: boolean;
   /** Les actions propres à un exercice — remplacement, réglages — déjà montées. */
   actions?: (exercice: ExercicePrescrit) => ReactNode;
+  reportes?: string[];
 }
 
 export function VueFocus({
@@ -53,6 +54,7 @@ export function VueFocus({
   onSerieValidee,
   modeReserve = false,
   actions,
+  reportes = [],
 }: Props) {
   const [listeOuverte, setListeOuverte] = useState(false);
   const exercice = exercices[courant];
@@ -116,6 +118,7 @@ export function VueFocus({
         onSerieValidee={onSerieValidee}
         actions={actions?.(exercice)}
         onSuivant={suivant !== null ? () => aller(suivant) : null}
+        reporte={reportes.includes(exercice.id)}
       />
 
       {/*
@@ -147,7 +150,7 @@ export function VueFocus({
                 <X className="w-5 h-5" aria-hidden />
               </button>
             </header>
-            <ListeCompacte etats={etats} courant={courant} onChoisir={aller} />
+            <ListeCompacte etats={etats} courant={courant} onChoisir={aller} reportes={reportes} />
           </div>
         </div>
       )}

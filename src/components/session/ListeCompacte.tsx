@@ -25,9 +25,10 @@ interface Props {
   /** L'exercice actuellement affiché — mis en évidence, pas verrouillé. */
   courant: number;
   onChoisir: (index: number) => void;
+  reportes?: string[];
 }
 
-export function ListeCompacte({ etats, courant, onChoisir }: Props) {
+export function ListeCompacte({ etats, courant, onChoisir, reportes = [] }: Props) {
   return (
     <ul className="space-y-1" aria-label="Exercices de la séance">
       {etats.map((e, i) => {
@@ -46,6 +47,9 @@ export function ListeCompacte({ etats, courant, onChoisir }: Props) {
                 e.statut === "termine" ? "text-encre-3" : "text-encre"
               }`}>
                 {e.nom}
+                {e.statut !== "termine" && reportes.includes(e.id) && (
+                  <small className="ml-2 uppercase tracking-wide text-[10px] text-encre-3">Reporté</small>
+                )}
               </span>
               {/*
                 L'état ne repose pas sur la seule couleur : une coche pour
