@@ -9,10 +9,10 @@ import { alertes } from "@/services/progression";
 import { vueDuProgramme } from "@/services/cycle";
 import { prochaineSeance } from "@/services/programmes";
 import { choisirSalleDuJour, etatDuJour } from "@/lib/engine/etat-du-jour";
-import { lireBlocs } from "@/services/blocs";
-import { memoireEmpechements } from "@/services/memoire";
+import { lireBlocs, type BlocsDuProgramme } from "@/services/blocs";
+import { memoireEmpechements, type MemoireEmpechements } from "@/services/memoire";
 import { exercicesRealisables, statutInventaire } from "@/lib/engine/disponibilite";
-import { phase } from "@/lib/mesure/trace";
+import { noter, phase } from "@/lib/mesure/trace";
 import { recuperationMusculaire } from "./recuperation";
 import { contenuIAValide } from "./briefs-llm";
 import { contexteEssentiel, inventaireDuLieu } from "@/services/tableau-de-bord-lecture";
@@ -76,10 +76,19 @@ function bornesSemaine(): { debut: string; debutPrecedente: string } {
  * l'application, voit toujours son effet.
  */
 const contexteCommun = cache(async (userId: string, todayStr: string) => {
-  const [blocs, memoire] = await Promise.all([
+  const [blocsResult, memoireResult] = await Promise.allSettled([
     lireBlocs(userId),
     memoireEmpechements(userId, todayStr),
   ]);
+
+  const blocs: BlocsDuProgramme = blocsResult.status === "fulfilled"
+    ? blocsResult.value
+    : { actif: null, dernierDeload: null, tous: [] };
+  const memoire: MemoireEmpechements = memoireResult.status === "fulfilled"
+    ? memoireResult.value
+    : { classes: [], suggestions: [], seancesAdaptees: new Set() };
+  if (blocsResult.status === "rejected") noter("calcul", "complement_echec_blocs");
+  if (memoireResult.status === "rejected") noter("calcul", "complement_echec_memoire");
   return { blocs, memoire };
 });
 
@@ -98,7 +107,60 @@ const lireSalles = cache(async () =>
 );
 
 export type EssentielTableauDeBord = Awaited<ReturnType<typeof essentielTableauDeBord>>;
-export type ComplementTableauDeBord = Awaited<ReturnType<typeof complementTableauDeBord>>;
+
+/**
+ * Données optionnelles de l'accueil.
+ *
+ * Le chemin essentiel doit échouer franchement : sans lui, la page ne sait
+ * pas quelle séance proposer. Le complément, lui, est une collection de
+ * cartes indépendantes. Une panne d'une lecture ne doit pas annuler celles
+ * qui ont déjà répondu ni transformer le tableau de bord en 504.
+ */
+export interface ComplementTableauDeBord {
+  recuperation: Awaited<ReturnType<typeof recuperationMusculaire>> | null;
+  blocActif: {
+    nom: string;
+    libelleCycle: string;
+    semaine: number;
+    semainesTotal: number | null;
+    enCalibration: boolean;
+    seancesFaites: number;
+    seancesDeLaSemaine: number;
+  } | null;
+  alertesPreSeance: Awaited<ReturnType<typeof alertes>>;
+  precalcSession: { contenu: string } | null;
+  weeklyDebrief: { contenu: string; weekStart: string } | null;
+  recentSessions: Array<{
+    id: string;
+    date: string;
+    dureeMinutes: number | null;
+    energieFin: number | null;
+    templateNom: string | null;
+    templateLettre: string | null;
+    gymNom: string | null;
+  }>;
+}
+
+const complementVide = (): ComplementTableauDeBord => ({
+  recuperation: null,
+  blocActif: null,
+  alertesPreSeance: [],
+  precalcSession: null,
+  weeklyDebrief: null,
+  recentSessions: [],
+});
+
+/** Lit une branche sans propager son erreur au reste de l'accueil. */
+function resultatOu<T, U>(
+  resultat: PromiseSettledResult<T>,
+  repli: U,
+  nom: string,
+): T | U {
+  if (resultat.status === "fulfilled") return resultat.value;
+  // Le nom est une catégorie stable, jamais le SQL ni l'identifiant du compte.
+  noter("calcul", `complement_echec_${nom}`);
+  return repli;
+}
 
 /**
  * Ce qui doit être à l'écran tout de suite.
@@ -229,16 +291,22 @@ export async function essentielTableauDeBord(userId: string) {
  * les débriefs, l'historique récent. Ensemble elles pèsent une vingtaine de
  * requêtes — l'essentiel du temps de l'ancien accueil.
  */
-export async function complementTableauDeBord(userId: string) {
+export async function complementTableauDeBord(userId: string): Promise<ComplementTableauDeBord> {
   const todayStr = aujourdhui();
   const { debut: weekStartStr, debutPrecedente: lastWeekStartStr } = bornesSemaine();
 
-  const { blocs, memoire } = await contexteCommun(userId, todayStr);
+  let commun: { blocs: BlocsDuProgramme; memoire: Awaited<ReturnType<typeof memoireEmpechements>> };
+  try {
+    commun = await contexteCommun(userId, todayStr);
+  } catch {
+    // L'essentiel a déjà été envoyé par la page : les cartes secondaires
+    // peuvent disparaître sans retirer la séance à lancer.
+    noter("calcul", "complement_echec_contexte");
+    return complementVide();
+  }
+  const { blocs, memoire } = commun;
 
-  const [
-    precalcSession, weeklyDebrief, debriefSemainePrecedente,
-    recentSessions, vueProgramme, alertesPreSeance, salles, recuperation,
-  ] = await Promise.all([
+  const resultats = await Promise.allSettled([
     db.query.precalcSessions.findFirst({
       where: and(eq(precalcSessions.userId, userId), eq(precalcSessions.targetDate, todayStr)),
     }),
@@ -268,11 +336,25 @@ export async function complementTableauDeBord(userId: string) {
      * L'essentiel a été ramené de treize allers-retours à deux au lot 10 ; y
      * remettre celles-ci annulerait ce travail.
      *
-     * Menée dans le même `Promise.all` que le reste : elle ne s'ajoute pas au
-     * temps du complément, elle s'y range.
-     */
+     * Menée dans le même `Promise.allSettled` que le reste : elle ne s'ajoute
+     * pas au temps du complément, elle s'y range sans faire tomber les autres
+     * cartes si sa lecture échoue.
+    */
     phase("calcul", "recuperation", () => recuperationMusculaire(userId)),
   ]);
+
+  const [
+    precalcResult, weeklyResult, debriefPrecedentResult,
+    recentResult, vueResult, alertesResult, sallesResult, recuperationResult,
+  ] = resultats;
+  const precalcSession = resultatOu(precalcResult, null, "precalc");
+  const weeklyDebrief = resultatOu(weeklyResult, null, "debrief");
+  const debriefSemainePrecedente = resultatOu(debriefPrecedentResult, null, "debrief_precedent");
+  const recentSessions = resultatOu(recentResult, [], "historique");
+  const vueProgramme = resultatOu(vueResult, null, "programme");
+  const alertesPreSeance = resultatOu(alertesResult, [], "alertes");
+  const salles = resultatOu(sallesResult, [], "salles");
+  const recuperation = resultatOu(recuperationResult, null, "recuperation");
 
   /*
    * Une ligne héritée d'avant le lot 15 est traitée comme ABSENTE.
@@ -304,9 +386,16 @@ export async function complementTableauDeBord(userId: string) {
   // remonterait les gabarits de tout le monde. On ne lit que les identifiants
   // effectivement cites par les seances de cet utilisateur.
   const idsGabarits = [...new Set(recentSessions.map((s) => s.seanceTemplateId).filter((v): v is string => Boolean(v)))];
-  const gabaritsUtilisateur = idsGabarits.length
-    ? await db.query.seanceTemplates.findMany({ where: inArray(seanceTemplates.id, idsGabarits) })
-    : [];
+  let gabaritsUtilisateur: Array<{ id: string; nom: string; lettre: string | null }> = [];
+  if (idsGabarits.length) {
+    try {
+      gabaritsUtilisateur = await db.query.seanceTemplates.findMany({
+        where: inArray(seanceTemplates.id, idsGabarits),
+      });
+    } catch {
+      noter("calcul", "complement_echec_gabarits");
+    }
+  }
 
   const salleParId = new Map(salles.map((g) => [g.id, g]));
   const gabaritParId = new Map(gabaritsUtilisateur.map((t) => [t.id, t]));
@@ -330,7 +419,7 @@ export async function complementTableauDeBord(userId: string) {
     // Le raccourci vers l'écran Programme, avec exactement ce qu'il faut
     // pour l'annoncer — et rien de plus. Les valeurs viennent du même
     // service que l'écran lui-même : les deux ne peuvent pas diverger.
-    blocActif: vueProgramme.cycle
+    blocActif: vueProgramme?.cycle
       ? {
           nom: vueProgramme.cycle.nom,
           libelleCycle: vueProgramme.cycle.libelle.libelle,
@@ -353,6 +442,20 @@ export async function complementTableauDeBord(userId: string) {
 }
 
 /**
+ * Partage le complément entre les deux segments suspendus de l'accueil.
+ *
+ * `CarteProgramme` et `ComplementTableauDeBord` sont rendus dans le même
+ * arbre React. Sans cette déduplication, chacun lançait la vingtaine de
+ * lectures du complément : avec `max: 1`, elles se mettaient en file deux
+ * fois et pouvaient garder une invocation ouverte jusqu'au timeout. Le cache
+ * reste limité à la durée du rendu et à la clé `userId` ; aucune donnée ne
+ * survit entre deux requêtes.
+ */
+export const complementTableauDeBordMemoise = cache((userId: string) =>
+  complementTableauDeBord(userId),
+);
+
+/**
  * Les deux moitiés réunies, dans la forme historique.
  *
  * La route `/api/dashboard` sert le service worker et les appels différés :
@@ -361,9 +464,13 @@ export async function complementTableauDeBord(userId: string) {
  * le total de requêtes ne dépasse pas celui d'avant le découpage.
  */
 export async function donneesTableauDeBord(userId: string) {
-  const [essentiel, complement] = await Promise.all([
+  const [essentielResult, complementResult] = await Promise.allSettled([
     essentielTableauDeBord(userId),
     complementTableauDeBord(userId),
   ]);
-  return { ...essentiel, ...complement };
+  if (essentielResult.status === "rejected") throw essentielResult.reason;
+  const complement = complementResult.status === "fulfilled"
+    ? complementResult.value
+    : (noter("calcul", "complement_echec_route"), complementVide());
+  return { ...essentielResult.value, ...complement };
 }

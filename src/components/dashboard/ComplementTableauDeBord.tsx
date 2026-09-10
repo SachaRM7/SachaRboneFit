@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Calendar, Dumbbell, Activity, TrendingDown } from "lucide-react";
 import { AlertList } from "@/components/alerts/AlertList";
-import { complementTableauDeBord } from "@/services/tableau-de-bord";
+import { complementTableauDeBordMemoise, type ComplementTableauDeBord } from "@/services/tableau-de-bord";
 import { phase, publier } from "@/lib/mesure/trace";
 import { CarteRecuperation } from "./CarteRecuperation";
 
@@ -20,9 +20,21 @@ import { CarteRecuperation } from "./CarteRecuperation";
  * pas.
  */
 export async function ComplementTableauDeBord({ userId }: { userId: string }) {
-  const data = await phase("calcul", "complementTableauDeBord", () =>
-    complementTableauDeBord(userId),
-  );
+  let data: ComplementTableauDeBord;
+  try {
+    data = await phase("calcul", "complementTableauDeBord", () =>
+      complementTableauDeBordMemoise(userId),
+    );
+  } catch {
+    // Le chemin essentiel est déjà visible : une carte secondaire en panne ne
+    // doit jamais transformer l'accueil en écran d'erreur ou en 504.
+    publier("complement_indisponible");
+    return (
+      <p className="text-encre-3 text-sm" role="status">
+        Les détails de l&apos;accueil sont momentanément indisponibles.
+      </p>
+    );
+  }
 
   // La seconde borne du streaming. Comparée à « essentiel », elle dit combien
   // de temps le complément a retenu la réponse après le premier contenu.
@@ -50,7 +62,7 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
         l'intensité du jour, avant même de savoir quelle séance vient. Elle est
         dans le COMPLÉMENT et pas dans l'essentiel — voir le service.
       */}
-      <CarteRecuperation etat={data.recuperation} />
+      {data.recuperation && <CarteRecuperation etat={data.recuperation} />}
 
       {/* Precalc session preview */}
       {data.precalcSession && (

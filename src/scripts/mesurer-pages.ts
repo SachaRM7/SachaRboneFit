@@ -20,41 +20,20 @@ if (!URL_BASE) throw new Error("DATABASE_URL requis");
 
 const sql = postgres(URL_BASE, { max: 5, onnotice: () => {} });
 
-/**
- * Le compteur vient de Postgres, pas de l'application.
- *
- * Drizzle fixe son logger à la construction, et brancher un client à part ne
- * mesurerait pas le bon : c'est l'enchaînement des requêtes de `db` qui coûte,
- * d'autant plus que le pool applicatif est réglé à UNE connexion — elles se
- * sérialisent donc toutes, y compris sous `Promise.all`.
- *
- * Chaque requête sans transaction explicite valide la sienne : le compteur de
- * commits de la base est donc une mesure fidèle du nombre d'allers-retours.
- */
-let requetes = 0;
-
-/**
- * Le compteur s'intercale entre Drizzle et postgres.js.
- *
- * Le logger de Drizzle se fixe à la construction, et `pg_stat_database` est
- * alimenté de façon différée : ni l'un ni l'autre ne convient. Drizzle appelle
- * `unsafe()` sur le client sous-jacent pour chaque requête — c'est le point de
- * passage obligé, et le seul qui compte exactement.
- */
-function brancherCompteur(db: unknown) {
-  const client = (db as { $client: { unsafe: (...a: unknown[]) => unknown } }).$client;
-  const original = client.unsafe.bind(client);
-  client.unsafe = (...args: unknown[]) => {
-    requetes += 1;
-    return original(...args);
-  };
-}
+/** Le compteur supporté du client applicatif, installé après le chargement dotenv. */
+let compterRequetes: typeof import("../db/client").compterRequetes | null = null;
 
 async function chrono<T>(nom: string, f: () => Promise<T>) {
-  requetes = 0;
   const debut = performance.now();
-  const resultat = await f();
-  return { nom, ms: Math.round(performance.now() - debut), requetes, resultat };
+  const mesure = compterRequetes
+    ? await compterRequetes(f)
+    : { resultat: await f(), requetes: 0 };
+  return {
+    nom,
+    ms: Math.round(performance.now() - debut),
+    requetes: mesure.requetes,
+    resultat: mesure.resultat,
+  };
 }
 
 async function main() {
@@ -63,11 +42,11 @@ async function main() {
   const userId = utilisateur.id as string;
 
   process.env.DATABASE_URL = URL_BASE;
-  const { db } = await import("../db/client");
+  const appDb = await import("../db/client");
+  const { db } = appDb;
+  compterRequetes = appDb.compterRequetes;
   const schema = await import("../db/schema");
   const { eq } = await import("drizzle-orm");
-  brancherCompteur(db);
-
   /**
    * Les modules sont chargés AVANT la première mesure.
    *

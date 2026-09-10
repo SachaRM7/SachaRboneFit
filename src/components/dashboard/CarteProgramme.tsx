@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { complementTableauDeBord } from "@/services/tableau-de-bord";
+import { complementTableauDeBordMemoise } from "@/services/tableau-de-bord";
 
 /**
  * Le raccourci vers l'écran Programme, rendu à part.
@@ -14,7 +14,12 @@ import { complementTableauDeBord } from "@/services/tableau-de-bord";
  * fois, et les deux limites de suspension s'ouvrent ensemble.
  */
 export async function CarteProgramme({ userId }: { userId: string }) {
-  const { blocActif } = await complementTableauDeBord(userId);
+  let blocActif;
+  try {
+    ({ blocActif } = await complementTableauDeBordMemoise(userId));
+  } catch {
+    return null;
+  }
   if (!blocActif) return null;
 
   return (

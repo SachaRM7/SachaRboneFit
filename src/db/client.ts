@@ -39,16 +39,6 @@ import { noter, traceActive } from "@/lib/mesure/trace";
  * donc à 20, et l'instrumentation ci-dessous compte les réouvertures : c'est
  * elle qui dira si le jeu en vaut la chandelle, et à quel prix pour le pooler.
  */
-const client = postgres(process.env.DATABASE_URL!, {
-  prepare: false,
-  max: 1,
-  idle_timeout: 20,
-  connect_timeout: 10,
-  // Une connexion vient de se fermer : la suivante repaiera l'ouverture. C'est
-  // le seul signal qui permette de compter les réouvertures plutôt que de les
-  // supposer.
-  onclose: () => { connexionOuverte = false; },
-});
 
 /**
  * Y a-t-il une connexion ouverte à cet instant, dans cette instance.
@@ -88,75 +78,54 @@ export async function compterRequetes<T>(
 }
 
 /**
- * Le compteur s'intercale entre Drizzle et postgres.js.
+ * Instrumentation sans modifier les requêtes.
  *
- * Le logger de Drizzle se fixe à la construction et ne donne pas de durée ;
- * `pg_stat_database` est alimenté de façon différée. Drizzle appelle
- * `unsafe()` sur le client sous-jacent pour chaque requête : c'est le point de
- * passage obligé, et le seul qui compte exactement ce qui part sur le réseau.
+ * `postgres.js` expose `debug` au moment où une requête est construite et
+ * envoyée. C'est le point de comptage dont les tests ont besoin, sans
+ * remplacer `sql.unsafe()` ni toucher à la Query paresseuse qu'elle renvoie.
  *
- * Ce qu'il ne faut SURTOUT pas faire ici — et qui a été fait, puis attrapé par
- * le test de coût : renvoyer une autre promesse à la place de la requête. Ce
- * que `unsafe()` rend n'est pas une promesse mais une requête PARESSEUSE, que
- * Drizzle configure ensuite (`.values()`, `.execute()`) et qui ne part qu'une
- * fois attendue. L'envelopper la remplace par un objet privé de ces méthodes,
- * et toute lecture échoue — en production comme ailleurs.
- *
- * On décore donc son `then`, et on rend la requête elle-même. Elle garde ses
- * méthodes, sa paresse, son type ; la mesure se déclenche quand elle se
- * résout, c'est-à-dire exactement quand la réponse revient du réseau.
- *
- * La requête n'est jamais journalisée — ni son texte, ni ses paramètres. Seule
- * sa DURÉE compte. Un `WHERE user_id = …` dans un journal, c'est une donnée
- * personnelle.
+ * Une Query est une sous-classe de Promise avec ses propres méthodes
+ * (`values()`, `execute()`, `cancel()`) et son propre protocole de démarrage.
+ * Remplacer `.then` sur chaque instance pouvait intercepter l'assimilation
+ * native d'une Promise, laisser une réponse non consommée et garder une
+ * connexion Supavisor active. Le hook supporté ci-dessous ne reçoit que des
+ * métadonnées d'envoi ; le texte et les paramètres sont délibérément ignorés.
+ * La durée de la requête reste mesurée par les phases de service, pas par un
+ * décorateur qui changerait le protocole de la Query.
  */
-function brancherCompteur(sql: postgres.Sql): void {
-  const original = sql.unsafe.bind(sql);
+function debugPostgres(
+  _connexion: number,
+  _requete: string,
+  _parametres: unknown[],
+  _types: unknown[],
+): void {
+  // Les métadonnées sont reçues pour respecter la signature de postgres.js,
+  // mais ne doivent jamais entrer dans les traces.
+  void _connexion;
+  void _requete;
+  void _parametres;
+  void _types;
+  if (observateur) observateur.requetes += 1;
+  if (!traceActive()) return;
 
-  // @ts-expect-error — on remplace volontairement la méthode par un décorateur
-  // de même signature ; postgres.js ne l'expose pas autrement.
-  sql.unsafe = (...args: Parameters<typeof original>) => {
-    if (observateur) observateur.requetes += 1;
-
-    const requete = original(...args);
-    if (!traceActive()) return requete;
-
-    /*
-     * La requête qui trouve la connexion fermée paie son ouverture : poignée
-     * de main TLS, authentification, `search_path`, avant le moindre octet
-     * utile. Les suivantes le trouvent déjà payé.
-     *
-     * C'est marqué à CHAQUE réouverture, pas seulement à la première de
-     * l'instance : c'est ce qui distingue « une instance froide a payé une
-     * ouverture » de « cette instance rouvre à chaque navigation parce que
-     * l'`idle_timeout` expire entre deux ». La seconde lecture est la seule
-     * qui justifierait d'allonger le délai — au prix d'une pression accrue
-     * sur le pooler, à peser avec ses chiffres à lui.
-     */
-    if (!connexionOuverte) {
-      connexionOuverte = true;
-      noter("db_connexion", "ouverture de connexion");
-    }
-
-    const debut = performance.now();
-    let mesuree = false;
-    const finir = () => {
-      if (mesuree) return;
-      mesuree = true;
-      noter("db", "requete", performance.now() - debut);
-    };
-
-    const attendre = requete.then.bind(requete);
-    requete.then = ((ok?: never, ko?: never) =>
-      attendre(
-        (valeur) => { finir(); return ok ? (ok as (v: unknown) => unknown)(valeur) : valeur; },
-        (erreur) => { finir(); if (ko) return (ko as (e: unknown) => unknown)(erreur); throw erreur; },
-      )) as typeof requete.then;
-
-    return requete;
-  };
+  if (!connexionOuverte) {
+    connexionOuverte = true;
+    noter("db_connexion", "ouverture de connexion");
+  }
+  // Comptage au dispatch, sans SQL, paramètres ou identifiant de connexion.
+  noter("db", "requete_envoyee");
 }
 
-brancherCompteur(client);
+const client = postgres(process.env.DATABASE_URL!, {
+  prepare: false,
+  max: 1,
+  idle_timeout: 20,
+  connect_timeout: 10,
+  debug: debugPostgres,
+  // Une connexion vient de se fermer : la suivante repaiera l'ouverture. C'est
+  // le seul signal qui permette de compter les réouvertures plutôt que de les
+  // supposer.
+  onclose: () => { connexionOuverte = false; },
+});
 
 export const db = drizzle(client, { schema });
