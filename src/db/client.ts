@@ -20,6 +20,14 @@ import { noter, traceActive } from "@/lib/mesure/trace";
  * `max: 1` n'est pas touché : la mesure doit précéder la décision, et rien
  * n'indique encore que le pooler tolérerait davantage.
  *
+ * `max_pipeline: 1` est distinct de `max`. Les services lancent parfois des
+ * lectures avec `Promise.all` ; postgres.js les écrivait alors en pipeline
+ * sur la même socket. Supavisor en mode transaction peut libérer le backend
+ * avant d'avoir renvoyé toutes les réponses d'un pipeline, ce qui laisse le
+ * client en attente avec une session PostgreSQL idle (`ClientRead`) jusqu'au
+ * timeout. Un seul échange à la fois garde les mêmes lectures et supprime ce
+ * protocole ambigu, sans ouvrir une deuxième connexion.
+ *
  * `idle_timeout` NON PLUS, et c'est un revirement qu'il faut écrire.
  *
  * Il était passé de 20 à 120 secondes, au motif qu'« une instance ne garde
@@ -116,9 +124,17 @@ function debugPostgres(
   noter("db", "requete_envoyee");
 }
 
+/**
+ * postgres.js 3.4 exposes `max_pipeline` at runtime but its published
+ * TypeScript options omit it. Keep the cast local so the rest of the client
+ * remains fully typed while retaining the upstream runtime option.
+ */
+type OptionsAvecPipeline = Parameters<typeof postgres>[1] & { max_pipeline: number };
+
 const client = postgres(process.env.DATABASE_URL!, {
   prepare: false,
   max: 1,
+  max_pipeline: 1,
   idle_timeout: 20,
   connect_timeout: 10,
   debug: debugPostgres,
@@ -126,6 +142,6 @@ const client = postgres(process.env.DATABASE_URL!, {
   // le seul signal qui permette de compter les réouvertures plutôt que de les
   // supposer.
   onclose: () => { connexionOuverte = false; },
-});
+} as OptionsAvecPipeline);
 
 export const db = drizzle(client, { schema });

@@ -19,6 +19,7 @@ describe("hotfix des timeouts postgres", () => {
     expect(client).not.toMatch(/\.then\s*=/);
     expect(client).toMatch(/debug:\s*debugPostgres/);
     expect(client).toMatch(/max:\s*1/);
+    expect(client).toMatch(/max_pipeline:\s*1/);
     expect(client).toMatch(/idle_timeout:\s*20/);
     expect(client).toMatch(/connect_timeout:\s*10/);
   });
