@@ -178,7 +178,7 @@ export function ContenuTableauDeBord({
             <span className="greeting-dot">.</span>
           </h1>
         </div>
-        <Link href="/historique" className="intro-link">
+        <Link href="/historique" prefetch={false} className="intro-link">
           Mon historique <ArrowUpRight size={16} aria-hidden />
         </Link>
       </header>
@@ -223,7 +223,7 @@ export function ContenuTableauDeBord({
               )}
             </div>
           </div>
-          <Link href="/bodyweight" className="metric-tile weight-tile">
+          <Link href="/bodyweight" prefetch={false} className="metric-tile weight-tile">
             <span className="metric-icon">
               <Scale size={20} aria-hidden />
             </span>

@@ -30,7 +30,7 @@ export function GroupeReglages({ titre, entrees }: { titre: string; entrees: Ent
       <ul className="overflow-hidden rounded-3xl bg-carte divide-y divide-filet-doux shadow-sm">
         {entrees.map(({ href, libelle, description, icone: Icone }) => (
           <li key={href}>
-            <Link href={href} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-papier-2">
+            <Link href={href} prefetch={false} className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-papier-2">
               <Icone className="w-10 h-10 p-2.5 rounded-xl bg-papier-2 text-primary shrink-0" aria-hidden />
               <span className="min-w-0 flex-1">
                 <span className="block text-encre text-sm font-medium">{libelle}</span>

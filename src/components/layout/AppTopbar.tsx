@@ -13,6 +13,7 @@ export function AppTopbar() {
     <header className="app-topbar">
       <Link
         href="/dashboard"
+        prefetch={false}
         className="wordmark"
         aria-label="Sport Perso — accueil"
       >
@@ -25,7 +26,7 @@ export function AppTopbar() {
       <span className="topbar-note">
         L’entraînement qui te ressemble <ArrowUpRight size={14} aria-hidden />
       </span>
-      <Link className="profile-shortcut" href="/profil" aria-label="Mon profil">
+      <Link className="profile-shortcut" href="/profil" prefetch={false} aria-label="Mon profil">
         <UserRound size={19} aria-hidden />
       </Link>
     </header>

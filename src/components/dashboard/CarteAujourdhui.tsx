@@ -136,7 +136,7 @@ export function CarteAujourdhui({
         {texte && <p className="hero-description">{texte}</p>}
       </div>
       <div className="hero-footer">
-        <Link href={etat.action.href} className="hero-cta">
+        <Link href={etat.action.href} prefetch={false} className="hero-cta">
           {f.bouton}
           <span>
             <ArrowRight size={21} aria-hidden />

@@ -12,12 +12,11 @@
  *    bouton Retour, lui, paraissait rapide parce qu'il lit le cache de routes
  *    du client et n'attend aucun serveur.
  *
- * 2. Le préchargement de `<Link>` ne sait pas quoi précharger. Sur une route
- *    dynamique — et tout ce groupe l'est, le layout étant `force-dynamic` —
- *    Next ne peut préparer que ce qui va jusqu'à la première limite de
- *    suspension. Sans `loading.tsx`, cette limite n'existe pas : le
- *    préchargement ne rapporte rien, et la totalité du travail serveur commence
- *    au clic.
+ * 2. Les liens de la navigation et de l'accueil optent explicitement hors du
+ *    préchargement : chaque route de ce groupe est dynamique et peut déclencher
+ *    plusieurs lectures SQL. La limite reste utile pour la navigation demandée
+ *    par l'utilisateur : elle montre ce squelette pendant que la page arrive,
+ *    sans lancer de travail serveur en arrière-plan.
  *
  * Ce fichier crée cette limite pour tout le groupe. La barre de navigation et
  * l'en-tête vivent dans le layout : ils restent affichés et cliquables pendant
