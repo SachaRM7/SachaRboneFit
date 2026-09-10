@@ -2,7 +2,7 @@
  * Les captures du contrôle visuel.
  *
  * Ouvre chaque aperçu produit par `apercus.tsx` dans un vrai moteur de rendu,
- * aux largeurs qui décident : 320 px (iPhone SE) et 390 px (iPhone 14/15).
+ * aux largeurs qui décident : 320, 390 et 430 px.
  * C'est la dernière étape, et la seule qui attrape un débordement, une
  * collision de libellés ou une cible tactile écrasée.
  */
@@ -13,6 +13,7 @@ import path from "node:path";
 
 const APERCUS = path.join(process.cwd(), "apercus");
 const SORTIE = path.join(process.cwd(), "apercus/png");
+const FILTRE = process.env.CAPTURE_FILTER?.toLowerCase();
 
 /*
  * Un serveur, et pas `file://`.
@@ -31,8 +32,14 @@ const TYPES: Record<string, string> = {
 
 const serveur = createServer((req, res) => {
   const url = decodeURIComponent((req.url ?? "/").split("?")[0]!);
-  for (const base of [APERCUS, path.join(process.cwd(), "public")]) {
-    const fichier = path.join(base, url);
+  const racines = url.startsWith("/_next/static/")
+    ? [{ base: path.join(process.cwd(), ".next", "static"), relatif: url.slice("/_next/static/".length) }]
+    : [
+        { base: APERCUS, relatif: url },
+        { base: path.join(process.cwd(), "public"), relatif: url },
+      ];
+  for (const { base, relatif } of racines) {
+    const fichier = path.join(base, relatif);
     if (!fichier.startsWith(base)) continue;
     if (existsSync(fichier) && !fichier.endsWith("/")) {
       res.writeHead(200, {
@@ -60,7 +67,9 @@ mkdirSync(SORTIE, { recursive: true });
 /** Ce qui rend le contrôle non négociable : un défaut fait sortir en erreur. */
 const echecs: string[] = [];
 
-for (const fichier of readdirSync(APERCUS).filter((f) => f.endsWith(".html")).sort()) {
+for (const fichier of readdirSync(APERCUS)
+  .filter((f) => f.endsWith(".html") && (!FILTRE || f.toLowerCase().includes(FILTRE)))
+  .sort()) {
   const largeur = Number(fichier.match(/-(\d+)\.html$/)![1]);
   const page = await navigateur.newPage({
     viewport: { width: largeur, height: 844 },
@@ -127,6 +136,13 @@ for (const fichier of readdirSync(APERCUS).filter((f) => f.endsWith(".html")).so
         .map(function (el): [string, Element] {
           return [
             el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 24) ?? "contrôle",
+            el,
+          ];
+        }),
+      ...[...document.querySelectorAll("[role='dialog'] button")]
+        .map(function (el): [string, Element] {
+          return [
+            el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 24) ?? "action modale",
             el,
           ];
         }),

@@ -64,6 +64,8 @@ export interface Brouillon {
  * suivant une série trop tôt, ou pas du tout.
  */
 export interface SerieValidee {
+  /** L'entrée réellement validée, indispensable quand Liste affiche tout. */
+  exerciseInstanceId: string;
   /** Le repos prescrit pour cet exercice, `null` s'il n'y en a pas. */
   reposSecondes: number | null;
   /** Cette validation vient-elle de remplir la prescription de l'exercice ? */
@@ -85,7 +87,13 @@ export function useSaisieSeries({
   modeReserve,
   onSerieValidee,
 }: Options) {
-  const { upsertSet, removeSet, active } = useSessionStore();
+  const {
+    upsertSet,
+    removeSet,
+    addAdditionalSet,
+    removeAdditionalSet,
+    active,
+  } = useSessionStore();
 
   const seriesSaisies = useMemo(
     () => (active?.sets ?? []).filter((s) => s.exerciseInstanceId === exercice.id),
@@ -93,7 +101,10 @@ export function useSaisieSeries({
   );
 
   // Des séries peuvent avoir été ajoutées au-delà de la prescription.
-  const [seriesEnPlus, setSeriesEnPlus] = useState(0);
+  const seriesEnPlus = Math.max(
+    active?.additionalSetCounts?.[exercice.id] ?? 0,
+    ...seriesSaisies.map((s) => Math.max(0, s.numeroSerie - exercice.seriesCibles)),
+  );
   const [brouillons, setBrouillons] = useState<Record<number, Brouillon>>({});
 
   /** Le slot de prescription : il survit aux substitutions, l'entrée non. */
@@ -314,10 +325,18 @@ export function useSaisieSeries({
       numero <= exercice.seriesCibles &&
       slotsARemplir(lignee, apres, exercice.seriesCibles).length === 0;
 
-    onSerieValidee({ reposSecondes: exercice.reposSecondes ?? null, exerciceTermine });
+    onSerieValidee({
+      exerciseInstanceId: exercice.id,
+      reposSecondes: exercice.reposSecondes ?? null,
+      exerciceTermine,
+    });
   };
 
-  const ajouterUneSerie = () => setSeriesEnPlus((n) => n + 1);
+  const ajouterUneSerie = () => {
+    const numero = exercice.seriesCibles + seriesEnPlus + 1;
+    addAdditionalSet(exercice.id, seriesEnPlus);
+    toast.success(`SÉRIE ${numero} AJOUTÉE`);
+  };
 
   const retirerLaDerniereSerie = () => {
     if (derniereEnPlus === null) return;
@@ -328,10 +347,14 @@ export function useSaisieSeries({
     // L'ordre compte : retirer la série enregistrée AVANT de réduire le
     // compteur, sinon le calcul des lignes la fait réapparaître aussitôt.
     if (validee) removeSet(exercice.id, derniereEnPlus);
-    setBrouillons(({ [derniereEnPlus]: _retiree, ...reste }) => reste);
+    setBrouillons((courants) => {
+      const reste = { ...courants };
+      delete reste[derniereEnPlus];
+      return reste;
+    });
     // La prescription ne bouge pas : `seriesCibles` reste ce que le moteur a
     // décidé, on ne touche qu'au nombre de lignes ajoutées.
-    setSeriesEnPlus((n) => Math.max(0, n - 1));
+    removeAdditionalSet(exercice.id, seriesEnPlus);
   };
 
   /**

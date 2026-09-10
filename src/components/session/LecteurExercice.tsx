@@ -68,6 +68,7 @@ interface Props {
   actions?: ReactNode;
   /** Aller à l'exercice suivant, quand celui-ci est fini. `null` s'il est le dernier. */
   onSuivant: (() => void) | null;
+  reporte?: boolean;
 }
 
 export function LecteurExercice({
@@ -77,6 +78,7 @@ export function LecteurExercice({
   onSerieValidee,
   actions,
   onSuivant,
+  reporte = false,
 }: Props) {
   const {
     lignes,
@@ -164,6 +166,9 @@ export function LecteurExercice({
           )}
         </p>
       )}
+      {reporte && (
+        <p className="live-reporte-bandeau">Reporté · à reprendre avant de terminer</p>
+      )}
 
       {/* ------------------------------------------------------------------
           LES REPÈRES — ce qu'on sait déjà, sans voler la vedette à la série.
@@ -226,7 +231,12 @@ export function LecteurExercice({
             return (
               <li key={numero}>
                 <Check className="w-4 h-4" aria-hidden />
-                <span className="lecteur-faite-nom">Série {numero}</span>
+                <span className="lecteur-faite-nom">
+                  Série {numero}
+                  {numero > exercice.seriesCibles && (
+                    <small className="serie-supplementaire">Supplémentaire</small>
+                  )}
+                </span>
                 <span className="lecteur-faite-valeur chiffres">
                   {v.charge} {libelleChampCharge(exercice.natureCharge)} × {v.reps}
                   {v.rpe &&
@@ -271,6 +281,7 @@ export function LecteurExercice({
           exercice={exercice}
           numero={serieCourante}
           total={exercice.seriesCibles}
+          supplementaire={serieCourante > exercice.seriesCibles}
           /* La suppression appartient à LA SÉRIE AJOUTÉE, pas à un lien perdu
              en bas de carte. Elle n'apparaît que si CETTE série est celle qui
              peut être retirée — seule la dernière l'est. */
@@ -376,6 +387,7 @@ function SerieEnCours({
   exercice,
   numero,
   total,
+  supplementaire,
   modeReserve,
   rpeReduction,
   afficherConsigne,
@@ -389,6 +401,7 @@ function SerieEnCours({
   exercice: ExercicePrescrit;
   numero: number;
   total: number;
+  supplementaire: boolean;
   modeReserve: boolean;
   rpeReduction: number;
   afficherConsigne: boolean;
@@ -417,8 +430,11 @@ function SerieEnCours({
     <section className="serie-en-cours" aria-label={`Série ${numero}`}>
       <div className="serie-en-cours-tete">
         <p className="serie-en-cours-titre">
-          Série <span className="chiffres">{numero}</span> sur{" "}
-          <span className="chiffres">{total}</span>
+          {supplementaire ? (
+            <>Série <span className="chiffres">{numero}</span> · <strong>Supplémentaire</strong></>
+          ) : (
+            <>Série <span className="chiffres">{numero}</span> sur <span className="chiffres">{total}</span></>
+          )}
         </p>
         {/* Discrète, jamais rouge en permanence : c'est un geste rare, pas une
             alarme. Elle ne s'affiche que sur une série hors prescription — la

@@ -71,6 +71,10 @@ export type ActiveSession = {
   lastActionTimestamp: number;
   // Skipped exercise instance IDs
   skippedExerciseIds: string[];
+  /** Exercices temporairement remis à plus tard, sans toucher à leurs séries. */
+  deferredExerciseIds?: string[];
+  /** Lignes supplémentaires demandées dans le Live, partagées par Focus/Liste. */
+  additionalSetCounts?: Record<string, number>;
   // RPE reductions (exerciseInstanceId -> rpe reduction amount)
   rpeReductions: Record<string, number>;
   /**
@@ -100,7 +104,7 @@ type SessionStore = {
    * Le store generait auparavant un UUID local, decorrele de la base : tout
    * appel utilisant cet id (enregistrement d'incident, cloture) echouait en 403.
    */
-  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "rpeReductions" | "lignees" | "tempoParExercice" | "shownProactiveAlerts">) => void;
+  start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "deferredExerciseIds" | "additionalSetCounts" | "rpeReductions" | "lignees" | "tempoParExercice" | "shownProactiveAlerts">) => void;
   upsertSet: (set: DraftSet) => void;
   /** Remplace le brouillon par ce que la base porte — voir `hydraterDepuisServeur`. */
   hydraterSets: (sets: DraftSet[]) => void;
@@ -121,6 +125,10 @@ type SessionStore = {
   /** Propage un signalement de tempo à toutes les séries déjà saisies d'un exercice. */
   signalerTempo: (exerciseInstanceId: string, respecte: boolean | null) => void;
   skipExercises: (ids: string[]) => void;
+  deferExercise: (id: string) => void;
+  hydraterDeferredExercises: (ids: string[]) => void;
+  addAdditionalSet: (id: string, currentCount: number) => void;
+  removeAdditionalSet: (id: string, currentCount: number) => void;
   /** Enregistre une substitution : l'ancienne entrée garde ses séries. */
   noterSubstitution: (ancienId: string, nouveauId: string) => void;
   allegerExercises: (ids: string[]) => void;
@@ -130,7 +138,7 @@ type SessionStore = {
 
 export const useSessionStore = create<SessionStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       active: null,
       start: (data) => set({
         active: {
@@ -146,6 +154,8 @@ export const useSessionStore = create<SessionStore>()(
           completedAt: null,
           lastActionTimestamp: Date.now(),
           skippedExerciseIds: [],
+          deferredExerciseIds: [],
+          additionalSetCounts: {},
           rpeReductions: {},
           tempoParExercice: {},
           shownProactiveAlerts: [],
@@ -334,6 +344,15 @@ export const useSessionStore = create<SessionStore>()(
             lignees: noterSubstitutionDansLignees(
               state.active.lignees ?? [], ancienId, nouveauId,
             ),
+            deferredExerciseIds: (state.active.deferredExerciseIds ?? []).map((id) =>
+              id === ancienId ? nouveauId : id,
+            ),
+            additionalSetCounts: Object.fromEntries(
+              Object.entries(state.active.additionalSetCounts ?? {}).map(([id, n]) => [
+                id === ancienId ? nouveauId : id,
+                n,
+              ]),
+            ),
             lastActionTimestamp: Date.now(),
           },
         } : state
@@ -348,6 +367,39 @@ export const useSessionStore = create<SessionStore>()(
           }
         } : state
       ),
+      deferExercise: (id) => set((state) => {
+        if (!state.active) return state;
+        const ids = new Set(state.active.deferredExerciseIds ?? []);
+        ids.add(id);
+        return {
+          active: {
+            ...state.active,
+            deferredExerciseIds: [...ids],
+            lastActionTimestamp: Date.now(),
+          },
+        };
+      }),
+      hydraterDeferredExercises: (ids) => set((state) => {
+        if (!state.active) return state;
+        return {
+          active: {
+            ...state.active,
+            deferredExerciseIds: [...new Set([...(state.active.deferredExerciseIds ?? []), ...ids])],
+          },
+        };
+      }),
+      addAdditionalSet: (id, currentCount) => set((state) => {
+        if (!state.active) return state;
+        const compteurs = { ...(state.active.additionalSetCounts ?? {}) };
+        compteurs[id] = Math.max(compteurs[id] ?? 0, currentCount) + 1;
+        return { active: { ...state.active, additionalSetCounts: compteurs } };
+      }),
+      removeAdditionalSet: (id, currentCount) => set((state) => {
+        if (!state.active) return state;
+        const compteurs = { ...(state.active.additionalSetCounts ?? {}) };
+        compteurs[id] = Math.max(0, currentCount - 1);
+        return { active: { ...state.active, additionalSetCounts: compteurs } };
+      }),
       allegerExercises: (ids) => set((state) => {
         if (!state.active) return state;
         const newReductions = { ...(state.active.rpeReductions ?? {}) };

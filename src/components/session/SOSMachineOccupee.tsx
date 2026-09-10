@@ -24,6 +24,7 @@ interface SOSMachineOccupeeProps {
   templateExerciseIds: string[];
   musclesCourbatures: string[];
   onClose: () => void;
+  onDefer: (exerciseInstanceId: string, exerciseName: string) => void;
   onSubstitute: (substituteInstanceId: string, substituteName: string) => void;
 }
 
@@ -48,6 +49,7 @@ export function SOSMachineOccupee({
   templateExerciseIds,
   musclesCourbatures,
   onClose,
+  onDefer,
   onSubstitute,
 }: SOSMachineOccupeeProps) {
   const [result, setResult] = useState<{ substituts: SubstituteResult[]; message: string } | null>(null);
@@ -75,7 +77,10 @@ export function SOSMachineOccupee({
 
   return (
     <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
-      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[80vh] overflow-y-auto">
+      <div
+        className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85dvh] overflow-y-auto"
+        style={{ paddingBottom: "calc(1rem + var(--marge-bas))" }}
+      >
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-encre">Machine occupée</h2>
           <button onClick={onClose} className="p-2">
@@ -111,19 +116,19 @@ export function SOSMachineOccupee({
 
             {/* La suite d'abord : y revenir ne coûte rien, changer d'exercice
                 coupe l'historique de comparaison. */}
-            {aSuivant && (
-              <div className="rounded-lg border border-filet bg-papier-2 p-3">
+            <div className="rounded-lg border border-filet bg-papier-2 p-3">
                 <p className="text-encre text-sm font-medium">Passe à l&apos;exercice suivant</p>
                 <p className="text-encre-2 text-xs mt-0.5">
-                  Tu reviendras sur {exerciceOccupe?.nom ?? "cet exercice"} quand la machine
-                  se libère — c&apos;est ce qui préserve ta progression dessus.
+                  {aSuivant
+                    ? <>Tu reviendras sur {exerciceOccupe?.nom ?? "cet exercice"} avant de terminer la séance.</>
+                    : <>Il n&apos;y a pas d&apos;autre exercice disponible pour le moment.</>}
                 </p>
                 <Button variant="outline" className="w-full mt-2 border-filet text-encre"
-                  onClick={onClose}>
+                  disabled={!aSuivant}
+                  onClick={() => onDefer(occupe, exerciceOccupe?.nom ?? "Cet exercice")}>
                   Je fais autre chose et j&apos;y reviens
                 </Button>
               </div>
-            )}
 
             <p className="text-encre-2 text-sm">
               Si tu ne peux pas attendre, cherchons un remplaçant.

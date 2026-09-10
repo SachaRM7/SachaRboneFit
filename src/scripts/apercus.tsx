@@ -19,6 +19,12 @@ import { ETATS_MASCOTTE } from "@/lib/coach/mascotte-assets";
 import { CarteAujourdhui } from "@/components/dashboard/CarteAujourdhui";
 import { mascotteDeLAccueil } from "@/lib/coach/accueil-mascotte";
 import type { NomEtat } from "@/lib/engine/etat-du-jour";
+import { SOSMachineOccupee } from "@/components/session/SOSMachineOccupee";
+import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
+import { RemplacerExercice } from "@/components/session/RemplacerExercice";
+import { FicheExecution } from "@/components/session/FicheExecution";
+import { ClotureSeance } from "@/components/session/ClotureSeance";
+import { FICHES_TECHNIQUES } from "@/lib/referentiels/fiches-techniques";
 
 const A = "instance-a";
 const B = "instance-b";
@@ -65,6 +71,21 @@ const TIRAGE = {
   messageProgression: "+2,5 kg — trois séries dans la fourchette la dernière fois",
   motifProgression: "progression" as const,
 };
+
+const PARC_REMPLACEMENT = [
+  {
+    id: "bench-instance", gymId: "salle", exerciseId: "bench-exercise",
+    nom: "Bench Press", machineNom: "Banc olympique", categorieRole: "pilier" as const,
+    profilTension: "mi_range", type: "polyarticulaire", equipement: "barre",
+    musclesPrincipaux: ["pectoraux"], pilier: "P1_poussee", slug: "bench-press",
+  },
+  {
+    id: "chest-instance", gymId: "salle", exerciseId: "chest-exercise",
+    nom: "Chest Press", machineNom: "Presse guidée", categorieRole: "substitut" as const,
+    profilTension: "mi_range", type: "polyarticulaire", equipement: "machine",
+    musclesPrincipaux: ["pectoraux"], pilier: "P1_poussee", slug: "machine-chest-press",
+  },
+];
 
 /** Repose la séance dans l'état voulu avant chaque rendu. */
 function seance(sets: DraftSet[] = [], lignees: { origine: string; instances: string[] }[] = []) {
@@ -480,6 +501,137 @@ const scenes: { nom: string; titre: string; rendu: () => string }[] = [
     nom: "15-accueil-debrief",
     titre: "Aujourd'hui — la séance est faite, il reste le bilan",
     rendu: () => accueil("deja_entraine", "vert"),
+  },
+  {
+    nom: "16-lot-b-machine-occupee",
+    titre: "Lot B — machine occupée",
+    rendu: () => {
+      seance([fait(A, 1, 60, 10, 7)]);
+      return `${enveloppe(rendre(<LecteurExercice exercice={DEADLIFT as never} rpeReduction={0} modeReserve={false} onSerieValidee={rien} onSuivant={rien} />))}
+        ${rendre(
+          <SOSMachineOccupee
+            exercicesDeLaSeance={[
+              { id: A, nom: "Deadlift", machineNom: "Barre olympique", seriesFaites: 1, seriesCibles: 3 },
+              { id: B, nom: "Chest Press", machineNom: "Presse guidée", seriesFaites: 0, seriesCibles: 2 },
+            ]}
+            exerciseInstanceId={A}
+            gymId="salle"
+            allInstances={[]}
+            templateExerciseIds={[A, B]}
+            musclesCourbatures={[]}
+            onClose={rien}
+            onDefer={rien}
+            onSubstitute={rien}
+          />,
+        )}`;
+    },
+  },
+  {
+    nom: "17-lot-b-remplacement-simple",
+    titre: "Lot B — remplacement guidé",
+    rendu: () => {
+      seance();
+      const modal = rendre(
+        <RemplacerExercice
+          sessionLogId="seance-apercu"
+          exerciceId="bench-instance"
+          exerciceNom="Bench Press"
+          pilier="P1_poussee"
+          profilTension="mi_range"
+          gymId="salle"
+          parcSalle={PARC_REMPLACEMENT}
+          dejaAuProgramme={["bench-instance"]}
+          debutant
+          onRemplace={rien}
+        />,
+        [
+          (hote) => [...hote.querySelectorAll("button")]
+            .find((b) => b.textContent?.trim() === "Remplacer")?.click(),
+          (hote) => [...hote.querySelectorAll("button")]
+            .find((b) => b.textContent?.trim() === "Trop compliqué")?.click(),
+        ],
+      );
+      return enveloppe(modal);
+    },
+  },
+  {
+    nom: "18-lot-b-voir-comment-faire",
+    titre: "Lot B — technique avant confirmation",
+    rendu: () => {
+      seance();
+      return enveloppe(rendre(
+        <FicheExecution
+          contexte={{
+            exerciseInstanceId: "chest-instance",
+            exerciseId: "chest-exercise",
+            fiche: FICHES_TECHNIQUES["machine-chest-press"]!,
+            tempo: { tempo: { excentrique: 3, pauseEtire: 0, concentrique: 1, pauseContracte: 0 }, brut: "3-0-1-0", origine: "exercice" },
+            reglages: [],
+            resumeReglages: null,
+            note: null,
+            musclesPrincipaux: ["pectoraux"],
+            musclesSecondaires: ["epaules", "triceps"],
+            peutDecrire: false,
+          }}
+          nom="Chest Press"
+          onFermer={rien}
+          onEnregistre={rien}
+        />,
+        (hote) => [...hote.querySelectorAll("button")]
+          .find((b) => b.textContent?.includes("Comment faire"))?.click(),
+      ));
+    },
+  },
+  {
+    nom: "19-lot-b-exercice-reporte",
+    titre: "Lot B — exercice reporté retrouvé",
+    rendu: () => {
+      seance([fait(A, 1, 60, 10, 7)]);
+      useSessionStore.getState().deferExercise(A);
+      return enveloppe(rendre(
+        <LecteurExercice
+          exercice={DEADLIFT as never}
+          rpeReduction={0}
+          modeReserve={false}
+          onSerieValidee={rien}
+          onSuivant={rien}
+          reporte
+        />,
+      ));
+    },
+  },
+  {
+    nom: "20-lot-b-temps",
+    titre: "Lot B — budget de temps",
+    rendu: () => {
+      seance();
+      return `${enveloppe(rendre(<LecteurExercice exercice={DEADLIFT as never} rpeReduction={0} modeReserve={false} onSerieValidee={rien} onSuivant={rien} />))}
+        ${rendre(
+          <SOSTempsDepasse
+            dureeActuelleMin={38}
+            dureeCibleMin={60}
+            exercicesRestants={[
+              { exercise_instance_id: A, nom: "Deadlift", muscles_principaux: ["fessiers"], categorie_role: "pilier", statut: "en_cours", ordre: 1 },
+              { exercise_instance_id: B, nom: "Cable Curl", muscles_principaux: ["biceps"], categorie_role: "accessoire", statut: "à_venir", ordre: 2 },
+            ]}
+            seriesRestantesPar={{ [A]: 2, [B]: 8 }}
+            reposSecondesPar={{ [A]: 120, [B]: 90 }}
+            onClose={rien}
+            onApply={rien}
+            onIncident={rien}
+          />,
+          (hote) => [...hote.querySelectorAll("button")]
+            .find((b) => b.textContent?.trim() === "15 min")?.click(),
+        )}`;
+    },
+  },
+  {
+    nom: "21-lot-b-fin-seance",
+    titre: "Lot B — vraie fin de séance",
+    rendu: () => {
+      seance();
+      return enveloppe(rendre(<ClotureSeance onTerminer={rien} />));
+    },
   },
 ];
 

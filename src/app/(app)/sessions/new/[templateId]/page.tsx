@@ -33,6 +33,7 @@ import { SOSEtat } from "@/components/session/SOSEtat";
 import { envoyerIncident } from "@/components/session/incident-en-vol";
 import { SOSSymptome } from "@/components/session/SOSSymptome";
 import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
+import { ClotureSeance } from "@/components/session/ClotureSeance";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
 import { ObservateurSeance } from "@/components/session/ObservateurSeance";
 import { ChronoSeance } from "@/components/session/ChronoSeance";
@@ -46,6 +47,11 @@ import type {
 } from "@/lib/engine/substitutions";
 import type { ExerciceRestant } from "@/lib/sos/types";
 import type { ExerciceAvecMuscles } from "@/lib/sos/douleur";
+import {
+  ordreActionnable,
+  prochaineEtape,
+  reportesDepuisIncidents,
+} from "@/lib/live/continuite-seance";
 
 /*
  * `etat` est le CHOISISSEUR, `energie` et `symptome` les deux destinations.
@@ -116,13 +122,14 @@ function ContenuSeanceLive() {
     start,
     hydraterSets,
     hydraterLignees,
+    hydraterDeferredExercises,
     setCurrentExerciseIndex,
     noterSubstitution,
     startRest,
-    clearRest,
     skipRest,
     extendRest,
     skipExercises,
+    deferExercise,
     allegerExercises,
   } = useSessionStore();
 
@@ -160,11 +167,16 @@ function ContenuSeanceLive() {
    */
   const [vue, setVue] = useState<VueLive>("focus");
   useEffect(() => {
-    try {
-      setVue(vueParDefaut(window.localStorage.getItem(CLE_VUE_LIVE)));
-    } catch {
-      // Navigation privée, stockage refusé : Focus reste le défaut.
-    }
+    // Le premier rendu reste identique au serveur. La préférence d'appareil
+    // est appliquée au cadre suivant, une fois l'hydratation achevée.
+    const cadre = window.requestAnimationFrame(() => {
+      try {
+        setVue(vueParDefaut(window.localStorage.getItem(CLE_VUE_LIVE)));
+      } catch {
+        // Navigation privée, stockage refusé : Focus reste le défaut.
+      }
+    });
+    return () => window.cancelAnimationFrame(cadre);
   }, []);
 
   const choisirVue = (v: VueLive) => {
@@ -484,8 +496,11 @@ function ContenuSeanceLive() {
    * l'exercice suivant est déjà chargé derrière — au moment où l'on referme la
    * feuille, on est au bon endroit sans avoir rien touché.
    */
-  const lancerRepos = ({ reposSecondes, exerciceTermine }: SerieValidee) => {
-    const indexTermine = active?.currentExerciseIndex ?? 0;
+  const lancerRepos = ({ exerciseInstanceId, reposSecondes, exerciceTermine }: SerieValidee) => {
+    const indexTermine = Math.max(
+      0,
+      visibles.findIndex((e) => e.id === exerciseInstanceId),
+    );
 
     if (reposSecondes && reposSecondes > 0) {
       startRest(reposSecondes, indexTermine);
@@ -506,14 +521,26 @@ function ContenuSeanceLive() {
     setExerciceSalue(true);
     setTimeout(() => setExerciceSalue(false), 2600);
 
-    const suivant = indexTermine + 1;
-    if (suivant < visibles.length) setCurrentExerciseIndex(suivant);
-  };
-
-  /** Le repos arrive à son terme : on referme, sans rien signaler de plus. */
-  const fermerTimer = () => {
-    clearRest();
-    setTimerVisible(false);
+    const frais = useSessionStore.getState().active;
+    // Le contrôleur de série vient d'attester que CE slot est rempli. On
+    // applique ce seul fait à l'avancement déjà partagé par Focus et Liste,
+    // sans créer un second calcul concurrent.
+    const etatsApres = etats.map((etat, i) =>
+      i === indexTermine
+        ? { ...etat, faites: etat.cibles, statut: "termine" as const }
+        : etat,
+    );
+    const suite = prochaineEtape(
+      etatsApres,
+      frais?.deferredExerciseIds ?? [],
+      indexTermine,
+    );
+    if (suite.index !== null) setCurrentExerciseIndex(suite.index);
+    if (suite.origine === "reporte") {
+      toast.info(
+        `Il reste ${suite.reportesRestants} exercice${suite.reportesRestants > 1 ? "s" : ""} reporté${suite.reportesRestants > 1 ? "s" : ""}.`,
+      );
+    }
   };
 
   /**
@@ -558,10 +585,24 @@ function ContenuSeanceLive() {
     let annule = false;
     void (async () => {
       try {
-        const res = await fetch(`/api/session-logs/${active.id}/series`);
-        if (!res.ok || annule) return;
-        const lignes: DraftSet[] = await res.json();
-        if (Array.isArray(lignes) && lignes.length > 0) hydraterSets(lignes);
+        const [seriesRes, incidentsRes] = await Promise.all([
+          fetch(`/api/session-logs/${active.id}/series`),
+          fetch(`/api/incidents?session_id=${active.id}`),
+        ]);
+        if (annule) return;
+        if (seriesRes.ok) {
+          const lignes: DraftSet[] = await seriesRes.json();
+          if (Array.isArray(lignes) && lignes.length > 0) hydraterSets(lignes);
+        }
+        if (incidentsRes.ok && seance) {
+          const incidents: Array<{
+            type?: string;
+            decision?: string;
+            contexte?: Record<string, unknown>;
+          }> = await incidentsRes.json();
+          const reportes = reportesDepuisIncidents(incidents, seance.exercices);
+          hydraterDeferredExercises(reportes);
+        }
       } catch {
         // Hors ligne : le brouillon local reste, et la clôture réécrira tout.
       }
@@ -570,7 +611,7 @@ function ContenuSeanceLive() {
       annule = true;
     };
     // Une seule fois par séance : `active.id` ne change pas en cours de route.
-  }, [active?.id, hydraterSets]);
+  }, [active?.id, hydraterDeferredExercises, hydraterSets, seance]);
 
   const enregistrerIncident = (data: {
     type: string;
@@ -660,6 +701,7 @@ function ContenuSeanceLive() {
   }
 
   const exercicesSkippes = active?.skippedExerciseIds ?? [];
+  const exercicesReportes = active?.deferredExerciseIds ?? [];
   const reductionsRPE = active?.rpeReductions ?? {};
   const visibles = seance.exercices.filter(
     (e) => !exercicesSkippes.includes(e.id),
@@ -696,6 +738,11 @@ function ContenuSeanceLive() {
   const index = exerciceAffiche(etats, active?.currentExerciseIndex ?? null);
   const courant = visibles[index];
   const termines = etats.filter((e) => e.statut === "termine").length;
+  const seanceTerminee = visibles.length > 0 && etats.every((e) => e.statut === "termine");
+  const reportesIncomplets = etats.filter(
+    (e) => e.statut !== "termine" && exercicesReportes.includes(e.id),
+  );
+  const idsReportesIncomplets = reportesIncomplets.map((e) => e.id);
 
   /*
    * Ce que le minuteur de repos annonce.
@@ -808,7 +855,9 @@ function ContenuSeanceLive() {
           parcSalle={parcSalle}
           dejaAuProgramme={visibles.map((e) => e.id)}
           musclesCourbatures={musclesCourbatures}
+          debutant={modeSaisieEffort(seance.phaseCycle) === "reserve"}
           onRemplace={(r) => remplacer(exercice.id, r)}
+          onReporter={() => reporterExercice(exercice.id, exercice.nom, false)}
         />
       )}
       <button
@@ -828,17 +877,44 @@ function ContenuSeanceLive() {
     </>
   );
 
-  const restants: ExerciceAvecMuscles[] = visibles.slice(index).map((e, i) => ({
-    exercise_instance_id: e.id,
-    nom: e.nom,
-    muscles_principaux: e.musclesPrincipaux ?? [],
-    // Sans eux, la douleur ne pourrait pas distinguer une zone visée d'une
-    // zone seulement traversée — et retirerait tout ce qui la touche.
-    muscles_secondaires: e.musclesSecondaires ?? undefined,
-    categorie_role: normaliserRole(e.categorieRole),
-    statut: i === 0 ? ("en_cours" as const) : ("à_venir" as const),
-    ordre: index + i + 1,
-  }));
+  const etatsActionnables = ordreActionnable(etats, index);
+  const parId = new Map(visibles.map((e) => [e.id, e]));
+  const restants: ExerciceAvecMuscles[] = etatsActionnables.map((etat, i) => {
+    const e = parId.get(etat.id)!;
+    return {
+      exercise_instance_id: e.id,
+      nom: e.nom,
+      muscles_principaux: e.musclesPrincipaux ?? [],
+      // Sans eux, la douleur ne pourrait pas distinguer une zone visée d'une
+      // zone seulement traversée — et retirerait tout ce qui la touche.
+      muscles_secondaires: e.musclesSecondaires ?? undefined,
+      categorie_role: normaliserRole(e.categorieRole),
+      statut: i === 0 ? ("en_cours" as const) : ("à_venir" as const),
+      ordre: i + 1,
+    };
+  });
+
+  const reporterExercice = (id: string, nom: string, consignerMachine = true) => {
+    const position = etats.findIndex((e) => e.id === id);
+    if (position < 0) return;
+    const reports = [...new Set([...exercicesReportes, id])];
+    deferExercise(id);
+    if (consignerMachine) {
+      enregistrerIncident({
+        type: "machine_occupee",
+        contexte: { exercise_instance_id: id, action: "reporter" },
+        decision: "reporter",
+      });
+    }
+    const suite = prochaineEtape(etats, reports, position);
+    if (suite.index !== null && suite.index !== position) {
+      setCurrentExerciseIndex(suite.index);
+      toast.success(`${nom} reporté. On y revient avant de terminer la séance.`);
+    } else {
+      toast.info("Aucun autre exercice n’est disponible pour le moment.");
+    }
+    setModaleSOS(null);
+  };
 
   return (
     <div
@@ -1066,6 +1142,7 @@ function ContenuSeanceLive() {
             modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
             onSerieValidee={lancerRepos}
             actions={actionsDeLExercice}
+            reportes={idsReportesIncomplets}
           />
         ) : (
           /* La vue Liste : toute la séance d'un coup, pour scanner ce qui reste
@@ -1078,20 +1155,23 @@ function ContenuSeanceLive() {
               modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
               onSerieValidee={lancerRepos}
               actions={actionsDeLExercice(exercice)}
+              reporte={idsReportesIncomplets.includes(exercice.id)}
             />
           ))
         )}
       </main>
 
-      <div className="px-4 mt-5">
-        <Button
-          variant="outline"
-          className="w-full border-filet bg-carte text-encre-2"
-          onClick={() => router.push(`/sessions/new/${templateId}/finish`)}
-        >
-          Terminer la séance
-        </Button>
-      </div>
+      {reportesIncomplets.length > 0 && !seanceTerminee && (
+        <p className="live-reportes-resume" aria-live="polite">
+          Il reste {reportesIncomplets.length} exercice{reportesIncomplets.length > 1 ? "s" : ""} reporté{reportesIncomplets.length > 1 ? "s" : ""}.
+        </p>
+      )}
+
+      {seanceTerminee && (
+        <ClotureSeance
+          onTerminer={() => router.push(`/sessions/new/${templateId}/finish`)}
+        />
+      )}
 
       {/* Le repos est une feuille qui monte du bas, comme les autres feuilles de
           l'application — et non plus une boîte posée au milieu d'un voile. La
@@ -1121,9 +1201,7 @@ function ContenuSeanceLive() {
             id: e.id,
             nom: e.nom,
             machineNom: e.machineNom,
-            seriesFaites: (active?.sets ?? []).filter(
-              (s) => s.exerciseInstanceId === e.id,
-            ).length,
+            seriesFaites: etats.find((etat) => etat.id === e.id)?.faites ?? 0,
             seriesCibles: e.seriesCibles,
           }))}
           exerciseInstanceId={courant.id}
@@ -1132,6 +1210,7 @@ function ContenuSeanceLive() {
           templateExerciseIds={visibles.map((e) => e.id)}
           musclesCourbatures={musclesCourbatures}
           onClose={() => setModaleSOS(null)}
+          onDefer={reporterExercice}
           /*
              Le remplacement s'APPLIQUE, maintenant.
 
@@ -1266,13 +1345,7 @@ function ContenuSeanceLive() {
           seriesRestantesPar={Object.fromEntries(
             visibles.map((e) => [
               e.id,
-              Math.max(
-                0,
-                e.seriesCibles -
-                  (active?.sets ?? []).filter(
-                    (s) => s.exerciseInstanceId === e.id,
-                  ).length,
-              ),
+              Math.max(0, e.seriesCibles - (etats.find((etat) => etat.id === e.id)?.faites ?? 0)),
             ]),
           )}
           reposSecondesPar={Object.fromEntries(
@@ -1281,14 +1354,17 @@ function ContenuSeanceLive() {
               .map((e) => [e.id, e.reposSecondes!]),
           )}
           onClose={() => setModaleSOS(null)}
-          onApply={(coupes) => {
+          onApply={({ exercicesCoupes, minutesRestantes }) => {
             const idParNom = new Map(visibles.map((e) => [e.nom, e.id]));
-            skipExercises(
-              coupes
-                .map((n) => idParNom.get(n))
-                .filter((id): id is string => Boolean(id)),
+            const ids = exercicesCoupes
+              .map((n) => idParNom.get(n))
+              .filter((id): id is string => Boolean(id));
+            if (ids.length > 0) skipExercises(ids);
+            toast.success(
+              `Il te reste ${minutesRestantes} min. ${ids.length === 0
+                ? "Aucun exercice retiré."
+                : `${ids.length} exercice${ids.length > 1 ? "s" : ""} retiré${ids.length > 1 ? "s" : ""}.`}`,
             );
-            toast.success("Coupes appliquées");
           }}
           onIncident={enregistrerIncident}
         />

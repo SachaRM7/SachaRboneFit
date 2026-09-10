@@ -29,6 +29,60 @@
   padding-bottom: calc(var(--degagement-live) + 1rem);
 }
 
+.live-reporte {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.live-reporte-bandeau,
+.live-reportes-resume {
+  margin: 0 1rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--filet));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--primary) 7%, var(--carte));
+  color: var(--encre-2);
+  padding: 0.65rem 0.8rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.live-reporte-bandeau {
+  margin: 0;
+  border-left-width: 3px;
+}
+
+.live-carte[data-reporte] {
+  border-color: color-mix(in srgb, var(--primary) 30%, var(--filet));
+}
+
+.serie-supplementaire {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--encre-3);
+  font-family: var(--font-sans);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.live-session-terminee {
+  margin: 1.25rem 1rem calc(1.5rem + var(--marge-bas));
+  border: 1px solid var(--filet);
+  border-radius: 22px;
+  background: var(--carte);
+  padding: 1.25rem;
+  box-shadow: 0 12px 35px rgba(20, 31, 26, 0.08);
+}
+
+.live-session-terminee h2 {
+  margin: 0.35rem 0 1rem;
+  color: var(--encre);
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
 /* ---------------------------------------------------------------------------
    L'EN-TÊTE COLLANT — et son invariant
    ---------------------------------------------------------------------------

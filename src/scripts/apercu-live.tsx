@@ -41,7 +41,11 @@ function cssDeProduction(): string {
   return readdirSync(chunks)
     .filter((f) => f.endsWith(".css"))
     .map((f) => readFileSync(path.join(chunks, f), "utf8"))
-    .join("\n");
+    .join("\n")
+    // La CSS est injectée dans la page d'aperçu : ses URL relatives ne sont
+    // plus relatives au chunk d'origine. On les remet sur le chemin servi par
+    // le harnais afin de mesurer aussi les vraies métriques des polices.
+    .replaceAll("url(../media/", "url(/_next/static/media/");
 }
 
 export function page(titre: string, corps: string, largeur: number): string {
@@ -54,7 +58,9 @@ export function page(titre: string, corps: string, largeur: number): string {
      occupe sur un iPhone à encoche. Sans elles, on ne voit pas ce qui passe
      dessous. */
   body { margin:0; background:var(--papier); width:${largeur}px; }
-  :root { --marge-haut: 59px; --marge-bas: 34px; }
+  :root { --marge-haut: 59px; --marge-bas: 34px;
+    --police-titre:"Outfit",Arial,sans-serif;
+    --police-texte:"Geist",Arial,sans-serif; }
   .apercu-encoche { position:fixed; top:0; left:0; right:0; height:var(--marge-haut);
     background:repeating-linear-gradient(45deg,#0000,#0000 6px,#b8432533 6px,#b8432533 12px);
     z-index:99; pointer-events:none; }
@@ -92,7 +98,7 @@ export function rendre(
    * les besoins d'une capture, et à photographier autre chose que ce que les
    * gens utilisent. On clique donc, comme eux.
    */
-  geste?: (hote: HTMLElement) => void,
+  geste?: ((hote: HTMLElement) => void) | Array<(hote: HTMLElement) => void>,
 ): string {
   const hote = document.createElement("div");
   document.body.appendChild(hote);
@@ -111,7 +117,9 @@ export function rendre(
     onCaughtError: (e) => erreurs.push(e),
   });
   flushSync(() => racine.render(element));
-  if (geste) flushSync(() => geste(hote));
+  for (const etape of geste ? (Array.isArray(geste) ? geste : [geste]) : []) {
+    flushSync(() => etape(hote));
+  }
   const html = hote.innerHTML;
   racine.unmount();
   hote.remove();

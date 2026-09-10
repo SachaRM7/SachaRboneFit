@@ -1,4 +1,6 @@
 "use client";
+
+import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { tempsDepasse } from "@/lib/sos/temps-depasse";
@@ -9,26 +11,16 @@ interface SOSTempsDepasseProps {
   dureeActuelleMin: number;
   dureeCibleMin: number;
   exercicesRestants: ExerciceRestant[];
-  /** Séries encore à faire, par instance : le coût réel de ce qui reste. */
   seriesRestantesPar?: Record<string, number>;
   reposSecondesPar?: Record<string, number>;
   onClose: () => void;
-  onApply: (exercicesCoupes: string[]) => void;
+  onApply: (resultat: { exercicesCoupes: string[]; minutesRestantes: number }) => void;
   onIncident: (data: { type: string; contexte: Record<string, unknown>; decision: string }) => void;
 }
 
-/**
- * Le temps de séance, dit sans détour.
- *
- * L'écran affichait « 105 min / cible 60 min », puis « Temps OK après
- * recalcul », puis un bouton « Appliquer les coupes » qui ne disait pas ce
- * qu'il couperait. Trois affirmations dont deux se contredisaient.
- *
- * Il montre maintenant l'écart avant d'agir : où l'on arrive en finissant
- * tout, ce que retirer changerait, et nommément quoi. Le bouton n'apparaît que
- * s'il y a vraiment quelque chose à retirer — proposer d'appliquer un
- * changement vide était le même défaut que sur l'écran Énergie.
- */
+const CHOIX = [15, 30, 45] as const;
+
+/** Choisit un temps restant ; le moteur existant décide seul des coupes. */
 export function SOSTempsDepasse({
   dureeActuelleMin,
   dureeCibleMin,
@@ -39,20 +31,33 @@ export function SOSTempsDepasse({
   onApply,
   onIncident,
 }: SOSTempsDepasseProps) {
-  // Le calcul est déterministe et sans effet : il se fait au rendu, et rien
-  // n'oblige à appuyer sur un bouton pour savoir où l'on en est.
-  const bilan = tempsDepasse(
-    dureeActuelleMin, dureeCibleMin, exercicesRestants, reposSecondesPar, seriesRestantesPar,
+  const [minutes, setMinutes] = useState<number | null>(null);
+  const [personnalise, setPersonnalise] = useState("");
+  const budget = minutes === -1 ? Number.parseInt(personnalise, 10) : minutes;
+  const budgetValide = budget != null && Number.isFinite(budget) && budget >= 5 && budget <= 180;
+
+  const bilan = useMemo(
+    () => budgetValide
+      ? tempsDepasse(
+          dureeActuelleMin,
+          dureeActuelleMin + budget,
+          exercicesRestants,
+          reposSecondesPar,
+          seriesRestantesPar,
+        )
+      : null,
+    [budget, budgetValide, dureeActuelleMin, exercicesRestants, reposSecondesPar, seriesRestantesPar],
   );
-  const aQuelqueChoseARetirer = bilan.exercices_coupes.length > 0;
 
   const appliquer = () => {
-    onApply(bilan.exercices_coupes);
+    if (!bilan || !budgetValide) return;
+    onApply({ exercicesCoupes: bilan.exercices_coupes, minutesRestantes: budget });
     onIncident({
       type: "temps_depasse",
       contexte: {
         duree_actuelle_min: dureeActuelleMin,
-        duree_cible_min: dureeCibleMin,
+        duree_cible_initiale_min: dureeCibleMin,
+        minutes_restantes: budget,
         exercices_coupes: bilan.exercices_coupes,
         fin_estimee_min: bilan.temps_estime_apres_coupe_min,
       },
@@ -62,57 +67,83 @@ export function SOSTempsDepasse({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
-      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-encre">Le temps qui passe</h2>
+    <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center" role="dialog" aria-modal="true">
+      <div
+        className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85dvh] overflow-y-auto"
+        style={{ paddingBottom: "calc(1rem + var(--marge-bas))" }}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-encre">Combien de temps te reste-t-il&nbsp;?</h2>
+            <p className="text-encre-3 text-xs mt-1">
+              {formaterEcoulee(dureeActuelleMin * 60)} écoulées · cible initiale {dureeCibleMin} min
+            </p>
+          </div>
           <button onClick={onClose} className="p-2" aria-label="Fermer">
             <X className="w-5 h-5 text-encre-2" />
           </button>
         </div>
 
-        <div className="rounded-lg border border-filet bg-papier-2 p-3 space-y-1">
-          <p className="text-encre text-sm">
-            <span className="chiffres tabular-nums">{formaterEcoulee(dureeActuelleMin * 60)}</span> écoulées,
-            pour une durée idéale de{" "}
-            <span className="chiffres tabular-nums">{dureeCibleMin} min</span>.
-          </p>
-          <p className="text-encre-2 text-sm">{bilan.message}</p>
+        <div className="grid grid-cols-2 gap-2" aria-label="Temps restant">
+          {CHOIX.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setMinutes(n)}
+              aria-pressed={minutes === n}
+              className={`h-14 rounded-xl border text-base font-semibold ${minutes === n ? "border-encre bg-encre text-papier" : "border-filet bg-papier-2 text-encre"}`}
+            >
+              {n} min
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setMinutes(-1)}
+            aria-pressed={minutes === -1}
+            className={`h-14 rounded-xl border text-base font-semibold ${minutes === -1 ? "border-encre bg-encre text-papier" : "border-filet bg-papier-2 text-encre"}`}
+          >
+            Autre
+          </button>
         </div>
 
-        {aQuelqueChoseARetirer ? (
-          <>
-            <div className="space-y-1.5">
-              <p className="text-encre-2 text-sm">Ce qui serait retiré :</p>
-              <ul className="space-y-1">
-                {bilan.exercices_coupes.map((nom) => (
-                  <li key={nom} className="text-encre text-sm bg-papier-2 rounded-lg px-3 py-2">
-                    {nom}
-                  </li>
-                ))}
-              </ul>
-              {/* Seuls les accessoires sont proposés : retirer un pilier
-                  changerait la séance, pas seulement sa durée. */}
-              <p className="text-encre-3 text-xs">
-                Tes exercices principaux ne sont jamais retirés.
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 border-filet text-encre" onClick={onClose}>
-                Je continue
-              </Button>
-              <Button className="flex-1 bg-encre text-papier" onClick={appliquer}>
-                Retirer ces exercices
-              </Button>
-            </div>
-          </>
-        ) : (
-          /* Pas de diff, pas de bouton : proposer d'appliquer un changement
-             vide était le défaut de l'écran Énergie, il ne se reproduit pas. */
-          <Button variant="outline" className="w-full border-filet text-encre" onClick={onClose}>
-            Continuer la séance
-          </Button>
+        {minutes === -1 && (
+          <label className="block text-sm text-encre-2">
+            Minutes restantes
+            <input
+              type="number"
+              min={5}
+              max={180}
+              inputMode="numeric"
+              value={personnalise}
+              onChange={(e) => setPersonnalise(e.target.value)}
+              className="mt-1 w-full h-12 rounded-xl border border-filet bg-carte px-3 text-encre chiffres"
+            />
+          </label>
         )}
+
+        {bilan && (
+          <div className="rounded-xl border border-filet bg-papier-2 p-3 space-y-2" aria-live="polite">
+            <p className="font-medium text-encre">Plan pour les {budget} prochaines minutes</p>
+            {bilan.exercices_coupes.length > 0 ? (
+              <>
+                <p className="text-sm text-encre-2">
+                  {bilan.exercices_coupes.length} exercice{bilan.exercices_coupes.length > 1 ? "s" : ""} accessoire{bilan.exercices_coupes.length > 1 ? "s" : ""} retiré{bilan.exercices_coupes.length > 1 ? "s" : ""} :
+                </p>
+                <ul className="space-y-1">
+                  {bilan.exercices_coupes.map((nom) => <li key={nom} className="text-sm text-encre">{nom}</li>)}
+                </ul>
+              </>
+            ) : (
+              <p className="text-sm text-encre-2">Aucun exercice à retirer. Le programme reste intact.</p>
+            )}
+            <p className="text-xs text-encre-3">Les séries déjà faites et les exercices principaux restent intacts.</p>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1 border-filet text-encre" onClick={onClose}>Annuler</Button>
+          <Button className="flex-1 bg-encre text-papier" disabled={!bilan} onClick={appliquer}>Adapter</Button>
+        </div>
       </div>
     </div>
   );
