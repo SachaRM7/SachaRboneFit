@@ -20,16 +20,12 @@ import { noter, traceActive } from "@/lib/mesure/trace";
  * `max: 1` n'est pas touché : la mesure doit précéder la décision, et rien
  * n'indique encore que le pooler tolérerait davantage.
  *
- * `max_pipeline: 0` est distinct de `max`. Les services lancent parfois des
- * lectures avec `Promise.all` ; postgres.js les écrivait alors en pipeline
- * sur la même socket. La valeur 1 laisse encore le premier échange et un
- * suivant en vol (`sent.length < max_pipeline`) : elle ne désactive donc pas
- * le pipeline. Zéro force la connexion à attendre la réponse courante avant
- * d'envoyer la suivante. Supavisor en mode transaction peut libérer le
- * backend avant d'avoir renvoyé toutes les réponses d'un pipeline, ce qui
- * laisse le client en attente avec une session PostgreSQL idle (`ClientRead`)
- * jusqu'au timeout. La sérialisation garde les mêmes lectures sans ouvrir
- * une deuxième connexion.
+ * `max_pipeline: 1` borne le nombre de requêtes mises en attente sur une
+ * connexion tout en conservant le callback `onexecute` dont `sql.begin` a
+ * besoin pour installer sa transaction. Une valeur nulle désactive certes
+ * le pipeline, mais court-circuite ce callback dans postgres.js et casse les
+ * transactions. Les lectures concurrentes restent donc limitées par
+ * `max: 1`, sans changer le comportement de `sql.begin`.
  *
  * `fetch_types: false` évite en plus la requête automatique de postgres.js
  * vers `pg_catalog.pg_type` à chaque nouvelle connexion. Le schéma de
@@ -143,7 +139,7 @@ type OptionsAvecPipeline = Parameters<typeof postgres>[1] & { max_pipeline: numb
 const client = postgres(process.env.DATABASE_URL!, {
   prepare: false,
   max: 1,
-  max_pipeline: 0,
+  max_pipeline: 1,
   fetch_types: false,
   idle_timeout: 20,
   connect_timeout: 10,
