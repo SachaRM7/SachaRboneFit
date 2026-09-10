@@ -20,13 +20,22 @@ import { noter, traceActive } from "@/lib/mesure/trace";
  * `max: 1` n'est pas touché : la mesure doit précéder la décision, et rien
  * n'indique encore que le pooler tolérerait davantage.
  *
- * `max_pipeline: 1` est distinct de `max`. Les services lancent parfois des
+ * `max_pipeline: 0` est distinct de `max`. Les services lancent parfois des
  * lectures avec `Promise.all` ; postgres.js les écrivait alors en pipeline
- * sur la même socket. Supavisor en mode transaction peut libérer le backend
- * avant d'avoir renvoyé toutes les réponses d'un pipeline, ce qui laisse le
- * client en attente avec une session PostgreSQL idle (`ClientRead`) jusqu'au
- * timeout. Un seul échange à la fois garde les mêmes lectures et supprime ce
- * protocole ambigu, sans ouvrir une deuxième connexion.
+ * sur la même socket. La valeur 1 laisse encore le premier échange et un
+ * suivant en vol (`sent.length < max_pipeline`) : elle ne désactive donc pas
+ * le pipeline. Zéro force la connexion à attendre la réponse courante avant
+ * d'envoyer la suivante. Supavisor en mode transaction peut libérer le
+ * backend avant d'avoir renvoyé toutes les réponses d'un pipeline, ce qui
+ * laisse le client en attente avec une session PostgreSQL idle (`ClientRead`)
+ * jusqu'au timeout. La sérialisation garde les mêmes lectures sans ouvrir
+ * une deuxième connexion.
+ *
+ * `fetch_types: false` évite en plus la requête automatique de postgres.js
+ * vers `pg_catalog.pg_type` à chaque nouvelle connexion. Le schéma de
+ * l'application ne renvoie pas de tableaux PostgreSQL natifs : ses listes
+ * sont des colonnes `jsonb`, déjà décodées par le parseur intégré. Il n'y a
+ * donc aucune information métier à perdre en supprimant cette introspection.
  *
  * `idle_timeout` NON PLUS, et c'est un revirement qu'il faut écrire.
  *
@@ -134,7 +143,8 @@ type OptionsAvecPipeline = Parameters<typeof postgres>[1] & { max_pipeline: numb
 const client = postgres(process.env.DATABASE_URL!, {
   prepare: false,
   max: 1,
-  max_pipeline: 1,
+  max_pipeline: 0,
+  fetch_types: false,
   idle_timeout: 20,
   connect_timeout: 10,
   debug: debugPostgres,
