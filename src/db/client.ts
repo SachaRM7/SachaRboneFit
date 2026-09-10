@@ -20,12 +20,18 @@ import { noter, traceActive } from "@/lib/mesure/trace";
  * `max: 1` n'est pas touché : la mesure doit précéder la décision, et rien
  * n'indique encore que le pooler tolérerait davantage.
  *
- * `max_pipeline: 1` borne le nombre de requêtes mises en attente sur une
- * connexion tout en conservant le callback `onexecute` dont `sql.begin` a
- * besoin pour installer sa transaction. Une valeur nulle désactive certes
- * le pipeline, mais court-circuite ce callback dans postgres.js et casse les
- * transactions. Les lectures concurrentes restent donc limitées par
- * `max: 1`, sans changer le comportement de `sql.begin`.
+ * Le pooler Supavisor en mode transaction n'accepte pas de façon fiable les
+ * requêtes pipelinées : une navigation interrompue peut laisser une réponse
+ * en attente côté client et retenir la connexion jusqu'au timeout Vercel.
+ * `max_pipeline: 0` désactive le pipeline au niveau du protocole, ce qui est
+ * la seule garantie utile quand plusieurs arbres RSC lisent en même temps.
+ *
+ * postgres.js 3.4 a toutefois un détail surprenant : son `sql.begin` récupère
+ * la connexion dans le callback `onexecute`, lequel n'est jamais appelé quand
+ * le pipeline vaut zéro. Le client de lecture utilise donc une transaction
+ * manuelle sur un second client réservé (lui aussi sans pipeline) ; cela
+ * conserve le comportement transactionnel de Drizzle sans réintroduire de
+ * requêtes simultanées sur la connexion de lecture.
  *
  * `fetch_types: false` évite en plus la requête automatique de postgres.js
  * vers `pg_catalog.pg_type` à chaque nouvelle connexion. Le schéma de
@@ -136,18 +142,140 @@ function debugPostgres(
  */
 type OptionsAvecPipeline = Parameters<typeof postgres>[1] & { max_pipeline: number };
 
-const client = postgres(process.env.DATABASE_URL!, {
-  prepare: false,
-  max: 1,
-  max_pipeline: 1,
-  fetch_types: false,
-  idle_timeout: 20,
-  connect_timeout: 10,
-  debug: debugPostgres,
-  // Une connexion vient de se fermer : la suivante repaiera l'ouverture. C'est
-  // le seul signal qui permette de compter les réouvertures plutôt que de les
-  // supposer.
-  onclose: () => { connexionOuverte = false; },
-} as OptionsAvecPipeline);
+type ClientSql = ReturnType<typeof postgres>;
+type ReservedSql = Awaited<ReturnType<ClientSql["reserve"]>>;
+type ScopeSql = ReservedSql & {
+  savepoint: (...args:
+    | [((sql: ScopeSql) => unknown)]
+    | [string, (sql: ScopeSql) => unknown]
+  ) => Promise<unknown>;
+  prepare: (name: string) => Promise<ScopeSql>;
+};
+
+function optionsAvecPipeline(maxPipeline: number): OptionsAvecPipeline {
+  return {
+    prepare: false,
+    max: 1,
+    max_pipeline: maxPipeline,
+    fetch_types: false,
+    idle_timeout: 20,
+    connect_timeout: 10,
+    debug: debugPostgres,
+    // Une connexion vient de se fermer : la suivante repaiera l'ouverture. C'est
+    // le seul signal qui permette de compter les réouvertures plutôt que de les
+    // supposer.
+    onclose: () => { connexionOuverte = false; },
+  };
+}
+
+const url = process.env.DATABASE_URL!;
+
+/**
+ * Client principal : toutes les lectures passent par une connexion sans
+ * pipeline. Le client transactionnel reste paresseux et ne s'ouvre qu'au
+ * premier `db.transaction`, puis réserve sa connexion pendant tout le bloc.
+ */
+const client = postgres(url, optionsAvecPipeline(0));
+const clientTransaction = postgres(url, optionsAvecPipeline(0));
+
+let reveilTransaction: Promise<void> | null = null;
+
+async function reserverTransaction(): Promise<ReservedSql> {
+  // `reserve()` ne réveille pas une connexion fraîche avec max_pipeline=0 dans
+  // postgres.js 3.4. Une requête de chauffe fait passer le client dans l'état
+  // `open`; elle n'est exécutée qu'une fois par instance et ne touche aucune
+  // table métier.
+  if (!reveilTransaction) {
+    reveilTransaction = clientTransaction.unsafe("select 1").then(() => undefined).catch((error) => {
+      reveilTransaction = null;
+      throw error;
+    });
+  }
+  await reveilTransaction;
+  return clientTransaction.reserve();
+}
+
+function nomDePointDeSauvegarde(nom: string): string {
+  return `"${nom.replace(/"/g, '""')}"`;
+}
+
+function creerScope(
+  connexion: ReservedSql,
+  compteur: { valeur: number },
+  preparation: { nom: string | null },
+): ScopeSql {
+  const scope = connexion as ScopeSql;
+  scope.prepare = async (nom: string) => {
+    preparation.nom = nom.replace(/[^a-z0-9$-_. ]/gi, "");
+    return scope;
+  };
+  scope.savepoint = async (...args) => {
+    const nom = typeof args[0] === "function" ? `s${compteur.valeur++}` : args[0];
+    const callback = typeof args[0] === "function" ? args[0] : args[1];
+    if (!callback) throw new Error("Une fonction est requise pour ouvrir un savepoint.");
+    const identifiant = nomDePointDeSauvegarde(nom);
+
+    await connexion.unsafe(`savepoint ${identifiant}`);
+    try {
+      const resultat = await callback(scope);
+      return Array.isArray(resultat) ? Promise.all(resultat) : resultat;
+    } catch (error) {
+      await connexion.unsafe(`rollback to savepoint ${identifiant}`);
+      throw error;
+    }
+  };
+  return scope;
+}
+
+type FonctionTransaction = (scope: ScopeSql) => unknown | Promise<unknown>;
+
+/**
+ * Équivalent minimal de `sql.begin` pour un client dont le pipeline est nul.
+ * Le contrat attendu par Drizzle est conservé : callback, options facultatives,
+ * rollback automatique, savepoints imbriqués et libération de la connexion.
+ */
+async function beginSansPipeline(
+  optionsOuFonction: string | FonctionTransaction,
+  fonctionEventuelle?: FonctionTransaction,
+): Promise<unknown> {
+  const options = typeof optionsOuFonction === "string" ? optionsOuFonction : "";
+  const fonction = typeof optionsOuFonction === "function" ? optionsOuFonction : fonctionEventuelle;
+  if (!fonction) throw new Error("Une fonction est requise pour ouvrir une transaction.");
+
+  const connexion = await reserverTransaction();
+  const preparation = { nom: null as string | null };
+  const scope = creerScope(connexion, { valeur: 0 }, preparation);
+  let validee = false;
+
+  try {
+    const optionsNettoyees = options.replace(/[^a-z ]/gi, "");
+    await connexion.unsafe(`begin ${optionsNettoyees}`);
+    const resultat = await fonction(scope);
+    const resultatResolu = Array.isArray(resultat) ? await Promise.all(resultat) : await resultat;
+    if (preparation.nom) {
+      await connexion.unsafe(`prepare transaction '${preparation.nom.replace(/'/g, "''")}'`);
+    } else {
+      await connexion.unsafe("commit");
+    }
+    validee = true;
+    return resultatResolu;
+  } catch (error) {
+    if (!validee) {
+      try {
+        await connexion.unsafe("rollback");
+      } catch {
+        // La connexion peut déjà avoir été fermée par le pooler : l'erreur
+        // d'origine est plus utile au service appelant.
+      }
+    }
+    throw error;
+  } finally {
+    connexion.release();
+  }
+}
+
+// Drizzle appelle `client.begin`; on lui donne le même contrat public que
+// postgres.js, avec l'implémentation sans pipeline ci-dessus.
+client.begin = beginSansPipeline as ClientSql["begin"];
 
 export const db = drizzle(client, { schema });
