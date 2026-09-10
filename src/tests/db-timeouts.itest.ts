@@ -61,4 +61,16 @@ describe("accueil sous concurrence avec max:1", () => {
     );
     expect(lignes[0]?.ok).toBe(1);
   });
+
+  it("conserve les transactions avec le pipeline désactivé", async () => {
+    const resultat = await avecDelai(
+      db.transaction(async (tx) => {
+        const lignes = await tx.execute<{ ok: number }>(sql`select 1 as ok`);
+        return lignes[0]?.ok;
+      }),
+      5_000,
+    );
+
+    expect(resultat).toBe(1);
+  });
 });

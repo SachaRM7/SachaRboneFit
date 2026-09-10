@@ -15,9 +15,9 @@ import { CarteRecuperation } from "./CarteRecuperation";
  * ce bloc arrive dès qu'il est prêt — sans retenir le reste, et sans ajouter la
  * moindre requête depuis le navigateur.
  *
- * Rien ici n'a besoin du navigateur : l'historique passe par des liens, qui
- * savent en outre se précharger, ce que le `router.push` d'un bouton ne faisait
- * pas.
+ * Rien ici n'a besoin du navigateur : l'historique passe par des liens dont le
+ * préchargement est désactivé, afin que ces cartes secondaires ne lancent pas
+ * de rendu serveur tant qu'elles ne sont pas ouvertes.
  */
 export async function ComplementTableauDeBord({ userId }: { userId: string }) {
   let data: ComplementTableauDeBord;
@@ -80,7 +80,7 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
                 {data.precalcSession.contenu}
               </p>
             </details>
-            <Link className="context-link" href="/programme">
+            <Link className="context-link" href="/programme" prefetch={false}>
               Voir la prochaine séance →
             </Link>
           </CardContent>

@@ -17,14 +17,12 @@ import path from "node:path";
  * CONSTRUIT un plan complet — parc du lieu, charges, progression. Le
  * préchargement d'une liste de N éléments, c'est N rendus serveur lourds.
  *
- * La règle retenue, et ce fichier la tient :
- *
- *   on précharge la NAVIGATION — quatre onglets, sept entrées de « Plus » :
- *   peu de cibles, choisies délibérément, où l'on va vraiment ;
- *
- *   on ne précharge pas les LISTES D'ÉLÉMENTS — séances, exercices,
- *   historique, salles : beaucoup de cibles, lourdes, dont on n'ouvrira au
- *   plus qu'une.
+ * La règle retenue, et ce fichier la tient : aucune surface de l'accueil ni
+ * de la navigation globale ne précharge une page serveur. Chaque cible est
+ * dynamique (`force-dynamic`) et l'ouverture explicite est le seul moment où
+ * l'utilisateur a demandé son travail. Les listes d'éléments gardent la même
+ * règle : séances, exercices, historique et salles ne lancent jamais une
+ * construction en arrière-plan.
  *
  * Le test compte, plutôt que de faire confiance. Un lien de liste ajouté sans
  * `prefetch={false}` le fait échouer.
@@ -101,20 +99,30 @@ describe("préchargement des liens de liste", () => {
     ).toEqual([]);
   });
 
-  it("la navigation principale, elle, précharge toujours", () => {
-    // Le bénéfice qu'on veut garder : quatre onglets, préparés d'avance,
-    // instantanés au clic. Ce sont des destinations fixes, pas des lignes.
-    const nav = readFileSync(path.join(RACINE, "components/layout/BottomNav.tsx"), "utf8");
-    expect(nav).toMatch(/<Link/);
-    expect(nav).not.toMatch(/prefetch=\{false\}/);
+  it("désactive le préchargement sur la navigation et l'accueil", () => {
+    const fichiers = [
+      "components/layout/BottomNav.tsx",
+      "components/layout/AppTopbar.tsx",
+      "components/settings/ListeReglages.tsx",
+      "components/dashboard/ContenuTableauDeBord.tsx",
+      "components/dashboard/CarteProgramme.tsx",
+      "components/dashboard/CarteAujourdhui.tsx",
+      "components/dashboard/ComplementTableauDeBord.tsx",
+    ];
 
-    const plus = readFileSync(path.join(RACINE, "components/settings/ListeReglages.tsx"), "utf8");
-    expect(plus).not.toMatch(/prefetch=\{false\}/);
+    for (const fichier of fichiers) {
+      const contenu = readFileSync(path.join(RACINE, fichier), "utf8");
+      const liens = contenu.match(/<Link\b[^>]*>/g) ?? [];
+      expect(liens, fichier).not.toEqual([]);
+      expect(
+        liens.every((lien) => /prefetch=\{false\}/.test(lien)),
+        `${fichier}: chaque lien visible doit opt-out du préchargement`,
+      ).toBe(true);
+    }
   });
 
   it("la limite de suspension qui rend tout ça possible existe toujours", () => {
-    // Sans elle, le préchargement ne prépare rien et chaque clic repart de
-    // zéro : c'était l'état d'origine.
+    // Elle conserve un retour visuel immédiat pendant la navigation explicite.
     expect(sources()).toContain("app/(app)/loading.tsx");
   });
 });

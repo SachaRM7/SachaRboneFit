@@ -23,7 +23,7 @@ export async function CarteProgramme({ userId }: { userId: string }) {
   if (!blocActif) return null;
 
   return (
-    <Link href="/programme" className="programme-overview">
+    <Link href="/programme" prefetch={false} className="programme-overview">
       <div className="section-heading">
         <span className="eyebrow">Phase actuelle</span>
         <ChevronRight size={17} aria-hidden />

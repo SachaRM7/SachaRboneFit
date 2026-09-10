@@ -51,7 +51,7 @@ export function BottomNav() {
       className={`app-nav ${enSeance ? "is-live" : ""}`}
       style={{ height: "var(--barre-nav)", paddingBottom: "var(--marge-bas)" }}
     >
-      <Link href="/dashboard" className="sidebar-brand wordmark">
+      <Link href="/dashboard" prefetch={false} className="sidebar-brand wordmark">
         <span className="brand-symbol">
           <Activity size={20} aria-hidden />
         </span>
@@ -66,6 +66,7 @@ export function BottomNav() {
             )}
             <Link
               href={href}
+              prefetch={false}
               aria-current={actif(href) ? "page" : undefined}
               className="nav-item"
             >
@@ -82,6 +83,7 @@ export function BottomNav() {
           <Link
             key={href}
             href={href}
+            prefetch={false}
             className="nav-item"
             aria-current={chemin.startsWith(href) ? "page" : undefined}
           >
