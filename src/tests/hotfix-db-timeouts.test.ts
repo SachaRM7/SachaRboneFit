@@ -19,7 +19,10 @@ describe("hotfix des timeouts postgres", () => {
     expect(client).not.toMatch(/\.then\s*=/);
     expect(client).toMatch(/debug:\s*debugPostgres/);
     expect(client).toMatch(/max:\s*1/);
-    expect(client).toMatch(/max_pipeline:\s*0/);
+    // La valeur est passée par le helper afin que les deux clients (lecture
+    // et transactions) restent alignés ; l'appel concret doit toutefois
+    // désactiver explicitement le pipeline.
+    expect(client).toMatch(/optionsAvecPipeline\(0\)/);
     expect(client).toMatch(/clientTransaction/);
     expect(client).toMatch(/beginSansPipeline/);
     expect(client).toMatch(/fetch_types:\s*false/);
