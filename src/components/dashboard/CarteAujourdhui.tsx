@@ -10,8 +10,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import type { EtatDuJour, NomEtat } from "@/lib/engine/etat-du-jour";
-import { MascotteCoach } from "@/components/coach/MascotteCoach";
-import type { EtatVisuelMascotte } from "@/lib/coach/mascotte-assets";
+import { DetailsAccueil } from "./DetailsAccueil";
 
 /**
  * La seule carte qui compte à l'ouverture de l'application.
@@ -48,7 +47,7 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
     icone: Ruler,
     titre: (e) =>
       e.seance
-        ? `Séance ${e.seance.lettre} — calibration`
+        ? `Séance ${e.seance.lettre}`
         : "Ta première séance",
     texte:
       "On mesure tes premières charges. Après chaque série, indique combien de répétitions tu aurais pu faire en plus.",
@@ -76,79 +75,32 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
   },
 };
 
-export function CarteAujourdhui({
-  etat,
-  mascotte,
-}: {
-  etat: EtatDuJour;
-  /**
-   * L'UNIQUE présence forte du Coach sur cet écran.
-   *
-   * Elle est résolue par le parent, jamais ici : deux cartes qui décideraient
-   * chacune de leur mascotte finiraient par en afficher deux, et la règle
-   * « une présence forte par surface » ne serait plus vérifiable nulle part.
-   *
-   * `null` est une réponse normale — voir `resoudreMascotteAccueil`.
-   */
-  mascotte?: EtatVisuelMascotte | null;
-}) {
+export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
   const f = FORMULATIONS[etat.etat];
   const Icone = f.icone;
-
-  // La séance prête n'a pas de discours à tenir : son nom et sa salle suffisent.
-  const texte =
-    etat.etat === "prete"
-      ? [etat.seance?.nom, etat.salle?.nom].filter(Boolean).join(" — ")
-      : f.texte;
-
+  const aFaire = etat.etat === "calibration" || etat.etat === "prete";
+  const faite = etat.etat === "deja_entraine" || etat.etat === "semaine_complete";
   return (
-    <section className="session-hero" aria-labelledby="session-du-jour">
-      <div className="session-hero-art" aria-hidden>
-        <span className="hero-orbit orbit-one" />
-        <span className="hero-orbit orbit-two" />
-        <span className="hero-orbit orbit-three" />
-        <span className="hero-letter">
-          {etat.seance?.lettre || <Icone size={92} strokeWidth={1} />}
-        </span>
+    <section className="home-session" aria-labelledby="session-du-jour">
+      <div className="home-session-top">
+        <p className="home-eyebrow">{aFaire ? "Prochaine séance" : faite ? "Bien joué" : "Pour commencer"}</p>
+        <Icone size={22} strokeWidth={1.5} aria-hidden />
       </div>
-      {/*
-        LE COACH T'ACCUEILLE — une présence, pas une icône.
-
-        Elle occupe le quart droit que `.hero-copy` laisse libre (max-width
-        75 %), au-dessus du pli : elle ne touche ni au titre, ni au texte, ni au
-        bouton, qui restent la hiérarchie 1 de cette carte.
-
-        Quand elle est là, la grande lettre filigranée s'efface — voir
-        `.session-hero:has(.hero-mascotte)`. Deux ancres visuelles dans le même
-        coin se disputeraient le regard, et la lettre est déjà dans le titre.
-      */}
-      {mascotte && (
-        <div className="hero-mascotte">
-          <MascotteCoach etat={mascotte} taille="normal" presence="forte" anime />
-        </div>
-      )}
-      <div className="hero-copy">
-        <p className="hero-category">
-          Aujourd’hui ·{" "}
-          {etat.etat === "calibration" ? "Calibration" : "Entraînement"}
-        </p>
-        <h2 id="session-du-jour">{f.titre(etat)}</h2>
-        {texte && <p className="hero-description">{texte}</p>}
-      </div>
-      <div className="hero-footer">
-        <Link href={etat.action.href} prefetch={false} className="hero-cta">
-          {f.bouton}
-          <span>
-            <ArrowRight size={21} aria-hidden />
-          </span>
+      {aFaire && etat.seance ? (
+        <Link href="/programme" prefetch={false} className="home-session-title" aria-label={`Voir dans le programme la séance ${etat.seance.lettre}`}>
+          <h2 id="session-du-jour">{f.titre(etat)}</h2><ArrowRight size={22} aria-hidden />
         </Link>
-        {etat.salle && (
-          <span className="hero-location">
-            <MapPin size={14} aria-hidden />
-            {etat.salle.nom}
-          </span>
-        )}
+      ) : <h2 id="session-du-jour">{f.titre(etat)}</h2>}
+      <div className="home-session-meta">
+        {etat.etat === "calibration" ? <span className="home-phase">Premiers repères · Calibration</span> : aFaire && etat.seance ? <span>{etat.seance.nom}</span> : null}
+        {aFaire && etat.salle && <span className="home-location"><MapPin size={14} aria-hidden />{etat.salle.nom}</span>}
       </div>
+      <Link href={etat.action.href} prefetch={false} className="home-start">
+        {f.bouton}<ArrowRight size={21} aria-hidden />
+      </Link>
+      {f.texte && <DetailsAccueil titre={etat.etat === "calibration" ? "Tes premiers repères" : f.titre(etat)} className="home-session-secondary" apercu={etat.etat === "calibration" ? "Comment se passe cette séance ?" : "En savoir plus"}>
+        <p>{f.texte}</p>
+      </DetailsAccueil>}
     </section>
   );
 }

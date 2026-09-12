@@ -1,3 +1,5 @@
+import "./home.css";
+import { RecuperationAccueil } from "@/components/dashboard/RecuperationAccueil";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
@@ -44,6 +46,11 @@ export default async function DashboardPage() {
   return (
     <ContenuTableauDeBord
       data={essentiel}
+      recuperation={
+        <Suspense fallback={<div className="home-metric home-pending" role="status">Muscles<span>Chargement…</span></div>}>
+          <RecuperationAccueil userId={userId} />
+        </Suspense>
+      }
       carteProgramme={
         <Suspense fallback={<CadreProgrammeEnAttente />}>
           <CarteProgramme userId={userId} />
@@ -67,13 +74,13 @@ export default async function DashboardPage() {
 function CadreProgrammeEnAttente() {
   return (
     <div aria-hidden>
-      <div className="h-[185px] rounded-3xl bg-papier-2 animate-pulse" />
+      <div className="h-24 rounded-3xl bg-papier-2 animate-pulse" />
     </div>
   );
 }
 
 function CadreComplementEnAttente() {
   return (
-    <div className="h-24 rounded-xl bg-papier-2 animate-pulse" aria-hidden />
+    <div className="home-noticed home-pending" role="status">Coach a remarqué<span>Chargement des observations…</span></div>
   );
 }

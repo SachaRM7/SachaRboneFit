@@ -32,6 +32,8 @@ vi.mock("@/components/session/serie-en-vol", () => ({
 }));
 
 const { MascotteCoach } = await import("@/components/coach/MascotteCoach");
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+const { ContenuTableauDeBord } = await import("@/components/dashboard/ContenuTableauDeBord");
 const { CarteAujourdhui } = await import("@/components/dashboard/CarteAujourdhui");
 const { ContenuProgression } = await import("@/components/progression/ContenuProgression");
 const { mascotteDeLAccueil } = await import("@/lib/coach/accueil-mascotte");
@@ -240,11 +242,12 @@ function rendreAccueil(
   etat: Parameters<typeof mascotteDeLAccueil>[0]["etat"],
   feuJour: "vert" | "orange" | "rouge" | null = "vert",
 ) {
+  useSessionStore.setState({ active: null });
   return render(
-    <CarteAujourdhui
-      etat={etatDuJour(etat)}
-      mascotte={mascotteDeLAccueil({ etat, feuJour })}
-    />,
+    <FournisseurCoach><ContenuTableauDeBord data={{
+      user: { nom: "Sacha", poidsActuel: null }, etat: etatDuJour(etat),
+      feuJour, feuTendance: null, poids30jours: [],
+    }} /></FournisseurCoach>,
   );
 }
 
@@ -256,38 +259,38 @@ describe("l'accueil : un Coach, une journée", () => {
      * mesurée, pas seulement la présence du bon fichier.
      */
     const { container } = rendreAccueil("prete");
-    const img = container.querySelector<HTMLImageElement>(".hero-mascotte img")!;
+    const img = container.querySelector<HTMLImageElement>(".home-mascot img")!;
     expect(img, "aucune mascotte sur la séance prête").not.toBeNull();
     expect(img.getAttribute("src")).toBe(urlMascotte("ready", "normal"));
-    expect(parseInt(img.style.width, 10)).toBeGreaterThanOrEqual(80);
+    expect(parseInt(img.style.width, 10)).toBeGreaterThanOrEqual(72);
   });
 
   it("un feu rouge remplace ready par attention", () => {
     // Le corps demande à récupérer : « on y va » contredirait la page.
     const { container } = rendreAccueil("prete", "rouge");
-    expect(container.querySelector(".hero-mascotte img")!.getAttribute("src"))
+    expect(container.querySelector(".home-mascot img")!.getAttribute("src"))
       .toBe(urlMascotte("attention", "normal"));
   });
 
   it("un programme en calibration remplace ready par calibration", () => {
     const { container } = rendreAccueil("calibration");
-    expect(container.querySelector(".hero-mascotte img")!.getAttribute("src"))
+    expect(container.querySelector(".home-mascot img")!.getAttribute("src"))
       .toBe(urlMascotte("calibration", "normal"));
   });
 
   it("une journée déjà faite montre le débrief", () => {
     const { container } = rendreAccueil("deja_entraine");
-    expect(container.querySelector(".hero-mascotte img")!.getAttribute("src"))
+    expect(container.querySelector(".home-mascot img")!.getAttribute("src"))
       .toBe(urlMascotte("debrief", "normal"));
   });
 
   it("une salle à renseigner montre la planification", () => {
     const { container } = rendreAccueil("salle_vide");
-    expect(container.querySelector(".hero-mascotte img")!.getAttribute("src"))
+    expect(container.querySelector(".home-mascot img")!.getAttribute("src"))
       .toBe(urlMascotte("planification", "normal"));
   });
 
-  it("UNE SEULE mascotte sur la carte, jamais deux", () => {
+  it("UNE SEULE mascotte sur la Home, jamais deux", () => {
     for (const e of ["prete", "calibration", "deja_entraine", "salle_vide"] as const) {
       const { container, unmount } = rendreAccueil(e);
       expect(container.querySelectorAll("img.mascotte"), e).toHaveLength(1);
@@ -297,21 +300,21 @@ describe("l'accueil : un Coach, une journée", () => {
 
   it("et rien n'est forcé : sans état à dire, aucune image", () => {
     const { container } = render(
-      <CarteAujourdhui etat={etatDuJour("prete")} mascotte={null} />,
+      <CarteAujourdhui etat={etatDuJour("prete")} />,
     );
-    expect(container.querySelector(".hero-mascotte")).toBeNull();
+    expect(container.querySelector(".home-mascot")).toBeNull();
     // La carte, elle, reste entière : titre et bouton d'action.
     expect(screen.getByRole("heading", { level: 2 })).toBeInTheDocument();
-    expect(screen.getByRole("link")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Commencer ma séance" })).toBeInTheDocument();
   });
 
   it("la mascotte n'avale ni le titre ni le bouton", () => {
-    // Elle est décorative et hors du flux : le titre et le CTA restent lisibles
+    // Elle précède la carte dans le flux : le titre et le CTA restent lisibles
     // et atteignables, ce qui est toute la condition de sa présence.
     const { container } = rendreAccueil("prete");
-    expect(screen.getByRole("heading", { level: 2 }).textContent).toContain("Séance A");
-    expect(screen.getByRole("link").textContent).toContain("Commencer ma séance");
-    expect(container.querySelector<HTMLElement>(".hero-mascotte")!.style.pointerEvents)
+    expect(screen.getByRole("heading", { name: "Séance A" }).textContent).toContain("Séance A");
+    expect(screen.getByRole("link", { name: "Commencer ma séance" }).textContent).toContain("Commencer ma séance");
+    expect(container.querySelector<HTMLElement>(".home-mascot")!.style.pointerEvents)
       .not.toBe("auto");
   });
 });

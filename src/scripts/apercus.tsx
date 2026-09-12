@@ -157,14 +157,7 @@ const etatsDe = (exercices: { id: string; nom: string; seriesCibles: number }[])
     useSessionStore.getState().active?.lignees ?? [],
   );
 
-/**
- * L'accueil, rendu comme la page le rend.
- *
- * `CarteAujourdhui` reçoit la mascotte déjà résolue — exactement comme dans
- * `ContenuTableauDeBord`, où le calcul a lieu une seule fois. La reproduire ici
- * par une chaîne écrite à la main photographierait une composition qui
- * n'existe pas.
- */
+/** Aperçu isolé de la carte du jour et de son état coach ; pas la Home entière. */
 function accueil(etat: NomEtat, feuJour: "vert" | "orange" | "rouge" | null) {
   const etatDuJour = {
     etat,
@@ -173,15 +166,11 @@ function accueil(etat: NomEtat, feuJour: "vert" | "orange" | "rouge" | null) {
     action: { type: "demarrer_seance", href: "#", templateId: "t1" },
     enAttenteDeDonnees: false,
   };
-  return `<div class="dashboard-v2 min-h-screen bg-papier" style="padding-top:var(--marge-haut)">
-    <header class="page-intro"><div><h1>Salut Sacha<span class="greeting-dot">.</span></h1></div></header>
-    <div class="dashboard-primary"><div class="dashboard-action">${rendre(
-      <CarteAujourdhui
-        etat={etatDuJour as never}
-        mascotte={mascotteDeLAccueil({ etat, feuJour })}
-      />,
-    )}</div></div>
-  </div>`;
+  const mascotte = mascotteDeLAccueil({ etat, feuJour });
+  return rendre(<div className="home-coach">
+    <header className="home-greeting"><h1>Salut Sacha.</h1>{mascotte && <MascotteCoach etat={mascotte} presence="normale" />}</header>
+    <CarteAujourdhui etat={etatDuJour as never} />
+  </div>);
 }
 
 const scenes: { nom: string; titre: string; rendu: () => string }[] = [
