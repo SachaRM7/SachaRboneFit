@@ -77,7 +77,7 @@ describe("accueil sous concurrence avec max:1", () => {
   it("reprend les transactions après fermeture inactive, puis accepte des écritures concurrentes", async () => {
     const premier = await avecDelai(db.transaction(async (tx) => {
       const lignes = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
-      return lignes[0].pid;
+      return lignes[0]?.pid;
     }), 5_000);
 
     // Vraie fermeture idle_timeout=20 s : une boucle rapide de transactions
@@ -86,8 +86,10 @@ describe("accueil sous concurrence avec max:1", () => {
 
     const second = await avecDelai(db.transaction(async (tx) => {
       const lignes = await tx.execute<{ pid: number }>(sql`select pg_backend_pid() as pid`);
-      return lignes[0].pid;
+      return lignes[0]?.pid;
     }), 5_000);
+    expect(premier).toEqual(expect.any(Number));
+    expect(second).toEqual(expect.any(Number));
     expect(second).not.toBe(premier);
 
     const resultats = await avecDelai(Promise.all(Array.from({ length: 8 }, (_, valeur) =>
@@ -96,7 +98,7 @@ describe("accueil sous concurrence avec max:1", () => {
         await tx.execute(sql`create temporary table reprise_transaction (valeur integer) on commit drop`);
         await tx.execute(sql`insert into reprise_transaction values (${valeur})`);
         const lignes = await tx.execute<{ valeur: number }>(sql`select valeur from reprise_transaction`);
-        return lignes[0].valeur;
+        return lignes[0]?.valeur;
       }),
     )), 5_000);
     expect(resultats).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
@@ -106,7 +108,7 @@ describe("accueil sous concurrence avec max:1", () => {
     })).rejects.toThrow();
     const apresErreur = await avecDelai(db.transaction(async (tx) => {
       const lignes = await tx.execute<{ ok: number }>(sql`select 1 as ok`);
-      return lignes[0].ok;
+      return lignes[0]?.ok;
     }), 5_000);
     expect(apresErreur).toBe(1);
   }, 45_000);
