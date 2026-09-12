@@ -133,11 +133,15 @@ export function CoachConversation({ contexte, onClose }: {
   }
 
   async function chargerPropositions(convId: string | null) {
+    const tour = demande.current;
     try {
       const res = await fetch(
         `/api/coach/propositions${convId ? `?conversationId=${convId}` : ""}`,
       );
-      if (res.ok) setPropositions(await res.json());
+      if (res.ok) {
+        const propositions = await res.json();
+        if (tour === demande.current) setPropositions(propositions);
+      }
     } catch (e) {
       // Une proposition non affichée n'est pas une modification perdue : rien
       // n'a été écrit, et elle reste en attente côté serveur.
@@ -205,6 +209,7 @@ export function CoachConversation({ contexte, onClose }: {
     envoiEnCours.current = true;
 
     const userMessage = brut.trim();
+    const nouvelEssai = retry || Boolean(erreur && dernierEssai === userMessage);
     setDernierEssai(userMessage); procheDuBas.current = true;
     setInput("");
     setAttenteLongue(false);
@@ -231,7 +236,7 @@ export function CoachConversation({ contexte, onClose }: {
         // l'écran affiche, depuis la session authentifiée.
         body: JSON.stringify({
           conversationId: activeConvId,
-          retry,
+          retry: nouvelEssai,
           message: userMessage,
           contexte: conversations.some((c) => c.id === activeConvId) ? null : contexte,
         }),
