@@ -2,6 +2,7 @@
 import Link from "next/link";
 import {
   ArrowRight,
+  ArrowUpRight,
   Dumbbell,
   MapPin,
   Wrench,
@@ -98,7 +99,7 @@ export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
       <Link href={etat.action.href} prefetch={false} className="home-start">
         {f.bouton}<ArrowRight size={21} aria-hidden />
       </Link>
-      {f.texte && <DetailsAccueil titre={etat.etat === "calibration" ? "Tes premiers repères" : f.titre(etat)} className="home-session-secondary" apercu={etat.etat === "calibration" ? "Comment se passe cette séance ?" : "En savoir plus"}>
+      {f.texte && <DetailsAccueil titre={etat.etat === "calibration" ? "Tes premiers repères" : f.titre(etat)} className="home-session-secondary" apercu={<><span>{etat.etat === "calibration" ? "Comment se passe cette séance ?" : "En savoir plus"}</span><ArrowUpRight size={15} aria-hidden /></>}>
         <p>{f.texte}</p>
       </DetailsAccueil>}
     </section>

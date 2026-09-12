@@ -210,8 +210,8 @@ export function ContenuTableauDeBord({
             <strong data-attention={data.feuJour === "orange" || data.feuJour === "rouge"}>{forme}</strong>
             <ChevronRight className="home-metric-arrow" size={14} aria-hidden />
           </>}>
-            <div className="home-detail-row"><h3>Aujourd’hui</h3>{data.feuJour ? <FeuBiologique feu={data.feuJour} label={forme} /> : <p>Ton état sera renseigné pendant la préparation de séance.</p>}</div>
-            <div className="home-detail-row"><h3>Tendance</h3>{data.feuTendance ? <FeuBiologique feu={data.feuTendance} /> : <p>Pas encore de tendance disponible.</p>}</div>
+            <div className="home-detail-row"><h3>Aujourd’hui</h3>{data.feuJour ? <FeuBiologique feu={data.feuJour} label={forme} size="lg" /> : <p>Ton état sera renseigné pendant la préparation de séance.</p>}</div>
+            <div className="home-detail-row"><h3>Tendance</h3>{data.feuTendance ? <FeuBiologique feu={data.feuTendance} size="lg" /> : <p>Pas encore de tendance disponible.</p>}</div>
             <ActionsCoach />
           </DetailsAccueil>
           <DetailsAccueil titre="Ton poids" className="home-metric" apercu={<>

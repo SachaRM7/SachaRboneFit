@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AttenteMuscles, AttenteObservations } from "@/components/dashboard/AttentesAccueil";
 import { accueilTest, complementTest } from "./fixtures/home";
 import { FournisseurCoach, useCoach } from "@/components/coach/ContexteCoach";
 import { ContenuTableauDeBord } from "@/components/dashboard/ContenuTableauDeBord";
@@ -32,6 +33,37 @@ beforeEach(() => {
 });
 
 describe("Home : comprendre puis explorer", () => {
+  it.each([
+    [/Muscles/, "Ton état musculaire"],
+    [/Forme/, "Ta forme et ta tendance"],
+    [/Poids/, "Ton poids"],
+    [/^Programme/, "Ton programme"],
+  ] as const)("ouvre et ferme %s avec le même contrôle accessible", async (name, titre) => {
+    home(); const user = userEvent.setup();
+    const trigger = screen.getByRole("button", { name });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: titre });
+    expect(within(dialog).getByRole("heading", { name: titre })).toBeVisible();
+    if (titre === "Ta forme et ta tendance") {
+      expect(within(dialog).getByText("À adapter")).toBeVisible();
+      expect(within(dialog).getByText("OK")).toBeVisible();
+    }
+    await user.click(within(dialog).getByRole("button", { name: "Fermer les détails" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
+
+  it("remplace les attentes par les données sans faux chiffre ni texte de chargement visible", () => {
+    const { container, rerender } = render(<><AttenteMuscles /><AttenteObservations /></>);
+    expect(screen.getAllByRole("status")).toHaveLength(2);
+    expect(container.textContent).not.toMatch(/Chargement/);
+    expect(container.textContent).not.toMatch(/\d/);
+    rerender(<><ResumeRecuperation etat={complementTest.recuperation} /><FournisseurCoach><ObservationsAccueil data={complementTest} /></FournisseurCoach></>);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Muscles/ })).toBeVisible();
+    expect(screen.getByRole("button", { name: "2 points à voir" })).toBeVisible();
+  });
+
   it("place la vraie prochaine action avant les synthèses et ne charge aucun détail par fetch", () => {
     const { container } = home();
     expect(Array.from(container.querySelectorAll("h1,h2")).map((el) => el.textContent)).toEqual(["Salut Sacha.", "Séance D", "Aujourd’hui", "Coach a remarqué"]);
