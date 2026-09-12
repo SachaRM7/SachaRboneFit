@@ -68,13 +68,13 @@ it("le bilan retrouve la note et l'énergie saisies après démontage et restaur
   const user = userEvent.setup();
   const rendu = render(<FinishSessionPage />);
   await user.click(screen.getByRole("radio", { name: "7 sur 10" }));
-  await user.click(screen.getByRole("button", { name: "Ajouter une note" }));
+  await user.click(screen.getByRole("button", { name: /Ajouter une note/ }));
   await user.type(screen.getByRole("textbox"), "Recette fictive");
   rendu.unmount();
   await act(async () => { await useSessionStore.persist.rehydrate(); });
   render(<FinishSessionPage />);
   expect(screen.getByRole("radio", { name: "7 sur 10" })).toBeChecked();
-  await user.click(screen.getByRole("button", { name: "Ajouter une note" }));
+  await user.click(screen.getByRole("button", { name: /Ajouter une note/ }));
   expect(screen.getByRole("textbox")).toHaveValue("Recette fictive");
   expect(replace).not.toHaveBeenCalled();
 });
