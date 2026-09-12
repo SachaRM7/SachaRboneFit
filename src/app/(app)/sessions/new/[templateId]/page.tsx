@@ -1,5 +1,5 @@
 "use client";
-import { DeclarerContexte, useCoach } from "@/components/coach/ContexteCoach";
+import { DeclarerContexte, ActionsCoachLive, useCoach } from "@/components/coach/ContexteCoach";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
@@ -924,7 +924,8 @@ function ContenuSeanceLive() {
       className="live-session min-h-screen bg-papier"
       onPointerDown={interaction}
     >
-      <DeclarerContexte ecran="seance" />
+      <DeclarerContexte ecran="seance" typeEntite="instance" entiteId={visibles[index]?.id} sessionLogId={active?.id} />
+      <ActionsCoachLive onAction={(action) => { const exo = visibles[index]; if (exo) ouvrirIncidentExercice(exo.id, action); }} />
       {/* Collé sous l'encoche, pas sous l'heure : à `top-0`, l'en-tête de la
           séance — nom de la séance, chrono, bouton quitter — glissait derrière
           la barre d'état dès le premier défilement. */}

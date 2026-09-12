@@ -8,7 +8,7 @@ export function AppTopbar() {
   const live =
     /^\/sessions\/new\/[^/]+$/.test(chemin) ||
     chemin === "/session/calibration";
-  if (live) return null;
+  if (live || chemin === "/coach") return null;
   return (
     <header className="app-topbar">
       <Link

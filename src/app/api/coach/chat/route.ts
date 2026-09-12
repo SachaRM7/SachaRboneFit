@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { coachConversations, coachMessages } from "@/db/schema";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { loadCoachContext } from "@/lib/coach/context-loader";
 import { buildSystemPrompt } from "@/lib/coach/system-prompt";
@@ -16,6 +16,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const schema = z.object({
+  retry: z.boolean().optional(),
   conversationId: z.string().uuid().nullable().optional(),
   message: z.string().trim().min(1).max(4000),
   sessionLogId: z.string().uuid().nullable().optional(),
@@ -44,6 +45,7 @@ const TOURS_MAX = 4;
  */
 export async function POST(request: Request) {
   const signal = AbortSignal.any([request.signal, AbortSignal.timeout(240_000)]);
+  let convId: string | null = null;
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
     const contexteEcran = contexteValide(parsed.data.contexte);
 
     // --- Conversation ---
-    let convId = conversationId ?? null;
+    convId = conversationId ?? null;
 
     if (convId) {
       const conv = await db.query.coachConversations.findFirst({
@@ -72,7 +74,12 @@ export async function POST(request: Request) {
       convId = nouvelle.id;
     }
 
-    await db.insert(coachMessages).values({ conversationId: convId, role: "user", content: message });
+    const dernier = parsed.data.retry ? await db.query.coachMessages.findFirst({
+      where: eq(coachMessages.conversationId, convId), orderBy: [desc(coachMessages.createdAt)],
+    }) : null;
+    if (!(dernier?.role === "user" && dernier.content === message)) {
+      await db.insert(coachMessages).values({ conversationId: convId, role: "user", content: message });
+    }
 
     // --- Contexte et historique ---
     const [contexte, contexteDeLEcran, historique] = await Promise.all([
@@ -157,15 +164,15 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof CoachIndisponible) {
       if (error.statut === 429) {
-        return NextResponse.json({ code: "COACH_QUOTA", error: "Le coach a atteint sa limite temporaire. Réessaie dans un instant." },
+        return NextResponse.json({ conversationId: convId, code: "COACH_QUOTA", error: "Le coach a atteint sa limite temporaire. Réessaie dans un instant." },
           { status: 429, headers: error.retryAfterSeconds !== undefined ? { "Retry-After": String(error.retryAfterSeconds) } : {} });
       }
       return NextResponse.json(
-        { error: "Le coach n'est pas disponible : clé API non configurée ou fournisseur en erreur." },
+        { conversationId: convId, error: "Le coach n'est pas disponible : clé API non configurée ou fournisseur en erreur." },
         { status: 503 },
       );
     }
     console.error("[coach/chat]", error);
-    return NextResponse.json({ error: "Le coach n'est pas disponible pour le moment." }, { status: 503 });
+    return NextResponse.json({ conversationId: convId, error: "Le coach n'est pas disponible pour le moment." }, { status: 503 });
   }
 }

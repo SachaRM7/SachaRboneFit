@@ -96,6 +96,33 @@ afterAll(async () => {
 });
 
 describe("résolution du contexte d'écran", () => {
+  it("distingue cible, mesure et série désignée, sans révéler une séance étrangère ou archivée", async () => {
+    const [session] = await db.insert(schema.sessionLogs).values({ userId: U, seanceTemplateId: gabaritMien, date: "2026-09-12" }).returning();
+    const id = session!.id;
+    try {
+      await db.insert(schema.sessionPlanItems).values({ sessionLogId: id, exerciseInstanceId: instMienne, ordre: 1, seriesCibles: 2, fourchetteRepsMin: 8, fourchetteRepsMax: 12, rpeCible: 7, chargeSuggeree: 22.5, messageProgression: "Repère réel du moteur" });
+      await db.insert(schema.setLogs).values({ sessionLogId: id, exerciseInstanceId: instMienne, numeroSerie: 1, charge: 20, repsEffectuees: 10, rpeEffectif: 6 });
+      const contexte = { ecran: "seance" as const, typeEntite: "instance" as const, entiteId: instMienne, sessionLogId: id, numeroSerie: 2 };
+      const propre = await resoudreContexte(U, contexte);
+      expect(propre.refs?.sessionLogId).toBe(id);
+      expect(propre.texte).toContain("charge suggérée 22.5");
+      expect(propre.texte).toContain("Repère réel du moteur");
+      expect(propre.texte).toContain("série 1 : 20 kg × 10, RPE 6");
+      expect(propre.texte).toContain("Série désignée par l'écran : 2");
+      const etrangere = await resoudreContexte(AUTRE, contexte);
+      expect(etrangere.refs?.sessionLogId).toBeNull();
+      expect(etrangere.refs?.exerciseInstanceId).toBeNull();
+      expect(etrangere.texte).not.toContain("22.5");
+      await db.update(schema.sessionLogs).set({ archiveLe: new Date() }).where(eq(schema.sessionLogs.id, id));
+      const archivee = await resoudreContexte(U, contexte);
+      expect(archivee.refs?.sessionLogId).toBeNull();
+      expect(archivee.texte).not.toContain("série 1 : 20");
+    } finally {
+      await db.delete(schema.setLogs).where(eq(schema.setLogs.sessionLogId, id));
+      await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, id));
+      await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.id, id));
+    }
+  });
   it("ne résout rien sans contexte", async () => {
     expect(await resoudreContexte(U, null)).toEqual({ texte: null, refs: null });
   });

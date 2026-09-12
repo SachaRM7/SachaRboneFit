@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from "react";
 import type { ContexteEcran, Ecran, Sujet, TypeEntite } from "@/lib/coach/contexte-ecran";
 
 /**
@@ -10,7 +10,7 @@ import type { ContexteEcran, Ecran, Sujet, TypeEntite } from "@/lib/coach/contex
  * fusionné : garder celui de l'écran précédent après navigation ferait
  * répondre le coach sur ce qu'on ne regarde plus.
  *
- * Le tiroir plutôt qu'une route `/coach` : ouvrir le coach ne doit pas faire
+ * La route `/coach` est la destination libre ; le tiroir contextuel évite de
  * quitter l'écran. C'est ce qui garantit qu'en le fermant pendant une séance on
  * retombe exactement sur le même exercice et la même série — il n'y a pas eu de
  * navigation à défaire.
@@ -29,9 +29,11 @@ interface Etat {
    */
   ouvrir: (
     sujet?: Sujet,
-    precisions?: Pick<ContexteEcran, "typeEntite" | "entiteId" | "signal">,
+    precisions?: Pick<ContexteEcran, "typeEntite" | "entiteId" | "signal" | "sessionLogId" | "numeroSerie">,
   ) => void;
   fermer: () => void;
+  agir: (action: "douleur" | "machine") => void;
+  relierActions: (action: ((type: "douleur" | "machine") => void) | null) => void;
 }
 
 const CoachContexte = createContext<Etat | null>(null);
@@ -39,6 +41,11 @@ const CoachContexte = createContext<Etat | null>(null);
 export function FournisseurCoach({ children }: { children: React.ReactNode }) {
   const [contexte, setContexte] = useState<ContexteEcran | null>(null);
   const [ouvert, setOuvert] = useState(false);
+  const actionsLive = useRef<((type: "douleur" | "machine") => void) | null>(null);
+  const relierActions = useCallback((action: typeof actionsLive.current) => { actionsLive.current = action; }, []);
+  const agir = useCallback((action: "douleur" | "machine") => {
+    if (actionsLive.current) { setOuvert(false); actionsLive.current(action); }
+  }, []);
 
   const declarer = useCallback((c: ContexteEcran | null) => setContexte(c), []);
 
@@ -66,8 +73,8 @@ export function FournisseurCoach({ children }: { children: React.ReactNode }) {
   }, []);
 
   const valeur = useMemo(
-    () => ({ contexte, ouvert, declarer, ouvrir, fermer }),
-    [contexte, ouvert, declarer, ouvrir, fermer],
+    () => ({ contexte, ouvert, declarer, ouvrir, fermer, agir, relierActions }),
+    [contexte, ouvert, declarer, ouvrir, fermer, agir, relierActions],
   );
 
   return <CoachContexte.Provider value={valeur}>{children}</CoachContexte.Provider>;
@@ -90,17 +97,27 @@ export function DeclarerContexte({
   ecran,
   typeEntite = null,
   entiteId = null,
+  sessionLogId, numeroSerie,
 }: {
   ecran: Ecran;
   typeEntite?: TypeEntite | null;
   entiteId?: string | null;
+  sessionLogId?: string; numeroSerie?: number;
 }) {
   const { declarer } = useCoach();
 
   useEffect(() => {
-    declarer({ ecran, typeEntite, entiteId, sujet: null });
+    declarer({ ecran, typeEntite, entiteId, sujet: null, sessionLogId, numeroSerie });
     return () => declarer(null);
-  }, [declarer, ecran, typeEntite, entiteId]);
+  }, [declarer, ecran, typeEntite, entiteId, sessionLogId, numeroSerie]);
 
   return null;
 }
+
+export function ActionsCoachLive({ onAction }: { onAction: (action: "douleur" | "machine") => void }) {
+  const { relierActions } = useCoach();
+  useEffect(() => { relierActions(onAction); return () => relierActions(null); }, [relierActions, onAction]);
+  return null;
+}
+
+export function useCoachFacultatif() { return useContext(CoachContexte); }

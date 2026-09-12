@@ -81,6 +81,8 @@ export type SignalObservation = (typeof SIGNAUX_OBSERVATION)[number];
 
 export interface ContexteEcran {
   ecran: Ecran;
+  sessionLogId?: string;
+  numeroSerie?: number;
   typeEntite?: TypeEntite | null;
   entiteId?: string | null;
   sujet?: Sujet | null;
@@ -232,6 +234,8 @@ export function contexteValide(brut: unknown): ContexteEcran | null {
 
   return {
     ecran,
+    ...(estUuid(o.sessionLogId) ? { sessionLogId: o.sessionLogId as string } : {}),
+    ...(typeof o.numeroSerie === "number" && Number.isInteger(o.numeroSerie) && o.numeroSerie > 0 && o.numeroSerie <= 100 ? { numeroSerie: o.numeroSerie } : {}),
     typeEntite,
     entiteId: typeEntite && estUuid(o.entiteId) ? (o.entiteId as string) : null,
     sujet,
