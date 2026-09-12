@@ -113,11 +113,18 @@ describe("résolution du contexte d'écran", () => {
       expect(etrangere.refs?.sessionLogId).toBeNull();
       expect(etrangere.refs?.exerciseInstanceId).toBeNull();
       expect(etrangere.texte).not.toContain("22.5");
+      await db.update(schema.exerciseInstances).set({ userId: AUTRE }).where(eq(schema.exerciseInstances.id, instMienne));
+      const machinePartagee = await resoudreContexte(U, contexte);
+      expect(machinePartagee.refs?.exerciseInstanceId).toBe(instMienne);
+      expect(machinePartagee.texte).toContain("charge suggérée 22.5");
+      expect(machinePartagee.texte).toContain("série 1 : 20 kg × 10");
+      await db.update(schema.exerciseInstances).set({ userId: U }).where(eq(schema.exerciseInstances.id, instMienne));
       await db.update(schema.sessionLogs).set({ archiveLe: new Date() }).where(eq(schema.sessionLogs.id, id));
       const archivee = await resoudreContexte(U, contexte);
       expect(archivee.refs?.sessionLogId).toBeNull();
       expect(archivee.texte).not.toContain("série 1 : 20");
     } finally {
+      await db.update(schema.exerciseInstances).set({ userId: U }).where(eq(schema.exerciseInstances.id, instMienne));
       await db.delete(schema.setLogs).where(eq(schema.setLogs.sessionLogId, id));
       await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, id));
       await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.id, id));

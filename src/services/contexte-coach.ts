@@ -169,7 +169,7 @@ export async function resoudreContexte(
   // L'objet précisément regardé, quand il y en a un et qu'il appartient bien
   // à l'utilisateur. Un identifiant qui n'est pas à lui est simplement ignoré.
   if (contexte.typeEntite && contexte.entiteId) {
-    const nomme = await nommerEntite(userId, contexte.typeEntite, contexte.entiteId);
+    const nomme = await nommerEntite(userId, contexte.typeEntite, contexte.entiteId, refs.sessionLogId);
     if (nomme) {
       lignes.push(nomme);
       // La référence n'est retenue que si l'objet a bien été trouvé pour CET
@@ -252,6 +252,7 @@ async function nommerEntite(
   userId: string,
   type: NonNullable<ContexteEcran["typeEntite"]>,
   id: string,
+  sessionVerifiee: string | null = null,
 ): Promise<string | null> {
   switch (type) {
     case "bloc": {
@@ -272,11 +273,18 @@ async function nommerEntite(
       return ligne ? `Séance regardée : ${ligne.nom} (${ligne.lettre}).` : null;
     }
     case "instance": {
+      // Une machine partagée peut appartenir au créateur du lieu. Le plan
+      // de la séance authentifiée autorise uniquement cette désignation ;
+      // les mesures restent strictement bornées à la séance du compte.
+      const dansMonPlan = sessionVerifiee ? await db.query.sessionPlanItems.findFirst({
+        where: and(eq(sessionPlanItems.sessionLogId, sessionVerifiee), eq(sessionPlanItems.exerciseInstanceId, id)),
+        columns: { id: true },
+      }) : null;
       const [ligne] = await db
         .select({ nom: exercises.nom, machineNom: exerciseInstances.machineNom })
         .from(exerciseInstances)
         .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-        .where(and(eq(exerciseInstances.id, id), eq(exerciseInstances.userId, userId)))
+        .where(and(eq(exerciseInstances.id, id), dansMonPlan ? undefined : eq(exerciseInstances.userId, userId)))
         .limit(1);
       return ligne
         ? `Exercice regardé : ${ligne.nom}${ligne.machineNom ? ` — ${ligne.machineNom}` : ""}.`
