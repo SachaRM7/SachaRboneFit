@@ -16,12 +16,15 @@ afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe("repos : la durée suit le départ mémorisé", () => {
   it("reprend l'horloge et ajoute 30 s sans repartir de zéro", async () => {
     vi.useFakeTimers(); vi.setSystemTime(100_000);
+    let frame: FrameRequestCallback | undefined;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
     const callbacks = { onComplete: vi.fn(), onSkip: vi.fn(), onExtend: vi.fn() };
     const { rerender } = render(<RestTimer durationSeconds={60} startedAt={90_000} {...callbacks} />);
-    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+    act(() => { frame?.(0); });
     expect(screen.getByText("50")).toBeVisible();
     rerender(<RestTimer durationSeconds={90} startedAt={90_000} {...callbacks} />);
-    await act(async () => { await vi.advanceTimersByTimeAsync(20); });
+    act(() => { frame?.(0); });
     expect(screen.getByText("1:20")).toBeVisible();
     expect(callbacks.onComplete).not.toHaveBeenCalled();
   });

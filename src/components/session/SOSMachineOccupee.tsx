@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { machineOccupee } from "@/lib/sos/machine-occupee";
@@ -52,8 +52,7 @@ export function SOSMachineOccupee({
   onDefer,
   onSubstitute,
 }: SOSMachineOccupeeProps) {
-  const [result, setResult] = useState<{ substituts: SubstituteResult[]; message: string } | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [reponse, setReponse] = useState<{ id: string; substituts: SubstituteResult[]; message: string } | null>(null);
 
   // Les exercices qu'il reste à faire : ceux-là seuls peuvent être occupés.
   const candidats = exercicesDeLaSeance.filter((e) => e.seriesFaites < e.seriesCibles);
@@ -63,114 +62,39 @@ export function SOSMachineOccupee({
   const exerciceOccupe = exercicesDeLaSeance.find((e) => e.id === occupe);
   const aSuivant = candidats.some((e) => e.id !== occupe);
 
-  const handleEvaluate = async () => {
-    setLoading(true);
-    const res = await machineOccupee(
+  useEffect(() => {
+    let annule = false;
+    void machineOccupee(
       { exercise_instance_id: occupe, gym_id: gymId, seance_template_id: "", daily_state_id: null },
-      allInstances,
-      templateExerciseIds,
-      musclesCourbatures,
-    );
-    setResult(res);
-    setLoading(false);
-  };
+      allInstances, templateExerciseIds, musclesCourbatures,
+    ).then((res) => { if (!annule) setReponse({ id: occupe, ...res }); });
+    return () => { annule = true; };
+  }, [occupe, gymId, allInstances, templateExerciseIds, musclesCourbatures]);
+  const result = reponse?.id === occupe ? reponse : null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
-      <div
-        className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85dvh] overflow-y-auto"
-        style={{ paddingBottom: "calc(1rem + var(--marge-bas))" }}
-      >
+    <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Machine occupée">
+      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 space-y-4 max-h-[85dvh] overflow-y-auto" style={{ paddingBottom: "calc(1rem + var(--marge-bas))" }}>
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-encre">Machine occupée</h2>
-          <button onClick={onClose} className="p-2">
-            <X className="w-5 h-5 text-encre-2" />
-          </button>
+          <div><p className="eyebrow">Machine occupée</p><h2 className="text-lg font-semibold">{exerciceOccupe?.nom ?? "Cet exercice"}</h2></div>
+          <button onClick={onClose} className="h-11 w-11 grid place-items-center" aria-label="Fermer machine occupée"><X aria-hidden /></button>
         </div>
-
-        {!result ? (
-          <>
-            <div className="space-y-2">
-              <p className="text-encre-2 text-sm">Quelle machine est prise ?</p>
-              <div className="space-y-1.5">
-                {candidats.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => setOccupe(e.id)}
-                    aria-pressed={e.id === occupe}
-                    className={`w-full text-left p-2.5 rounded-lg border transition-colors ${
-                      e.id === occupe
-                        ? "border-encre bg-papier-2 text-encre"
-                        : "border-filet bg-carte text-encre-2"
-                    }`}
-                  >
-                    <span className="block text-sm font-medium">{e.nom}</span>
-                    {e.machineNom && e.machineNom !== e.nom && (
-                      <span className="block text-xs text-encre-3">{e.machineNom}</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* La suite d'abord : y revenir ne coûte rien, changer d'exercice
-                coupe l'historique de comparaison. */}
-            <div className="rounded-lg border border-filet bg-papier-2 p-3">
-                <p className="text-encre text-sm font-medium">Passe à l&apos;exercice suivant</p>
-                <p className="text-encre-2 text-xs mt-0.5">
-                  {aSuivant
-                    ? <>Tu reviendras sur {exerciceOccupe?.nom ?? "cet exercice"} avant de terminer la séance.</>
-                    : <>Il n&apos;y a pas d&apos;autre exercice disponible pour le moment.</>}
-                </p>
-                <Button variant="outline" className="w-full mt-2 border-filet text-encre"
-                  disabled={!aSuivant}
-                  onClick={() => onDefer(occupe, exerciceOccupe?.nom ?? "Cet exercice")}>
-                  Je fais autre chose et j&apos;y reviens
-                </Button>
-              </div>
-
-            <p className="text-encre-2 text-sm">
-              Si tu ne peux pas attendre, cherchons un remplaçant.
-            </p>
-            <Button
-              className="w-full"
-              onClick={handleEvaluate}
-              disabled={loading}
-            >
-              {loading ? "Recherche..." : "Trouver des substituts"}
-            </Button>
-          </>
-        ) : result.substituts.length === 0 ? (
-          <div className="text-center py-6">
-            <p className="text-encre-2">{result.message}</p>
-            <p className="text-encre-3 text-sm mt-2">Tu peux passer à l&apos;exercice suivant.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-encre-2 text-sm">{result.message}</p>
-            {result.substituts.map((sub) => (
-              <button
-                key={sub.exerciseInstanceId}
-                onClick={() => onSubstitute(sub.exerciseInstanceId, sub.exerciseName)}
-                className="w-full p-3 bg-papier-2 rounded-lg hover:bg-papier-2 transition-colors text-left"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-encre font-medium">{sub.exerciseName}</p>
-                    <p className="text-encre-3 text-sm">{sub.machineName}</p>
-                  </div>
-                  <Check className="w-5 h-5 text-gain" />
-                </div>
-                <p className="text-encre-3 text-xs mt-1">{sub.raisonCompatibilite}</p>
-              </button>
-            ))}
-          </div>
-        )}
-
-        <Button variant="outline" className="w-full" onClick={onClose}>
-          Annuler
-        </Button>
+        <details className="live-debrief-detail">
+          <summary>Choisir un autre exercice concerné</summary>
+          <div className="space-y-2">{candidats.map((e) => <button key={e.id} type="button" onClick={() => setOccupe(e.id)} aria-pressed={e.id === occupe} className="w-full text-left min-h-11 rounded-xl border border-filet p-3">{e.nom}</button>)}</div>
+        </details>
+        {aSuivant && <Button variant="outline" className="w-full min-h-12" onClick={() => onDefer(occupe, exerciceOccupe?.nom ?? "Cet exercice")}>
+          Je fais autre chose et j&apos;y reviens
+        </Button>}
+        {!result ? <div role="status" aria-label="Recherche des alternatives" className="h-24 rounded-xl bg-papier-2 animate-pulse" /> : <div className="space-y-2">
+          <p className="text-sm text-encre-2">{result.message}</p>
+          {result.substituts.map((sub) => <button key={sub.exerciseInstanceId} onClick={() => onSubstitute(sub.exerciseInstanceId, sub.exerciseName)} className="w-full p-4 bg-papier-2 rounded-xl text-left">
+            <span className="flex items-center justify-between gap-3"><strong>{sub.exerciseName}</strong><Check size={20} aria-hidden /></span>
+            <span className="block text-sm text-encre-2">{sub.machineName}</span>
+            <span className="block text-xs text-encre-3 mt-1">{sub.raisonCompatibilite}</span>
+          </button>)}
+        </div>}
+        <Button variant="ghost" className="w-full min-h-11" onClick={onClose}>Annuler</Button>
       </div>
     </div>
   );

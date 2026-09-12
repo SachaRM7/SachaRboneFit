@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { DialogClose } from "@/components/ui/dialog";
 import { DetailsLive } from "./DetailsLive";
 import { X } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -92,13 +93,12 @@ export function ObservateurSeance({
           <DetailsLive titre={titre(evenement)} action="Pourquoi ?">
           <p className="text-encre-2 text-sm">{fait}</p>
           {onDemanderCoach && (
-            <button
-              type="button"
+            <DialogClose render={<button />}
               onClick={() => onDemanderCoach(evenement, fait)}
               className="coach-constat-action"
             >
               En parler au coach
-            </button>
+            </DialogClose>
           )}
           </DetailsLive>
         </div>
