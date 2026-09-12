@@ -9,7 +9,7 @@ La refonte Live reste distincte de cette fusion, sans migration ni modification 
 - `useSaisieSeries.ts`, `sessionStore.ts` : même contrôleur pour Focus/Liste et mêmes actions serveur. Les champs non validés, l'étape de ressenti et le brouillon de bilan utilisent la clé de persistance existante. Aucun nouveau champ en base.
 - `DetailsLive.tsx`, `BandeauAdaptation.tsx`, `ObservateurSeance.tsx` : aide accessible en sheet et explications sur demande ; un constat à la fois, effort excessif prioritaire sur les observations utiles, sécurité toujours traitée par les parcours existants.
 - `RestTimer.tsx`, `sessions/new/[templateId]/page.tsx` : repos issu de l'horodatage persistant, annonce de la prochaine série et de l'exercice terminé, extension sans remise à zéro.
-- `sessions/new/[templateId]/finish/page.tsx`, `ProgressionSummary.tsx`, `SessionDebrief.tsx` : compteurs réels, trois mesures visibles puis détail, énergie/note, résumé du débrief puis texte intégral. Retry, verrou de double clic et restauration avant redirection.
+- `sessions/new/[templateId]/finish/page.tsx`, `ProgressionSummary.tsx`, `SessionDebrief.tsx` : compteurs réels, deux mesures visibles puis détail, énergie/note, résumé du débrief puis texte intégral. Retry, verrou de double clic et restauration avant redirection.
 - `SOSMachineOccupee.tsx` : alternatives immédiatement calculées pour l'exercice concerné ; report et choix d'un autre exercice toujours accessibles.
 - `live-session.css` : gros chiffres/CTA, aides secondaires, sheets avec safe area et présentation compacte du bilan.
 - `api/set-logs/last-session/route.ts`, `services/plan-seance.ts` : exclusion optionnelle de la séance courante pour le bilan. L'autosauvegarde ne peut plus devenir sa propre référence. L'utilisateur authentifié et l'exclusion des archives restent des filtres obligatoires ; les autres appelants gardent leur comportement.
@@ -29,7 +29,7 @@ La refonte Live reste distincte de cette fusion, sans migration ni modification 
 | Exercice suivant | Fin d'exercice et prochaine série annoncées au repos. Avancement, report et lignées de substitutions conservés. |
 | Machine occupée | Alternatives du moteur disponibles immédiatement ; report sans perte des séries. |
 | Douleur | Zone, intensité, type, moment et résultat de sécurité conservés. Test d'une douleur simulée, distinct d'un remplacement. |
-| Fin | Six exercices / douze séries / cinq minutes dans la recette ; trois mesures puis détail ; premiers repères sans faux delta ; énergie et note. |
+| Fin | Six exercices / douze séries / cinq minutes dans la recette ; deux mesures puis détail ; premiers repères sans faux delta ; énergie et note. |
 | Débrief | Extrait court puis analyse complète existante ouvrable/repliable. Le texte IA reste celui du serveur. |
 | Sauvegarde | PATCH existant, clear uniquement après succès, retry et double clic testés ; brouillons et bilan repris après refresh. |
 | Conventions | Source existante commune Focus/Liste ; charge totale barre comprise et pile vérifiées dans la preview. Assistance et autres conventions couvertes par les suites existantes. |
@@ -62,4 +62,12 @@ Résultats finaux : voir le check « Live review » du HEAD de la PR. Les tests 
 - La qualité des consignes dépend des fiches/machines documentées. Le lot conserve les replis honnêtes sans inventer de réglages.
 - Le résumé IA est un extrait du débrief enregistré, sans seconde génération ni nouvelle analyse.
 - Les séries non encore validées restent locales, dans la persistance existante. Les séries validées utilisent l'autosauvegarde serveur existante.
-- Le Live n'est ni fusionné ni promu en production. La Home a été fusionnée auparavant sur demande. Les écritures de recette concernent uniquement le compte de test autorisé ; la preview peut partager la base de production.
+- Les écritures de recette concernent uniquement les comptes de test autorisés ; la preview peut partager la base de production. La fusion du Live est autorisée après la passe corrective et les validations.
+
+## Passe corrective visuelle — 12 septembre 2026
+
+Carte de série commune à la saisie, au ressenti et à l’édition ; repère visuel de modification, séries validées plus discrètes avec crayon accessible. Aides regroupées, quatre actions secondaires compactes et aide de charge neutralisée. Deux mesures visibles dans le bilan, tous les exercices toujours accessibles. Aucun moteur ni contrat de données modifié par cette passe.
+
+Recette complémentaire sur `sacha4dev+2` (compte indiqué par l’utilisateur après suppression du précédent) : série, RIR sans présélection, modification conservant le ressenti, repos +30 s et écourté, enchaînement des six exercices, ouverture/fermeture de Machine occupée et Douleur, bilan replié/déplié, énergie et note de test fictif. Vérification visuelle à 390 × 844 et 320 × 740 ; aucun débordement horizontal observé.
+
+Deux tests composants supplémentaires couvrent la continuité des états et la conservation de toutes les mesures derrière l’aperçu. Le commit applicatif `73cf967` a passé lint, typecheck, unitaires, composants, intégration et build dans le run GitHub Actions `34701754997`.
