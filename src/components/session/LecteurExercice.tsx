@@ -67,6 +67,7 @@ export function LecteurExercice({
   const { contexte, remplacer } = useContexteExecution(exercice);
   const [demonstration, setDemonstration] = useState(false);
   const [fiche, setFiche] = useState(false);
+  const [serieEditee, setSerieEditee] = useState<number | null>(null);
 
   const faites = lignes.filter(estValidee);
   const derniereFois = resumeDesSeries(exercice.historique ?? []);
@@ -170,11 +171,10 @@ export function LecteurExercice({
                     devient pas intouchable. */}
                 <button
                   type="button"
-                  onClick={() => basculer(numero)}
+                  onClick={() => { setSerieEditee(numero); basculer(numero); }}
                   aria-label={`Modifier la série ${numero}`}
                 >
                   <Pencil className="w-3.5 h-3.5" aria-hidden />
-                  Modifier
                 </button>
                 {/* Une série ajoutée reste retirable APRÈS validation : la
                     valider ne doit pas l'enfermer. Même geste, même règle —
@@ -204,6 +204,7 @@ export function LecteurExercice({
           exercice={exercice}
           ressenti={ressenti}
           setRessenti={(valeur) => setRessenti(valeur ? serieCourante : null)}
+          edition={serieEditee === serieCourante}
           numero={serieCourante}
           total={exercice.seriesCibles}
           supplementaire={serieCourante > exercice.seriesCibles}
@@ -220,12 +221,13 @@ export function LecteurExercice({
           valeurs={valeurs(serieCourante)}
           ecrire={(champ, valeur) => ecrire(serieCourante, champ, valeur)}
           alerte={alerte}
-          onValider={() => basculer(serieCourante)}
+          onValider={() => { basculer(serieCourante); setSerieEditee(null); }}
         />
       )}
 
+      <div className="live-aides-compactes">
       <details className="live-exercise-help">
-        <summary>{sansRepere ? "Première fois · préparer cet exercice" : "Mes repères et ma charge"}</summary>
+        <summary>{sansRepere ? "Aide · premier repère" : "Mes repères"}</summary>
       <div className="lecteur-reperes">
         {derniereFois && (
           <section>
@@ -271,6 +273,7 @@ export function LecteurExercice({
       {contexte && <button type="button" className="live-technique-link" onClick={() => setFiche(true)}>
         Technique & réglages
       </button>}
+      </div>
 
       {/* ------------------------------------------------------------------
           LA FIN D'UNE ÉTAPE — pas un formulaire vide.
@@ -305,13 +308,8 @@ export function LecteurExercice({
       {/* ------------------------------------------------------------------
           LES ACTIONS — hiérarchisées, jamais enterrées.
           ------------------------------------------------------------------ */}
-      {actions && <div className="lecteur-actions">{actions}</div>}
-
-      {/* Le pied ne porte plus que l'ajout : « Retirer la série N » y était
-          déconnecté de la série qu'il visait, et on le lisait après avoir
-          scrollé au-delà des contrôles. La poubelle vit maintenant sur la
-          série elle-même. */}
-      <div className="lecteur-appoint">
+      <div className="lecteur-actions">
+        {actions}
         <button type="button" onClick={ajouterUneSerie}>
           <Plus className="w-3.5 h-3.5" aria-hidden />
           Série en plus
@@ -358,6 +356,7 @@ export function LecteurExercice({
  */
 function SerieEnCours({
   exercice,
+  edition,
   ressenti,
   setRessenti,
   numero,
@@ -374,6 +373,7 @@ function SerieEnCours({
   onSupprimer,
 }: {
   exercice: ExercicePrescrit;
+  edition: boolean;
   ressenti: boolean;
   setRessenti: (valeur: boolean) => void;
   numero: number;
@@ -413,9 +413,10 @@ function SerieEnCours({
     && (!premierEssai || valeurs.charge.trim().length > 0);
 
   return (
-    <section className="serie-en-cours" data-etape={ressenti ? "ressenti" : "serie"} aria-label={`Série ${numero}`}>
+    <section className="serie-en-cours" data-etape={ressenti ? "ressenti" : "serie"} data-edition={edition || undefined} aria-label={`Série ${numero}`}>
       <div className="serie-en-cours-tete">
         <p className="serie-en-cours-titre">
+          {edition && <Pencil size={14} aria-label="Modification" />}
           {supplementaire ? (
             <>Série <span className="chiffres">{numero}</span> · <strong>Supplémentaire</strong></>
           ) : (
@@ -548,7 +549,7 @@ function SerieEnCours({
         <button type="button" onClick={() => setRessenti(false)}>Modifier charge / reps</button>
       </div>}
       {/* La cible reste une prescription ; seul le choix ci-dessous est observé. */}
-      {ressenti && <div className="mesure" role="group" aria-label="Après la série : ton ressenti">
+      {ressenti && <div className="mesure live-ressenti" role="group" aria-label="Après la série : ton ressenti">
         <p className="eyebrow">
           {modeReserve ? "Ton ressenti" : "Effort perçu"}
         </p>

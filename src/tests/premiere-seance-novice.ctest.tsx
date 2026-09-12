@@ -234,3 +234,24 @@ describe("reprise au milieu de la saisie", () => {
     expect(useSessionStore.getState().active?.sets).toHaveLength(0);
   });
 });
+
+it("garde la carte commune pour action, ressenti et édition, puis restitue la série corrigée", async () => {
+  const user = userEvent.setup();
+  rendre();
+  await user.type(screen.getByLabelText("Charge série 1"), "20");
+  const carte = screen.getByRole("region", { name: "Série 1" });
+  expect(carte).toHaveAttribute("data-etape", "serie");
+  await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+  expect(screen.getByRole("region", { name: "Série 1" })).toBe(carte);
+  expect(carte).toHaveAttribute("data-etape", "ressenti");
+  await user.click(screen.getByRole("button", { name: "3 répétitions possibles" }));
+  await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
+  await user.click(screen.getByRole("button", { name: "Modifier la série 1" }));
+  expect(screen.getByRole("region", { name: "Série 1" })).toHaveAttribute("data-edition", "true");
+  await user.clear(screen.getByLabelText("Charge série 1"));
+  await user.type(screen.getByLabelText("Charge série 1"), "25");
+  await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+  await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
+  expect(useSessionStore.getState().active?.sets).toEqual([expect.objectContaining({ charge: 25, rpeEffectif: 7, numeroSerie: 1 })]);
+  expect(screen.getByRole("button", { name: "Modifier la série 1" })).toBeVisible();
+});

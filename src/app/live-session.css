@@ -1706,3 +1706,43 @@
 .live-effort-cible { color: #cbd7c9; }
 .focus-nav { margin-bottom: .5rem; }
 .live-session > main { padding-top: .5rem; }
+
+/* Polish ciblé : mêmes surfaces pour la saisie, le ressenti et l'édition. */
+.focus-carte .serie-en-cours {
+  display: flex;
+  flex-direction: column;
+  min-height: 292px;
+  gap: 14px;
+  border: 1px solid transparent;
+}
+.focus-carte .serie-en-cours[data-edition] { border-color: var(--electric); }
+.focus-carte .serie-en-cours-titre { display: flex; align-items: center; gap: 5px; }
+.focus-carte .serie-valider { width: 100%; margin-top: auto; border-radius: 14px; }
+.focus-carte .live-ressenti { gap: 12px; }
+.focus-carte .reserve-question { font-family: var(--font-heading); font-size: 1.08rem; line-height: 1.35; font-weight: 550; }
+.focus-carte .reserve-objectif { font-size: .75rem; }
+.focus-carte .live-ressenti-recap { padding-bottom: 8px; border-bottom: 1px solid #ffffff1f; }
+.focus-carte .live-ressenti-recap strong { font-size: 1.1rem; }
+.focus-carte .live-ressenti-recap button { color: #cbd7c9; }
+.focus-carte .mesure-choix { gap: 6px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.focus-carte .mesure-choix > button { min-height: 48px; border-radius: 12px; }
+.focus-carte .lecteur-faites { margin: 0 .5rem; }
+.focus-carte .lecteur-faites > li { flex-wrap: nowrap; padding: 4px 10px; gap: 8px; background: var(--papier-2); border-radius: 14px; }
+.focus-carte .lecteur-faites > li > button { min-width: 44px; padding: 0; justify-content: center; }
+.focus-carte .lecteur-faite-nom { font-size: .65rem; }
+.focus-carte .lecteur-faite-valeur { flex: 1; font-size: .78rem; }
+.live-aides-compactes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 8px; margin: 0 .5rem; align-items: start; }
+.live-aides-compactes .live-exercise-help { padding: 0; font-size: .75rem; }
+.live-aides-compactes .live-exercise-help > summary { gap: 6px; font-weight: 500; color: var(--encre-2); }
+.live-aides-compactes .live-exercise-help[open] { grid-column: 1 / -1; }
+.live-aides-compactes .live-technique-link { padding: .5rem 0; font-size: .75rem; text-align: right; }
+.live-aides-compactes :is(.premier-repere, .preparation-machine, .premier-repere-estimation) { background: transparent; border: 0; box-shadow: none; padding-inline: 0; }
+.live-aides-compactes .premier-repere { margin: 0; }
+.live-aides-compactes .premier-repere-conseil { background: var(--papier-2); color: var(--encre-2); border-radius: 12px; }
+.focus-carte .lecteur-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0 .5rem .5rem; }
+.focus-carte .lecteur-actions > *:first-child { min-width: 0; }
+.focus-carte .lecteur-actions button { min-height: 44px; border-radius: 12px; padding: 0 8px; font-size: .75rem; font-weight: 500; display: flex; justify-content: center; align-items: center; gap: 5px; }
+@media (max-width: 379px) {
+  .focus-carte .mesure-choix { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .live-aides-compactes { gap: 0 6px; }
+}

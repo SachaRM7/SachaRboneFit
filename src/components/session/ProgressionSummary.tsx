@@ -31,6 +31,8 @@ import { Delta } from "@/components/carnet/Delta";
  * consiste à en demander moins. Le calcul standard dirait l'inverse.
  */
 
+const APERCU_EXERCICES = 2;
+
 interface InstanceLue {
   id: string;
   nom: string;
@@ -178,10 +180,10 @@ export function ProgressionSummary({ sets, sessionLogId }: ProgressionSummaryPro
   return (
     <div className="space-y-2">
       <p className="text-encre-3 text-sm italic">Ce que cette séance a mesuré</p>
-      {lignes.slice(0, 3).map((l) => <LigneMesuree key={l.exerciseInstanceId} l={l} />)}
-      {lignes.length > 3 && <details className="live-debrief-detail">
+      {lignes.slice(0, APERCU_EXERCICES).map((l) => <LigneMesuree key={l.exerciseInstanceId} l={l} />)}
+      {lignes.length > APERCU_EXERCICES && <details className="live-debrief-detail">
         <summary>Voir tous les exercices ({lignes.length})</summary>
-        {lignes.slice(3).map((l) => <LigneMesuree key={l.exerciseInstanceId} l={l} />)}
+        {lignes.slice(APERCU_EXERCICES).map((l) => <LigneMesuree key={l.exerciseInstanceId} l={l} />)}
       </details>}
 
       {lignes.some((l) => l.premiereFois) && (

@@ -99,3 +99,15 @@ it("la clôture conserve les séries après échec, bloque le double clic et per
   expect(tentatives).toBe(2);
   expect(useSessionStore.getState().active).toBeNull();
 });
+
+it("compacte le bilan sans rendre les autres baselines inaccessibles", async () => {
+  const instances = ["Row", "Curl", "Squat"].map((nom) => ({ id: nom, nom, natureCharge: "resistance" }));
+  vi.stubGlobal("fetch", vi.fn(async (url: string) => ({ ok: true, json: async () => url.startsWith("/api/exercise-instances") ? instances : null })));
+  render(<ProgressionSummary sets={instances.map((i) => ({ exerciseInstanceId: i.id, charge: 20, repsEffectuees: 8, rpeEffectif: 7 }))} templateId="template" sessionLogId="session-test" />);
+  await screen.findByText("Row");
+  expect(screen.getByText("Curl")).toBeVisible();
+  expect(screen.getByText("Squat")).not.toBeVisible();
+  await userEvent.click(screen.getByText("Voir tous les exercices (3)"));
+  expect(screen.getByText("Squat")).toBeVisible();
+  expect(screen.getAllByText("Baseline enregistrée")).toHaveLength(3);
+});
