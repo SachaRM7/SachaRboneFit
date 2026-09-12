@@ -1,6 +1,8 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import { useCoachFacultatif } from "@/components/coach/ContexteCoach";
 import { DetailsLive } from "./DetailsLive";
+import { DialogClose } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { motifSerieInvalide, LIBELLES_MOTIF_INVALIDE } from "@/lib/engine/serie-realisee";
 import { chargeAEnregistrer } from "@/lib/validators/exercise-instance";
@@ -46,6 +48,7 @@ export function LecteurExercice({
   onSuivant,
   reporte = false,
 }: Props) {
+  const coach = useCoachFacultatif();
   const {
     lignes,
     serieCourante,
@@ -135,6 +138,9 @@ export function LecteurExercice({
             </span>
           )}
         </p>
+        {coach && <DialogClose className="coach-text-action" onClick={() => coach.ouvrir("observation_seance", {
+          typeEntite: "instance", entiteId: exercice.id, numeroSerie: serieCourante ?? undefined,
+        })}>Demander au coach</DialogClose>}
         </DetailsLive>
       )}
       {reporte && (
@@ -308,6 +314,9 @@ export function LecteurExercice({
       {/* ------------------------------------------------------------------
           LES ACTIONS — hiérarchisées, jamais enterrées.
           ------------------------------------------------------------------ */}
+      {coach && !exercice.raisonSubstitution && !exercice.messageProgression && <button className="coach-text-action live-detail-trigger" onClick={() => coach.ouvrir("observation_seance", {
+        typeEntite: "instance", entiteId: exercice.id, numeroSerie: serieCourante ?? undefined,
+      })}>Pourquoi cette charge ?</button>}
       <div className="lecteur-actions">
         {actions}
         <button type="button" onClick={ajouterUneSerie}>

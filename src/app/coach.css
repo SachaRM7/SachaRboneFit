@@ -1,0 +1,51 @@
+/* Une conversation, deux accès : destination et ouverture contextuelle. */
+body:has(.coach-page) { overflow: hidden; }
+.coach-page, .coach-sheet.coach-immersive { position: fixed; top: var(--coach-top, 0px) !important; height: var(--coach-height, 100dvh) !important; max-height: none !important; margin-top: 0 !important; bottom: auto !important; background: var(--papier); }
+.coach-page { inset-inline: 0; z-index: 45; }
+.coach-sheet.coach-immersive { border-radius: 0 !important; }
+.coach-immersive > div:first-child:not(.coach-conversation) { display: none; }
+.coach-conversation { height: 100%; display: flex; flex-direction: column; min-height: 0; max-width: 760px; margin: auto; color: var(--encre); }
+.coach-toolbar { display: flex; align-items: center; flex-shrink: 0; gap: 6px; padding: max(8px, env(safe-area-inset-top)) 12px 8px; border-bottom: 1px solid var(--filet-doux); }
+.coach-toolbar strong { flex: 1; font-family: var(--font-heading); font-size: 18px; }
+.coach-toolbar button { min-width: 44px; min-height: 44px; display: grid; place-items: center; border-radius: 14px; }
+.coach-toolbar button:hover, .coach-flow-actions button:hover { background: var(--papier-2); }
+.coach-scroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 24px 20px; scroll-padding-bottom: 20px; }
+.coach-entry { padding: 10px 0 24px; max-width: 510px; margin: auto; }
+.coach-entry .mascotte { margin-bottom: 18px; }
+.coach-entry h1 { font-size: clamp(30px, 7vw, 42px); line-height: 1.1; letter-spacing: -.04em; font-weight: 550; }
+.coach-entry > p { color: var(--encre-2); margin: 12px 0 24px; line-height: 1.55; }
+.coach-context { display: grid; gap: 5px; padding: 12px 0 16px; border-bottom: 1px solid var(--filet-doux); margin-bottom: 8px; }
+.coach-context span { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--encre-3); }
+.coach-context strong { font-weight: 500; font-size: 14px; }
+.coach-suggestions { display: grid; gap: 2px; }
+.coach-suggestions button { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; min-height: 52px; padding: 12px 4px; border-bottom: 1px solid var(--filet-doux); font-size: 15px; }
+.coach-suggestions svg { flex-shrink: 0; color: var(--primary); }
+.coach-suggestions button:hover { color: var(--primary); }
+.coach-message { margin-bottom: 24px; overflow-wrap: anywhere; min-width: 0; }
+.coach-message-user { background: var(--encre); color: var(--papier); border-radius: 20px 20px 5px 20px; margin-left: 12%; padding: 14px 18px; width: fit-content; justify-self: end; white-space: pre-wrap; }
+.coach-message-assistant { padding: 3px 0 8px; font-size: 15px; line-height: 1.7; }
+.coach-markdown > :first-child { margin-top: 0; }
+.coach-markdown > p:first-child { font-size: 17px; color: var(--encre); }
+.coach-markdown p { margin: 12px 0; }
+.coach-markdown h1, .coach-markdown h2, .coach-markdown h3, .coach-markdown h4 { font-size: 18px; font-weight: 600; line-height: 1.35; margin: 24px 0 10px; }
+.coach-markdown strong { font-weight: 650; }
+.coach-markdown ul, .coach-markdown ol { padding-left: 22px; margin: 12px 0; }
+.coach-markdown ul { list-style: disc; }.coach-markdown ol { list-style: decimal; }.coach-markdown li { padding: 3px 0; }
+.coach-markdown a { text-decoration: underline; text-underline-offset: 3px; color: var(--primary); }
+.coach-markdown blockquote { border-left: 3px solid var(--primary); padding-left: 16px; color: var(--encre-2); }
+.coach-markdown pre { max-width: 100%; overflow: auto; background: var(--papier-2); padding: 12px; border-radius: 12px; }
+.coach-table { overflow-x: auto; margin: 16px 0; border: 1px solid var(--filet-doux); border-radius: 12px; }
+.coach-table table { border-collapse: collapse; width: 100%; font-size: 13px; }.coach-table td, .coach-table th { text-align: left; padding: 10px; border-bottom: 1px solid var(--filet-doux); }.coach-table th { background: var(--papier-2); }
+.coach-compose { flex-shrink: 0; padding: 10px 16px max(12px, env(safe-area-inset-bottom)); background: var(--papier); border-top: 1px solid var(--filet-doux); }
+.coach-compose form { display: flex; align-items: end; gap: 8px; padding: 8px; background: var(--carte); border: 1px solid var(--filet); border-radius: 24px; }
+.coach-compose textarea { flex: 1; min-width: 0; max-height: 130px; resize: none; background: transparent; border: none; font-size: 16px; line-height: 1.5; padding: 8px; outline-offset: 0; }
+.coach-compose button[type=submit] { width: 48px; height: 48px; border-radius: 17px; background: var(--primary); color: var(--primary-foreground); display: grid; place-items: center; flex-shrink: 0; }
+.coach-conversation button:disabled { opacity: .45; cursor: default; }
+.coach-conversation button:focus-visible, .coach-markdown a:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.coach-text-action { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; text-decoration: underline; text-underline-offset: 4px; color: var(--primary); }
+.coach-flow-actions { display: flex; gap: 8px; margin-bottom: 6px; }.coach-flow-actions button { padding: 8px; min-height: 44px; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.coach-history h2 { font-size: 26px; }.coach-thread { display: grid; gap: 6px; text-align: left; width: 100%; padding: 18px 0; border-bottom: 1px solid var(--filet-doux); }.coach-thread strong { font-weight: 550; }.coach-thread span { color: var(--encre-2); font-size: 13px; }.coach-thread time { font-size: 11px; color: var(--encre-3); }
+.coach-error { padding: 14px; border-radius: 14px; background: var(--brand-soft); margin-top: 16px; }.coach-error button { min-height: 44px; text-decoration: underline; }
+.coach-thinking { color: var(--encre-2); font-size: 14px; padding: 12px 0; }
+@media (min-width: 900px) { .coach-page { left: 240px; } .coach-entry { padding-top: 30px; } }
+@media (max-height: 550px) { .coach-entry .mascotte { display: none; }.coach-entry { padding-top: 0; }.coach-scroll { padding-top: 12px; }.coach-compose textarea { max-height: 80px; } }
