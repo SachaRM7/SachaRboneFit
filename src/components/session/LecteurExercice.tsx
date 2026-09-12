@@ -138,7 +138,7 @@ export function LecteurExercice({
             </span>
           )}
         </p>
-        {coach && <DialogClose className="coach-text-action" onClick={() => coach.ouvrir("observation_seance", {
+        {coach && <DialogClose className="coach-text-action" onClick={() => coach.ouvrir("expliquer_seance", {
           typeEntite: "instance", entiteId: exercice.id, numeroSerie: serieCourante ?? undefined,
         })}>Demander au coach</DialogClose>}
         </DetailsLive>
@@ -314,7 +314,7 @@ export function LecteurExercice({
       {/* ------------------------------------------------------------------
           LES ACTIONS — hiérarchisées, jamais enterrées.
           ------------------------------------------------------------------ */}
-      {coach && !exercice.raisonSubstitution && !exercice.messageProgression && <button className="coach-text-action live-detail-trigger" onClick={() => coach.ouvrir("observation_seance", {
+      {coach && !exercice.raisonSubstitution && !exercice.messageProgression && <button className="coach-text-action live-detail-trigger" onClick={() => coach.ouvrir("expliquer_seance", {
         typeEntite: "instance", entiteId: exercice.id, numeroSerie: serieCourante ?? undefined,
       })}>Pourquoi cette charge ?</button>}
       <div className="lecteur-actions">

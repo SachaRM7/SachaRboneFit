@@ -56,7 +56,7 @@ describe("conversation Coach", () => {
     await screen.findByText("Réponse suivante.");
     expect(JSON.parse(requetes.mock.calls.find(([url]) => url === "/api/coach/chat")![1].body).contexte).toBeNull();
   });
-  it("conserve la question après erreur et réessaie dans la conversation créée", async () => {
+  it.each(["Réessayer", "Envoyer le message"])("conserve la question après erreur et réessaie avec %s", async (bouton) => {
     const original = requetes.getMockImplementation()!;
     let appels = 0;
     requetes.mockImplementation((url, options) => url === "/api/coach/chat"
@@ -67,14 +67,15 @@ describe("conversation Coach", () => {
     fireEvent.click(screen.getByLabelText("Envoyer le message"));
     await screen.findByRole("alert");
     expect(screen.getByLabelText("Message au coach")).toHaveValue("Ma question");
-    fireEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    fireEvent.click(screen.getByRole("button", { name: bouton }));
     await screen.findByText("Réponse retrouvée.");
     expect(JSON.parse(requetes.mock.calls.filter(([url]) => url === "/api/coach/chat")[1]![1].body)).toMatchObject({ conversationId: "conv", retry: true, message: "Ma question" });
     expect(screen.getAllByLabelText("Ton message")).toHaveLength(1);
   });
-  it("confie douleur et machine occupée aux actions Live existantes", () => {
+  it("confie douleur et machine occupée aux actions Live existantes", async () => {
     const action = vi.fn();
     render(<FournisseurCoach><ActionsCoachLive onAction={action} /><CoachConversation contexte={{ ecran: "seance" }} onClose={vi.fn()} /></FournisseurCoach>);
+    await screen.findByRole("button", { name: "Une série ?" });
     fireEvent.click(screen.getByRole("button", { name: "J’ai une gêne" }));
     fireEvent.click(screen.getByRole("button", { name: "Machine occupée" }));
     expect(action.mock.calls).toEqual([["douleur"], ["machine"]]);
