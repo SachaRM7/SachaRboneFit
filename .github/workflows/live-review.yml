@@ -61,3 +61,4 @@ jobs:
           src/tests/douleur-vers-contrainte.itest.ts
           src/tests/symptome-general.itest.ts
           src/tests/isolation-comptes.itest.ts
+          src/tests/db-timeouts.itest.ts
