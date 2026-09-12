@@ -38,6 +38,10 @@ export default function FinishSessionPage() {
   const { templateId } = useParams();
   const router = useRouter();
   const { active, clear, setNotes, memoriserBilan } = useSessionStore();
+  const series = active?.sets;
+  const seriesMesurees = useMemo(() => (series ?? []).filter(
+    (s) => s.repsEffectuees !== null && s.charge !== null,
+  ) as Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number; rpeEffectif: number | null }>, [series]);
 
   const energie = active?.bilanEnCours?.energieFin ?? null;
   const notes = active?.notesSeance ?? "";
@@ -90,8 +94,8 @@ export default function FinishSessionPage() {
 
   // Un seul appel pour tous les noms, au lieu de deux par exercice.
   useEffect(() => {
-    if (!active) return;
-    const ids = [...new Set(active.sets.map((s) => s.exerciseInstanceId))];
+    if (!series) return;
+    const ids = [...new Set(series.map((s) => s.exerciseInstanceId))];
     if (ids.length === 0) return;
     void (async () => {
       const res = await fetch(`/api/exercise-instances?ids=${ids.join(",")}`);
@@ -102,8 +106,8 @@ export default function FinishSessionPage() {
           lignes.map((l) => [l.id, l.machineNom ? `${l.nom} — ${l.machineNom}` : l.nom]),
         ),
       );
-    })();
-  }, [active]);
+    })().catch(() => { /* La sauvegarde reste disponible si les noms ne chargent pas. */ });
+  }, [series]);
 
   const enregistrer = async () => {
     if (!active || envoiEnCours.current || !recap) return;
@@ -207,11 +211,7 @@ export default function FinishSessionPage() {
       )}
 
       <ProgressionSummary
-        sets={
-          active.sets.filter(
-            (s) => s.repsEffectuees !== null && s.charge !== null,
-          ) as Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number }>
-        }
+        sets={seriesMesurees}
         templateId={active.seanceTemplateId}
         sessionLogId={active.id}
       />

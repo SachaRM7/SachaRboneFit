@@ -28,19 +28,7 @@ interface SOSMachineOccupeeProps {
   onSubstitute: (substituteInstanceId: string, substituteName: string) => void;
 }
 
-/**
- * « Machine occupée », depuis l'exercice concerné.
- *
- * L'écran partait de `currentExerciseIndex` — un index qui ne pilote plus rien
- * depuis que toute la séance s'affiche d'un coup. La modale cherchait donc un
- * substitut à un exercice choisi au hasard, sans jamais demander lequel était
- * réellement pris.
- *
- * Et elle proposait la substitution d'emblée. Devant une machine occupée, la
- * première question n'est pas « par quoi la remplacer » mais « puis-je faire
- * autre chose et y revenir » : changer d'exercice coûte une comparaison
- * d'historique, passer à la suite ne coûte rien.
- */
+/** Alternatives du moteur pour l'exercice concerné, avec report toujours disponible. */
 export function SOSMachineOccupee({
   exercicesDeLaSeance,
   exerciseInstanceId,
