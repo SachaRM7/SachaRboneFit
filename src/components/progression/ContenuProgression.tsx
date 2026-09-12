@@ -13,7 +13,7 @@ import { BodyWeightChart } from "@/components/progression/BodyWeightChart";
 import { Records } from "@/components/progression/Records";
 import { BilanProgression } from "@/components/progression/BilanProgression";
 import type { Bilan } from "@/lib/engine/bilan-progression";
-import { DeclarerContexte } from "@/components/coach/ContexteCoach";
+import { DeclarerContexte, useCoach } from "@/components/coach/ContexteCoach";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { resoudreMascotteProgression } from "@/lib/coach/resoudre-mascotte";
 
@@ -80,6 +80,7 @@ interface ExerciceTravaille {
  * l'ouverture du bilan ce dont on ne se sert pas.
  */
 export function ContenuProgression({ bilan }: { bilan: Bilan }) {
+  const { ouvrir } = useCoach();
   const [vue, setVue] = useState<Vue | null>(null);
   const [exercices, setExercices] = useState<ExerciceTravaille[]>([]);
   const [instanceId, setInstanceId] = useState("");
@@ -151,6 +152,7 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
             <ChevronLeft className="w-5 h-5" />
           </button>
           <h1 className="text-xl font-bold">{active.libelle}</h1>
+          <button className="coach-text-action ml-auto text-sm" onClick={() => ouvrir()}>En parler</button>
         </header>
 
         <div className="px-4 space-y-4">
@@ -249,6 +251,7 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
         </div>
         <p className="eyebrow">La régularité fait la différence</p>
         <h1>Tes progrès.</h1>
+        <button className="coach-text-action" onClick={() => ouvrir()}>En parler au coach</button>
         {bilan?.periode && (
           <p className="text-encre-2 text-sm mt-0.5">
             Depuis le{" "}
