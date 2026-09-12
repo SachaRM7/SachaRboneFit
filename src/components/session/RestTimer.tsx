@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { Button } from "@/components/ui/button";
 
 interface RestTimerProps {
@@ -106,7 +107,7 @@ export function RestTimer({
 
   return (
     <div className="rest-v2 flex flex-col items-center gap-5 p-6">
-      <p className="eyebrow">La récupération fait partie du travail</p>
+      <p className="eyebrow">Repos</p>
       {/* SVG Circular Timer */}
       <div className="relative">
         <svg width="230" height="230" viewBox="0 0 180 180">
@@ -182,6 +183,7 @@ export function RestTimer({
         </div>
       </div>
 
+      <MascotteCoach etat="repos" taille="compact" presence="discrete" />
       {/* Ce vers quoi le repos mène. Absent quand l'exercice est fini : il n'y
           a alors pas de « prochaine », et en inventer une serait un mensonge. */}
       {prochaine && (
@@ -194,11 +196,10 @@ export function RestTimer({
       {/* Control buttons */}
       <div className="flex gap-4">
         <Button
-          variant="outline"
-          className="h-14 px-5 text-base bg-papier-2 border-filet text-encre"
+          className="h-14 px-5 text-base bg-encre text-papier"
           onClick={onSkip}
         >
-          Passer
+          {isOvertime ? "Continuer" : "Écourter le repos"}
         </Button>
         {/*
           « +30 s » n'a qu'une utilité, et elle est réelle : repousser le signal

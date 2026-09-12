@@ -1,4 +1,5 @@
 "use client";
+import { DetailsLive } from "./DetailsLive";
 import { Feu } from "@/components/carnet/Feu";
 import type { ExercicePrescrit } from "./types";
 import { classeDuMotif, estUneMontee } from "./motif-progression";
@@ -54,6 +55,7 @@ export function BandeauAdaptation({
       aria-label="Adaptations de la séance"
       className="live-adaptation border-b border-filet bg-papier-2 px-4 py-2 space-y-2"
     >
+      <DetailsLive titre="Adaptations de la séance" action={volumeReduit ? `Séance adaptée · volume −${Math.abs(volumeAjustePct!)} % · Pourquoi ?` : "Les ajustements de cette séance"}>
       {feuJour && (
         <p className="flex items-center gap-2 text-sm text-encre-2">
           <Feu niveau={feuJour} />
@@ -104,6 +106,7 @@ export function BandeauAdaptation({
           <span className="text-encre-2"> — {e.messageProgression}</span>
         </p>
       ))}
+      </DetailsLive>
     </section>
   );
 }

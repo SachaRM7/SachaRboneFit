@@ -1181,9 +1181,6 @@ function ContenuSeanceLive() {
           <div className="repos-panneau">
             {/* Elle accompagne le compte à rebours sans jamais le masquer, ni
                 « Passer », ni « +30 s ». Voir `.repos-mascotte`. */}
-            <div className="repos-mascotte">
-              <MascotteCoach etat="repos" taille="normal" presence="forte" anime />
-            </div>
             <RestTimer
               prochaine={prochaineSerie}
               durationSeconds={active.restDurationSeconds}

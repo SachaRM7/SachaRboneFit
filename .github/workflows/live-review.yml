@@ -1,0 +1,36 @@
+name: Live review
+on:
+  push:
+    branches: [codex/live-action]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-only-not-a-secret
+      DATABASE_URL: postgres://test:test@127.0.0.1:5432/test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        if: always()
+        run: npx next typegen && npx tsc --noEmit
+      - name: Unit tests
+        if: always()
+        run: npm test -- --maxWorkers=2 --testTimeout=15000
+      - name: Components
+        if: always()
+        run: npm run test:composants -- --maxWorkers=2
+      - name: Build
+        if: always()
+        run: npm run build

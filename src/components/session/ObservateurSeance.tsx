@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { DetailsLive } from "./DetailsLive";
 import { X } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
@@ -88,7 +89,8 @@ export function ObservateurSeance({
         <MascotteCoach etat="intervention" taille="compact" presence="discrete" anime />
         <div className="min-w-0 flex-1">
           <p className="text-encre text-sm font-medium">{titre(evenement)}</p>
-          <p className="text-encre-2 text-xs mt-0.5">{fait}</p>
+          <DetailsLive titre={titre(evenement)} action="Pourquoi ?">
+          <p className="text-encre-2 text-sm">{fait}</p>
           {onDemanderCoach && (
             <button
               type="button"
@@ -98,6 +100,7 @@ export function ObservateurSeance({
               En parler au coach
             </button>
           )}
+          </DetailsLive>
         </div>
         <button
           type="button"
