@@ -47,5 +47,5 @@ body:has(.coach-page) { overflow: hidden; }
 .coach-history h2 { font-size: 26px; }.coach-thread { display: grid; gap: 6px; text-align: left; width: 100%; padding: 18px 0; border-bottom: 1px solid var(--filet-doux); }.coach-thread strong { font-weight: 550; }.coach-thread span { color: var(--encre-2); font-size: 13px; }.coach-thread time { font-size: 11px; color: var(--encre-3); }
 .coach-error { padding: 14px; border-radius: 14px; background: var(--brand-soft); margin-top: 16px; }.coach-error button { min-height: 44px; text-decoration: underline; }
 .coach-thinking { color: var(--encre-2); font-size: 14px; padding: 12px 0; }
-@media (min-width: 900px) { .coach-page { left: 240px; } .coach-entry { padding-top: 30px; } }
+@media (min-width: 900px) { .coach-entry { padding-top: 30px; } }
 @media (max-height: 550px) { .coach-entry .mascotte { display: none; }.coach-entry { padding-top: 0; }.coach-scroll { padding-top: 12px; }.coach-compose textarea { max-height: 80px; } }

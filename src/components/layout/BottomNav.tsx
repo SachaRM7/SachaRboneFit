@@ -45,6 +45,7 @@ export function BottomNav() {
   )?.[1];
   const actif = (href: string) =>
     rattachement ? href === rattachement : chemin.startsWith(href);
+  if (chemin === "/coach") return null;
   return (
     <nav
       aria-label="Navigation principale"
