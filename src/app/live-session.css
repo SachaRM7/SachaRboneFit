@@ -1648,3 +1648,101 @@
   font-size: 10px;
   color: var(--encre-3);
 }
+/* Live orienté action : mêmes données, niveaux de lecture distincts. */
+.focus-carte { border: 0; box-shadow: none; overflow: hidden; }
+.lecteur-hero { padding: 1rem 1rem .5rem; gap: .8rem; }
+.lecteur-illustration { width: 64px; height: 74px; flex-shrink: 0; }
+.lecteur-titre h2 { font-size: clamp(1.2rem, 5.5vw, 1.6rem); line-height: 1.12; }
+.lecteur-titre p { font-size: .75rem; }
+.lecteur-hero .lecteur-avancement { display: none; }
+.live-exercise-help { padding: 0 1rem; font-size: .8rem; }
+.live-exercise-help > summary, .live-debrief-detail > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--primary); font-weight: 600; }
+.live-exercise-help > summary::after, .live-debrief-detail > summary::after { content: '+'; margin-left: auto; }
+.live-exercise-help[open] > summary::after, .live-debrief-detail[open] > summary::after { content: '−'; }
+.live-exercise-help .lecteur-reperes { padding: .5rem 0; }
+.live-technique-link, .live-detail-trigger { min-height: 44px; padding: .6rem 1rem; font-size: .8rem; text-align: left; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; color: var(--encre-2); }
+.live-detail-sheet[data-slot="dialog-content"] { display: flex; flex-direction: column; position: fixed; z-index: 65; top: auto; bottom: 0; left: 50%; translate: -50% 0; width: min(100%, 560px); max-width: 100%; max-height: calc(100dvh - max(1rem, env(safe-area-inset-top))); padding: 0; gap: 0; overflow: hidden; background: var(--papier); border-radius: 1.5rem 1.5rem 0 0; }
+.live-detail-sheet [data-slot="dialog-header"] { position: relative; padding: 1.25rem 4rem 1.25rem 1.25rem; border-bottom: 1px solid var(--filet-doux); }
+.live-detail-close { position: absolute; right: .75rem; top: .75rem; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--papier-2); cursor: pointer; }
+.live-detail-body { padding: 1.25rem max(1.25rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left)); min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 1rem; }
+.serie-en-cours { margin: .5rem; padding: 1rem; border-radius: 1.2rem; }
+.mesures-paire[hidden] { display: none; }
+.mesure-valeur { font-variant-numeric: tabular-nums; }
+.live-effort-cible { font-size: .8rem; margin: .5rem 0; color: var(--encre-2); }
+.live-ressenti-recap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
+.live-ressenti-recap strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.live-ressenti-recap button { min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-size: .75rem; cursor: pointer; }
+.serie-valider { min-height: 56px; font-size: 1rem; }
+.serie-valider:disabled { opacity: .45; cursor: not-allowed; }
+.live-adaptation { padding-block: 0; border: 0; background: transparent; }
+.live-adaptation > .live-detail-trigger { padding-inline: 0; }
+.coach-constat { padding-block: .6rem; }
+.coach-constat .live-detail-trigger { padding: .25rem 0; }
+.rest-v2 { gap: .8rem; padding: 1.25rem; }
+.rest-v2 > .eyebrow { margin: 0; }
+.rest-v2 .repos-prochaine { margin: 0; }
+.live-finish { max-width: 640px; margin-inline: auto; padding-bottom: calc(2rem + var(--marge-bas)); }
+.live-finish-heading { display: flex; align-items: center; gap: 1rem; padding-block: 1rem; }
+.live-finish-heading h1 { font-family: var(--font-heading); font-size: clamp(1.7rem, 7vw, 2.4rem); line-height: 1.1; letter-spacing: -.035em; }
+.live-finish-stats { border: 0; border-radius: 1.3rem; background: var(--carte); }
+.live-finish-stats > div { background: transparent; padding-block: 1rem; }
+.live-finish-stats .chiffres { font-size: 1.8rem; }
+.live-debrief-detail { border-top: 1px solid var(--filet-doux); }
+.live-save { min-height: 56px; }
+.live-save-error { padding: 1rem; background: var(--perte-fond); color: var(--perte); border-radius: 1rem; }
+.live-session :is(button,a,summary):focus-visible, .live-detail-sheet :is(button,a,summary):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+@media (max-width: 359px) {
+  .serie-en-cours { padding: .75rem; }
+  .mesure-valeur { font-size: 1.65rem; }
+  .lecteur-illustration { width: 52px; height: 62px; }
+}
+@media (min-width: 640px) {
+  .live-detail-sheet[data-slot="dialog-content"] { top: 50%; bottom: auto; translate: -50% -50%; border-radius: 1.5rem; max-height: 85dvh; }
+}
+/* Les chiffres ont toute la largeur de leur colonne ; les crans restent à 44 px. */
+.serie-en-cours .mesures-paire .mesure-ligne { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+.serie-en-cours .mesures-paire .mesure-valeur { grid-column: 1 / -1; grid-row: 1; min-height: 50px; font-size: clamp(2rem, 8vw, 3rem); }
+.serie-en-cours .mesures-paire .mesure-ligne > :is(button,span) { grid-row: 2; }
+.live-effort-cible { color: #cbd7c9; }
+.focus-nav { margin-bottom: .5rem; }
+.live-session > main { padding-top: .5rem; }
+
+/* Polish ciblé : mêmes surfaces pour la saisie, le ressenti et l'édition. */
+.focus-carte .serie-en-cours {
+  display: flex;
+  flex-direction: column;
+  min-height: 292px;
+  gap: 14px;
+  border: 1px solid transparent;
+}
+.focus-carte .serie-en-cours[data-edition] { border-color: var(--electric); }
+.focus-carte .serie-en-cours-titre { display: flex; align-items: center; gap: 5px; }
+.focus-carte .serie-valider { width: 100%; margin-top: auto; border-radius: 14px; }
+.focus-carte .live-ressenti { gap: 12px; }
+.focus-carte .reserve-question { font-family: var(--font-heading); font-size: 1.08rem; line-height: 1.35; font-weight: 550; }
+.focus-carte .reserve-objectif { font-size: .75rem; }
+.focus-carte .live-ressenti-recap { padding-bottom: 8px; border-bottom: 1px solid #ffffff1f; }
+.focus-carte .live-ressenti-recap strong { font-size: 1.1rem; }
+.focus-carte .live-ressenti-recap button { color: #cbd7c9; }
+.focus-carte .mesure-choix { gap: 6px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.focus-carte .mesure-choix > button { min-height: 48px; border-radius: 12px; }
+.focus-carte .lecteur-faites { margin: 0 .5rem; }
+.focus-carte .lecteur-faites > li { flex-wrap: nowrap; padding: 4px 10px; gap: 8px; background: var(--papier-2); border-radius: 14px; }
+.focus-carte .lecteur-faites > li > button { min-width: 44px; padding: 0; justify-content: center; }
+.focus-carte .lecteur-faite-nom { font-size: .65rem; }
+.focus-carte .lecteur-faite-valeur { flex: 1; font-size: .78rem; }
+.live-aides-compactes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 8px; margin: 0 .5rem; align-items: start; }
+.live-aides-compactes .live-exercise-help { padding: 0; font-size: .75rem; }
+.live-aides-compactes .live-exercise-help > summary { gap: 6px; font-weight: 500; color: var(--encre-2); }
+.live-aides-compactes .live-exercise-help[open] { grid-column: 1 / -1; }
+.live-aides-compactes .live-technique-link { padding: .5rem 0; font-size: .75rem; text-align: right; }
+.live-aides-compactes :is(.premier-repere, .preparation-machine, .premier-repere-estimation) { background: transparent; border: 0; box-shadow: none; padding-inline: 0; }
+.live-aides-compactes .premier-repere { margin: 0; }
+.live-aides-compactes .premier-repere-conseil { background: var(--papier-2); color: var(--encre-2); border-radius: 12px; }
+.focus-carte .lecteur-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0 .5rem .5rem; }
+.focus-carte .lecteur-actions > *:first-child { min-width: 0; }
+.focus-carte .lecteur-actions button { min-height: 44px; border-radius: 12px; padding: 0 8px; font-size: .75rem; font-weight: 500; display: flex; justify-content: center; align-items: center; gap: 5px; }
+@media (max-width: 379px) {
+  .focus-carte .mesure-choix { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .live-aides-compactes { gap: 0 6px; }
+}

@@ -107,8 +107,11 @@ function demarrer() {
 
 beforeEach(demarrer);
 
-const valider = () =>
-  userEvent.setup().click(screen.getByRole("button", { name: /Valider la série/ }));
+const valider = async () => {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+  await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
+};
 
 const exerciceAffiche = () =>
   document.querySelector(".lecteur-titre h2")?.textContent;

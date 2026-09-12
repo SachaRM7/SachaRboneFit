@@ -3,7 +3,7 @@ import {
   contraintes, dailyStates, exerciseInTemplate, exerciseInstances, exercises,
   programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs, users,
 } from "@/db/schema";
-import { and, asc, desc, eq, getTableName, inArray, isNull, or, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, getTableName, inArray, isNull, or, gte, sql } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { contraintesActives } from "./contraintes";
 import { musclesSousContrainte } from "@/lib/engine/contraintes";
@@ -200,6 +200,7 @@ export interface ReferenceExercice {
 export async function dernieresSeriesPour(
   userId: string,
   exerciseInstanceIds: string[],
+  sessionExclue?: string,
 ): Promise<Map<string, ReferenceExercice>> {
   const resultat = new Map<string, ReferenceExercice>();
   const instances = [...new Set(exerciseInstanceIds)].filter(Boolean);
@@ -228,6 +229,7 @@ export async function dernieresSeriesPour(
     .where(and(
       inArray(setLogs.exerciseInstanceId, instances),
       and(eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)),
+      sessionExclue ? ne(sessionLogs.id, sessionExclue) : undefined,
     ))
     .orderBy(desc(sessionLogs.date), desc(sessionLogs.createdAt), asc(setLogs.numeroSerie));
 
@@ -279,8 +281,9 @@ export async function dernieresSeriesPour(
 export async function derniereSeriesPour(
   userId: string,
   exerciseInstanceId: string,
+  sessionExclue?: string,
 ): Promise<ReferenceExercice | null> {
-  const parInstance = await dernieresSeriesPour(userId, [exerciseInstanceId]);
+  const parInstance = await dernieresSeriesPour(userId, [exerciseInstanceId], sessionExclue);
   return parInstance.get(exerciseInstanceId) ?? null;
 }
 

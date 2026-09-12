@@ -1,5 +1,9 @@
 "use client";
 import { useState, type ReactNode } from "react";
+import { DetailsLive } from "./DetailsLive";
+import { toast } from "sonner";
+import { motifSerieInvalide, LIBELLES_MOTIF_INVALIDE } from "@/lib/engine/serie-realisee";
+import { chargeAEnregistrer } from "@/lib/validators/exercise-instance";
 import { Check, ChevronRight, Minus, Pencil, Plus, Trash2 } from "lucide-react";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { DemonstrationMouvement } from "./DemonstrationMouvement";
@@ -20,45 +24,7 @@ import { GuidagePremiereSerie, PreparationMachine } from "./GuidagePremiereSerie
 import { phasesDuTempo, tempoAvecSecondes } from "./execution-client";
 import type { ExercicePrescrit } from "./types";
 
-/**
- * LA CARTE DE L'EXERCICE, AU PREMIER PLAN — le lecteur de séance.
- *
- * CE QUE « FOCUS » VEUT DIRE, ET CE QU'IL NE VEUT PAS DIRE
- *
- * Une première version avait lu « Focus » comme « le formulaire de saisie prend
- * tout l'écran ». Elle empilait sept surfaces indépendantes — hero, repères,
- * séries faites, un énorme bloc sombre de compteurs, fin, actions, appoint — et
- * on se retrouvait à remplir trois compteurs plutôt qu'à être SUR le Deadlift.
- *
- * Le Focus est la CARTE de l'exercice qui passe au premier plan. Tout ce qui
- * appartient à cet exercice — son dessin, son nom, sa machine, sa prescription,
- * son avancement, son repère, ses séries faites, sa série en cours, sa
- * technique, ses actions — vit dans UNE composition, parce que c'est UN
- * exercice. La série en cours y ressort nettement, mais elle est un bloc DANS
- * la carte, pas une scène qui écrase le reste.
- *
- * POURQUOI CE COMPOSANT N'EST PAS `TableauSeries`
- *
- * La première version du Focus était le tableau de la vue Liste avec un
- * exercice au lieu de six. Les deux vues se ressemblaient donc au point qu'on
- * ne savait pas laquelle on regardait, et le Focus héritait de ce qui fait la
- * force du carnet et la faiblesse d'un écran d'effort : une grille de champs,
- * des libellés de colonne, une densité faite pour relire.
- *
- * Or on ne relit pas entre deux séries. On est essoufflé, on tient le téléphone
- * d'une main, on a trente secondes. La question n'est pas « où en suis-je dans
- * le tableau » mais « qu'est-ce que je fais maintenant ». D'où cette
- * composition : la série en cours occupe l'écran, ce qui est fait se replie en
- * résumé, et le geste de validation est un bouton qu'on ne peut pas rater.
- *
- * CE QU'IL PARTAGE AVEC LA VUE LISTE
- *
- * Tout ce qui décide : `useSaisieSeries`. Les mêmes lignes, les mêmes valeurs,
- * la même validation, les mêmes refus, le même store. Ce qui diffère est la
- * mise en page — et c'est la donnée commune, pas un composant commun, qui
- * garantit qu'une série validée ici l'est là-bas.
- */
-
+/** Focus orchestre action, ressenti et aides autour du contrôleur de saisie commun. */
 interface Props {
   exercice: ExercicePrescrit;
   rpeReduction: number;
@@ -83,6 +49,8 @@ export function LecteurExercice({
   const {
     lignes,
     serieCourante,
+    ressenti,
+    setRessenti,
     exerciceTermine,
     slotRempliAilleurs,
     valeurs,
@@ -99,6 +67,7 @@ export function LecteurExercice({
   const { contexte, remplacer } = useContexteExecution(exercice);
   const [demonstration, setDemonstration] = useState(false);
   const [fiche, setFiche] = useState(false);
+  const [serieEditee, setSerieEditee] = useState<number | null>(null);
 
   const faites = lignes.filter(estValidee);
   const derniereFois = resumeDesSeries(exercice.historique ?? []);
@@ -157,6 +126,7 @@ export function LecteurExercice({
       </header>
 
       {(exercice.raisonSubstitution || exercice.messageProgression) && (
+        <DetailsLive titre="Pourquoi cette prescription ?" action="Pourquoi cette charge / cet exercice ?">
         <p className="lecteur-mot">
           {exercice.raisonSubstitution && <span>{exercice.raisonSubstitution}</span>}
           {exercice.messageProgression && (
@@ -165,6 +135,7 @@ export function LecteurExercice({
             </span>
           )}
         </p>
+        </DetailsLive>
       )}
       {reporte && (
         <p className="live-reporte-bandeau">Reporté · à reprendre avant de terminer</p>
@@ -173,54 +144,6 @@ export function LecteurExercice({
       {/* ------------------------------------------------------------------
           LES REPÈRES — ce qu'on sait déjà, sans voler la vedette à la série.
           ------------------------------------------------------------------ */}
-      <div className="lecteur-reperes">
-        {derniereFois && (
-          <section>
-            <p className="eyebrow">Dernière fois</p>
-            {/* Jamais de faux repère : après une substitution, la nouvelle machine
-                n'a pas d'historique, et emprunter la charge de l'ancienne ferait
-                croire à une progression là où le même nombre ne déplace pas la
-                même chose. */}
-            <p className="lecteur-repere-valeur chiffres">{derniereFois}</p>
-          </section>
-        )}
-
-        {contexte && (contexte.tempo || contexte.resumeReglages || contexte.note) && (
-          <section>
-            <p className="eyebrow">Repères</p>
-            <p className="lecteur-repere-detail">
-              {[
-                tempoCourt ? `Tempo ${tempoCourt}` : null,
-                contexte.resumeReglages,
-                contexte.note,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </section>
-        )}
-
-        {contexte && (
-          <button type="button" onClick={() => setFiche(true)}>
-            {contexte.reglages.length > 0 || contexte.peutDecrire
-              ? "Technique & réglages"
-              : "Technique & note"}
-          </button>
-        )}
-      </div>
-
-      {sansRepere && faites.length === 0 && contexte && (
-        <PreparationMachine contexte={contexte} onOuvrir={() => setFiche(true)} />
-      )}
-
-      {sansRepere && modeReserve && (
-        <GuidagePremiereSerie
-          exercice={exercice}
-          rpeReduction={rpeReduction}
-          valeurs={valeursDuDernierEssai}
-        />
-      )}
-
       {/* ------------------------------------------------------------------
           CE QUI EST FAIT — compacté, jamais effacé.
           ------------------------------------------------------------------ */}
@@ -248,11 +171,10 @@ export function LecteurExercice({
                     devient pas intouchable. */}
                 <button
                   type="button"
-                  onClick={() => basculer(numero)}
+                  onClick={() => { setSerieEditee(numero); basculer(numero); }}
                   aria-label={`Modifier la série ${numero}`}
                 >
                   <Pencil className="w-3.5 h-3.5" aria-hidden />
-                  Modifier
                 </button>
                 {/* Une série ajoutée reste retirable APRÈS validation : la
                     valider ne doit pas l'enfermer. Même geste, même règle —
@@ -278,7 +200,11 @@ export function LecteurExercice({
           ------------------------------------------------------------------ */}
       {serieCourante !== null && (
         <SerieEnCours
+          key={`${exercice.id}:${serieCourante}`}
           exercice={exercice}
+          ressenti={ressenti}
+          setRessenti={(valeur) => setRessenti(valeur ? serieCourante : null)}
+          edition={serieEditee === serieCourante}
           numero={serieCourante}
           total={exercice.seriesCibles}
           supplementaire={serieCourante > exercice.seriesCibles}
@@ -290,14 +216,64 @@ export function LecteurExercice({
           }
           modeReserve={modeReserve}
           rpeReduction={rpeReduction}
-          afficherConsigne={!sansRepere}
+          afficherConsigne
           premierEssai={sansRepere}
           valeurs={valeurs(serieCourante)}
           ecrire={(champ, valeur) => ecrire(serieCourante, champ, valeur)}
           alerte={alerte}
-          onValider={() => basculer(serieCourante)}
+          onValider={() => { basculer(serieCourante); setSerieEditee(null); }}
         />
       )}
+
+      <div className="live-aides-compactes">
+      <details className="live-exercise-help">
+        <summary>{sansRepere ? "Aide · premier repère" : "Mes repères"}</summary>
+      <div className="lecteur-reperes">
+        {derniereFois && (
+          <section>
+            <p className="eyebrow">Dernière fois</p>
+            {/* Jamais de faux repère : après une substitution, la nouvelle machine
+                n'a pas d'historique, et emprunter la charge de l'ancienne ferait
+                croire à une progression là où le même nombre ne déplace pas la
+                même chose. */}
+            <p className="lecteur-repere-valeur chiffres">{derniereFois}</p>
+          </section>
+        )}
+
+        {contexte && (contexte.tempo || contexte.resumeReglages || contexte.note) && (
+          <section>
+            <p className="eyebrow">Repères</p>
+            <p className="lecteur-repere-detail">
+              {[
+                tempoCourt ? `Tempo ${tempoCourt}` : null,
+                contexte.resumeReglages,
+                contexte.note,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </section>
+        )}
+
+      </div>
+
+      {sansRepere && faites.length === 0 && contexte && (
+        <PreparationMachine contexte={contexte} onOuvrir={() => setFiche(true)} />
+      )}
+
+      {sansRepere && modeReserve && (
+        <GuidagePremiereSerie
+          exercice={exercice}
+          rpeReduction={rpeReduction}
+          valeurs={valeursDuDernierEssai}
+        />
+      )}
+
+      </details>
+      {contexte && <button type="button" className="live-technique-link" onClick={() => setFiche(true)}>
+        Technique & réglages
+      </button>}
+      </div>
 
       {/* ------------------------------------------------------------------
           LA FIN D'UNE ÉTAPE — pas un formulaire vide.
@@ -322,7 +298,7 @@ export function LecteurExercice({
               normal, et un écran qui avance sans consentement l'interdit. */}
           {onSuivant && (
             <button type="button" onClick={onSuivant} className="lecteur-suivant">
-              Exercice suivant
+              Continuer · exercice suivant
               <ChevronRight className="w-4 h-4" aria-hidden />
             </button>
           )}
@@ -332,13 +308,8 @@ export function LecteurExercice({
       {/* ------------------------------------------------------------------
           LES ACTIONS — hiérarchisées, jamais enterrées.
           ------------------------------------------------------------------ */}
-      {actions && <div className="lecteur-actions">{actions}</div>}
-
-      {/* Le pied ne porte plus que l'ajout : « Retirer la série N » y était
-          déconnecté de la série qu'il visait, et on le lisait après avoir
-          scrollé au-delà des contrôles. La poubelle vit maintenant sur la
-          série elle-même. */}
-      <div className="lecteur-appoint">
+      <div className="lecteur-actions">
+        {actions}
         <button type="button" onClick={ajouterUneSerie}>
           <Plus className="w-3.5 h-3.5" aria-hidden />
           Série en plus
@@ -385,6 +356,9 @@ export function LecteurExercice({
  */
 function SerieEnCours({
   exercice,
+  edition,
+  ressenti,
+  setRessenti,
   numero,
   total,
   supplementaire,
@@ -399,6 +373,9 @@ function SerieEnCours({
   onSupprimer,
 }: {
   exercice: ExercicePrescrit;
+  edition: boolean;
+  ressenti: boolean;
+  setRessenti: (valeur: boolean) => void;
   numero: number;
   total: number;
   supplementaire: boolean;
@@ -413,6 +390,15 @@ function SerieEnCours({
   /** Retirer cette série ajoutée à la main, ou `null` si elle ne l'est pas. */
   onSupprimer: (() => void) | null;
 }) {
+  const terminerSerie = () => {
+    const motif = motifSerieInvalide({
+      charge: chargeAEnregistrer(valeurs.charge, exercice.conventionCharge),
+      repsEffectuees: Number.parseInt(valeurs.reps, 10),
+      rpeEffectif: null,
+    }, { conventionCharge: exercice.conventionCharge, natureCharge: exercice.natureCharge });
+    if (motif) { toast.error(LIBELLES_MOTIF_INVALIDE[motif]); return; }
+    setRessenti(true);
+  };
   const crans = cransDeCharge(exercice, valeurs.charge, (v) => ecrire("charge", v));
   const reps = Number.parseInt(valeurs.reps, 10) || 0;
   const reserve = rpeVersReserve(effortSaisi(valeurs.rpe));
@@ -427,9 +413,10 @@ function SerieEnCours({
     && (!premierEssai || valeurs.charge.trim().length > 0);
 
   return (
-    <section className="serie-en-cours" aria-label={`Série ${numero}`}>
+    <section className="serie-en-cours" data-etape={ressenti ? "ressenti" : "serie"} data-edition={edition || undefined} aria-label={`Série ${numero}`}>
       <div className="serie-en-cours-tete">
         <p className="serie-en-cours-titre">
+          {edition && <Pencil size={14} aria-label="Modification" />}
           {supplementaire ? (
             <>Série <span className="chiffres">{numero}</span> · <strong>Supplémentaire</strong></>
           ) : (
@@ -453,7 +440,7 @@ function SerieEnCours({
 
       {/* Charge et répétitions se partagent une rangée : ce sont les deux
           nombres qu'on ajuste ensemble, et les empiler coûtait un demi-écran. */}
-      <div className="mesures-paire">
+      <div className="mesures-paire" hidden={ressenti}>
         {/* --- La charge, aux crans de l'appareil --- */}
         <div className="mesure">
         <p className="eyebrow">{libelleChampCharge(exercice.natureCharge)}</p>
@@ -538,7 +525,7 @@ function SerieEnCours({
         Hors de la paire : elle appartient à la série, et coincée dans une
         demi-colonne son message serait illisible.
       */}
-      {alerte && (
+      {!ressenti && alerte && (
         <div className="mesure-alerte">
           <p>{alerte.message}</p>
           <div>
@@ -556,8 +543,13 @@ function SerieEnCours({
         </div>
       )}
 
-      {/* --- L'effort : une réserve en calibration, un RPE sinon --- */}
-      <div className="mesure">
+      {!ressenti && reserveCible !== null && <p className="live-effort-cible">≈ {reserveCible} répétitions en réserve</p>}
+      {ressenti && <div className="live-ressenti-recap">
+        <strong>{valeurs.charge} {libelleChampCharge(exercice.natureCharge)} · {valeurs.reps} reps</strong>
+        <button type="button" onClick={() => setRessenti(false)}>Modifier charge / reps</button>
+      </div>}
+      {/* La cible reste une prescription ; seul le choix ci-dessous est observé. */}
+      {ressenti && <div className="mesure live-ressenti" role="group" aria-label="Après la série : ton ressenti">
         <p className="eyebrow">
           {modeReserve ? "Ton ressenti" : "Effort perçu"}
         </p>
@@ -633,11 +625,12 @@ function SerieEnCours({
         )}
       </div>
 
+      }
       {/* Le geste. Gros, accentué, atteignable au pouce — et le seul de sa
           taille sur l'écran, pour qu'aucun autre ne lui ressemble. */}
-      <button type="button" onClick={onValider} className="serie-valider">
+      <button type="button" onClick={ressenti ? onValider : terminerSerie} className="serie-valider" disabled={ressenti && modeReserve && reserve === null}>
         <Check className="w-5 h-5" aria-hidden />
-        Valider la série
+        {ressenti ? "Enregistrer la série" : "J’ai fini ma série"}
       </button>
     </section>
   );

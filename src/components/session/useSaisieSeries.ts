@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { ExercicePrescrit } from "./types";
@@ -105,7 +105,12 @@ export function useSaisieSeries({
     active?.additionalSetCounts?.[exercice.id] ?? 0,
     ...seriesSaisies.map((s) => Math.max(0, s.numeroSerie - exercice.seriesCibles)),
   );
-  const [brouillons, setBrouillons] = useState<Record<number, Brouillon>>({});
+  const brouillons = active?.saisiesEnCours?.[exercice.id] ?? {};
+  const setBrouillons = (modifier: (actuels: Record<number, Brouillon>) => Record<number, Brouillon>) => {
+    const store = useSessionStore.getState();
+    store.memoriserSaisies(exercice.id, modifier(store.active?.saisiesEnCours?.[exercice.id] ?? {}));
+  };
+  const setRessenti = (numero: number | null) => useSessionStore.getState().memoriserEtapeRessenti(exercice.id, numero);
 
   /** Le slot de prescription : il survit aux substitutions, l'entrée non. */
   const lignee: LigneeSlot = ligneeDe(active?.lignees ?? [], exercice.id);
@@ -325,6 +330,7 @@ export function useSaisieSeries({
       numero <= exercice.seriesCibles &&
       slotsARemplir(lignee, apres, exercice.seriesCibles).length === 0;
 
+    setRessenti(null);
     onSerieValidee({
       exerciseInstanceId: exercice.id,
       reposSecondes: exercice.reposSecondes ?? null,
@@ -380,6 +386,8 @@ export function useSaisieSeries({
   return {
     lignes,
     serieCourante,
+    ressenti: serieCourante !== null && active?.ressentisEnCours?.[exercice.id] === serieCourante,
+    setRessenti,
     /** Vrai quand la prescription est remplie — voir `serieCourante`. */
     exerciceTermine: serieCourante === null && lignes.length > 0,
     /** Vrai quand ce slot a été rempli ailleurs : rien à demander ici. */

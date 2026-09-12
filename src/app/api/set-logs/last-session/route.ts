@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { derniereSeriesPour } from "@/services/plan-seance";
 
@@ -26,7 +27,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "exerciseInstanceId required" }, { status: 400 });
   }
 
-  const derniere = await derniereSeriesPour(userId, exerciseInstanceId);
+  const sessionExclue = new URL(request.url).searchParams.get("excludeSessionId");
+  if (sessionExclue && !z.string().uuid().safeParse(sessionExclue).success) {
+    return NextResponse.json({ error: "Invalid excludeSessionId" }, { status: 400 });
+  }
+  // Le bilan ne compare jamais une séance à ses propres séries autosauvegardées.
+  const derniere = await derniereSeriesPour(userId, exerciseInstanceId, sessionExclue ?? undefined);
   if (!derniere) return NextResponse.json(null);
 
   return NextResponse.json({ sets: derniere.sets });

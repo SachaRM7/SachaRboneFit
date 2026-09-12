@@ -1,5 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
+import { DialogClose } from "@/components/ui/dialog";
+import { DetailsLive } from "./DetailsLive";
 import { X } from "lucide-react";
 import { useSessionStore } from "@/stores/sessionStore";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
@@ -72,9 +74,10 @@ export function ObservateurSeance({
   const aMontrer = aSignaler.filter((e) => !ecartes.includes(cle(e)));
   if (aMontrer.length === 0) return null;
 
-  // Un seul à la fois, le plus récent : trois encarts empilés au milieu d'une
-  // séance ne se lisent pas.
-  const evenement = aMontrer[aMontrer.length - 1]!;
+  // Un seul constat : l'effort trop élevé et les reps manquantes passent
+  // avant les observations utiles. La sécurité reste portée par les SOS.
+  const priorite = (e: EvenementSeance) => e.type === "effort_au_dela_de_la_cible" ? 2 : e.type === "reps_sous_la_fourchette" ? 1 : 0;
+  const evenement = aMontrer.reduce((retenu, suivant) => priorite(suivant) >= priorite(retenu) ? suivant : retenu);
   const fait = libelleFactuel(evenement);
 
   return (
@@ -88,16 +91,17 @@ export function ObservateurSeance({
         <MascotteCoach etat="intervention" taille="compact" presence="discrete" anime />
         <div className="min-w-0 flex-1">
           <p className="text-encre text-sm font-medium">{titre(evenement)}</p>
-          <p className="text-encre-2 text-xs mt-0.5">{fait}</p>
+          <DetailsLive titre={titre(evenement)} action="Pourquoi ?">
+          <p className="text-encre-2 text-sm">{fait}</p>
           {onDemanderCoach && (
-            <button
-              type="button"
+            <DialogClose render={<button />}
               onClick={() => onDemanderCoach(evenement, fait)}
               className="coach-constat-action"
             >
               En parler au coach
-            </button>
+            </DialogClose>
           )}
+          </DetailsLive>
         </div>
         <button
           type="button"

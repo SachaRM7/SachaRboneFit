@@ -94,7 +94,11 @@ export function SessionDebrief({ sessionLogId }: SessionDebriefProps) {
         </div>
       ) : debrief ? (
         <>
-          <p className="text-sm text-encre-2 whitespace-pre-wrap">{debrief.contenu}</p>
+          <p className="text-sm text-encre-2 whitespace-pre-wrap">{debrief.contenu.split(/\n\s*\n/)[0]?.slice(0, 280)}{(debrief.contenu.split(/\n\s*\n/)[0]?.length ?? 0) > 280 ? "…" : ""}</p>
+          <details className="live-debrief-detail">
+            <summary>Voir l’analyse complète du Coach</summary>
+            <p className="text-sm text-encre-2 whitespace-pre-wrap">{debrief.contenu}</p>
+          </details>
           {/* Ce que le texte est : daté, et écrit par quelque chose. Sans ça,
               un débrief d'il y a six mois se lit comme une lecture du jour. */}
           <p className="text-encre-3 text-xs">

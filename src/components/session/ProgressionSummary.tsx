@@ -31,6 +31,8 @@ import { Delta } from "@/components/carnet/Delta";
  * consiste à en demander moins. Le calcul standard dirait l'inverse.
  */
 
+const APERCU_EXERCICES = 2;
+
 interface InstanceLue {
   id: string;
   nom: string;
@@ -59,6 +61,7 @@ interface ProgressionSummaryProps {
     rpeEffectif?: number | null;
   }>;
   templateId: string;
+  sessionLogId?: string;
 }
 
 /**
@@ -75,7 +78,7 @@ export function formaterCharge(valeur: number): string {
     : arrondi.toFixed(1).replace(".", ",");
 }
 
-export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
+export function ProgressionSummary({ sets, sessionLogId }: ProgressionSummaryProps) {
   const [chargement, setChargement] = useState(true);
   const [lignes, setLignes] = useState<LigneRecap[]>([]);
 
@@ -116,7 +119,7 @@ export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
               );
 
           const precedentes: Array<{ charge: number; reps: number; rpe?: number | null }> =
-            await fetch(`/api/set-logs/last-session?exerciseInstanceId=${id}`)
+            await fetch(`/api/set-logs/last-session?exerciseInstanceId=${id}${sessionLogId ? `&excludeSessionId=${encodeURIComponent(sessionLogId)}` : ""}`)
               .then((r) => (r.ok ? r.json() : null))
               .then((d) => d?.sets ?? [])
               .catch(() => []);
@@ -159,7 +162,7 @@ export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
     })();
 
     return () => { annule = true; };
-  }, [sets]);
+  }, [sets, sessionLogId]);
 
   if (chargement) {
     return (
@@ -177,7 +180,24 @@ export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
   return (
     <div className="space-y-2">
       <p className="text-encre-3 text-sm italic">Ce que cette séance a mesuré</p>
-      {lignes.map((l) => (
+      {lignes.slice(0, APERCU_EXERCICES).map((l) => <LigneMesuree key={l.exerciseInstanceId} l={l} />)}
+      {lignes.length > APERCU_EXERCICES && <details className="live-debrief-detail">
+        <summary>Voir tous les exercices ({lignes.length})</summary>
+        {lignes.slice(APERCU_EXERCICES).map((l) => <LigneMesuree key={l.exerciseInstanceId} l={l} />)}
+      </details>}
+
+      {lignes.some((l) => l.premiereFois) && (
+        <p className="text-encre-3 text-xs pt-1">
+          Une baseline n&apos;est pas un maximum&nbsp;: c&apos;est le repère à partir duquel
+          les charges seront proposées.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function LigneMesuree({ l }: { l: LigneRecap }) {
+  return (
         <div
           key={l.exerciseInstanceId}
           className="border-t border-filet-doux pt-2.5 flex items-start justify-between gap-3"
@@ -224,14 +244,5 @@ export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
             )}
           </div>
         </div>
-      ))}
-
-      {lignes.some((l) => l.premiereFois) && (
-        <p className="text-encre-3 text-xs pt-1">
-          Une baseline n&apos;est pas un maximum&nbsp;: c&apos;est le repère à partir duquel
-          les charges seront proposées.
-        </p>
-      )}
-    </div>
   );
 }

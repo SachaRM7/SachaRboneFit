@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { EchelleDiscrete } from "@/components/ui/EchelleDiscrete";
 import { toast } from "sonner";
+import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { ProgressionSummary } from "@/components/session/ProgressionSummary";
 import { ReserveManquante, rpeParExercice } from "@/components/session/ReserveManquante";
 import { recapDeLaSeance } from "@/lib/engine/fin-de-seance";
@@ -36,14 +37,21 @@ interface InstanceNommee {
 export default function FinishSessionPage() {
   const { templateId } = useParams();
   const router = useRouter();
-  const { active, clear } = useSessionStore();
+  const { active, clear, setNotes, memoriserBilan } = useSessionStore();
+  const series = active?.sets;
+  const seriesMesurees = useMemo(() => (series ?? []).filter(
+    (s) => s.repsEffectuees !== null && s.charge !== null,
+  ) as Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number; rpeEffectif: number | null }>, [series]);
 
-  const [energie, setEnergie] = useState<number | null>(null);
-  const [notes, setNotes] = useState("");
+  const energie = active?.bilanEnCours?.energieFin ?? null;
+  const notes = active?.notesSeance ?? "";
   const [notesOuvertes, setNotesOuvertes] = useState(false);
-  const [reserves, setReserves] = useState<Record<string, number>>({});
+  const reserves = active?.bilanEnCours?.reserves ?? {};
+  const setEnergie = (valeur: number | null) => memoriserBilan({ energieFin: valeur, reserves });
   const [noms, setNoms] = useState<Record<string, string>>({});
   const [envoi, setEnvoi] = useState(false);
+  const envoiEnCours = useRef(false);
+  const [erreurEnvoi, setErreurEnvoi] = useState<string | null>(null);
   /**
    * La séance est close et on s'en va : le garde ci-dessous ne s'applique plus.
    *
@@ -60,8 +68,15 @@ export default function FinishSessionPage() {
   const sortieVolontaire = useRef(false);
 
   useEffect(() => {
-    if (sortieVolontaire.current) return;
-    if (!active) router.replace(`/sessions/new/${templateId}`);
+    const verifier = () => {
+      // Le premier rendu SSR est vide, même si le brouillon local existe.
+      // Attendre sa restauration et lire le store courant avant de rediriger.
+      if (!sortieVolontaire.current && !useSessionStore.getState().active) {
+        router.replace(`/sessions/new/${templateId}`);
+      }
+    };
+    if (useSessionStore.persist.hasHydrated()) verifier();
+    return useSessionStore.persist.onFinishHydration(verifier);
   }, [active, router, templateId]);
 
   // Le récapitulatif ne dépend que du brouillon : il se calcule une fois.
@@ -79,8 +94,8 @@ export default function FinishSessionPage() {
 
   // Un seul appel pour tous les noms, au lieu de deux par exercice.
   useEffect(() => {
-    if (!active) return;
-    const ids = [...new Set(active.sets.map((s) => s.exerciseInstanceId))];
+    if (!series) return;
+    const ids = [...new Set(series.map((s) => s.exerciseInstanceId))];
     if (ids.length === 0) return;
     void (async () => {
       const res = await fetch(`/api/exercise-instances?ids=${ids.join(",")}`);
@@ -91,11 +106,11 @@ export default function FinishSessionPage() {
           lignes.map((l) => [l.id, l.machineNom ? `${l.nom} — ${l.machineNom}` : l.nom]),
         ),
       );
-    })();
-  }, [active]);
+    })().catch(() => { /* La sauvegarde reste disponible si les noms ne chargent pas. */ });
+  }, [series]);
 
   const enregistrer = async () => {
-    if (!active || envoi || !recap) return;
+    if (!active || envoiEnCours.current || !recap) return;
 
     const faites = active.sets.filter((s) => s.repsEffectuees !== null && s.charge !== null);
     if (faites.length === 0) {
@@ -103,7 +118,11 @@ export default function FinishSessionPage() {
       return;
     }
 
+    envoiEnCours.current = true;
     setEnvoi(true);
+    setErreurEnvoi(null);
+    const controleur = new AbortController();
+    const delai = window.setTimeout(() => controleur.abort(), 30_000);
     try {
       // Les réserves rattrapées ne s'appliquent qu'aux séries restées vides :
       // ce qui a été noté pendant la séance fait foi.
@@ -111,6 +130,7 @@ export default function FinishSessionPage() {
 
       const res = await fetch(`/api/session-logs/${active.id}`, {
         method: "PATCH",
+        signal: controleur.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dureeMinutes: recap.duree.minutes,
@@ -141,23 +161,29 @@ export default function FinishSessionPage() {
       toast.success("Séance enregistrée");
       router.replace(`/sessions/${sessionLogId}`);
     } catch {
-      toast.error("Erreur lors de l'enregistrement");
+      setErreurEnvoi("La séance n’a pas pu être enregistrée. Tes séries sont conservées : réessaie.");
+      envoiEnCours.current = false;
       setEnvoi(false);
+    } finally {
+      window.clearTimeout(delai);
     }
   };
 
   if (!active || !recap) return null;
 
   return (
-    <div className="min-h-dvh bg-papier text-encre p-4 space-y-5">
-      <div className="flex items-baseline justify-between gap-3">
+    <div className="live-finish min-h-dvh bg-papier text-encre p-4 space-y-5">
+      <div className="live-finish-heading">
+        <MascotteCoach etat="encouragement" taille="normal" presence="discrete" />
+        <div>
         <h1 className="text-xl font-semibold">Séance terminée</h1>
         <span className="text-xs text-encre-3">
           {new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" })}
         </span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-px bg-filet border border-filet rounded-lg overflow-hidden">
+      <div className="live-finish-stats grid grid-cols-3 gap-px bg-filet border border-filet rounded-lg overflow-hidden">
         <div className="bg-papier p-3">
           <p className="text-[11px] text-encre-3">Durée</p>
           <p className="chiffres text-xl font-semibold mt-0.5">
@@ -184,11 +210,17 @@ export default function FinishSessionPage() {
         </p>
       )}
 
+      <ProgressionSummary
+        sets={seriesMesurees}
+        templateId={active.seanceTemplateId}
+        sessionLogId={active.id}
+      />
+
       <ReserveManquante
         aCompleter={recap.aCompleter}
         nomDe={(id) => noms[id] ?? "Cet exercice"}
         reponses={reserves}
-        onRepondre={(id, r) => setReserves((etat) => ({ ...etat, [id]: r }))}
+        onRepondre={(id, r) => memoriserBilan({ energieFin: energie, reserves: { ...reserves, [id]: r } })}
       />
 
       <div className="space-y-2">
@@ -204,15 +236,6 @@ export default function FinishSessionPage() {
           legendeHaute="En pleine forme"
         />
       </div>
-
-      <ProgressionSummary
-        sets={
-          active.sets.filter(
-            (s) => s.repsEffectuees !== null && s.charge !== null,
-          ) as Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number }>
-        }
-        templateId={active.seanceTemplateId}
-      />
 
       {/* Les notes passent derrière un repli : elles servent quand on a
           quelque chose à dire, et n'ont pas à occuper l'écran le reste du temps. */}
@@ -240,12 +263,13 @@ export default function FinishSessionPage() {
         )}
       </div>
 
+      {erreurEnvoi && <p role="alert" className="live-save-error">{erreurEnvoi}</p>}
       <Button
-        className="w-full h-13 rounded-full bg-encre text-papier hover:bg-encre/90"
+        className="live-save w-full h-13 rounded-full bg-encre text-papier hover:bg-encre/90"
         onClick={enregistrer}
         disabled={envoi}
       >
-        {envoi ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enregistrer la séance"}
+        {envoi ? <><Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Enregistrement…</> : erreurEnvoi ? "Réessayer l’enregistrement" : "Enregistrer la séance"}
       </Button>
     </div>
   );

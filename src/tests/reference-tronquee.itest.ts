@@ -309,3 +309,18 @@ describe("l'isolation ne bouge pas", () => {
     expect(r?.sets[0]!.charge).toBe(40);
   });
 });
+
+it("le bilan exclut ses propres séries sans lire celles d'un autre compte", async () => {
+  const [nouvelle] = await db.insert(schema.exerciseInstances).values({ userId: SACHA, exerciseId: exercice, gymId: salle, machineNom: "Machine de recette", conventionCharge: "pile_affichee" }).returning();
+  const instance = nouvelle!.id;
+  const actuelle = await seance({ userId: SACHA, date: "2026-09-12", faites: 2, demandees: 2, reps: 8, charge: 20, instance });
+  await seance({ userId: MARIA, date: "2026-09-13", faites: 2, demandees: 2, reps: 8, charge: 90, instance });
+  expect(await derniereSeriesPour(SACHA, instance, actuelle)).toBeNull();
+  await seance({ userId: SACHA, date: "2026-09-01", faites: 2, demandees: 2, reps: 8, charge: 15, instance });
+  expect((await derniereSeriesPour(SACHA, instance, actuelle))?.sets[0]?.charge).toBe(15);
+  expect((await derniereSeriesPour(SACHA, instance))?.sets[0]?.charge).toBe(20);
+  const { GET } = await import("@/app/api/set-logs/last-session/route");
+  const reponse = await GET(new Request(`http://localhost/api/set-logs/last-session?exerciseInstanceId=${instance}&excludeSessionId=${actuelle}`));
+  expect((await reponse.json()).sets[0].charge).toBe(15);
+  expect((await GET(new Request(`http://localhost/api/set-logs/last-session?exerciseInstanceId=${instance}&excludeSessionId=invalid`))).status).toBe(400);
+});
