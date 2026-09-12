@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { RestTimer } from "@/components/session/RestTimer";
+import { ProgressionSummary } from "@/components/session/ProgressionSummary";
 import { SessionDebrief } from "@/components/coach/SessionDebrief";
 import FinishSessionPage from "@/app/(app)/sessions/new/[templateId]/finish/page";
 import { useSessionStore } from "@/stores/sessionStore";
@@ -12,6 +13,15 @@ vi.mock("@/components/session/serie-en-vol", () => ({ pousserSerie: vi.fn(), ret
 
 beforeEach(() => { replace.mockReset(); useSessionStore.setState({ active: null }); });
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+it("le bilan demande une référence hors séance courante et montre la première mesure sans faux delta", async () => {
+  const fetcher = vi.fn(async (url: string) => ({ ok: true, json: async () => url.startsWith("/api/exercise-instances") ? [{ id: "row", nom: "Row", natureCharge: "resistance" }] : null }));
+  vi.stubGlobal("fetch", fetcher);
+  render(<ProgressionSummary sets={[{ exerciseInstanceId: "row", charge: 20, repsEffectuees: 8, rpeEffectif: 7 }]} templateId="template" sessionLogId="session-test" />);
+  expect(await screen.findByText("Baseline enregistrée")).toBeVisible();
+  expect(screen.queryByText("stable")).not.toBeInTheDocument();
+  expect(fetcher).toHaveBeenCalledWith("/api/set-logs/last-session?exerciseInstanceId=row&excludeSessionId=session-test");
+});
 
 describe("repos : la durée suit le départ mémorisé", () => {
   it("reprend l'horloge et ajoute 30 s sans repartir de zéro", async () => {

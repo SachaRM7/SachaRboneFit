@@ -59,6 +59,7 @@ interface ProgressionSummaryProps {
     rpeEffectif?: number | null;
   }>;
   templateId: string;
+  sessionLogId?: string;
 }
 
 /**
@@ -75,7 +76,7 @@ export function formaterCharge(valeur: number): string {
     : arrondi.toFixed(1).replace(".", ",");
 }
 
-export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
+export function ProgressionSummary({ sets, sessionLogId }: ProgressionSummaryProps) {
   const [chargement, setChargement] = useState(true);
   const [lignes, setLignes] = useState<LigneRecap[]>([]);
 
@@ -116,7 +117,7 @@ export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
               );
 
           const precedentes: Array<{ charge: number; reps: number; rpe?: number | null }> =
-            await fetch(`/api/set-logs/last-session?exerciseInstanceId=${id}`)
+            await fetch(`/api/set-logs/last-session?exerciseInstanceId=${id}${sessionLogId ? `&excludeSessionId=${encodeURIComponent(sessionLogId)}` : ""}`)
               .then((r) => (r.ok ? r.json() : null))
               .then((d) => d?.sets ?? [])
               .catch(() => []);
@@ -159,7 +160,7 @@ export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
     })();
 
     return () => { annule = true; };
-  }, [sets]);
+  }, [sets, sessionLogId]);
 
   if (chargement) {
     return (

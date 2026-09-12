@@ -9,6 +9,17 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: test-only-not-a-secret
@@ -34,3 +45,9 @@ jobs:
       - name: Build
         if: always()
         run: npm run build
+      - name: Disposable database schema
+        if: always()
+        run: npx drizzle-kit push --force
+      - name: Reference integration
+        if: always()
+        run: npm run test:integration -- src/tests/reference-tronquee.itest.ts

@@ -138,6 +138,14 @@ describe("l'observateur de séance mène au Coach — et seulement sur un geste"
     });
   }
 
+  it("garde l'effort trop élevé devant un constat utile plus récent", () => {
+    serieTropDure();
+    useSessionStore.getState().upsertSet({ exerciseInstanceId: "autre", numeroSerie: 1, charge: 10, repsEffectuees: 8, rpeEffectif: 6 });
+    render(<ObservateurSeance prescriptions={[...prescriptions, { ...prescriptions[0]!, exerciseInstanceId: "autre" }]} ordreDesExercices={[A, "autre"]} />);
+    expect(screen.getByText("Cette série a été plus dure que visé")).toBeVisible();
+    expect(screen.queryByText("Cette série a été plus facile que visé")).not.toBeInTheDocument();
+  });
+
   it("affiche le constat, sa mascotte, et le fait en toutes lettres", () => {
     serieTropDure();
     const { container } = render(

@@ -205,6 +205,7 @@ export default function FinishSessionPage() {
           ) as Array<{ exerciseInstanceId: string; repsEffectuees: number; charge: number }>
         }
         templateId={active.seanceTemplateId}
+        sessionLogId={active.id}
       />
 
       <ReserveManquante

@@ -74,9 +74,10 @@ export function ObservateurSeance({
   const aMontrer = aSignaler.filter((e) => !ecartes.includes(cle(e)));
   if (aMontrer.length === 0) return null;
 
-  // Un seul à la fois, le plus récent : trois encarts empilés au milieu d'une
-  // séance ne se lisent pas.
-  const evenement = aMontrer[aMontrer.length - 1]!;
+  // Un seul constat : l'effort trop élevé et les reps manquantes passent
+  // avant les observations utiles. La sécurité reste portée par les SOS.
+  const priorite = (e: EvenementSeance) => e.type === "effort_au_dela_de_la_cible" ? 2 : e.type === "reps_sous_la_fourchette" ? 1 : 0;
+  const evenement = aMontrer.reduce((retenu, suivant) => priorite(suivant) >= priorite(retenu) ? suivant : retenu);
   const fait = libelleFactuel(evenement);
 
   return (
