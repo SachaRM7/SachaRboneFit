@@ -37,10 +37,10 @@ interface InstanceNommee {
 export default function FinishSessionPage() {
   const { templateId } = useParams();
   const router = useRouter();
-  const { active, clear } = useSessionStore();
+  const { active, clear, setNotes } = useSessionStore();
 
   const [energie, setEnergie] = useState<number | null>(null);
-  const [notes, setNotes] = useState("");
+  const notes = active?.notesSeance ?? "";
   const [notesOuvertes, setNotesOuvertes] = useState(false);
   const [reserves, setReserves] = useState<Record<string, number>>({});
   const [noms, setNoms] = useState<Record<string, string>>({});
@@ -109,6 +109,8 @@ export default function FinishSessionPage() {
     envoiEnCours.current = true;
     setEnvoi(true);
     setErreurEnvoi(null);
+    const controleur = new AbortController();
+    const delai = window.setTimeout(() => controleur.abort(), 30_000);
     try {
       // Les réserves rattrapées ne s'appliquent qu'aux séries restées vides :
       // ce qui a été noté pendant la séance fait foi.
@@ -116,6 +118,7 @@ export default function FinishSessionPage() {
 
       const res = await fetch(`/api/session-logs/${active.id}`, {
         method: "PATCH",
+        signal: controleur.signal,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           dureeMinutes: recap.duree.minutes,
@@ -149,6 +152,8 @@ export default function FinishSessionPage() {
       setErreurEnvoi("La séance n’a pas pu être enregistrée. Tes séries sont conservées : réessaie.");
       envoiEnCours.current = false;
       setEnvoi(false);
+    } finally {
+      window.clearTimeout(delai);
     }
   };
 

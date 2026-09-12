@@ -183,7 +183,7 @@ describe("l'observateur de séance mène au Coach — et seulement sur un geste"
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Pourquoi ?", exact: true }));
+    await user.click(screen.getByRole("button", { name: "Pourquoi ?" }));
     await user.click(screen.getByRole("button", { name: /En parler au coach/i }));
 
     expect(demande).toHaveBeenCalledOnce();
