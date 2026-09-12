@@ -180,7 +180,8 @@ describe("cas 3 et 4 — Focus et Liste montrent exactement le même état", () 
     const user = userEvent.setup();
     const vue = focus();
 
-    await user.click(screen.getByRole("button", { name: /Valider la série/ }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
     vue.unmount();
 
     // Changer de vue ne recharge rien : c'est le même store.
@@ -301,8 +302,10 @@ describe("la fin d'un exercice est un état, pas un formulaire vide", () => {
     const user = userEvent.setup();
     focus();
 
-    await user.click(screen.getByRole("button", { name: /Valider la série/ }));
-    await user.click(screen.getByRole("button", { name: /Valider la série/ }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
     expect(screen.getByText("Exercice terminé")).toBeInTheDocument();
     // Les deux séries restent lisibles sous leur forme compacte.
@@ -324,11 +327,13 @@ describe("la fin d'un exercice est un état, pas un formulaire vide", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /Valider la série/ }));
-    await user.click(screen.getByRole("button", { name: /Valider la série/ }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
     // Le bouton existe — il n'a pas été déclenché tout seul.
-    const aller = screen.getByRole("button", { name: /Exercice suivant/ });
+    const aller = screen.getByRole("button", { name: /exercice suivant/i });
     expect(suivant).not.toHaveBeenCalled();
     await user.click(aller);
     expect(suivant).toHaveBeenCalledOnce();
@@ -379,7 +384,8 @@ describe("le Focus n'affiche qu'UNE représentation éditable de la série", () 
     const user = userEvent.setup();
     focus({ ...DEADLIFT, seriesCibles: 3 } as never);
 
-    await user.click(screen.getByRole("button", { name: /Valider la série/ }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
     const enCours = document.querySelector(".serie-en-cours");
     expect(enCours?.textContent).toContain("2");
@@ -423,9 +429,12 @@ describe("série supplémentaire — même vérité en Focus et Liste", () => {
     const user = userEvent.setup();
     focus();
     await user.click(screen.getByRole("button", { name: "Série en plus" }));
-    await user.click(screen.getByRole("button", { name: "Valider la série" }));
-    await user.click(screen.getByRole("button", { name: "Valider la série" }));
-    await user.click(screen.getByRole("button", { name: "Valider la série" }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
+    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
     vi.spyOn(window, "confirm").mockReturnValue(true);
     await user.click(screen.getByRole("button", { name: "Supprimer la série 3" }));

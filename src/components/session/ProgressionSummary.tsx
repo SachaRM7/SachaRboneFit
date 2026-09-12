@@ -177,106 +177,10 @@ export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
   return (
     <div className="space-y-2">
       <p className="text-encre-3 text-sm italic">Ce que cette séance a mesuré</p>
-      {lignes.slice(0, 3).map((l) => (
-        <div
-          key={l.exerciseInstanceId}
-          className="border-t border-filet-doux pt-2.5 flex items-start justify-between gap-3"
-        >
-          <div className="min-w-0">
-            <p className="text-encre font-semibold text-sm leading-tight">{l.nom}</p>
-            {l.machineNom && <p className="text-encre-3 text-xs mt-0.5">{l.machineNom}</p>}
-          </div>
-
-          <div className="text-right shrink-0">
-            {l.premiereFois ? (
-              <>
-                {/* Pas un record : un point de départ. C'est le mot juste, et
-                    c'est aussi ce que le moteur en fera. */}
-                <p className="text-sm font-semibold text-encre">Baseline enregistrée</p>
-                <p className="chiffres text-[11px] text-encre-3 mt-0.5 tabular-nums">
-                  {formaterCharge(l.meilleure.charge)} kg × {l.meilleure.reps}
-                  {l.meilleure.reserve !== null && <> · ~{l.meilleure.reserve} en réserve</>}
-                </p>
-              </>
-            ) : l.assistance ? (
-              <>
-                {/* Moins d'aide, à répétitions comparables. Aucun maximum
-                    estimé : il dirait le contraire de ce qui se passe. */}
-                <p className="chiffres text-sm font-semibold text-encre tabular-nums">
-                  {formaterCharge(l.meilleure.charge)} kg d&apos;assistance
-                </p>
-                <p className="text-[11px] text-encre-3 mt-0.5">
-                  × {l.meilleure.reps} — moins d&apos;aide, c&apos;est mieux
-                </p>
-              </>
-            ) : (
-              <>
-                <Delta
-                  valeur={(l.e1rmCourant ?? 0) - (l.e1rmPrecedent ?? 0)}
-                  unite="kg"
-                  decimales={0}
-                  className="text-base"
-                />
-                <p className="chiffres text-[11px] text-encre-3 mt-0.5 tabular-nums">
-                  {formaterCharge(l.meilleure.charge)} kg × {l.meilleure.reps}
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
-
+      {lignes.slice(0, 3).map((l) => <LigneMesuree key={l.exerciseInstanceId} l={l} />)}
       {lignes.length > 3 && <details className="live-debrief-detail">
         <summary>Voir tous les exercices ({lignes.length})</summary>
-      {lignes.slice(3).map((l) => (
-        <div
-          key={l.exerciseInstanceId}
-          className="border-t border-filet-doux pt-2.5 flex items-start justify-between gap-3"
-        >
-          <div className="min-w-0">
-            <p className="text-encre font-semibold text-sm leading-tight">{l.nom}</p>
-            {l.machineNom && <p className="text-encre-3 text-xs mt-0.5">{l.machineNom}</p>}
-          </div>
-
-          <div className="text-right shrink-0">
-            {l.premiereFois ? (
-              <>
-                {/* Pas un record : un point de départ. C'est le mot juste, et
-                    c'est aussi ce que le moteur en fera. */}
-                <p className="text-sm font-semibold text-encre">Baseline enregistrée</p>
-                <p className="chiffres text-[11px] text-encre-3 mt-0.5 tabular-nums">
-                  {formaterCharge(l.meilleure.charge)} kg × {l.meilleure.reps}
-                  {l.meilleure.reserve !== null && <> · ~{l.meilleure.reserve} en réserve</>}
-                </p>
-              </>
-            ) : l.assistance ? (
-              <>
-                {/* Moins d'aide, à répétitions comparables. Aucun maximum
-                    estimé : il dirait le contraire de ce qui se passe. */}
-                <p className="chiffres text-sm font-semibold text-encre tabular-nums">
-                  {formaterCharge(l.meilleure.charge)} kg d&apos;assistance
-                </p>
-                <p className="text-[11px] text-encre-3 mt-0.5">
-                  × {l.meilleure.reps} — moins d&apos;aide, c&apos;est mieux
-                </p>
-              </>
-            ) : (
-              <>
-                <Delta
-                  valeur={(l.e1rmCourant ?? 0) - (l.e1rmPrecedent ?? 0)}
-                  unite="kg"
-                  decimales={0}
-                  className="text-base"
-                />
-                <p className="chiffres text-[11px] text-encre-3 mt-0.5 tabular-nums">
-                  {formaterCharge(l.meilleure.charge)} kg × {l.meilleure.reps}
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      ))}
-
+        {lignes.slice(3).map((l) => <LigneMesuree key={l.exerciseInstanceId} l={l} />)}
       </details>}
 
       {lignes.some((l) => l.premiereFois) && (
@@ -286,5 +190,56 @@ export function ProgressionSummary({ sets }: ProgressionSummaryProps) {
         </p>
       )}
     </div>
+  );
+}
+
+function LigneMesuree({ l }: { l: LigneRecap }) {
+  return (
+        <div
+          key={l.exerciseInstanceId}
+          className="border-t border-filet-doux pt-2.5 flex items-start justify-between gap-3"
+        >
+          <div className="min-w-0">
+            <p className="text-encre font-semibold text-sm leading-tight">{l.nom}</p>
+            {l.machineNom && <p className="text-encre-3 text-xs mt-0.5">{l.machineNom}</p>}
+          </div>
+
+          <div className="text-right shrink-0">
+            {l.premiereFois ? (
+              <>
+                {/* Pas un record : un point de départ. C'est le mot juste, et
+                    c'est aussi ce que le moteur en fera. */}
+                <p className="text-sm font-semibold text-encre">Baseline enregistrée</p>
+                <p className="chiffres text-[11px] text-encre-3 mt-0.5 tabular-nums">
+                  {formaterCharge(l.meilleure.charge)} kg × {l.meilleure.reps}
+                  {l.meilleure.reserve !== null && <> · ~{l.meilleure.reserve} en réserve</>}
+                </p>
+              </>
+            ) : l.assistance ? (
+              <>
+                {/* Moins d'aide, à répétitions comparables. Aucun maximum
+                    estimé : il dirait le contraire de ce qui se passe. */}
+                <p className="chiffres text-sm font-semibold text-encre tabular-nums">
+                  {formaterCharge(l.meilleure.charge)} kg d&apos;assistance
+                </p>
+                <p className="text-[11px] text-encre-3 mt-0.5">
+                  × {l.meilleure.reps} — moins d&apos;aide, c&apos;est mieux
+                </p>
+              </>
+            ) : (
+              <>
+                <Delta
+                  valeur={(l.e1rmCourant ?? 0) - (l.e1rmPrecedent ?? 0)}
+                  unite="kg"
+                  decimales={0}
+                  className="text-base"
+                />
+                <p className="chiffres text-[11px] text-encre-3 mt-0.5 tabular-nums">
+                  {formaterCharge(l.meilleure.charge)} kg × {l.meilleure.reps}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
   );
 }

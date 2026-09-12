@@ -51,7 +51,12 @@ export type DraftSet = {
   reposIgnore?: boolean;
 };
 
+/** Champs non validés : restent locaux dans la persistance existante, jamais envoyés comme séries. */
+export type SaisieSerie = { charge: string; reps: string; rpe: string };
+
 export type ActiveSession = {
+  saisiesEnCours?: Record<string, Record<number, SaisieSerie>>;
+  ressentisEnCours?: Record<string, number | null>;
   id: string;
   seanceTemplateId: string;
   gymId: string;
@@ -105,6 +110,8 @@ type SessionStore = {
    * appel utilisant cet id (enregistrement d'incident, cloture) echouait en 403.
    */
   start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "deferredExerciseIds" | "additionalSetCounts" | "rpeReductions" | "lignees" | "tempoParExercice" | "shownProactiveAlerts">) => void;
+  memoriserSaisies: (id: string, saisies: Record<number, SaisieSerie>) => void;
+  memoriserEtapeRessenti: (id: string, numero: number | null) => void;
   upsertSet: (set: DraftSet) => void;
   /** Remplace le brouillon par ce que la base porte — voir `hydraterDepuisServeur`. */
   hydraterSets: (sets: DraftSet[]) => void;
@@ -161,6 +168,12 @@ export const useSessionStore = create<SessionStore>()(
           shownProactiveAlerts: [],
         },
       }),
+      memoriserSaisies: (id, saisies) => set((state) => state.active ? {
+        active: { ...state.active, saisiesEnCours: { ...state.active.saisiesEnCours, [id]: saisies } },
+      } : state),
+      memoriserEtapeRessenti: (id, numero) => set((state) => state.active ? {
+        active: { ...state.active, ressentisEnCours: { ...state.active.ressentisEnCours, [id]: numero } },
+      } : state),
       upsertSet: (newSet) => set((state) => {
         if (!state.active) return state;
         const existing = state.active.sets.findIndex(

@@ -1699,3 +1699,10 @@
 @media (min-width: 640px) {
   .live-detail-sheet[data-slot="dialog-content"] { top: 50%; bottom: auto; translate: -50% -50%; border-radius: 1.5rem; max-height: 85dvh; }
 }
+/* Les chiffres ont toute la largeur de leur colonne ; les crans restent à 44 px. */
+.serie-en-cours .mesures-paire .mesure-ligne { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
+.serie-en-cours .mesures-paire .mesure-valeur { grid-column: 1 / -1; grid-row: 1; min-height: 50px; font-size: clamp(2rem, 8vw, 3rem); }
+.serie-en-cours .mesures-paire .mesure-ligne > :is(button,span) { grid-row: 2; }
+.live-effort-cible { color: #cbd7c9; }
+.focus-nav { margin-bottom: .5rem; }
+.live-session > main { padding-top: .5rem; }

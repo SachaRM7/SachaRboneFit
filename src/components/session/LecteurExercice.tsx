@@ -49,6 +49,8 @@ export function LecteurExercice({
   const {
     lignes,
     serieCourante,
+    ressenti,
+    setRessenti,
     exerciceTermine,
     slotRempliAilleurs,
     valeurs,
@@ -141,54 +143,6 @@ export function LecteurExercice({
       {/* ------------------------------------------------------------------
           LES REPÈRES — ce qu'on sait déjà, sans voler la vedette à la série.
           ------------------------------------------------------------------ */}
-      <details className="live-exercise-help">
-        <summary>{sansRepere ? "Première fois · préparer cet exercice" : "Mes repères et ma charge"}</summary>
-      <div className="lecteur-reperes">
-        {derniereFois && (
-          <section>
-            <p className="eyebrow">Dernière fois</p>
-            {/* Jamais de faux repère : après une substitution, la nouvelle machine
-                n'a pas d'historique, et emprunter la charge de l'ancienne ferait
-                croire à une progression là où le même nombre ne déplace pas la
-                même chose. */}
-            <p className="lecteur-repere-valeur chiffres">{derniereFois}</p>
-          </section>
-        )}
-
-        {contexte && (contexte.tempo || contexte.resumeReglages || contexte.note) && (
-          <section>
-            <p className="eyebrow">Repères</p>
-            <p className="lecteur-repere-detail">
-              {[
-                tempoCourt ? `Tempo ${tempoCourt}` : null,
-                contexte.resumeReglages,
-                contexte.note,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </section>
-        )}
-
-      </div>
-
-      {sansRepere && faites.length === 0 && contexte && (
-        <PreparationMachine contexte={contexte} onOuvrir={() => setFiche(true)} />
-      )}
-
-      {sansRepere && modeReserve && (
-        <GuidagePremiereSerie
-          exercice={exercice}
-          rpeReduction={rpeReduction}
-          valeurs={valeursDuDernierEssai}
-        />
-      )}
-
-      </details>
-      {contexte && <button type="button" className="live-technique-link" onClick={() => setFiche(true)}>
-        Technique & réglages
-      </button>}
-
       {/* ------------------------------------------------------------------
           CE QUI EST FAIT — compacté, jamais effacé.
           ------------------------------------------------------------------ */}
@@ -248,6 +202,8 @@ export function LecteurExercice({
         <SerieEnCours
           key={`${exercice.id}:${serieCourante}`}
           exercice={exercice}
+          ressenti={ressenti}
+          setRessenti={(valeur) => setRessenti(valeur ? serieCourante : null)}
           numero={serieCourante}
           total={exercice.seriesCibles}
           supplementaire={serieCourante > exercice.seriesCibles}
@@ -267,6 +223,54 @@ export function LecteurExercice({
           onValider={() => basculer(serieCourante)}
         />
       )}
+
+      <details className="live-exercise-help">
+        <summary>{sansRepere ? "Première fois · préparer cet exercice" : "Mes repères et ma charge"}</summary>
+      <div className="lecteur-reperes">
+        {derniereFois && (
+          <section>
+            <p className="eyebrow">Dernière fois</p>
+            {/* Jamais de faux repère : après une substitution, la nouvelle machine
+                n'a pas d'historique, et emprunter la charge de l'ancienne ferait
+                croire à une progression là où le même nombre ne déplace pas la
+                même chose. */}
+            <p className="lecteur-repere-valeur chiffres">{derniereFois}</p>
+          </section>
+        )}
+
+        {contexte && (contexte.tempo || contexte.resumeReglages || contexte.note) && (
+          <section>
+            <p className="eyebrow">Repères</p>
+            <p className="lecteur-repere-detail">
+              {[
+                tempoCourt ? `Tempo ${tempoCourt}` : null,
+                contexte.resumeReglages,
+                contexte.note,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          </section>
+        )}
+
+      </div>
+
+      {sansRepere && faites.length === 0 && contexte && (
+        <PreparationMachine contexte={contexte} onOuvrir={() => setFiche(true)} />
+      )}
+
+      {sansRepere && modeReserve && (
+        <GuidagePremiereSerie
+          exercice={exercice}
+          rpeReduction={rpeReduction}
+          valeurs={valeursDuDernierEssai}
+        />
+      )}
+
+      </details>
+      {contexte && <button type="button" className="live-technique-link" onClick={() => setFiche(true)}>
+        Technique & réglages
+      </button>}
 
       {/* ------------------------------------------------------------------
           LA FIN D'UNE ÉTAPE — pas un formulaire vide.
@@ -354,6 +358,8 @@ export function LecteurExercice({
  */
 function SerieEnCours({
   exercice,
+  ressenti,
+  setRessenti,
   numero,
   total,
   supplementaire,
@@ -368,6 +374,8 @@ function SerieEnCours({
   onSupprimer,
 }: {
   exercice: ExercicePrescrit;
+  ressenti: boolean;
+  setRessenti: (valeur: boolean) => void;
   numero: number;
   total: number;
   supplementaire: boolean;
@@ -382,7 +390,6 @@ function SerieEnCours({
   /** Retirer cette série ajoutée à la main, ou `null` si elle ne l'est pas. */
   onSupprimer: (() => void) | null;
 }) {
-  const [ressenti, setRessenti] = useState(false);
   const terminerSerie = () => {
     const motif = motifSerieInvalide({
       charge: chargeAEnregistrer(valeurs.charge, exercice.conventionCharge),

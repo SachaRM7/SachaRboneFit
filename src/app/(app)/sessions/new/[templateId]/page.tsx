@@ -127,6 +127,7 @@ function ContenuSeanceLive() {
     noterSubstitution,
     startRest,
     skipRest,
+    clearRest,
     extendRest,
     skipExercises,
     deferExercise,
@@ -139,7 +140,7 @@ function ContenuSeanceLive() {
   // Les deux menaient au même écran, et le second est un mensonge quand c'est
   // le premier qui s'est produit.
   const [echecLecture, setEchecLecture] = useState(false);
-  const [timerVisible, setTimerVisible] = useState(false);
+  const timerVisible = Boolean(active?.restDurationSeconds);
   /* Le tiroir du Coach : ouvert par un geste, jamais par un événement. */
   const { ouvrir: ouvrirCoach } = useCoach();
   /*
@@ -504,7 +505,6 @@ function ContenuSeanceLive() {
 
     if (reposSecondes && reposSecondes > 0) {
       startRest(reposSecondes, indexTermine);
-      setTimerVisible(true);
     }
 
     /*
@@ -551,8 +551,11 @@ function ContenuSeanceLive() {
    * pendant la séance.
    */
   const passerRepos = () => {
-    skipRest();
-    setTimerVisible(false);
+    const repos = useSessionStore.getState().active;
+    const atteint = repos?.restStartTimestamp != null && repos.restDurationSeconds != null
+      && Date.now() - repos.restStartTimestamp >= repos.restDurationSeconds * 1000;
+    if (atteint) clearRest();
+    else skipRest();
   };
 
   /*
@@ -1182,6 +1185,8 @@ function ContenuSeanceLive() {
             {/* Elle accompagne le compte à rebours sans jamais le masquer, ni
                 « Passer », ni « +30 s ». Voir `.repos-mascotte`. */}
             <RestTimer
+              startedAt={active.restStartTimestamp}
+              exerciceTermine={active.restExerciseIndex != null && etats[active.restExerciseIndex]?.statut === "termine" ? visibles[active.restExerciseIndex]?.nom : null}
               prochaine={prochaineSerie}
               durationSeconds={active.restDurationSeconds}
               onComplete={playBeep}
