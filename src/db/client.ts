@@ -178,20 +178,13 @@ const url = process.env.DATABASE_URL!;
 const client = postgres(url, optionsAvecPipeline(0));
 const clientTransaction = postgres(url, optionsAvecPipeline(0));
 
-let reveilTransaction: Promise<void> | null = null;
-
 async function reserverTransaction(): Promise<ReservedSql> {
-  // `reserve()` ne réveille pas une connexion fraîche avec max_pipeline=0 dans
-  // postgres.js 3.4. Une requête de chauffe fait passer le client dans l'état
-  // `open`; elle n'est exécutée qu'une fois par instance et ne touche aucune
-  // table métier.
-  if (!reveilTransaction) {
-    reveilTransaction = clientTransaction.unsafe("select 1").then(() => undefined).catch((error) => {
-      reveilTransaction = null;
-      throw error;
-    });
-  }
-  await reveilTransaction;
+  // `reserve()` ne réveille pas une connexion fermée avec max_pipeline=0.
+  // Réveiller AVANT CHAQUE réservation : la connexion peut avoir été fermée
+  // par idle_timeout entre deux séries, même si une transaction a déjà réussi.
+  // Ne pas mémoriser cette Promise à vie. Cette lecture ne touche aucune table
+  // et utilise le même client max:1 que la réservation qui suit.
+  await clientTransaction.unsafe("select 1");
   return clientTransaction.reserve();
 }
 
