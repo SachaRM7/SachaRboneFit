@@ -51,7 +51,10 @@ describe("hotfix des timeouts postgres", () => {
     expect(service).toMatch(/complement_echec_route/);
     expect(composant).toMatch(/try\s*\{/);
     expect(composant).toMatch(/role="status"/);
-    expect(composant).toMatch(/data\.recuperation\s*&&/);
+    const recuperation = source("components/dashboard/RecuperationAccueil.tsx");
+    expect(recuperation).toMatch(/try\s*\{/);
+    expect(recuperation).toMatch(/etat && etat\.muscles\.length > 0/);
+    expect(recuperation).toMatch(/complementTableauDeBordMemoise/);
     expect(programme).toMatch(/complementTableauDeBordMemoise/);
   });
 });

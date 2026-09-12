@@ -6,6 +6,8 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { useCoach } from "@/components/coach/ContexteCoach";
+import { DialogClose } from "@/components/ui/dialog";
+
 export function ActionsCoach() {
   const { ouvrir } = useCoach();
   return (
@@ -16,16 +18,16 @@ export function ActionsCoach() {
         </span>
       </div>
       <div className="coach-actions">
-        <button onClick={() => ouvrir("expliquer_seance")}>
+        <DialogClose render={<button />} onClick={() => ouvrir("expliquer_seance")}>
           <MessageCircle size={17} aria-hidden />
           <span>Comprendre ma séance</span>
           <ArrowUpRight size={16} aria-hidden />
-        </button>
-        <button onClick={() => ouvrir("modifier_programme")}>
+        </DialogClose>
+        <DialogClose render={<button />} onClick={() => ouvrir("modifier_programme")}>
           <SlidersHorizontal size={17} aria-hidden />
           <span>Adapter mon programme</span>
           <ArrowUpRight size={16} aria-hidden />
-        </button>
+        </DialogClose>
       </div>
     </section>
   );

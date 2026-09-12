@@ -79,8 +79,9 @@ describe("la calibration du Live désigne un moment, plus une phase entière", (
 describe("les surfaces appellent bien un résolveur", () => {
   it("l'accueil résout l'état du jour, et ne l'écrit pas en dur", () => {
     expect(ACCUEIL).toMatch(/mascotteDeLAccueil\(\{/);
-    // Le calcul a lieu à UN endroit : la carte reçoit le résultat.
-    expect(CARTE_DU_JOUR).toMatch(/mascotte\?: EtatVisuelMascotte \| null/);
+    // Le calcul a lieu à UN endroit ; seul le header reçoit la mascotte.
+    expect(ACCUEIL).toMatch(/<MascotteCoach etat=\{canResume \? "training" : mascotteDuJour!/);
+    expect(CARTE_DU_JOUR).not.toMatch(/<MascotteCoach/);
     expect(sansCommentaires(CARTE_DU_JOUR))
       .not.toMatch(/mascotteDeLAccueil\(|resoudreMascotte\w*\(/);
   });

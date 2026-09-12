@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Dumbbell, Activity, TrendingDown } from "lucide-react";
+import { Calendar, Dumbbell, Activity, TrendingDown, Sparkles, ChevronRight } from "lucide-react";
 import { AlertList } from "@/components/alerts/AlertList";
 import { complementTableauDeBordMemoise, type ComplementTableauDeBord } from "@/services/tableau-de-bord";
 import { phase, publier } from "@/lib/mesure/trace";
-import { CarteRecuperation } from "./CarteRecuperation";
+import { DetailsAccueil } from "./DetailsAccueil";
+import { ActionsCoach } from "./ActionsCoach";
 
 /**
  * Ce que l'accueil montre après coup.
@@ -40,8 +41,22 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
   // de temps le complément a retenu la réponse après le premier contenu.
   publier("complement");
 
+  return <ObservationsAccueil data={data} />;
+}
+
+export function ObservationsAccueil({ data }: { data: ComplementTableauDeBord }) {
+  const observations = data.alertesPreSeance.length + Number(!!data.precalcSession) + Number(!!data.weeklyDebrief);
+  const attention = data.alertesPreSeance.some((a) => a.priority === "danger" || a.priority === "warning");
   return (
-    <>
+    <section className="home-noticed" aria-labelledby="home-noticed-title">
+      <h2 className="home-section-title" id="home-noticed-title">Coach a remarqué</h2>
+      <DetailsAccueil titre="Les observations du coach" className="home-noticed-trigger" apercu={<>
+        <span className="home-noticed-icon" data-attention={attention}><Sparkles size={22} aria-hidden /></span>
+        <span><strong>{observations > 0 ? `${observations} point${observations > 1 ? "s" : ""} à voir` : "Aucune observation disponible"}</strong>{attention && <small>Un point demande ton attention</small>}</span>
+        <ChevronRight size={20} aria-hidden />
+      </>}>
+        {observations === 0 && <p>Aucune nouvelle recommandation à afficher.</p>}
+
       {/* Alertes — le composant existait mais n'était monté nulle part. */}
       {data.alertesPreSeance.length > 0 && (
         <Card className="bg-carte border-filet">
@@ -56,13 +71,6 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
           </CardContent>
         </Card>
       )}
-
-      {/*
-        La récupération, juste après les alertes : c'est ce qui décide de
-        l'intensité du jour, avant même de savoir quelle séance vient. Elle est
-        dans le COMPLÉMENT et pas dans l'essentiel — voir le service.
-      */}
-      {data.recuperation && <CarteRecuperation etat={data.recuperation} />}
 
       {/* Precalc session preview */}
       {data.precalcSession && (
@@ -159,6 +167,8 @@ export async function ComplementTableauDeBord({ userId }: { userId: string }) {
           </CardContent>
         </Card>
       )}
-    </>
+        <ActionsCoach />
+      </DetailsAccueil>
+    </section>
   );
 }

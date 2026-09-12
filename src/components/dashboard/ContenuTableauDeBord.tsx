@@ -1,5 +1,5 @@
 "use client";
-import { DeclarerContexte } from "@/components/coach/ContexteCoach";
+import { DeclarerContexte, useCoach } from "@/components/coach/ContexteCoach";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -13,14 +13,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ActionsCoach } from "./ActionsCoach";
+import { DetailsAccueil } from "./DetailsAccueil";
 import { Button } from "@/components/ui/button";
 import { FeuBiologique } from "@/components/ui/FeuBiologique";
 import { Sparkline } from "@/components/ui/Sparkline";
 import {
   ArrowUpRight,
-  Activity,
   Play,
   HeartPulse,
+  ChevronRight,
   Scale,
   TimerReset,
 } from "lucide-react";
@@ -39,29 +40,23 @@ interface DonneesEssentielles {
 }
 
 /**
- * L'accueil, avec ce qui décide de la journée.
- *
- * Cet écran attendait TOUT avant de s'afficher : les alertes, le programme,
- * les débriefs, l'historique — une trentaine de requêtes sérialisées, dont
- * aucune ne change ce que l'utilisateur va faire dans la minute qui suit.
- *
- * Il ne reçoit plus que l'essentiel, et deux emplacements. `carteProgramme` et
- * `complement` sont rendus par le serveur et passés en `props` : un composant
- * client peut recevoir des nœuds serveur, et c'est ce qui permet de streamer
- * le reste sans transformer cet écran en une grappe de requêtes navigateur.
- * Le composant reste client pour de vraies raisons — le store de séance, la
- * feuille d'abandon, la détection de séance périmée.
+ * L'action essentielle arrive d'abord. Les trois emplacements serveur sont
+ * streamés sans ajouter de requêtes navigateur ni de calcul métier au client.
+ * Le store conserve les parcours de reprise, de clôture et d'abandon.
  */
 export function ContenuTableauDeBord({
   data,
   carteProgramme,
   complement,
+  recuperation,
 }: {
   data: DonneesEssentielles;
   carteProgramme?: ReactNode;
   complement?: ReactNode;
+  recuperation?: ReactNode;
 }) {
   const router = useRouter();
+  const { ouvrir } = useCoach();
   const { active, clear } = useSessionStore();
 
   // Detect stale session (>6h). Date.now() ne doit pas etre appele pendant le rendu :
@@ -140,22 +135,7 @@ export function ContenuTableauDeBord({
     }
   };
 
-  /*
-   * LE COACH DE LA JOURNÉE — résolu ici, une fois, pour tout l'écran.
-   *
-   * Aujourd'hui, le Coach t'accueille et te situe ; le Live, lui, t'accompagne
-   * pendant l'action. C'est la même mascotte et deux contextes : la séance
-   * prête affiche `ready` (« on y va »), et le Live qu'elle ouvre affiche
-   * `training`.
-   *
-   * UNE SEULE PRÉSENCE FORTE, et c'est structurel plutôt que promis : l'état
-   * est calculé à cet unique endroit, et les deux emplacements qui le rendent —
-   * la reprise et la carte du jour — s'excluent l'un l'autre par `canResume`.
-   * Récupération, alertes, séances récentes et programme n'en reçoivent aucune.
-   *
-   * Rien n'est décidé ici : `data.etat` vient de `lib/engine/etat-du-jour` et
-   * `data.feuJour` de `lib/engine/feu-biologique`. Voir `accueil-mascotte.ts`.
-   */
+  // Un seul état visuel, issu des résolveurs existants.
   const mascotteDuJour = mascotteDeLAccueil({
     etat: data.etat.etat,
     feuJour: data.feuJour,
@@ -168,155 +148,92 @@ export function ContenuTableauDeBord({
       .reverse()
       .map((bw) => bw.poids) || [];
 
+  const messageCoach = canResume ? "Ta séance t’attend."
+    : data.feuJour === "rouge" ? "La récupération passe en premier."
+    : data.etat.etat === "deja_entraine" ? "Ta séance est enregistrée."
+    : data.etat.etat === "semaine_complete" ? "Ton objectif de la semaine est atteint."
+    : data.feuJour === "orange" ? "Ton état du jour demande de l’attention."
+    : data.etat.etat === "sans_salle" || data.etat.etat === "salle_vide" ? "Préparons ton lieu d’entraînement."
+    : data.etat.etat === "calibration" ? "On construit tes premiers repères."
+    : data.feuJour === "vert" ? "Tu es prêt pour ta séance."
+    : "On fait le point avant de commencer.";
+  const forme = data.feuJour ? { vert: "Favorable", orange: "À adapter", rouge: "Récupérer" }[data.feuJour] : "À renseigner";
+
   return (
-    <div className="dashboard-v2">
+    <div className="home-coach">
       <DeclarerContexte ecran="accueil" />
-      <header className="page-intro">
+      <header className="home-greeting">
         <div>
-          <h1>
-            Salut {data.user.nom ?? "Sacha"}
-            <span className="greeting-dot">.</span>
-          </h1>
+          <h1>Salut{data.user.nom?.trim() ? ` ${data.user.nom.trim()}` : ""}<span>.</span></h1>
+          <button className="home-coach-message" onClick={() => ouvrir()}>
+            {messageCoach}<ChevronRight size={14} aria-hidden />
+          </button>
         </div>
-        <Link href="/historique" prefetch={false} className="intro-link">
-          Mon historique <ArrowUpRight size={16} aria-hidden />
-        </Link>
+        {(canResume || mascotteDuJour) && (
+          <button className="home-mascot" aria-label="Demander au coach" onClick={() => ouvrir()}>
+            <MascotteCoach etat={canResume ? "training" : mascotteDuJour!} taille="normal" presence="normale" anime />
+          </button>
+        )}
       </header>
-      <section className="readiness-section" aria-labelledby="readiness-title">
-        <div className="section-heading">
-          <h2 id="readiness-title">Ta forme aujourd’hui</h2>
-        </div>
-        <div className="readiness-grid">
-          <div className="metric-tile">
-            <span className="metric-icon">
-              <HeartPulse size={20} aria-hidden />
-            </span>
-            <p>Aujourd’hui</p>
-            <div className="metric-value">
-              {data.feuJour ? (
-                <FeuBiologique
-                  feu={data.feuJour}
-                  label={
-                    {
-                      vert: "Favorable",
-                      orange: "À adapter",
-                      rouge: "Récupérer",
-                    }[data.feuJour]
-                  }
-                  size="lg"
-                />
-              ) : (
-                <span className="metric-empty">À renseigner</span>
-              )}
-            </div>
+
+      {canResume && (
+        <section className="home-session" aria-labelledby="session-en-cours">
+          <p className="home-eyebrow">Séance en cours</p>
+          <h2 id="session-en-cours">On reprend ?</h2>
+          <p className="home-session-meta">{active.sets.filter((s) => s.validatedAt).length} séries enregistrées</p>
+          <Button className="home-start" onClick={handleResume}>Reprendre ma séance <Play size={18} aria-hidden /></Button>
+          <button className="home-session-secondary" onClick={() => setConfirmationAbandon(true)}>Abandonner</button>
+        </section>
+      )}
+      {!canResume && (
+        <CarteAujourdhui etat={data.etat} />
+      )}
+      {active && isSessionStale && (
+        <section className="stale-session">
+          <TimerReset size={21} aria-hidden />
+          <div><h2>Séance à clôturer</h2><p>En pause depuis plus de 6 h.</p></div>
+          <div className="stale-actions">
+            <Button size="sm" variant="outline" onClick={() => {
+              if (active.seanceTemplateId) router.push(`/sessions/new/${active.seanceTemplateId}/finish`);
+            }}>Clôturer</Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmationAbandon(true)}>Abandonner</Button>
           </div>
-          <div className="metric-tile">
-            <span className="metric-icon">
-              <Activity size={20} aria-hidden />
-            </span>
-            <p>Tendance</p>
-            <div className="metric-value">
-              {data.feuTendance ? (
-                <FeuBiologique feu={data.feuTendance} size="lg" />
-              ) : (
-                <span className="metric-empty">—</span>
-              )}
-            </div>
-          </div>
-          <Link href="/bodyweight" prefetch={false} className="metric-tile weight-tile">
-            <span className="metric-icon">
-              <Scale size={20} aria-hidden />
-            </span>
-            <p>
-              Poids de corps <ArrowUpRight size={14} aria-hidden />
-            </p>
-            <div className="metric-value">
-              {data.user.poidsActuel != null ? (
-                <span className="metric-number">
-                  {data.user.poidsActuel}
-                  <small> kg</small>
-                </span>
-              ) : (
-                <span className="metric-empty">Ajouter</span>
-              )}
-              {weightData.length >= 2 && (
-                <Sparkline data={weightData} width={80} height={28} />
-              )}
-            </div>
-          </Link>
+        </section>
+      )}
+
+      <section className="home-today" aria-labelledby="home-today-title">
+        <h2 className="home-section-title" id="home-today-title">Aujourd’hui</h2>
+        <div className="home-metrics">
+          {recuperation}
+          <DetailsAccueil titre="Ta forme et ta tendance" className="home-metric" apercu={<>
+            <span className="home-metric-label"><HeartPulse size={18} aria-hidden /> Forme</span>{" "}
+            <strong data-attention={data.feuJour === "orange" || data.feuJour === "rouge"}>{forme}</strong>
+            <ChevronRight className="home-metric-arrow" size={14} aria-hidden />
+          </>}>
+            <div className="home-detail-row"><h3>Aujourd’hui</h3>{data.feuJour ? <FeuBiologique feu={data.feuJour} label={forme} size="lg" /> : <p>Ton état sera renseigné pendant la préparation de séance.</p>}</div>
+            <div className="home-detail-row"><h3>Tendance</h3>{data.feuTendance ? <FeuBiologique feu={data.feuTendance} size="lg" /> : <p>Pas encore de tendance disponible.</p>}</div>
+            <ActionsCoach />
+          </DetailsAccueil>
+          <DetailsAccueil titre="Ton poids" className="home-metric" apercu={<>
+            <span className="home-metric-label"><Scale size={18} aria-hidden /> Poids</span>{" "}
+            <strong>{data.user.poidsActuel != null ? `${data.user.poidsActuel.toLocaleString("fr-FR")} kg` : "Ajouter"}</strong>
+            <ChevronRight className="home-metric-arrow" size={14} aria-hidden />
+          </>}>
+            <p>{data.user.poidsActuel != null ? `Dernier poids : ${data.user.poidsActuel.toLocaleString("fr-FR")} kg` : "Pas encore de poids enregistré."}</p>
+            {weightData.length >= 2 && <div className="home-weight-history"><Sparkline data={weightData} width={260} height={70} /><p>Évolution sur les 30 derniers jours</p></div>}
+            <Link className="context-link" href="/bodyweight" prefetch={false}>Pesées et historique <ArrowUpRight size={16} aria-hidden /></Link>
+          </DetailsAccueil>
         </div>
       </section>
-      <div className="dashboard-primary">
-        <div className="dashboard-action">
-          {canResume && (
-            <section className="resume-panel">
-              {/* La séance est déjà commencée : le Coach est en train de
-                  s'entraîner avec toi, pas en train de t'accueillir. */}
-              <div className="hero-mascotte">
-                <MascotteCoach etat="training" taille="normal" presence="forte" anime />
-              </div>
-              <div className="resume-icon">
-                <Play size={24} aria-hidden />
-              </div>
-              <p className="eyebrow">C’est parti</p>
-              <h2>On reprend ?</h2>
-              <p>
-                {active.sets.filter((s) => s.validatedAt).length} séries
-                enregistrées. Ta séance t’attend.
-              </p>
-              <div className="flex flex-wrap gap-3 mt-5">
-                <Button onClick={handleResume}>
-                  Reprendre ma séance <Play size={16} aria-hidden />
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => setConfirmationAbandon(true)}
-                >
-                  Abandonner
-                </Button>
-              </div>
-            </section>
-          )}
-          {data.etat && !canResume && (
-            <CarteAujourdhui etat={data.etat} mascotte={mascotteDuJour} />
-          )}
-          {active && isSessionStale && (
-            <section className="stale-session">
-              <TimerReset size={21} aria-hidden />
-              <div>
-                <h2>Séance à clôturer</h2>
-                <p>En pause depuis plus de 6 h.</p>
-              </div>
-              <div className="stale-actions">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    if (active.seanceTemplateId)
-                      router.push(
-                        `/sessions/new/${active.seanceTemplateId}/finish`,
-                      );
-                  }}
-                >
-                  Clôturer
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setConfirmationAbandon(true)}
-                >
-                  Abandonner
-                </Button>
-              </div>
-            </section>
-          )}
-        </div>
-        <aside className="dashboard-side">
+      {complement}
+      <nav className="home-explore" aria-label="Explorer ton suivi">
+        <DetailsAccueil titre="Ton programme" className="home-text-link" apercu={<>Programme <ArrowUpRight size={15} aria-hidden /></>}>
           {carteProgramme}
-          <ActionsCoach />
-        </aside>
-      </div>
-      <div className="dashboard-insights">{complement}</div>
+          <Link className="context-link" href="/programme" prefetch={false}>Ouvrir mon programme <ArrowUpRight size={16} aria-hidden /></Link>
+        </DetailsAccueil>
+        <Link href="/progression" prefetch={false}>Progrès <ArrowUpRight size={15} aria-hidden /></Link>
+        <Link href="/historique" prefetch={false}>Historique <ArrowUpRight size={15} aria-hidden /></Link>
+      </nav>
       <Dialog open={confirmationAbandon} onOpenChange={setConfirmationAbandon}>
         <DialogContent>
           <DialogHeader>

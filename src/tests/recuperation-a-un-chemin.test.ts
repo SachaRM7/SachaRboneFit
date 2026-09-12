@@ -33,7 +33,7 @@ const lire = (f: string) => sansCommentaires(readFileSync(path.join(RACINE, f), 
 
 const SERVICE = "services/recuperation.ts";
 const CARTE = "components/dashboard/CarteRecuperation.tsx";
-const COMPLEMENT = "components/dashboard/ComplementTableauDeBord.tsx";
+const COMPLEMENT = "components/dashboard/RecuperationAccueil.tsx";
 const ASSEMBLAGE = "services/tableau-de-bord.ts";
 const PRECALC = "app/api/cron/precalc-session/route.ts";
 const WEEKLY = "app/api/cron/weekly-debrief/route.ts";
@@ -119,10 +119,12 @@ describe("aucun composant React ne recalcule la récupération", () => {
 });
 
 describe("la carte est atteignable, et au bon endroit", () => {
-  it("elle est montée dans le complément du tableau de bord", () => {
+  it("elle reste accessible derrière le résumé musculaire streamé", () => {
     const source = lire(COMPLEMENT);
     expect(source).toMatch(/<CarteRecuperation\s/);
-    expect(source).toMatch(/data\.recuperation/);
+    expect(source).toMatch(/<DetailsAccueil/);
+    expect(source).toMatch(/complementTableauDeBordMemoise/);
+    expect(lire("app/(app)/dashboard/page.tsx")).toMatch(/<RecuperationAccueil/);
   });
 
   it("et l'état est calculé dans le complément, pas dans l'essentiel", () => {

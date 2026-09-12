@@ -1,3 +1,6 @@
+import { AttenteMuscles, AttenteObservations, AttenteProgramme } from "@/components/dashboard/AttentesAccueil";
+import "./home.css";
+import { RecuperationAccueil } from "@/components/dashboard/RecuperationAccueil";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
@@ -44,36 +47,21 @@ export default async function DashboardPage() {
   return (
     <ContenuTableauDeBord
       data={essentiel}
+      recuperation={
+        <Suspense fallback={<AttenteMuscles />}>
+          <RecuperationAccueil userId={userId} />
+        </Suspense>
+      }
       carteProgramme={
-        <Suspense fallback={<CadreProgrammeEnAttente />}>
+        <Suspense fallback={<AttenteProgramme />}>
           <CarteProgramme userId={userId} />
         </Suspense>
       }
       complement={
-        <Suspense fallback={<CadreComplementEnAttente />}>
+        <Suspense fallback={<AttenteObservations />}>
           <ComplementTableauDeBord userId={userId} />
         </Suspense>
       }
     />
-  );
-}
-
-/*
- * Les deux attentes réservent la place de ce qui arrive, sans dessiner de
- * fausses valeurs : un squelette qui imite un chiffre fait lire une donnée qui
- * n'existe pas. La hauteur est celle du bloc réel, pour que rien ne saute
- * quand il se substitue.
- */
-function CadreProgrammeEnAttente() {
-  return (
-    <div aria-hidden>
-      <div className="h-[185px] rounded-3xl bg-papier-2 animate-pulse" />
-    </div>
-  );
-}
-
-function CadreComplementEnAttente() {
-  return (
-    <div className="h-24 rounded-xl bg-papier-2 animate-pulse" aria-hidden />
   );
 }
