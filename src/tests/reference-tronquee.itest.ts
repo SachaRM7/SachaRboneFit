@@ -311,7 +311,7 @@ describe("l'isolation ne bouge pas", () => {
 });
 
 it("le bilan exclut ses propres séries sans lire celles d'un autre compte", async () => {
-  const [nouvelle] = await db.insert(schema.exerciseInstances).values({ userId: SACHA, exerciseId: exercice, gymId: salle, conventionCharge: "pile_affichee" }).returning();
+  const [nouvelle] = await db.insert(schema.exerciseInstances).values({ userId: SACHA, exerciseId: exercice, gymId: salle, machineNom: "Machine de recette", conventionCharge: "pile_affichee" }).returning();
   const instance = nouvelle!.id;
   const actuelle = await seance({ userId: SACHA, date: "2026-09-12", faites: 2, demandees: 2, reps: 8, charge: 20, instance });
   await seance({ userId: MARIA, date: "2026-09-13", faites: 2, demandees: 2, reps: 8, charge: 90, instance });

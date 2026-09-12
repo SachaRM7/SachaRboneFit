@@ -48,6 +48,16 @@ jobs:
       - name: Disposable database schema
         if: always()
         run: npx drizzle-kit push --force
-      - name: Reference integration
+      - name: Live integration
         if: always()
-        run: npm run test:integration -- src/tests/reference-tronquee.itest.ts
+        run: >-
+          npm run test:integration --
+          src/tests/reference-tronquee.itest.ts
+          src/tests/serie-persistee.itest.ts
+          src/tests/demarrage-puis-reprise.itest.ts
+          src/tests/lignee-apres-perte-du-store.itest.ts
+          src/tests/fin-de-seance-sans-fantome.itest.ts
+          src/tests/debrief-persiste.itest.ts
+          src/tests/douleur-vers-contrainte.itest.ts
+          src/tests/symptome-general.itest.ts
+          src/tests/isolation-comptes.itest.ts

@@ -61,6 +61,24 @@ it("le débrief complet reste disponible derrière le résumé, sans génératio
   expect(fetcher).toHaveBeenCalledWith("/api/sessions/test/debrief");
 });
 
+it("le bilan retrouve la note et l'énergie saisies après démontage et restauration", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+  useSessionStore.getState().start({ id: "session-test", seanceTemplateId: "template", gymId: "gym" });
+  useSessionStore.getState().upsertSet({ exerciseInstanceId: "row", numeroSerie: 1, charge: 20, repsEffectuees: 8, rpeEffectif: 7 });
+  const user = userEvent.setup();
+  const rendu = render(<FinishSessionPage />);
+  await user.click(screen.getByRole("radio", { name: "7 sur 10" }));
+  await user.click(screen.getByRole("button", { name: "Ajouter une note" }));
+  await user.type(screen.getByRole("textbox"), "Recette fictive");
+  rendu.unmount();
+  await act(async () => { await useSessionStore.persist.rehydrate(); });
+  render(<FinishSessionPage />);
+  expect(screen.getByRole("radio", { name: "7 sur 10" })).toBeChecked();
+  await user.click(screen.getByRole("button", { name: "Ajouter une note" }));
+  expect(screen.getByRole("textbox")).toHaveValue("Recette fictive");
+  expect(replace).not.toHaveBeenCalled();
+});
+
 it("la clôture conserve les séries après échec, bloque le double clic et permet de réessayer", async () => {
   const user = userEvent.setup();
   useSessionStore.getState().start({ id: "session-test", seanceTemplateId: "template", gymId: "gym" });
