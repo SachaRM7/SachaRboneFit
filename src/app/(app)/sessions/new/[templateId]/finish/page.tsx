@@ -37,12 +37,13 @@ interface InstanceNommee {
 export default function FinishSessionPage() {
   const { templateId } = useParams();
   const router = useRouter();
-  const { active, clear, setNotes } = useSessionStore();
+  const { active, clear, setNotes, memoriserBilan } = useSessionStore();
 
-  const [energie, setEnergie] = useState<number | null>(null);
+  const energie = active?.bilanEnCours?.energieFin ?? null;
   const notes = active?.notesSeance ?? "";
   const [notesOuvertes, setNotesOuvertes] = useState(false);
-  const [reserves, setReserves] = useState<Record<string, number>>({});
+  const reserves = active?.bilanEnCours?.reserves ?? {};
+  const setEnergie = (valeur: number | null) => memoriserBilan({ energieFin: valeur, reserves });
   const [noms, setNoms] = useState<Record<string, string>>({});
   const [envoi, setEnvoi] = useState(false);
   const envoiEnCours = useRef(false);
@@ -63,8 +64,15 @@ export default function FinishSessionPage() {
   const sortieVolontaire = useRef(false);
 
   useEffect(() => {
-    if (sortieVolontaire.current) return;
-    if (!active) router.replace(`/sessions/new/${templateId}`);
+    const verifier = () => {
+      // Le premier rendu SSR est vide, même si le brouillon local existe.
+      // Attendre sa restauration et lire le store courant avant de rediriger.
+      if (!sortieVolontaire.current && !useSessionStore.getState().active) {
+        router.replace(`/sessions/new/${templateId}`);
+      }
+    };
+    if (useSessionStore.persist.hasHydrated()) verifier();
+    return useSessionStore.persist.onFinishHydration(verifier);
   }, [active, router, templateId]);
 
   // Le récapitulatif ne dépend que du brouillon : il se calcule une fois.
@@ -212,7 +220,7 @@ export default function FinishSessionPage() {
         aCompleter={recap.aCompleter}
         nomDe={(id) => noms[id] ?? "Cet exercice"}
         reponses={reserves}
-        onRepondre={(id, r) => setReserves((etat) => ({ ...etat, [id]: r }))}
+        onRepondre={(id, r) => memoriserBilan({ energieFin: energie, reserves: { ...reserves, [id]: r } })}
       />
 
       <div className="space-y-2">

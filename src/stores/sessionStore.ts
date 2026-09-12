@@ -55,6 +55,7 @@ export type DraftSet = {
 export type SaisieSerie = { charge: string; reps: string; rpe: string };
 
 export type ActiveSession = {
+  bilanEnCours?: { energieFin: number | null; reserves: Record<string, number> };
   saisiesEnCours?: Record<string, Record<number, SaisieSerie>>;
   ressentisEnCours?: Record<string, number | null>;
   id: string;
@@ -111,6 +112,7 @@ type SessionStore = {
    */
   start: (s: Omit<ActiveSession, "startedAt" | "sets" | "currentExerciseIndex" | "notesSeance" | "restStartTimestamp" | "restDurationSeconds" | "restExerciseIndex" | "restSkipped" | "completedAt" | "lastActionTimestamp" | "skippedExerciseIds" | "deferredExerciseIds" | "additionalSetCounts" | "rpeReductions" | "lignees" | "tempoParExercice" | "shownProactiveAlerts">) => void;
   memoriserSaisies: (id: string, saisies: Record<number, SaisieSerie>) => void;
+  memoriserBilan: (bilan: NonNullable<ActiveSession["bilanEnCours"]>) => void;
   memoriserEtapeRessenti: (id: string, numero: number | null) => void;
   upsertSet: (set: DraftSet) => void;
   /** Remplace le brouillon par ce que la base porte — voir `hydraterDepuisServeur`. */
@@ -168,6 +170,7 @@ export const useSessionStore = create<SessionStore>()(
           shownProactiveAlerts: [],
         },
       }),
+      memoriserBilan: (bilan) => set((state) => state.active ? { active: { ...state.active, bilanEnCours: bilan } } : state),
       memoriserSaisies: (id, saisies) => set((state) => state.active ? {
         active: { ...state.active, saisiesEnCours: { ...state.active.saisiesEnCours, [id]: saisies } },
       } : state),
