@@ -150,6 +150,7 @@ export function CoachConversation({ contexte, onClose }: {
   }
 
   async function selectConversation(convId: string) {
+    procheDuBas.current = true;
     const tour = ++demande.current;
     setErreur(null); setDernierEssai(null); setMessages([]); setPropositions([]); setInput("");
     setActiveConvId(convId); setVue("conversation"); setChargementThread(true);
@@ -165,6 +166,7 @@ export function CoachConversation({ contexte, onClose }: {
   }
 
   function startNewConversation() {
+    procheDuBas.current = true;
     demande.current += 1; setChargementThread(false); setErreur(null); setDernierEssai(null); setInput("");
     setActiveConvId(null);
     setMessages([]);
@@ -317,7 +319,7 @@ export function CoachConversation({ contexte, onClose }: {
         </section>}
         {chargementThread && <p role="status">Lecture de la conversation…</p>}
         {messages.length > 0 && contexte && accueil?.repere && !conversations.some((c) => c.id === activeConvId) && <div className="coach-context"><span>Contexte de cet échange</span><strong>{accueil.repere}</strong></div>}
-        <div className="coach-messages" aria-label="Messages de la conversation">
+        <div className="coach-messages" role="log" aria-live="polite" aria-relevant="additions" aria-label="Messages de la conversation">
           {messages.map((msg) => <article key={msg.id} className={`coach-message coach-message-${msg.role}`} aria-label={msg.role === "assistant" ? "Réponse du coach" : "Ton message"}>
             {msg.role === "assistant" ? <ReponseCoach texte={msg.content} /> : <p>{msg.content}</p>}
           </article>)}

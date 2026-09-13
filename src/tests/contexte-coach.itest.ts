@@ -12,7 +12,11 @@ import { randomUUID } from "node:crypto";
 
 const U = randomUUID();
 const AUTRE = randomUUID();
+const llmTest = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/auth-helper", () => ({ getAuthenticatedUserId: async () => U }));
+vi.mock("@/lib/coach/llm-client", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/coach/llm-client")>(), appelerLLM: llmTest,
+}));
 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
@@ -96,6 +100,30 @@ afterAll(async () => {
 });
 
 describe("résolution du contexte d'écran", () => {
+  it("une erreur IA conserve l'échange et la nouvelle tentative ne duplique pas la question", async () => {
+    const { POST } = await import("@/app/api/coach/chat/route");
+    llmTest.mockRejectedValueOnce(new Error("Fournisseur temporairement indisponible"))
+      .mockResolvedValueOnce({ texte: "RPE 7 correspond à environ trois répétitions en réserve.", appelsOutils: [] });
+    let conversationId: string | undefined;
+    try {
+      const envoyer = (body: object) => POST(new Request("http://test/api/coach/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
+      const erreur = await envoyer({ message: "RPE 7 ?" });
+      expect(erreur.status).toBe(503);
+      conversationId = (await erreur.json()).conversationId;
+      expect(conversationId).toBeTruthy();
+      const reponse = await envoyer({ message: "RPE 7 ?", conversationId, retry: true });
+      expect(reponse.status).toBe(200);
+      const messages = await db.query.coachMessages.findMany({ where: eq(schema.coachMessages.conversationId, conversationId!) });
+      expect(messages.filter((m) => m.role === "user")).toHaveLength(1);
+      expect(messages.filter((m) => m.role === "assistant")).toHaveLength(1);
+    } finally {
+      if (conversationId) {
+        await db.delete(schema.coachMessages).where(eq(schema.coachMessages.conversationId, conversationId));
+        await db.delete(schema.coachConversations).where(eq(schema.coachConversations.id, conversationId));
+      }
+      llmTest.mockReset();
+    }
+  });
   it("distingue cible, mesure et série désignée, sans révéler une séance étrangère ou archivée", async () => {
     const [session] = await db.insert(schema.sessionLogs).values({ userId: U, seanceTemplateId: gabaritMien, date: "2026-09-12" }).returning();
     const id = session!.id;
