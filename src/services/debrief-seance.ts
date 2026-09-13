@@ -5,7 +5,6 @@ import {
   exerciseInstances, exercises, seanceTemplates, sessionDebriefs, sessionLogs, setLogs,
 } from "@/db/schema";
 import { and, asc, eq } from "drizzle-orm";
-import { appelerLLM } from "@/lib/coach/llm-client";
 import { SeanceIntrouvable } from "./seances";
 
 export interface DebriefDeSeance {
@@ -15,15 +14,7 @@ export interface DebriefDeSeance {
   perime: boolean;
 }
 
-const MOTS_MAXIMUM = 180;
-
 export { SeanceIntrouvable } from "./seances";
-
-function bornerMots(texte: string, maximum: number): string {
-  const mots = texte.trim().split(/\s+/).filter(Boolean);
-  if (mots.length <= maximum) return texte.trim();
-  return `${mots.slice(0, maximum).join(" ")}…`;
-}
 
 function empreinte(lignes: Array<{ id: string; numeroSerie: number; reps: number; charge: number; rpe: number | null }>): string {
   const contenu = lignes
@@ -56,9 +47,7 @@ async function lireLaSeance(userId: string, sessionLogId: string) {
     .orderBy(asc(setLogs.numeroSerie));
 
   const gabarit = seance.seanceTemplateId
-    ? await db.query.seanceTemplates.findFirst({
-        where: eq(seanceTemplates.id, seance.seanceTemplateId),
-      })
+    ? await db.query.seanceTemplates.findFirst({ where: eq(seanceTemplates.id, seance.seanceTemplateId) })
     : null;
 
   return { seance, lignes, gabarit };
@@ -90,19 +79,9 @@ export async function debriefEnregistre(
     contenu: enregistre.contenu,
     genereLe: enregistre.genereLe,
     modele: enregistre.modele,
-    perime:
-      enregistre.empreinteSource !== null && enregistre.empreinteSource !== empreinte(lignes),
+    perime: enregistre.empreinteSource !== null && enregistre.empreinteSource !== empreinte(lignes),
   };
 }
-
-const CONSIGNE = `Tu es le coach de cette personne. Tu écris le débrief d'une séance qui vient d'avoir lieu.
-
-Dis, dans cet ordre et sans titres :
-- ce qui a progressé, chiffres à l'appui ;
-- ce qui mérite attention ;
-- ce qu'il faut préparer pour la prochaine séance.
-
-Contraintes : ${MOTS_MAXIMUM} mots maximum, pas de liste à puces, pas de félicitations creuses, aucune invention. Tu ne disposes que des données ci-dessous : si elles ne suffisent pas à dire quelque chose, dis-le franchement plutôt que de meubler.`;
 
 export async function genererDebrief(
   userId: string,
@@ -111,42 +90,36 @@ export async function genererDebrief(
   const { seance, lignes, gabarit } = await lireLaSeance(userId, sessionLogId);
 
   const parExercice = new Map<string, typeof lignes>();
-  for (const l of lignes) {
-    parExercice.set(l.id, [...(parExercice.get(l.id) ?? []), l]);
+  for (const ligne of lignes) {
+    parExercice.set(ligne.id, [...(parExercice.get(ligne.id) ?? []), ligne]);
   }
 
-  const donnees = [
-    `Séance : ${gabarit ? `${gabarit.lettre} — ${gabarit.nom}` : "séance libre"}`,
-    `Date : ${seance.date}`,
-    seance.dureeMinutes ? `Durée : ${seance.dureeMinutes} min` : null,
-    seance.energieFin ? `Énergie en fin de séance : ${seance.energieFin}/10` : null,
-    seance.notesSeance ? `Note laissée : ${seance.notesSeance}` : null,
-    "",
-    ...[...parExercice.values()].map((series) => {
-      const tete = series[0]!;
-      const detail = series
-        .map((s) => `${s.charge} kg × ${s.reps}${s.rpe !== null ? ` (RPE ${s.rpe})` : ""}`)
-        .join(", ");
-      return `${tete.exercice} (${tete.machine}) : ${detail}`;
-    }),
-  ]
-    .filter((l) => l !== null)
-    .join("\n");
+  const nom = gabarit ? `${gabarit.lettre} — ${gabarit.nom}` : "Séance libre";
+  const parties: string[] = [
+    `${nom} terminée : ${parExercice.size} exercice${parExercice.size > 1 ? "s" : ""}, ${lignes.length} série${lignes.length > 1 ? "s" : ""}${seance.dureeMinutes ? `, ${seance.dureeMinutes} min` : ""}.`,
+  ];
 
-  const reponse = await appelerLLM({
-    messages: [{ role: "user", content: donnees }],
-    system: CONSIGNE,
-  });
+  for (const series of [...parExercice.values()].slice(0, 4)) {
+    const tete = series[0]!;
+    const meilleure = series.reduce((a, b) => (b.charge * b.reps > a.charge * a.reps ? b : a), series[0]!);
+    const rpes = series.map((s) => s.rpe).filter((r): r is number => r !== null);
+    const rpeMax = rpes.length ? Math.max(...rpes) : null;
+    parties.push(`${tete.exercice} : ${series.length} série${series.length > 1 ? "s" : ""}, repère ${meilleure.charge} kg × ${meilleure.reps}${rpeMax !== null ? `, RPE max ${rpeMax}` : ""}.`);
+  }
 
-  const contenu = bornerMots(reponse.texte, MOTS_MAXIMUM);
-  if (!contenu) throw new Error("Le modèle n'a rien renvoyé");
+  if (seance.energieFin !== null && seance.energieFin !== undefined) {
+    parties.push(`Énergie en fin de séance : ${seance.energieFin}/10.`);
+  }
 
+  parties.push("La prochaine prescription sera recalculée à partir de l'exécution enregistrée.");
+
+  const contenu = parties.join("\n");
   const valeurs = {
     userId,
     sessionLogId,
     contenu,
     genereLe: new Date(),
-    modele: reponse.modeleUtilise ?? null,
+    modele: "deterministe:debrief-v1",
     empreinteSource: empreinte(lignes),
   };
 
