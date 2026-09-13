@@ -13,11 +13,11 @@ import { resoudreContexte } from "@/services/contexte-coach";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 90;
 
 const schema = z.object({
   conversationId: z.string().uuid().nullable().optional(),
-  message: z.string().trim().min(1).max(4000),
+  message: z.string().trim().min(1).max(2000),
   sessionLogId: z.string().uuid().nullable().optional(),
   /**
    * Désignation de l'écran d'où la question est posée. Une désignation, jamais
@@ -28,7 +28,46 @@ const schema = z.object({
 });
 
 /** Au-delà, on arrête la boucle : le modèle tourne en rond. */
-const TOURS_MAX = 4;
+const TOURS_MAX = 2;
+/** On garde un historique utile sans renvoyer toute la vie de la conversation au fournisseur. */
+const MESSAGES_HISTORIQUE_MAX = 12;
+const CARACTERES_HISTORIQUE_MAX = 12_000;
+const CARACTERES_RESULTAT_OUTIL_MAX = 6_000;
+const CARACTERES_RESULTATS_OUTILS_TOTAL_MAX = 12_000;
+const CARACTERES_REPONSE_MAX = 5_000;
+
+function bornerHistorique(historique: Array<{ role: string; content: string }>): MessageLLM[] {
+  const candidats = historique
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .filter((m) => m.content.trim().length > 0)
+    .slice(-MESSAGES_HISTORIQUE_MAX);
+
+  const retenus: MessageLLM[] = [];
+  let caracteres = 0;
+  for (let i = candidats.length - 1; i >= 0; i -= 1) {
+    const m = candidats[i]!;
+    const restant = CARACTERES_HISTORIQUE_MAX - caracteres;
+    if (restant <= 0) break;
+    const content = m.content.length > restant ? m.content.slice(-restant) : m.content;
+    retenus.push({ role: m.role as "user" | "assistant", content });
+    caracteres += content.length;
+  }
+  return retenus.reverse();
+}
+
+function bornerResultatOutil(resultat: string, dejaConserve: number): string {
+  const restantGlobal = Math.max(0, CARACTERES_RESULTATS_OUTILS_TOTAL_MAX - dejaConserve);
+  const limite = Math.min(CARACTERES_RESULTAT_OUTIL_MAX, restantGlobal);
+  if (limite <= 0) return "Résultat omis : budget de contexte atteint.";
+  if (resultat.length <= limite) return resultat;
+  return `${resultat.slice(0, Math.max(0, limite - 31))}\n[… résultat tronqué côté serveur …]`;
+}
+
+function bornerReponse(texte: string): string {
+  const propre = texte.trim();
+  if (propre.length <= CARACTERES_REPONSE_MAX) return propre;
+  return `${propre.slice(0, CARACTERES_REPONSE_MAX)}\n\n[… réponse abrégée …]`;
+}
 
 /**
  * Conversation avec le coach.
@@ -41,9 +80,13 @@ const TOURS_MAX = 4;
  * Elle exécute désormais la boucle d'outils côté serveur et renvoie une réponse
  * complète. Les appels et leurs résultats sont archivés sur le message, dans les
  * colonnes prévues pour ça et jusqu'ici toujours vides.
+ *
+ * IMPORTANT : l'historique, les résultats d'outils et la réponse finale sont
+ * bornés côté serveur. Une conversation longue ne doit jamais grossir sans
+ * limite ni multiplier les tours LLM jusqu'au timeout/quota.
  */
 export async function POST(request: Request) {
-  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(240_000)]);
+  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(75_000)]);
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -84,11 +127,7 @@ export async function POST(request: Request) {
       }),
     ]);
 
-    const messages: MessageLLM[] = historique
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .filter((m) => m.content.trim().length > 0)
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-
+    const messages = bornerHistorique(historique);
     const outils = createCoachTools();
 
     // Le contexte d'écran s'ajoute au prompt plutôt qu'au message : c'est une
@@ -98,6 +137,7 @@ export async function POST(request: Request) {
       : buildSystemPrompt(contexte);
 
     const resultatsOutils: Array<{ appel: AppelOutil; resultat: string }> = [];
+    let caracteresOutils = 0;
     let reponse = await appelerLLM({
       messages,
       signal,
@@ -110,7 +150,7 @@ export async function POST(request: Request) {
     while (reponse.appelsOutils.length > 0 && tour < TOURS_MAX) {
       for (const appel of reponse.appelsOutils) {
         const executeur = outils.executors[appel.nom];
-        const resultat = executeur
+        const brut = executeur
           // Les références de l'écran sont remises à l'outil directement : le
           // modèle n'a pas à les recopier, et ne peut pas les remplacer.
           ? await executeur(appel.arguments, userId, contexteDeLEcran.refs ?? undefined).then(
@@ -118,6 +158,8 @@ export async function POST(request: Request) {
               (e: unknown) => `Erreur : ${e instanceof Error ? e.message : String(e)}`,
             )
           : `Outil inconnu : ${appel.nom}`;
+        const resultat = bornerResultatOutil(brut, caracteresOutils);
+        caracteresOutils += resultat.length;
         resultatsOutils.push({ appel, resultat });
       }
 
@@ -131,7 +173,7 @@ export async function POST(request: Request) {
       tour += 1;
     }
 
-    const texte = reponse.texte.trim() || "Je n'ai pas réussi à formuler de réponse.";
+    const texte = bornerReponse(reponse.texte) || "Je n'ai pas réussi à formuler de réponse.";
 
     const [enregistre] = await db
       .insert(coachMessages)
