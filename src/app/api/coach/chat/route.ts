@@ -163,6 +163,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof CoachIndisponible) {
+      if (error.statut === 413) {
+        return NextResponse.json({ conversationId: convId, code: "COACH_CAPACITE", error: "Le coach ne peut pas traiter cette demande avec sa limite actuelle. Ta question est conservée." }, { status: 413 });
+      }
       if (error.statut === 429) {
         return NextResponse.json({ conversationId: convId, code: "COACH_QUOTA", error: "Le coach a atteint sa limite temporaire. Réessaie dans un instant." },
           { status: 429, headers: error.retryAfterSeconds !== undefined ? { "Retry-After": String(error.retryAfterSeconds) } : {} });

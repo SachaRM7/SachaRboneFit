@@ -250,7 +250,11 @@ export function CoachConversation({ contexte, onClose }: {
         throw new Error(
           erreur?.code === "COACH_QUOTA"
             ? "Le coach a atteint sa limite temporaire. Ton message est conservé : réessaie dans un instant."
-            : messageErreur("joindre le coach", erreur?.error, res.status),
+            : erreur?.code === "COACH_CAPACITE"
+              ? "Le coach ne peut pas traiter cette demande avec sa limite actuelle. Ta question est conservée."
+              : res.status >= 500
+                ? "Le coach est momentanément indisponible. Ta question est conservée : tu peux réessayer."
+                : messageErreur("joindre le coach", erreur?.error, res.status),
         );
       }
 
