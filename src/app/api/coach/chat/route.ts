@@ -8,8 +8,9 @@ import { loadCoachContext } from "@/lib/coach/context-loader";
 import { buildSystemPrompt } from "@/lib/coach/system-prompt";
 import { appelerLLM, CoachIndisponible, type AppelOutil, type MessageLLM } from "@/lib/coach/llm-client";
 import { createCoachTools } from "@/lib/coach/tools";
-import { contexteValide } from "@/lib/coach/contexte-ecran";
+import { contexteValide, extraireActionRapide } from "@/lib/coach/contexte-ecran";
 import { resoudreContexte } from "@/services/contexte-coach";
+import { repondreActionRapide } from "@/services/reponses-coach-rapides";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,19 +18,12 @@ export const maxDuration = 90;
 
 const schema = z.object({
   conversationId: z.string().uuid().nullable().optional(),
-  message: z.string().trim().min(1).max(2000),
+  message: z.string().trim().min(1).max(4000),
   sessionLogId: z.string().uuid().nullable().optional(),
-  /**
-   * Désignation de l'écran d'où la question est posée. Une désignation, jamais
-   * des données : le serveur les résout lui-même depuis la session
-   * authentifiée. Tout champ inattendu est ignoré par `contexteValide`.
-   */
   contexte: z.unknown().nullable().optional(),
 });
 
-/** Au-delà, on arrête la boucle : le modèle tourne en rond. */
 const TOURS_MAX = 2;
-/** On garde un historique utile sans renvoyer toute la vie de la conversation au fournisseur. */
 const MESSAGES_HISTORIQUE_MAX = 12;
 const CARACTERES_HISTORIQUE_MAX = 12_000;
 const CARACTERES_RESULTAT_OUTIL_MAX = 6_000;
@@ -69,22 +63,6 @@ function bornerReponse(texte: string): string {
   return `${propre.slice(0, CARACTERES_REPONSE_MAX)}\n\n[… réponse abrégée …]`;
 }
 
-/**
- * Conversation avec le coach.
- *
- * La route ré-emballait le flux SSE du fournisseur sans jamais le décoder, et
- * n'a jamais transmis les outils au modèle — `createCoachTools()` n'était appelé
- * nulle part. Le coach affichait donc du protocole brut et n'avait aucun accès
- * aux données.
- *
- * Elle exécute désormais la boucle d'outils côté serveur et renvoie une réponse
- * complète. Les appels et leurs résultats sont archivés sur le message, dans les
- * colonnes prévues pour ça et jusqu'ici toujours vides.
- *
- * IMPORTANT : l'historique, les résultats d'outils et la réponse finale sont
- * bornés côté serveur. Une conversation longue ne doit jamais grossir sans
- * limite ni multiplier les tours LLM jusqu'au timeout/quota.
- */
 export async function POST(request: Request) {
   const signal = AbortSignal.any([request.signal, AbortSignal.timeout(75_000)]);
   try {
@@ -95,10 +73,12 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: "Message invalide" }, { status: 400 });
     }
+
     const { conversationId, message, sessionLogId } = parsed.data;
     const contexteEcran = contexteValide(parsed.data.contexte);
+    const actionRapide = extraireActionRapide(message);
+    const messageVisible = actionRapide?.message ?? message;
 
-    // --- Conversation ---
     let convId = conversationId ?? null;
 
     if (convId) {
@@ -109,15 +89,55 @@ export async function POST(request: Request) {
     } else {
       const [nouvelle] = await db
         .insert(coachConversations)
-        .values({ userId, sessionLogId: sessionLogId ?? null, title: message.slice(0, 60) })
+        .values({ userId, sessionLogId: sessionLogId ?? null, title: messageVisible.slice(0, 60) })
         .returning();
       if (!nouvelle) return NextResponse.json({ error: "Création impossible" }, { status: 500 });
       convId = nouvelle.id;
     }
 
-    await db.insert(coachMessages).values({ conversationId: convId, role: "user", content: message });
+    await db.insert(coachMessages).values({
+      conversationId: convId,
+      role: "user",
+      content: messageVisible,
+    });
 
-    // --- Contexte et historique ---
+    /**
+     * Bouton prédéfini : le Coach reste l'interface, mais aucun fournisseur IA
+     * n'est appelé. Les réponses viennent des mêmes services/règles que le reste
+     * de l'application et sont persistées comme un message normal du Coach.
+     */
+    if (actionRapide) {
+      const texte = bornerReponse(await repondreActionRapide({
+        actionId: actionRapide.id,
+        userId,
+        contexte: contexteEcran,
+      }));
+
+      const [enregistre] = await db
+        .insert(coachMessages)
+        .values({
+          conversationId: convId,
+          role: "assistant",
+          content: texte,
+          toolCalls: null,
+          toolResults: null,
+        })
+        .returning();
+
+      await db
+        .update(coachConversations)
+        .set({ updatedAt: new Date() })
+        .where(eq(coachConversations.id, convId));
+
+      return NextResponse.json({
+        conversationId: convId,
+        message: { id: enregistre?.id, role: "assistant", content: texte },
+        outilsUtilises: [],
+        deterministe: true,
+      });
+    }
+
+    // À partir d'ici seulement : vraie question libre -> LLM.
     const [contexte, contexteDeLEcran, historique] = await Promise.all([
       loadCoachContext(userId),
       resoudreContexte(userId, contexteEcran),
@@ -130,8 +150,6 @@ export async function POST(request: Request) {
     const messages = bornerHistorique(historique);
     const outils = createCoachTools();
 
-    // Le contexte d'écran s'ajoute au prompt plutôt qu'au message : c'est une
-    // situation, pas une question de l'utilisateur.
     const promptComplet = contexteDeLEcran.texte
       ? `${buildSystemPrompt(contexte)}\n\n## Écran en cours\n${contexteDeLEcran.texte}`
       : buildSystemPrompt(contexte);
@@ -145,14 +163,11 @@ export async function POST(request: Request) {
       outils: outils.definitions,
     });
 
-    // Boucle d'outils : le modèle demande des données, on les lui fournit, il conclut.
     let tour = 0;
     while (reponse.appelsOutils.length > 0 && tour < TOURS_MAX) {
       for (const appel of reponse.appelsOutils) {
         const executeur = outils.executors[appel.nom];
         const brut = executeur
-          // Les références de l'écran sont remises à l'outil directement : le
-          // modèle n'a pas à les recopier, et ne peut pas les remplacer.
           ? await executeur(appel.arguments, userId, contexteDeLEcran.refs ?? undefined).then(
               (r) => r.output,
               (e: unknown) => `Erreur : ${e instanceof Error ? e.message : String(e)}`,
@@ -195,6 +210,7 @@ export async function POST(request: Request) {
       conversationId: convId,
       message: { id: enregistre?.id, role: "assistant", content: texte },
       outilsUtilises: resultatsOutils.map((r) => r.appel.nom),
+      deterministe: false,
     });
   } catch (error) {
     if (error instanceof CoachIndisponible) {
