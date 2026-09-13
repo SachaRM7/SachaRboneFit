@@ -26,49 +26,16 @@ export type Ecran = (typeof ECRANS)[number];
 export const TYPES_ENTITE = ["bloc", "seance", "exercice", "instance"] as const;
 export type TypeEntite = (typeof TYPES_ENTITE)[number];
 
-/**
- * Intentions déclenchées par un bouton de l'application.
- *
- * Elles pré-remplissent le contexte et proposent une amorce ; elles n'envoient
- * jamais de message à la place de l'utilisateur.
- */
 export const SUJETS = [
   "modifier_programme",
   "decharge",
   "materiel",
   "stagnation",
   "expliquer_seance",
-  /**
-   * « J'ai remarqué quelque chose » — l'observateur de séance.
-   *
-   * Ouvert depuis un constat affiché pendant la séance. Le fait lui-même n'est
-   * pas transporté : seule l'INTENTION l'est, et le serveur retrouve la séance
-   * depuis la session authentifiée.
-   */
   "observation_seance",
 ] as const;
 export type Sujet = (typeof SUJETS)[number];
 
-/**
- * Le TYPE de constat d'où l'on ouvre la conversation.
- *
- * UN INDICE DE CONTEXTE NON AUTORITAIRE — et le mot compte.
- *
- * C'est une désignation, pas une donnée : une valeur d'une liste fermée, jamais
- * du texte libre. Elle dit de quoi l'athlète veut parler ; elle n'affirme rien
- * et n'a AUCUN POUVOIR MÉTIER — aucune décision déterministe du dépôt ne la
- * lit. Les nombres viennent de la séance que le serveur relit lui-même, sur le
- * compte authentifié.
- *
- * Ce qui reste ouvert est écrit noir sur blanc dans `services/contexte-coach`,
- * là où la valeur est employée : un client modifié peut désigner un sujet qui
- * ne correspond à rien, et le modèle peut reprendre cette désignation dans sa
- * phrase. C'est une limite acceptée, pas une chose que la formulation du
- * message réglerait.
- *
- * Reprend les types de `engine/evenements-seance` : deux listes qui divergent
- * laisseraient passer un signal que plus personne ne sait produire.
- */
 export const SIGNAUX_OBSERVATION = [
   "repos_ecourte",
   "repos_rallonge",
@@ -84,18 +51,71 @@ export interface ContexteEcran {
   typeEntite?: TypeEntite | null;
   entiteId?: string | null;
   sujet?: Sujet | null;
-  /** Le type de constat à l'origine de l'ouverture — voir `SIGNAUX_OBSERVATION`. */
   signal?: SignalObservation | null;
 }
 
 export interface Suggestion {
-  /** Ce que l'utilisateur lit sur le bouton. */
   libelle: string;
-  /** Ce qui part réellement comme message s'il le touche. */
   message: string;
 }
 
-/** Trois ou quatre suggestions par écran. Au-delà, ce n'est plus une aide. */
+/**
+ * Métadonnée invisible ajoutée uniquement aux messages issus d'un bouton.
+ *
+ * Le texte reste visuellement identique dans le champ du Coach. Le serveur
+ * peut toutefois distinguer :
+ * - phrase tapée à la main -> LLM ;
+ * - même phrase issue d'un bouton -> moteur déterministe.
+ *
+ * L'identifiant est encodé uniquement avec des caractères de largeur nulle,
+ * donc aucune chaîne technique n'apparaît dans l'interface ou l'historique.
+ */
+const ACTION_DEBUT = "\u2063\u2063";
+const ACTION_FIN = "\u2064";
+const BIT_0 = "\u200b";
+const BIT_1 = "\u200c";
+
+function encoderActionRapide(id: string): string {
+  const octets = new TextEncoder().encode(id);
+  let bits = "";
+  for (const octet of octets) {
+    bits += octet.toString(2).padStart(8, "0").replace(/0/g, BIT_0).replace(/1/g, BIT_1);
+  }
+  return `${ACTION_DEBUT}${bits}${ACTION_FIN}`;
+}
+
+export function extraireActionRapide(message: string): { id: string; message: string } | null {
+  const debut = message.lastIndexOf(ACTION_DEBUT);
+  if (debut < 0) return null;
+  const fin = message.indexOf(ACTION_FIN, debut + ACTION_DEBUT.length);
+  if (fin < 0) return null;
+
+  const code = message.slice(debut + ACTION_DEBUT.length, fin);
+  if (!code || code.length % 8 !== 0 || [...code].some((c) => c !== BIT_0 && c !== BIT_1)) return null;
+
+  const octets: number[] = [];
+  for (let i = 0; i < code.length; i += 8) {
+    const binaire = code.slice(i, i + 8).replaceAll(BIT_0, "0").replaceAll(BIT_1, "1");
+    octets.push(Number.parseInt(binaire, 2));
+  }
+
+  const id = new TextDecoder().decode(new Uint8Array(octets));
+  if (!/^(?:accueil|programme|progression|seance|exercices|plus):\d+$/.test(id)
+      && !/^sujet:[a-z_]+:\d+$/.test(id)) return null;
+
+  return {
+    id,
+    message: `${message.slice(0, debut)}${message.slice(fin + ACTION_FIN.length)}`.trim(),
+  };
+}
+
+function marquerSuggestions(prefixe: string, liste: Suggestion[]): Suggestion[] {
+  return liste.map((s, index) => ({
+    ...s,
+    message: `${s.message}${encoderActionRapide(`${prefixe}:${index}`)}`,
+  }));
+}
+
 const SUGGESTIONS: Record<Ecran, Suggestion[]> = {
   accueil: [
     { libelle: "Je suis fatigué aujourd'hui", message: "Je suis fatigué aujourd'hui, comment j'adapte ma séance ?" },
@@ -131,7 +151,6 @@ const SUGGESTIONS: Record<Ecran, Suggestion[]> = {
   ],
 };
 
-/** Suggestions propres à une intention, quand elle en appelle de plus précises. */
 const SUGGESTIONS_SUJET: Partial<Record<Sujet, Suggestion[]>> = {
   modifier_programme: [
     { libelle: "Changer mes jours", message: "Je ne peux plus m'entraîner certains jours de la semaine." },
@@ -156,20 +175,11 @@ const SUGGESTIONS_SUJET: Partial<Record<Sujet, Suggestion[]>> = {
   ],
 };
 
-/**
- * Phrase d'accueil.
- *
- * Elle nomme ce que l'utilisateur regardait, sans rien affirmer sur ses
- * données : c'est une amorce, pas une analyse. Elle ne remplace jamais un
- * message envoyé — rien ne part tant qu'il n'a rien touché.
- */
 const AMORCES_SUJET: Record<Sujet, string> = {
   modifier_programme: "Tu veux modifier ton programme actuel.",
   decharge: "Tu veux parler de la décharge que je t'ai proposée.",
   materiel: "Tu veux adapter ton programme à ton matériel.",
   stagnation: "Tu veux comprendre une stagnation.",
-  // Le constat est déjà affiché à l'écran d'où l'on vient : l'amorce ouvre la
-  // conversation, elle ne répète pas le fait ni ne l'interprète.
   observation_seance: "Tu veux parler de ce que j'ai remarqué pendant ta séance.",
   expliquer_seance: "Tu veux comprendre la séance que je t'ai proposée.",
 };
@@ -190,15 +200,14 @@ export function amorce(contexte: ContexteEcran | null): string {
 }
 
 export function suggestions(contexte: ContexteEcran | null): Suggestion[] {
-  if (!contexte) return SUGGESTIONS.plus;
+  if (!contexte) return marquerSuggestions("plus", SUGGESTIONS.plus);
   if (contexte.sujet) {
     const propres = SUGGESTIONS_SUJET[contexte.sujet];
-    if (propres) return propres;
+    if (propres) return marquerSuggestions(`sujet:${contexte.sujet}`, propres);
   }
-  return SUGGESTIONS[contexte.ecran];
+  return marquerSuggestions(contexte.ecran, SUGGESTIONS[contexte.ecran]);
 }
 
-/** Le contexte reçu du client, nettoyé. Rien d'autre n'est accepté. */
 export function contexteValide(brut: unknown): ContexteEcran | null {
   if (!brut || typeof brut !== "object") return null;
   const o = brut as Record<string, unknown>;
@@ -213,8 +222,6 @@ export function contexteValide(brut: unknown): ContexteEcran | null {
       ? (o.typeEntite as TypeEntite)
       : null;
 
-  // Un identifiant n'est retenu que s'il a la forme attendue. Le serveur
-  // vérifiera de toute façon qu'il appartient à l'utilisateur authentifié.
   const estUuid = (v: unknown) =>
     typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
@@ -223,8 +230,6 @@ export function contexteValide(brut: unknown): ContexteEcran | null {
       ? (o.sujet as Sujet)
       : null;
 
-  // Même politique que le reste : une valeur hors de la liste fermée disparaît
-  // silencieusement plutôt que d'atteindre le serveur.
   const signal =
     typeof o.signal === "string" && (SIGNAUX_OBSERVATION as readonly string[]).includes(o.signal)
       ? (o.signal as SignalObservation)
