@@ -109,8 +109,8 @@ type Justification = "regle-dans-la-requete" | "bornee-par-des-seances" | "archi
 
 const LECTEURS: Record<string, { lectures: number; pourquoi: Justification; note?: string }> = {
   "services/contexte-coach.ts": {
-    lectures: 1, pourquoi: "bornee-par-des-seances",
-    note: "Contexte Live : séance authentifiée, non archivée et en cours vérifiée avant la lecture des séries, bornée à cet ID et à l'instance vérifiée.",
+    lectures: 2, pourquoi: "bornee-par-des-seances",
+    note: "Live : séance authentifiée non archivée vérifiée avant ses séries. Machine de l'historique : jointure avec session_logs et filtre explicite du compte et de l'archivage.",
   },
   "services/progression.ts": {
     lectures: 6, pourquoi: "bornee-par-des-seances",

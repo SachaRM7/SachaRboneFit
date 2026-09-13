@@ -290,11 +290,16 @@ async function nommerEntite(
         .where(and(eq(sessionLogs.id, sessionVerifiee), eq(sessionLogs.userId, userId),
           isNull(sessionLogs.archiveLe), eq(programmeBlocs.userId, userId), eq(exerciseInTemplate.exerciseInstanceId, id)))
         .limit(1) : [];
+      const dansMonHistorique = !dansMonPlan && !dansMonGabarit.length ? await db
+        .select({ id: setLogs.id }).from(setLogs)
+        .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+        .where(and(eq(setLogs.exerciseInstanceId, id), eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)))
+        .limit(1) : [];
       const [ligne] = await db
         .select({ nom: exercises.nom, machineNom: exerciseInstances.machineNom })
         .from(exerciseInstances)
         .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-        .where(and(eq(exerciseInstances.id, id), dansMonPlan || dansMonGabarit.length ? undefined : eq(exerciseInstances.userId, userId)))
+        .where(and(eq(exerciseInstances.id, id), dansMonPlan || dansMonGabarit.length || dansMonHistorique.length ? undefined : eq(exerciseInstances.userId, userId)))
         .limit(1);
       return ligne
         ? `Exercice regardé : ${ligne.nom}${ligne.machineNom ? ` — ${ligne.machineNom}` : ""}.`

@@ -146,6 +146,9 @@ describe("résolution du contexte d'écran", () => {
       expect(machinePartagee.refs?.exerciseInstanceId).toBe(instMienne);
       expect(machinePartagee.texte).toContain("charge suggérée 22.5");
       expect(machinePartagee.texte).toContain("série 1 : 20 kg × 10");
+      const depuisHistorique = await resoudreContexte(U, { ecran: "progression", typeEntite: "instance", entiteId: instMienne });
+      expect(depuisHistorique.refs?.exerciseInstanceId).toBe(instMienne);
+      expect(depuisHistorique.texte).toContain("Exercice regardé : Developpe couche");
       await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, id));
       const ancienGabarit = await resoudreContexte(U, contexte);
       expect(ancienGabarit.refs?.exerciseInstanceId).toBe(instMienne);

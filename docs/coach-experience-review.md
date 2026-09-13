@@ -10,7 +10,7 @@ Le tiroir contextuel conserve l’écran sous-jacent. Home et Programme gardent 
 
 - Même route de chat, client LLM, outils et propositions confirmables ; aucun moteur de progression, récupération ou substitution recopié.
 - Aucun schéma, champ métier ou format de stockage ajouté. Les anciens messages texte restent affichables.
-- Le serveur contrôle le compte et les entités. Une machine partagée n’est reconnue que dans le plan ou le gabarit appartenant à la séance authentifiée. Les mesures restent limitées à cette séance, non archivée.
+- Le serveur contrôle le compte et les entités. Une machine partagée est reconnue via le plan ou le gabarit de la séance authentifiée, ou les séries du compte dans des séances non archivées. Les mesures Live restent limitées à la séance désignée.
 - Une séance ancienne sans plan figé est signalée comme telle ; aucune prescription du brouillon n’est présentée comme vérifiée.
 - Le prompt demande la réponse directe avant les détails, distingue repère et progression, et exclut les identifiants techniques des explications.
 - `react-markdown`, GFM et les retours à la ligne rendent titres, gras, listes, tableaux et liens. Pas de HTML brut exécuté ; pas de troncature des anciennes réponses.
