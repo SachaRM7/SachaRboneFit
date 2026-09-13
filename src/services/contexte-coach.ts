@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import {
-  exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
+  exerciseInstances, exercises, exerciseInTemplate, programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { libelleCycle } from "@/lib/referentiels/cycle";
@@ -230,7 +230,7 @@ export async function resoudreContexte(
       lignes.push(`Prescription enregistrée : ${plan.seriesCibles} séries, ${plan.fourchetteRepsMin}–${plan.fourchetteRepsMax} reps, RPE cible ${plan.rpeCible ?? "non renseigné"}, charge suggérée ${plan.chargeSuggeree ?? "non renseignée"}.`);
       if (plan.messageProgression) lignes.push(`Recommandation du moteur : ${plan.messageProgression}`);
       if (plan.raisonSubstitution) lignes.push(`Adaptation : ${plan.raisonSubstitution}`);
-    }
+    } else lignes.push("Aucun plan de séance figé enregistré pour cet exercice : ne présente pas une cible ou une charge du brouillon comme une prescription vérifiée.");
     const mesures = await db.query.setLogs.findMany({ where: and(eq(setLogs.sessionLogId, refs.sessionLogId), eq(setLogs.exerciseInstanceId, refs.exerciseInstanceId)) });
     if (contexte.numeroSerie) lignes.push(`Série désignée par l'écran : ${contexte.numeroSerie}. Ce numéro désigne une question, pas une mesure.`);
     lignes.push(mesures.length ? `Séries réellement enregistrées : ${mesures.map((m) => `série ${m.numeroSerie} : ${m.charge} kg × ${m.repsEffectuees}, RPE ${m.rpeEffectif ?? "non saisi"}`).join(" ; ")}.` : "Aucune série enregistrée pour cet exercice. Le brouillon local ne constitue pas une mesure serveur.");
@@ -280,11 +280,21 @@ async function nommerEntite(
         where: and(eq(sessionPlanItems.sessionLogId, sessionVerifiee), eq(sessionPlanItems.exerciseInstanceId, id)),
         columns: { id: true },
       }) : null;
+      // Les séances ouvertes directement depuis un ancien gabarit n'ont pas
+      // toujours de plan figé. Leur gabarit doit lui aussi appartenir au compte.
+      const dansMonGabarit = !dansMonPlan && sessionVerifiee ? await db
+        .select({ id: exerciseInTemplate.id }).from(exerciseInTemplate)
+        .innerJoin(seanceTemplates, eq(seanceTemplates.id, exerciseInTemplate.seanceTemplateId))
+        .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
+        .innerJoin(sessionLogs, eq(sessionLogs.seanceTemplateId, seanceTemplates.id))
+        .where(and(eq(sessionLogs.id, sessionVerifiee), eq(sessionLogs.userId, userId),
+          isNull(sessionLogs.archiveLe), eq(programmeBlocs.userId, userId), eq(exerciseInTemplate.exerciseInstanceId, id)))
+        .limit(1) : [];
       const [ligne] = await db
         .select({ nom: exercises.nom, machineNom: exerciseInstances.machineNom })
         .from(exerciseInstances)
         .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-        .where(and(eq(exerciseInstances.id, id), dansMonPlan ? undefined : eq(exerciseInstances.userId, userId)))
+        .where(and(eq(exerciseInstances.id, id), dansMonPlan || dansMonGabarit.length ? undefined : eq(exerciseInstances.userId, userId)))
         .limit(1);
       return ligne
         ? `Exercice regardé : ${ligne.nom}${ligne.machineNom ? ` — ${ligne.machineNom}` : ""}.`
