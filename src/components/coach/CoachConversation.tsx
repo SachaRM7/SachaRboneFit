@@ -54,7 +54,7 @@ function sujetDuCoach(contexte: ContexteEcran | null): SujetCoach | null {
     case "programme":
       return "modifier_programme";
     case "progression":
-      return "stagnation";
+      return "analyse_seance";
     case "exercices":
       return "expliquer_exercice";
     default:
