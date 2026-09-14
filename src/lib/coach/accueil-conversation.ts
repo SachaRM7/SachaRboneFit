@@ -12,10 +12,11 @@ export function suggestionsAccueilCoach({ contexte, seance, historique, programm
   programme: boolean;
   exercice: boolean;
 }): Suggestion[] {
-  // La construction libre n'est proposée que si le serveur a réellement
-  // retrouvé un programme à adapter. Sans cette donnée, l'accueil conserve
-  // les questions pédagogiques qui ne promettent aucun contexte inexistant.
-  if (contexte.sujet === "construire_seance" && programme) {
+  // Cette intention vient d'un geste explicite dans le hub Séances. Les
+  // suggestions restent des questions : elles ne prétendent donc pas qu'un
+  // programme, une récupération ou du matériel ont déjà été retrouvés. Le
+  // serveur vérifiera les vraies données avant toute proposition.
+  if (contexte.sujet === "construire_seance") {
     return suggestions(contexte);
   }
   return suggestionsVerifiees({ seance, historique, programme, exercice });

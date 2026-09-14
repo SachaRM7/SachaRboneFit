@@ -30,7 +30,7 @@ describe("accueil Coach fondé sur le contexte", () => {
       "Adapter à ma récupération",
     ]);
   });
-  it("reste pédagogique si le contexte requis n'existe pas", () => {
+  it("conserve l'intention explicite même si aucune donnée n'est encore résolue", () => {
     const choix = suggestionsAccueilCoach({
       contexte: { ecran: "programme", sujet: "construire_seance" },
       seance: false,
@@ -38,7 +38,7 @@ describe("accueil Coach fondé sur le contexte", () => {
       programme: false,
       exercice: false,
     });
-    expect(choix).toEqual(QUESTIONS_PEDAGOGIQUES);
+    expect(choix.map((s) => s.libelle)).toContain("Choisir les muscles");
   });
   it("ne transmet que les identifiants et le numéro de série validés", () => {
     const id = "11111111-1111-4111-8111-111111111111";
