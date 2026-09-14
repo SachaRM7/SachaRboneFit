@@ -44,9 +44,9 @@ npm run dev
 | `SEED_USER_ID` | UUID du compte à seeder. Doit correspondre à un utilisateur Supabase réel. |
 | `SEED_USER_EMAIL` | Email du compte seedé (défaut `sacha@local`). |
 | `CRON_SECRET` | Protège les routes `/api/cron/*`. |
-| `OPENCODE_API_KEY` | Clé OpenCode Zen du Coach. Sans clé, l'application fonctionne et seul le Coach répond 503. |
-| `LLM_CHAINE_COURANTE` | Chaîne des modèles du chat, par défaut `opencode:glm-5.3-flash,opencode:glm-5.3`. |
-| `LLM_CHAINE_LOURDE` | Chaîne des analyses structurantes, par défaut `opencode:glm-5.3,opencode:glm-5.3-flash`. |
+| `OPENCODE_API_KEY` | Clé OpenCode Go du Coach. Sans clé, l'application fonctionne et seul le Coach répond 503. |
+| `LLM_CHAINE_COURANTE` | Chaîne des modèles du chat, par défaut `opencode:deepseek-v4.1-flash`. |
+| `LLM_CHAINE_LOURDE` | Chaîne des analyses structurantes, par défaut `opencode:deepseek-v4.1-flash`. |
 
 ## Scripts
 

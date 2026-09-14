@@ -108,6 +108,7 @@ export async function POST(request: Request) {
     const resultatsOutils: Array<{ appel: AppelOutil; resultat: string }> = [];
     let reponse = await appelerLLM({
       messages,
+      sessionId: convId ?? undefined,
       signal,
       system: promptComplet,
       outils: outils.definitions,
@@ -144,6 +145,7 @@ export async function POST(request: Request) {
 
       reponse = await appelerLLM({
         messages,
+        sessionId: convId ?? undefined,
         signal,
         system: promptComplet,
         outils: outils.definitions,

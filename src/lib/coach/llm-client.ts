@@ -52,6 +52,8 @@ export interface ReponseLLM {
 
 export interface OptionsLLM {
   messages: MessageLLM[];
+  /** Identifiant neutre et stable de la conversation transmis à OpenCode Go. */
+  sessionId?: string;
   signal?: AbortSignal;
   system: string;
   outils?: DefinitionOutil[];
@@ -81,17 +83,16 @@ export type ProfilAppel = "courant" | "lourd";
  * Le fournisseur et le modèle restent configurables sans toucher au code. La
  * valeur suit le format `fournisseur:modele`, séparé par des virgules :
  *
- *     LLM_CHAINE_COURANTE="opencode:glm-5.3-flash,opencode:glm-5.3"
+ *     LLM_CHAINE_COURANTE="opencode:deepseek-v4.1-flash"
  *
  * Les modèles suivants ne servent qu'en cas de quota atteint, de modèle retiré
  * ou de panne — jamais pour masquer une requête invalide.
  */
 const CHAINES_PAR_DEFAUT: Record<ProfilAppel, string> = {
-  // Flash privilégie la réactivité du chat. Le modèle complet prend le relais
-  // si nécessaire, avec la même API et la même clé OpenCode Zen.
-  courant: "opencode:glm-5.3-flash,opencode:glm-5.3",
-  // Pour les décisions structurantes, la qualité prime sur la latence.
-  lourd: "opencode:glm-5.3,opencode:glm-5.3-flash",
+  // Modèle déjà éprouvé avec une clé OpenCode Go. Les deux profils partagent
+  // ce moteur tant qu'un autre modèle Go n'a pas été validé de bout en bout.
+  courant: "opencode:deepseek-v4.1-flash",
+  lourd: "opencode:deepseek-v4.1-flash",
 };
 
 const FOURNISSEURS: readonly FournisseurLLM[] = ["opencode", "gemini", "openai", "anthropic"];
@@ -254,6 +255,7 @@ async function appelerCompatibleOpenAI(
   base: string,
   nomCle: string,
   nomModele: string,
+  opencodeGo = false,
 ): Promise<ReponseLLM> {
   const cle = cleApi(nomCle);
 
@@ -276,6 +278,14 @@ async function appelerCompatibleOpenAI(
 
   const corps: Record<string, unknown> = { model: nomModele, messages };
 
+  if (opencodeGo) {
+    // OpenCode Go active la réflexion par défaut. Elle est désactivée car le
+    // client consomme uniquement `content`, et la sortie reste volontairement
+    // bornée comme dans l'intégration déjà validée de Clair.
+    corps.thinking = { type: "disabled" };
+    corps.max_tokens = 4096;
+  }
+
   if (options.outils?.length) {
     corps.tools = options.outils.map((o) => ({
       type: "function",
@@ -285,9 +295,17 @@ async function appelerCompatibleOpenAI(
 
   const reponse = await fetch(`${base}/chat/completions`, {
     method: "POST",
-      signal: signalAppel(options),
-    headers: { "content-type": "application/json", authorization: `Bearer ${cle}` },
+    signal: signalAppel(options),
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${cle}`,
+      ...(opencodeGo ? {
+        "user-agent": "sportperso-coach/1.0",
+        "x-opencode-session": options.sessionId ?? crypto.randomUUID(),
+      } : {}),
+    },
     body: JSON.stringify(corps),
+    cache: opencodeGo ? "no-store" : undefined,
   });
 
   if (!reponse.ok) {
@@ -374,7 +392,13 @@ async function appelerAnthropic(options: OptionsLLM, nomModele: string): Promise
 async function appelerCible(cible: CibleLLM, options: OptionsLLM): Promise<ReponseLLM> {
   switch (cible.fournisseur) {
     case "opencode":
-      return appelerCompatibleOpenAI(options, "https://opencode.ai/zen/v1", "OPENCODE_API_KEY", cible.modele);
+      return appelerCompatibleOpenAI(
+        options,
+        "https://opencode.ai/zen/go/v1",
+        "OPENCODE_API_KEY",
+        cible.modele,
+        true,
+      );
     case "gemini":
       return appelerGemini(options, cible.modele);
     case "openai":

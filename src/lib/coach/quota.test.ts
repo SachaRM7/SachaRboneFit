@@ -6,7 +6,11 @@ vi.mock("node:timers/promises", () => ({ setTimeout: vi.fn().mockResolvedValue(u
 afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.clearAllMocks(); });
 const ok = () => Response.json({ choices: [{ message: { content: "Ta prochaine séance est C." } }] });
 const quota = (delai = "2") => new Response("Quota atteint", { status: 429, headers: { "retry-after": delai } });
-const options = { messages: [{ role: "user" as const, content: "Mon programme ?" }], system: "Coach" };
+const options = {
+  messages: [{ role: "user" as const, content: "Mon programme ?" }],
+  sessionId: "2f1c9d54-6f3a-4f0b-9c1e-7a5d2b8e4c31",
+  system: "Coach",
+};
 function config() {
   vi.stubEnv("OPENCODE_API_KEY", "test");
   vi.stubEnv("LLM_CHAINE_COURANTE", "opencode:principal,opencode:secours");
@@ -17,10 +21,16 @@ describe("quota du coach", () => {
     config(); const fetch = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(ok());
     vi.stubGlobal("fetch", fetch);
     expect((await appelerLLM(options)).modeleUtilise).toBe("opencode:secours");
-    expect(fetch.mock.calls[0]?.[0]).toBe("https://opencode.ai/zen/v1/chat/completions");
+    expect(fetch.mock.calls[0]?.[0]).toBe("https://opencode.ai/zen/go/v1/chat/completions");
     expect(fetch.mock.calls[0]?.[1]).toMatchObject({
-      headers: { authorization: "Bearer test" },
+      headers: {
+        authorization: "Bearer test",
+        "user-agent": "sportperso-coach/1.0",
+        "x-opencode-session": options.sessionId,
+      },
     });
+    const corps = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+    expect(corps).toMatchObject({ thinking: { type: "disabled" }, max_tokens: 4096 });
     expect(attendre).not.toHaveBeenCalled();
   });
   it("retire les espaces accidentels autour de la clé", async () => {

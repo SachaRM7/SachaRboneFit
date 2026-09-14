@@ -8,20 +8,14 @@ afterEach(() => {
 });
 
 describe("chaineDeModeles", () => {
-  it("utilise GLM 5.3 Flash via OpenCode pour les appels courants", () => {
+  it("utilise DeepSeek Flash via OpenCode Go pour les appels courants", () => {
     const chaine = chaineDeModeles("courant");
-    expect(chaine.map((c) => c.modele)).toEqual([
-      "glm-5.3-flash",
-      "glm-5.3",
-    ]);
+    expect(chaine.map((c) => c.modele)).toEqual(["deepseek-v4.1-flash"]);
     expect(chaine.every((c) => c.fournisseur === "opencode")).toBe(true);
   });
 
-  it("préfère GLM 5.3 complet pour les appels lourds", () => {
-    expect(chaineDeModeles("lourd").map((c) => c.modele)).toEqual([
-      "glm-5.3",
-      "glm-5.3-flash",
-    ]);
+  it("conserve le moteur Go éprouvé pour les appels lourds", () => {
+    expect(chaineDeModeles("lourd").map((c) => c.modele)).toEqual(["deepseek-v4.1-flash"]);
   });
 
   it("se règle entièrement par variable d'environnement", () => {
@@ -49,8 +43,8 @@ describe("chaineDeModeles", () => {
   it("retombe sur la chaîne par défaut si la variable est illisible", () => {
     // Une faute de frappe en production ne doit pas rendre le coach muet.
     process.env.LLM_CHAINE_COURANTE = "n'importe quoi";
-    expect(chaineDeModeles("courant")).toHaveLength(2);
-    expect(chaineDeModeles("courant")[0]!.modele).toBe("glm-5.3-flash");
+    expect(chaineDeModeles("courant")).toHaveLength(1);
+    expect(chaineDeModeles("courant")[0]!.modele).toBe("deepseek-v4.1-flash");
   });
 });
 
