@@ -315,7 +315,7 @@ async function appelerCompatibleOpenAI(
   const data = await reponse.json();
   const message = data?.choices?.[0]?.message ?? {};
 
-  const appelsOutils: AppelOutil[] = (message.tool_calls ?? []).map(
+  const appelsOpenAI: AppelOutil[] = (message.tool_calls ?? []).map(
     (t: { id: string; function: { name: string; arguments: string } }) => {
       let args: Record<string, unknown> = {};
       try {
@@ -327,7 +327,84 @@ async function appelerCompatibleOpenAI(
     },
   );
 
-  return { texte: message.content ?? "", appelsOutils };
+  const dsml = extraireAppelsDsml(
+    typeof message.content === "string" ? message.content : "",
+    options.outils ?? [],
+  );
+  const appelsOutils = appelsOpenAI.length > 0 ? appelsOpenAI : dsml.appels;
+
+  return { texte: dsml.texte, appelsOutils };
+}
+
+/**
+ * DeepSeek V4 peut exposer ses function calls sous leur balisage DSML natif
+ * dans `content`, même derrière une API compatible OpenAI. On ne reconnaît
+ * que les outils et paramètres déclarés pour cet appel ; le balisage n'arrive
+ * jamais dans la conversation affichée.
+ */
+function extraireAppelsDsml(
+  texte: string,
+  outils: DefinitionOutil[],
+): { texte: string; appels: AppelOutil[] } {
+  if (!texte.includes("DSML")) return { texte, appels: [] };
+
+  const parametresParOutil = new Map<string, Set<string>>();
+  for (const outil of outils) {
+    const proprietes = outil.input_schema.properties;
+    parametresParOutil.set(
+      outil.name,
+      proprietes && typeof proprietes === "object" && !Array.isArray(proprietes)
+        ? new Set(Object.keys(proprietes))
+        : new Set(),
+    );
+  }
+
+  const marqueur = "[|｜]+DSML[|｜]+";
+  const invocation = new RegExp(
+    `<${marqueur}\\s*invoke\\s+name="([^"]+)"[^>]*>([\\s\\S]*?)<\\/${marqueur}\\s*invoke\\s*>`,
+    "gi",
+  );
+  const appels: AppelOutil[] = [];
+  let trouve = false;
+
+  const sansInvocations = texte.replace(invocation, (_bloc, nomBrut: string, corps: string) => {
+    trouve = true;
+    const parametresAutorises = parametresParOutil.get(nomBrut);
+    if (!parametresAutorises) return "";
+
+    const args: Record<string, unknown> = Object.create(null);
+    const parametre = new RegExp(
+      `<${marqueur}\\s*parameter\\s+name="([^"]+)"(?:\\s+string="(true|false)")?[^>]*>`
+      + `([\\s\\S]*?)<\\/${marqueur}\\s*parameter\\s*>`,
+      "gi",
+    );
+    for (const correspondance of corps.matchAll(parametre)) {
+      const nom = correspondance[1] ?? "";
+      if (!parametresAutorises.has(nom)) continue;
+      const estTexte = correspondance[2] === "true";
+      const brut = (correspondance[3] ?? "")
+        .replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, "$1")
+        .trim();
+      if (estTexte) {
+        args[nom] = brut;
+      } else {
+        try {
+          args[nom] = JSON.parse(brut);
+        } catch {
+          args[nom] = brut;
+        }
+      }
+    }
+    appels.push({ id: crypto.randomUUID(), nom: nomBrut, arguments: args });
+    return "";
+  });
+
+  if (!trouve) return { texte, appels: [] };
+  const enveloppes = new RegExp(
+    `<\\/?${marqueur}\\s*(?:tool_calls|function_calls|calls)\\s*>`,
+    "gi",
+  );
+  return { texte: sansInvocations.replace(enveloppes, "").trim(), appels };
 }
 
 // ---------------------------------------------------------------------------

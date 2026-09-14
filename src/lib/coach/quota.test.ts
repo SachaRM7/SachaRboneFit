@@ -61,6 +61,39 @@ describe("quota du coach", () => {
       { role: "tool", tool_call_id: "appel-1", content: "Feu vert" },
     ]));
   });
+  it("normalise les appels DSML natifs de DeepSeek sans afficher leur balisage", async () => {
+    config();
+    const contenu = [
+      "<｜｜DSML｜｜tool_calls>",
+      "<｜｜DSML｜｜invoke name=\"validate_session\">",
+      "<｜｜DSML｜｜parameter name=\"duration\" string=\"false\">35</｜｜DSML｜｜parameter>",
+      "<｜｜DSML｜｜parameter name=\"label\" string=\"true\"><![CDATA[Courte]]></｜｜DSML｜｜parameter>",
+      "<｜｜DSML｜｜parameter name=\"interdit\" string=\"true\">ignoré</｜｜DSML｜｜parameter>",
+      "</｜｜DSML｜｜invoke>",
+      "</｜｜DSML｜｜tool_calls>",
+    ].join("\n");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(Response.json({
+      choices: [{ message: { content: contenu } }],
+    })));
+
+    const reponse = await appelerLLM({
+      ...options,
+      outils: [{
+        name: "validate_session",
+        description: "Valide une séance",
+        input_schema: {
+          type: "object",
+          properties: { duration: { type: "number" }, label: { type: "string" } },
+        },
+      }],
+    });
+
+    expect(reponse.texte).toBe("");
+    expect(reponse.appelsOutils).toEqual([expect.objectContaining({
+      nom: "validate_session",
+      arguments: { duration: 35, label: "Courte" },
+    })]);
+  });
   it("respecte le délai après épuisement des secours et reprend une seule fois", async () => {
     config(); const fetch = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota("4")).mockResolvedValueOnce(ok());
     vi.stubGlobal("fetch", fetch);
