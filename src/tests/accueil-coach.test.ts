@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { suggestionsVerifiees, QUESTIONS_PEDAGOGIQUES } from "@/lib/coach/accueil-conversation";
+import { suggestionsAccueilCoach, suggestionsVerifiees, QUESTIONS_PEDAGOGIQUES } from "@/lib/coach/accueil-conversation";
 import { contexteValide } from "@/lib/coach/contexte-ecran";
 
 describe("accueil Coach fondé sur le contexte", () => {
@@ -15,6 +15,30 @@ describe("accueil Coach fondé sur le contexte", () => {
     const choix = suggestionsVerifiees({ seance: false, historique: false, programme: true, exercice: false });
     expect(choix[0]?.libelle).toBe("Comprendre mon programme");
     expect(choix.some((s) => s.libelle === "Explique ma séance")).toBe(false);
+  });
+  it("reprend l'intention de construire une séance quand le programme existe", () => {
+    const choix = suggestionsAccueilCoach({
+      contexte: { ecran: "programme", sujet: "construire_seance" },
+      seance: false,
+      historique: false,
+      programme: true,
+      exercice: false,
+    });
+    expect(choix.map((s) => s.libelle)).toEqual([
+      "Une séance plus courte",
+      "Choisir les muscles",
+      "Adapter à ma récupération",
+    ]);
+  });
+  it("reste pédagogique si le contexte requis n'existe pas", () => {
+    const choix = suggestionsAccueilCoach({
+      contexte: { ecran: "programme", sujet: "construire_seance" },
+      seance: false,
+      historique: false,
+      programme: false,
+      exercice: false,
+    });
+    expect(choix).toEqual(QUESTIONS_PEDAGOGIQUES);
   });
   it("ne transmet que les identifiants et le numéro de série validés", () => {
     const id = "11111111-1111-4111-8111-111111111111";

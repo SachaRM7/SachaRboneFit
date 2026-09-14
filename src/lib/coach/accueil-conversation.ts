@@ -1,10 +1,25 @@
-import type { Suggestion } from "./contexte-ecran";
+import { suggestions, type ContexteEcran, type Suggestion } from "./contexte-ecran";
 export const QUESTIONS_PEDAGOGIQUES: Suggestion[] = [
   { libelle: "C’est quoi une série ?", message: "Explique simplement ce qu’est une série, avec un exemple." },
   { libelle: "Comprendre les répétitions en réserve", message: "RPE 7, ça fait combien de répétitions en réserve ?" },
   { libelle: "Comment choisir mon premier poids ?", message: "Comment trouver mon premier poids sans repère, sans inventer une charge personnelle ?" },
 ];
 export interface AccueilCoach { repere: string | null; suggestions: Suggestion[] }
+export function suggestionsAccueilCoach({ contexte, seance, historique, programme, exercice }: {
+  contexte: ContexteEcran;
+  seance: boolean;
+  historique: boolean;
+  programme: boolean;
+  exercice: boolean;
+}): Suggestion[] {
+  // La construction libre n'est proposée que si le serveur a réellement
+  // retrouvé un programme à adapter. Sans cette donnée, l'accueil conserve
+  // les questions pédagogiques qui ne promettent aucun contexte inexistant.
+  if (contexte.sujet === "construire_seance" && programme) {
+    return suggestions(contexte);
+  }
+  return suggestionsVerifiees({ seance, historique, programme, exercice });
+}
 export function suggestionsVerifiees({ seance, historique, programme, exercice }: {
   seance: boolean; historique: boolean; programme: boolean; exercice: boolean;
 }): Suggestion[] {
