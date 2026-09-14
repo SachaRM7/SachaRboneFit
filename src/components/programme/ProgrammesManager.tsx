@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, FolderInput, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { CreationBlocForm } from "./CreationBlocForm";
 
 export interface ProgrammeResume {
@@ -32,6 +35,8 @@ export function ProgrammesManager({
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [sessionName, setSessionName] = useState("");
   const [pending, setPending] = useState<string | null>(null);
   const [destinations, setDestinations] = useState<Record<string, string>>({});
 
@@ -50,6 +55,37 @@ export function ProgrammesManager({
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Activation impossible");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function createSession() {
+    if (!selected) return;
+    const nom = sessionName.trim();
+    if (!nom) {
+      toast.error("Donne un nom à la séance");
+      return;
+    }
+
+    const index = seances.length;
+    const lettre = index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
+
+    setPending("create-session");
+    try {
+      const response = await fetch("/api/programme/seances", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blocId: selected.id, lettre, nom }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error ?? "Création impossible");
+      toast.success("Séance créée");
+      setSessionName("");
+      setCreatingSession(false);
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Création impossible");
     } finally {
       setPending(null);
     }
@@ -118,15 +154,29 @@ export function ProgrammesManager({
           {programmes.length === 0 && <p className="text-sm text-encre-3">Aucun programme enregistré.</p>}
         </div>
 
-        {selected && !selected.actif && (
-          <Button
-            type="button"
-            className="mt-4 w-full rounded-full"
-            onClick={() => void activate(selected.id)}
-            disabled={pending !== null}
-          >
-            {pending === `activate:${selected.id}` ? "Activation…" : "Définir comme programme actif"}
-          </Button>
+        {selected && (
+          <div className="mt-4 space-y-2">
+            {!selected.actif && (
+              <Button
+                type="button"
+                className="w-full rounded-full"
+                onClick={() => void activate(selected.id)}
+                disabled={pending !== null}
+              >
+                {pending === `activate:${selected.id}` ? "Activation…" : "Définir comme programme actif"}
+              </Button>
+            )}
+
+            <Button
+              type="button"
+              variant={seances.length === 0 ? "default" : "outline"}
+              className="w-full rounded-full"
+              onClick={() => setCreatingSession(true)}
+              disabled={pending !== null}
+            >
+              <Plus className="size-4" aria-hidden /> Ajouter une séance
+            </Button>
+          </div>
         )}
       </div>
 
@@ -175,6 +225,36 @@ export function ProgrammesManager({
           </div>
         </div>
       )}
+
+      <Drawer open={creatingSession} onOpenChange={setCreatingSession}>
+        <DrawerContent className="bg-papier border-filet text-encre">
+          <DrawerHeader>
+            <DrawerTitle className="text-encre">
+              {selected ? `Nouvelle séance · ${selected.nom}` : "Nouvelle séance"}
+            </DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="programme-session-name">Nom de la séance</Label>
+              <Input
+                id="programme-session-name"
+                value={sessionName}
+                onChange={(event) => setSessionName(event.target.value)}
+                placeholder="Push, Haut du corps, Jambes…"
+                autoFocus
+              />
+            </div>
+            <Button
+              type="button"
+              className="w-full h-12"
+              onClick={() => void createSession()}
+              disabled={pending !== null}
+            >
+              {pending === "create-session" ? "Création…" : "Créer la séance"}
+            </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
