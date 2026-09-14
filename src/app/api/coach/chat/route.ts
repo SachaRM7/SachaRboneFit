@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { coachConversations, coachMessages } from "@/db/schema";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { loadCoachContext } from "@/lib/coach/context-loader";
 import { buildSystemPrompt } from "@/lib/coach/system-prompt";
@@ -17,13 +17,14 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 90;
 
 const schema = z.object({
+  retry: z.boolean().optional(),
   conversationId: z.string().uuid().nullable().optional(),
   message: z.string().trim().min(1).max(4000),
   sessionLogId: z.string().uuid().nullable().optional(),
   contexte: z.unknown().nullable().optional(),
 });
 
-const TOURS_MAX = 2;
+const TOURS_MAX = 4;
 const MESSAGES_HISTORIQUE_MAX = 12;
 const CARACTERES_HISTORIQUE_MAX = 12_000;
 const CARACTERES_RESULTAT_OUTIL_MAX = 6_000;
@@ -65,6 +66,7 @@ function bornerReponse(texte: string): string {
 
 export async function POST(request: Request) {
   const signal = AbortSignal.any([request.signal, AbortSignal.timeout(75_000)]);
+  let convId: string | null = null;
   try {
     const userId = await getAuthenticatedUserId();
     if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -79,7 +81,7 @@ export async function POST(request: Request) {
     const actionRapide = extraireActionRapide(message);
     const messageVisible = actionRapide?.message ?? message;
 
-    let convId = conversationId ?? null;
+    convId = conversationId ?? null;
 
     if (convId) {
       const conv = await db.query.coachConversations.findFirst({
@@ -95,11 +97,16 @@ export async function POST(request: Request) {
       convId = nouvelle.id;
     }
 
-    await db.insert(coachMessages).values({
-      conversationId: convId,
-      role: "user",
-      content: messageVisible,
-    });
+    const dernier = parsed.data.retry ? await db.query.coachMessages.findFirst({
+      where: eq(coachMessages.conversationId, convId), orderBy: [desc(coachMessages.createdAt)],
+    }) : null;
+    if (!(dernier?.role === "user" && dernier.content === messageVisible)) {
+      await db.insert(coachMessages).values({
+        conversationId: convId,
+        role: "user",
+        content: messageVisible,
+      });
+    }
 
     /**
      * Bouton prédéfini : le Coach reste l'interface, mais aucun fournisseur IA
@@ -149,6 +156,7 @@ export async function POST(request: Request) {
 
     const messages = bornerHistorique(historique);
     const outils = createCoachTools();
+    const profilAppel = contexteEcran?.sujet === "construire_seance" ? "lourd" : "courant";
 
     const promptComplet = contexteDeLEcran.texte
       ? `${buildSystemPrompt(contexte)}\n\n## Écran en cours\n${contexteDeLEcran.texte}`
@@ -158,17 +166,31 @@ export async function POST(request: Request) {
     let caracteresOutils = 0;
     let reponse = await appelerLLM({
       messages,
+      sessionId: convId ?? undefined,
       signal,
       system: promptComplet,
       outils: outils.definitions,
-    });
+    }, profilAppel);
 
     let tour = 0;
     while (reponse.appelsOutils.length > 0 && tour < TOURS_MAX) {
       for (const appel of reponse.appelsOutils) {
         const executeur = outils.executors[appel.nom];
         const brut = executeur
-          ? await executeur(appel.arguments, userId, contexteDeLEcran.refs ?? undefined).then(
+          ? await executeur(
+              appel.arguments,
+              userId,
+              {
+                ...(contexteDeLEcran.refs ?? {
+                  ecran: contexteEcran?.ecran ?? "plus",
+                  blocId: null,
+                  seanceTemplateId: null,
+                  exerciseInstanceId: null,
+                  sessionLogId: null,
+                }),
+                conversationId: convId,
+              },
+            ).then(
               (r) => r.output,
               (e: unknown) => `Erreur : ${e instanceof Error ? e.message : String(e)}`,
             )
@@ -180,12 +202,23 @@ export async function POST(request: Request) {
 
       reponse = await appelerLLM({
         messages,
+        sessionId: convId ?? undefined,
         signal,
         system: promptComplet,
         outils: outils.definitions,
         resultatsOutils,
-      });
+      }, profilAppel);
       tour += 1;
+    }
+
+    if (!reponse.texte.trim() && resultatsOutils.length > 0) {
+      reponse = await appelerLLM({
+        messages,
+        sessionId: convId ?? undefined,
+        signal,
+        system: `${promptComplet}\n\nLes consultations sont terminées. Réponds maintenant à la demande avec les résultats disponibles, sans demander de nouvel outil.`,
+        resultatsOutils,
+      }, profilAppel);
     }
 
     const texte = bornerReponse(reponse.texte) || "Je n'ai pas réussi à formuler de réponse.";
@@ -214,16 +247,19 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     if (error instanceof CoachIndisponible) {
+      if (error.statut === 413) {
+        return NextResponse.json({ conversationId: convId, code: "COACH_CAPACITE", error: "Le coach ne peut pas traiter cette demande avec sa limite actuelle. Ta question est conservée." }, { status: 413 });
+      }
       if (error.statut === 429) {
-        return NextResponse.json({ code: "COACH_QUOTA", error: "Le coach a atteint sa limite temporaire. Réessaie dans un instant." },
+        return NextResponse.json({ conversationId: convId, code: "COACH_QUOTA", error: "Le coach a atteint sa limite temporaire. Réessaie dans un instant." },
           { status: 429, headers: error.retryAfterSeconds !== undefined ? { "Retry-After": String(error.retryAfterSeconds) } : {} });
       }
       return NextResponse.json(
-        { error: "Le coach n'est pas disponible : clé API non configurée ou fournisseur en erreur." },
+        { conversationId: convId, error: "Le coach n'est pas disponible : clé API non configurée ou fournisseur en erreur." },
         { status: 503 },
       );
     }
     console.error("[coach/chat]", error);
-    return NextResponse.json({ error: "Le coach n'est pas disponible pour le moment." }, { status: 503 });
+    return NextResponse.json({ conversationId: convId, error: "Le coach n'est pas disponible pour le moment." }, { status: 503 });
   }
 }

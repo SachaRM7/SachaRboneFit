@@ -40,6 +40,19 @@ export interface ContexteSeance {
   date: string;
   gymId: string;
   seanceTemplateId: string;
+  /**
+   * Passage de rotation que cette composition remplace pour aujourd'hui.
+   * Le contenu vient de `seanceTemplateId`; seul le log terminé compte comme
+   * réalisation du gabarit prévu.
+   */
+  rotationTemplateId?: string;
+}
+
+export class ContexteSeanceInvalide extends Error {
+  constructor(readonly raison: string) {
+    super(raison);
+    this.name = "ContexteSeanceInvalide";
+  }
 }
 
 export interface ResultatConstruction {
@@ -288,6 +301,17 @@ export async function derniereSeriesPour(
 }
 
 export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<ResultatConstruction> {
+  let templateCompteDansLaRotation = ctx.seanceTemplateId;
+  if (ctx.rotationTemplateId) {
+    const { prochaineSeance } = await import("@/services/programmes");
+    const prochaine = await prochaineSeance(ctx.userId);
+    if (!prochaine || prochaine.template.id !== ctx.rotationTemplateId) {
+      throw new ContexteSeanceInvalide(
+        "La séance prévue a changé. Reviens aux séances avant de démarrer cette alternative.",
+      );
+    }
+    templateCompteDansLaRotation = ctx.rotationTemplateId;
+  }
   // Le gabarit n'a pas de propriétaire direct : il appartient à un bloc. Sans
   // cette jointure, `seanceTemplateId` venant du client suffisait à construire
   // sa journée à partir du programme de quelqu'un d'autre — et à en lire le
@@ -443,7 +467,7 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
       .values({
         userId: ctx.userId,
         date: ctx.date,
-        seanceTemplateId: ctx.seanceTemplateId,
+        seanceTemplateId: templateCompteDansLaRotation,
         gymId: ctx.gymId,
         dailyStateId: etatDuJour?.id ?? null,
         feuBiologiqueJour: feuJour,

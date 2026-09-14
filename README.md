@@ -44,9 +44,9 @@ npm run dev
 | `SEED_USER_ID` | UUID du compte à seeder. Doit correspondre à un utilisateur Supabase réel. |
 | `SEED_USER_EMAIL` | Email du compte seedé (défaut `sacha@local`). |
 | `CRON_SECRET` | Protège les routes `/api/cron/*`. |
-| `LLM_PROVIDER` | `gemini` (défaut), `groq`, `openai` ou `anthropic`. |
-| `LLM_MODEL` | Surcharge le modèle par défaut du fournisseur. |
-| `GEMINI_API_KEY` / `GROQ_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Selon le fournisseur choisi. Le coach est optionnel : sans clé, l'application fonctionne, seul le coach répond 503. |
+| `OPENCODE_API_KEY` | Clé OpenCode Go du Coach. Sans clé, l'application fonctionne et seul le Coach répond 503. |
+| `LLM_CHAINE_COURANTE` | Chaîne des modèles du chat, par défaut `opencode:deepseek-v4.1-flash`. |
+| `LLM_CHAINE_LOURDE` | Chaîne des analyses structurantes, par défaut `opencode:deepseek-v4.1-flash`. |
 
 ## Scripts
 
@@ -127,9 +127,9 @@ désormais le réglage, et les tokens répondent à `.dark` comme à
 
 ## Coach IA
 
-Fournisseurs pris en charge : **Gemini** (défaut, offre gratuite généreuse et
-*function calling* pris en charge), **Groq** (gratuit, rapide), OpenAI, Anthropic.
-Le choix se fait par `LLM_PROVIDER`.
+Le Coach passe par **OpenCode Zen**. GLM‑5.3 Flash traite les échanges courants ;
+GLM‑5.3 est préféré pour les arbitrages et constructions plus exigeants. Les deux
+utilisent la même boucle d'outils et la même clé `OPENCODE_API_KEY`.
 
 Le coach n'est pas un simple prompt : il dispose de sept outils
 (`src/lib/coach/tools.ts`) qui lui donnent accès à l'historique d'un exercice, au

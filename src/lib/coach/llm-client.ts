@@ -17,7 +17,7 @@ import { setTimeout as attendre } from "node:timers/promises";
  * bugs liée au parsing incrémental.
  */
 
-export type FournisseurLLM = "gemini" | "groq" | "openai" | "anthropic";
+export type FournisseurLLM = "opencode" | "gemini" | "openai" | "anthropic";
 
 export interface MessageLLM {
   role: "user" | "assistant";
@@ -52,6 +52,8 @@ export interface ReponseLLM {
 
 export interface OptionsLLM {
   messages: MessageLLM[];
+  /** Identifiant neutre et stable de la conversation transmis à OpenCode Go. */
+  sessionId?: string;
   signal?: AbortSignal;
   system: string;
   outils?: DefinitionOutil[];
@@ -78,25 +80,22 @@ export type ProfilAppel = "courant" | "lourd";
 /**
  * Chaînes de repli, par ordre de préférence.
  *
- * Le modèle principal est un Qwen encore marqué « Preview » chez Groq : son
- * nom, son quota, voire son existence peuvent changer sans préavis. Rien dans
- * l'application ne doit donc dépendre de ce nom. Il se règle par variable
- * d'environnement, au format `fournisseur:modele`, séparé par des virgules :
+ * Le fournisseur et le modèle restent configurables sans toucher au code. La
+ * valeur suit le format `fournisseur:modele`, séparé par des virgules :
  *
- *     LLM_CHAINE_COURANTE="groq:qwen/qwen3.8-27b,groq:openai/gpt-oss-120b"
+ *     LLM_CHAINE_COURANTE="opencode:deepseek-v4.1-flash"
  *
  * Les modèles suivants ne servent qu'en cas de quota atteint, de modèle retiré
  * ou de panne — jamais pour masquer une requête invalide.
  */
 const CHAINES_PAR_DEFAUT: Record<ProfilAppel, string> = {
-  // Qwen offre dix fois le quota quotidien de GPT-OSS ; GPT-OSS, en Production,
-  // prend le relais quand ce Preview défaille.
-  courant: "groq:qwen/qwen3.8-27b,groq:openai/gpt-oss-120b",
-  // L'ordre s'inverse : on paie la stabilité sur les décisions structurantes.
-  lourd: "groq:openai/gpt-oss-120b,groq:qwen/qwen3.8-27b",
+  // Modèle déjà éprouvé avec une clé OpenCode Go. Les deux profils partagent
+  // ce moteur tant qu'un autre modèle Go n'a pas été validé de bout en bout.
+  courant: "opencode:deepseek-v4.1-flash",
+  lourd: "opencode:deepseek-v4.1-flash",
 };
 
-const FOURNISSEURS: readonly FournisseurLLM[] = ["gemini", "groq", "openai", "anthropic"];
+const FOURNISSEURS: readonly FournisseurLLM[] = ["opencode", "gemini", "openai", "anthropic"];
 
 function analyserChaine(brut: string): CibleLLM[] {
   return brut
@@ -124,7 +123,7 @@ export function chaineDeModeles(profil: ProfilAppel = "courant"): CibleLLM[] {
 
 /** Premier fournisseur de la chaîne courante — utile pour l'affichage. */
 export function fournisseurActif(): FournisseurLLM {
-  return chaineDeModeles("courant")[0]?.fournisseur ?? "groq";
+  return chaineDeModeles("courant")[0]?.fournisseur ?? "opencode";
 }
 
 export class CoachIndisponible extends Error {
@@ -155,8 +154,9 @@ function justifieUnRepli(erreur: unknown): boolean {
 
 function cleApi(nom: string): string {
   const valeur = process.env[nom];
-  if (!valeur) throw new CoachIndisponible(`Clé ${nom} non configurée`);
-  return valeur;
+  const nettoyee = valeur?.trim();
+  if (!nettoyee) throw new CoachIndisponible(`Clé ${nom} non configurée`);
+  return nettoyee;
 }
 
 /** Le délai vient du fournisseur, jamais d'une boucle de tentatives immédiates. */
@@ -247,7 +247,7 @@ async function appelerGemini(options: OptionsLLM, nomModele: string): Promise<Re
 }
 
 // ---------------------------------------------------------------------------
-// Groq et OpenAI — même protocole
+// OpenCode Zen et OpenAI — même protocole compatible OpenAI
 // ---------------------------------------------------------------------------
 
 async function appelerCompatibleOpenAI(
@@ -255,6 +255,7 @@ async function appelerCompatibleOpenAI(
   base: string,
   nomCle: string,
   nomModele: string,
+  opencodeGo = false,
 ): Promise<ReponseLLM> {
   const cle = cleApi(nomCle);
 
@@ -277,6 +278,14 @@ async function appelerCompatibleOpenAI(
 
   const corps: Record<string, unknown> = { model: nomModele, messages };
 
+  if (opencodeGo) {
+    // OpenCode Go active la réflexion par défaut. Elle est désactivée car le
+    // client consomme uniquement `content`, et la sortie reste volontairement
+    // bornée comme dans l'intégration déjà validée de Clair.
+    corps.thinking = { type: "disabled" };
+    corps.max_tokens = 4096;
+  }
+
   if (options.outils?.length) {
     corps.tools = options.outils.map((o) => ({
       type: "function",
@@ -286,9 +295,17 @@ async function appelerCompatibleOpenAI(
 
   const reponse = await fetch(`${base}/chat/completions`, {
     method: "POST",
-      signal: signalAppel(options),
-    headers: { "content-type": "application/json", authorization: `Bearer ${cle}` },
+    signal: signalAppel(options),
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${cle}`,
+      ...(opencodeGo ? {
+        "user-agent": "sportperso-coach/1.0",
+        "x-opencode-session": options.sessionId ?? crypto.randomUUID(),
+      } : {}),
+    },
     body: JSON.stringify(corps),
+    cache: opencodeGo ? "no-store" : undefined,
   });
 
   if (!reponse.ok) {
@@ -298,7 +315,7 @@ async function appelerCompatibleOpenAI(
   const data = await reponse.json();
   const message = data?.choices?.[0]?.message ?? {};
 
-  const appelsOutils: AppelOutil[] = (message.tool_calls ?? []).map(
+  const appelsOpenAI: AppelOutil[] = (message.tool_calls ?? []).map(
     (t: { id: string; function: { name: string; arguments: string } }) => {
       let args: Record<string, unknown> = {};
       try {
@@ -310,7 +327,84 @@ async function appelerCompatibleOpenAI(
     },
   );
 
-  return { texte: message.content ?? "", appelsOutils };
+  const dsml = extraireAppelsDsml(
+    typeof message.content === "string" ? message.content : "",
+    options.outils ?? [],
+  );
+  const appelsOutils = appelsOpenAI.length > 0 ? appelsOpenAI : dsml.appels;
+
+  return { texte: dsml.texte, appelsOutils };
+}
+
+/**
+ * DeepSeek V4 peut exposer ses function calls sous leur balisage DSML natif
+ * dans `content`, même derrière une API compatible OpenAI. On ne reconnaît
+ * que les outils et paramètres déclarés pour cet appel ; le balisage n'arrive
+ * jamais dans la conversation affichée.
+ */
+function extraireAppelsDsml(
+  texte: string,
+  outils: DefinitionOutil[],
+): { texte: string; appels: AppelOutil[] } {
+  if (!texte.includes("DSML")) return { texte, appels: [] };
+
+  const parametresParOutil = new Map<string, Set<string>>();
+  for (const outil of outils) {
+    const proprietes = outil.input_schema.properties;
+    parametresParOutil.set(
+      outil.name,
+      proprietes && typeof proprietes === "object" && !Array.isArray(proprietes)
+        ? new Set(Object.keys(proprietes))
+        : new Set(),
+    );
+  }
+
+  const marqueur = "[|｜]+DSML[|｜]+";
+  const invocation = new RegExp(
+    `<${marqueur}\\s*invoke\\s+name="([^"]+)"[^>]*>([\\s\\S]*?)<\\/${marqueur}\\s*invoke\\s*>`,
+    "gi",
+  );
+  const appels: AppelOutil[] = [];
+  let trouve = false;
+
+  const sansInvocations = texte.replace(invocation, (_bloc, nomBrut: string, corps: string) => {
+    trouve = true;
+    const parametresAutorises = parametresParOutil.get(nomBrut);
+    if (!parametresAutorises) return "";
+
+    const args: Record<string, unknown> = Object.create(null);
+    const parametre = new RegExp(
+      `<${marqueur}\\s*parameter\\s+name="([^"]+)"(?:\\s+string="(true|false)")?[^>]*>`
+      + `([\\s\\S]*?)<\\/${marqueur}\\s*parameter\\s*>`,
+      "gi",
+    );
+    for (const correspondance of corps.matchAll(parametre)) {
+      const nom = correspondance[1] ?? "";
+      if (!parametresAutorises.has(nom)) continue;
+      const estTexte = correspondance[2] === "true";
+      const brut = (correspondance[3] ?? "")
+        .replace(/^<!\[CDATA\[([\s\S]*)\]\]>$/, "$1")
+        .trim();
+      if (estTexte) {
+        args[nom] = brut;
+      } else {
+        try {
+          args[nom] = JSON.parse(brut);
+        } catch {
+          args[nom] = brut;
+        }
+      }
+    }
+    appels.push({ id: crypto.randomUUID(), nom: nomBrut, arguments: args });
+    return "";
+  });
+
+  if (!trouve) return { texte, appels: [] };
+  const enveloppes = new RegExp(
+    `<\\/?${marqueur}\\s*(?:tool_calls|function_calls|calls)\\s*>`,
+    "gi",
+  );
+  return { texte: sansInvocations.replace(enveloppes, "").trim(), appels };
 }
 
 // ---------------------------------------------------------------------------
@@ -374,10 +468,16 @@ async function appelerAnthropic(options: OptionsLLM, nomModele: string): Promise
 
 async function appelerCible(cible: CibleLLM, options: OptionsLLM): Promise<ReponseLLM> {
   switch (cible.fournisseur) {
+    case "opencode":
+      return appelerCompatibleOpenAI(
+        options,
+        "https://opencode.ai/zen/go/v1",
+        "OPENCODE_API_KEY",
+        cible.modele,
+        true,
+      );
     case "gemini":
       return appelerGemini(options, cible.modele);
-    case "groq":
-      return appelerCompatibleOpenAI(options, "https://api.groq.com/openai/v1", "GROQ_API_KEY", cible.modele);
     case "openai":
       return appelerCompatibleOpenAI(options, "https://api.openai.com/v1", "OPENAI_API_KEY", cible.modele);
     case "anthropic":

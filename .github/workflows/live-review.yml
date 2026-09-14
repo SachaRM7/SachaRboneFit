@@ -1,7 +1,7 @@
-name: Live review
+name: App review
 on:
   push:
-    branches: [codex/live-action]
+    branches: [codex/live-action, codex/coach-experience]
   workflow_dispatch:
 permissions:
   contents: read
@@ -62,3 +62,5 @@ jobs:
           src/tests/symptome-general.itest.ts
           src/tests/isolation-comptes.itest.ts
           src/tests/db-timeouts.itest.ts
+          src/tests/contexte-coach.itest.ts
+          src/tests/propositions-coach.itest.ts

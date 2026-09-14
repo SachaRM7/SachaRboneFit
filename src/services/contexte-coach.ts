@@ -1,9 +1,8 @@
 import { db } from "@/db/client";
-import { seancesRealisees } from "@/db/archivage";
 import {
-  exerciseInstances, exercises, programmeBlocs, seanceTemplates, sessionLogs,
+  exerciseInstances, exercises, exerciseInTemplate, programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs,
 } from "@/db/schema";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { libelleCycle } from "@/lib/referentiels/cycle";
 import type { ContexteEcran } from "@/lib/coach/contexte-ecran";
 import { vueDuProgramme } from "./cycle";
@@ -138,21 +137,13 @@ export async function resoudreContexte(
     }
 
     case "seance": {
-      // La séance en cours est celle enregistrée aujourd'hui, sinon la
-      // dernière : c'est ce que l'écran montre au moment de l'ouverture.
-      const derniere = await db.query.sessionLogs.findFirst({
-        where: seancesRealisees(userId),
-        orderBy: [desc(sessionLogs.date), desc(sessionLogs.createdAt)],
-      });
-      if (!derniere) {
-        lignes.push("L'athlète est sur l'écran de séance, sans séance enregistrée.");
-        break;
-      }
-      lignes.push(`L'athlète est en séance (séance du ${derniere.date}).`);
-      refs.seanceTemplateId = derniere.seanceTemplateId;
-      // La séance affichée n'est pas forcément ouverte : consigner un incident
-      // sur une séance déjà close reviendrait à réécrire un compte rendu.
-      refs.sessionLogId = (await seanceCourante(userId))?.id ?? null;
+      const courante = contexte.sessionLogId
+        ? await db.query.sessionLogs.findFirst({ where: and(eq(sessionLogs.id, contexte.sessionLogId), eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe), isNull(sessionLogs.dureeMinutes)) })
+        : await seanceCourante(userId);
+      if (!courante) { lignes.push("Aucune séance en cours vérifiée pour ce compte."); break; }
+      lignes.push(`Séance regardée : ${courante.date}.`);
+      refs.seanceTemplateId = courante.seanceTemplateId;
+      refs.sessionLogId = courante.id;
       break;
     }
 
@@ -178,7 +169,7 @@ export async function resoudreContexte(
   // L'objet précisément regardé, quand il y en a un et qu'il appartient bien
   // à l'utilisateur. Un identifiant qui n'est pas à lui est simplement ignoré.
   if (contexte.typeEntite && contexte.entiteId) {
-    const nomme = await nommerEntite(userId, contexte.typeEntite, contexte.entiteId);
+    const nomme = await nommerEntite(userId, contexte.typeEntite, contexte.entiteId, refs.sessionLogId);
     if (nomme) {
       lignes.push(nomme);
       // La référence n'est retenue que si l'objet a bien été trouvé pour CET
@@ -231,6 +222,20 @@ export async function resoudreContexte(
    * deuxième implémentation de la même règle, qui divergerait de la première.
    * Le dépôt s'y refuse ailleurs (`lectures-set-logs`), et il s'y refuse ici.
    */
+  if (refs.sessionLogId && refs.exerciseInstanceId) {
+    const plan = await db.query.sessionPlanItems.findFirst({ where: and(
+      eq(sessionPlanItems.sessionLogId, refs.sessionLogId), eq(sessionPlanItems.exerciseInstanceId, refs.exerciseInstanceId),
+    ) });
+    if (plan) {
+      lignes.push(`Prescription enregistrée : ${plan.seriesCibles} séries, ${plan.fourchetteRepsMin}–${plan.fourchetteRepsMax} reps, RPE cible ${plan.rpeCible ?? "non renseigné"}, charge suggérée ${plan.chargeSuggeree ?? "non renseignée"}.`);
+      if (plan.messageProgression) lignes.push(`Recommandation du moteur : ${plan.messageProgression}`);
+      if (plan.raisonSubstitution) lignes.push(`Adaptation : ${plan.raisonSubstitution}`);
+    } else lignes.push("Aucun plan de séance figé enregistré pour cet exercice : ne présente pas une cible ou une charge du brouillon comme une prescription vérifiée.");
+    const mesures = await db.query.setLogs.findMany({ where: and(eq(setLogs.sessionLogId, refs.sessionLogId), eq(setLogs.exerciseInstanceId, refs.exerciseInstanceId)) });
+    if (contexte.numeroSerie) lignes.push(`Série désignée par l'écran : ${contexte.numeroSerie}. Ce numéro désigne une question, pas une mesure.`);
+    lignes.push(mesures.length ? `Séries réellement enregistrées : ${mesures.map((m) => `série ${m.numeroSerie} : ${m.charge} kg × ${m.repsEffectuees}, RPE ${m.rpeEffectif ?? "non saisi"}`).join(" ; ")}.` : "Aucune série enregistrée pour cet exercice. Le brouillon local ne constitue pas une mesure serveur.");
+  }
+
   if (contexte.signal) {
     lignes.push(
       `Constat signalé par l'écran au moment de l'ouverture : ${contexte.signal}. `
@@ -247,6 +252,7 @@ async function nommerEntite(
   userId: string,
   type: NonNullable<ContexteEcran["typeEntite"]>,
   id: string,
+  sessionVerifiee: string | null = null,
 ): Promise<string | null> {
   switch (type) {
     case "bloc": {
@@ -267,11 +273,33 @@ async function nommerEntite(
       return ligne ? `Séance regardée : ${ligne.nom} (${ligne.lettre}).` : null;
     }
     case "instance": {
+      // Une machine partagée peut appartenir au créateur du lieu. Le plan
+      // de la séance authentifiée autorise uniquement cette désignation ;
+      // les mesures restent strictement bornées à la séance du compte.
+      const dansMonPlan = sessionVerifiee ? await db.query.sessionPlanItems.findFirst({
+        where: and(eq(sessionPlanItems.sessionLogId, sessionVerifiee), eq(sessionPlanItems.exerciseInstanceId, id)),
+        columns: { id: true },
+      }) : null;
+      // Les séances ouvertes directement depuis un ancien gabarit n'ont pas
+      // toujours de plan figé. Leur gabarit doit lui aussi appartenir au compte.
+      const dansMonGabarit = !dansMonPlan && sessionVerifiee ? await db
+        .select({ id: exerciseInTemplate.id }).from(exerciseInTemplate)
+        .innerJoin(seanceTemplates, eq(seanceTemplates.id, exerciseInTemplate.seanceTemplateId))
+        .innerJoin(programmeBlocs, eq(programmeBlocs.id, seanceTemplates.blocId))
+        .innerJoin(sessionLogs, eq(sessionLogs.seanceTemplateId, seanceTemplates.id))
+        .where(and(eq(sessionLogs.id, sessionVerifiee), eq(sessionLogs.userId, userId),
+          isNull(sessionLogs.archiveLe), eq(programmeBlocs.userId, userId), eq(exerciseInTemplate.exerciseInstanceId, id)))
+        .limit(1) : [];
+      const dansMonHistorique = !dansMonPlan && !dansMonGabarit.length ? await db
+        .select({ id: setLogs.id }).from(setLogs)
+        .innerJoin(sessionLogs, eq(sessionLogs.id, setLogs.sessionLogId))
+        .where(and(eq(setLogs.exerciseInstanceId, id), eq(sessionLogs.userId, userId), isNull(sessionLogs.archiveLe)))
+        .limit(1) : [];
       const [ligne] = await db
         .select({ nom: exercises.nom, machineNom: exerciseInstances.machineNom })
         .from(exerciseInstances)
         .innerJoin(exercises, eq(exercises.id, exerciseInstances.exerciseId))
-        .where(and(eq(exerciseInstances.id, id), eq(exerciseInstances.userId, userId)))
+        .where(and(eq(exerciseInstances.id, id), dansMonPlan || dansMonGabarit.length || dansMonHistorique.length ? undefined : eq(exerciseInstances.userId, userId)))
         .limit(1);
       return ligne
         ? `Exercice regardé : ${ligne.nom}${ligne.machineNom ? ` — ${ligne.machineNom}` : ""}.`

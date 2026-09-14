@@ -1,5 +1,5 @@
 "use client";
-import { DeclarerContexte, useCoach } from "@/components/coach/ContexteCoach";
+import { DeclarerContexte, ActionsCoachLive, useCoach } from "@/components/coach/ContexteCoach";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
@@ -115,6 +115,7 @@ function ContenuSeanceLive() {
   const searchParams = useSearchParams();
   const gymId = searchParams.get("gymId") || "";
   const sessionId = searchParams.get("sessionId") || "";
+  const rotationTemplateId = searchParams.get("rotationTemplateId") || "";
   const router = useRouter();
 
   const {
@@ -347,7 +348,12 @@ function ContenuSeanceLive() {
         const res = await fetch("/api/seance-du-jour", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date, gymId, seanceTemplateId: templateId }),
+          body: JSON.stringify({
+            date,
+            gymId,
+            seanceTemplateId: templateId,
+            ...(rotationTemplateId ? { rotationTemplateId } : {}),
+          }),
         });
         if (!res.ok) throw new Error();
         const resultat: { seance: { id: string } } = await res.json();
@@ -399,7 +405,7 @@ function ContenuSeanceLive() {
       toast.error("Impossible de démarrer la séance");
       setOuverture(false);
     }
-  }, [ouverture, templateId, gymId, start, router]);
+  }, [ouverture, templateId, gymId, rotationTemplateId, start, router]);
 
   /**
    * Le pilier et le profil de l'exercice affiché.
@@ -924,7 +930,8 @@ function ContenuSeanceLive() {
       className="live-session min-h-screen bg-papier"
       onPointerDown={interaction}
     >
-      <DeclarerContexte ecran="seance" />
+      <DeclarerContexte ecran="seance" typeEntite="instance" entiteId={visibles[index]?.id} sessionLogId={active?.id} />
+      <ActionsCoachLive onAction={(action) => { const exo = visibles[index]; if (exo) ouvrirIncidentExercice(exo.id, action); }} />
       {/* Collé sous l'encoche, pas sous l'heure : à `top-0`, l'en-tête de la
           séance — nom de la séance, chrono, bouton quitter — glissait derrière
           la barre d'état dès le premier défilement. */}

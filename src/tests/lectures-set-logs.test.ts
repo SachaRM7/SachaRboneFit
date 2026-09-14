@@ -108,6 +108,10 @@ function compter(texte: string, motif: RegExp): number {
 type Justification = "regle-dans-la-requete" | "bornee-par-des-seances" | "archive-assumee";
 
 const LECTEURS: Record<string, { lectures: number; pourquoi: Justification; note?: string }> = {
+  "services/contexte-coach.ts": {
+    lectures: 2, pourquoi: "bornee-par-des-seances",
+    note: "Live : séance authentifiée non archivée vérifiée avant ses séries. Machine de l'historique : jointure avec session_logs et filtre explicite du compte et de l'archivage.",
+  },
   "services/progression.ts": {
     lectures: 6, pourquoi: "bornee-par-des-seances",
     note: "trois lectures filtrent elles-mêmes, trois partent d'une liste de séances déjà filtrée",

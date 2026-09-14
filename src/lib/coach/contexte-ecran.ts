@@ -32,6 +32,7 @@ export const SUJETS = [
   "materiel",
   "stagnation",
   "expliquer_seance",
+  "construire_seance",
   "observation_seance",
 ] as const;
 export type Sujet = (typeof SUJETS)[number];
@@ -48,6 +49,8 @@ export type SignalObservation = (typeof SIGNAUX_OBSERVATION)[number];
 
 export interface ContexteEcran {
   ecran: Ecran;
+  sessionLogId?: string;
+  numeroSerie?: number;
   typeEntite?: TypeEntite | null;
   entiteId?: string | null;
   sujet?: Sujet | null;
@@ -173,6 +176,11 @@ const SUGGESTIONS_SUJET: Partial<Record<Sujet, Suggestion[]>> = {
     { libelle: "Changer d'exercice ?", message: "Est-ce que je devrais changer d'exercice ?" },
     { libelle: "Est-ce grave ?", message: "Est-ce que cette stagnation est un problème ?" },
   ],
+  construire_seance: [
+    { libelle: "Une séance plus courte", message: "Construis-moi une séance alternative plus courte pour aujourd'hui." },
+    { libelle: "Choisir les muscles", message: "Je veux construire une nouvelle séance autour de certains muscles." },
+    { libelle: "Adapter à ma récupération", message: "Propose-moi une séance complète adaptée à ma récupération et au matériel disponible." },
+  ],
 };
 
 const AMORCES_SUJET: Record<Sujet, string> = {
@@ -182,6 +190,7 @@ const AMORCES_SUJET: Record<Sujet, string> = {
   stagnation: "Tu veux comprendre une stagnation.",
   observation_seance: "Tu veux parler de ce que j'ai remarqué pendant ta séance.",
   expliquer_seance: "Tu veux comprendre la séance que je t'ai proposée.",
+  construire_seance: "Tu veux construire une nouvelle séance avec moi.",
 };
 
 const AMORCES_ECRAN: Record<Ecran, string> = {
@@ -203,7 +212,11 @@ export function suggestions(contexte: ContexteEcran | null): Suggestion[] {
   if (!contexte) return marquerSuggestions("plus", SUGGESTIONS.plus);
   if (contexte.sujet) {
     const propres = SUGGESTIONS_SUJET[contexte.sujet];
-    if (propres) return marquerSuggestions(`sujet:${contexte.sujet}`, propres);
+    // Construire une séance demande le raisonnement et les outils du Coach ;
+    // ces suggestions ne passent donc pas par les réponses rapides statiques.
+    if (propres) return contexte.sujet === "construire_seance"
+      ? propres
+      : marquerSuggestions(`sujet:${contexte.sujet}`, propres);
   }
   return marquerSuggestions(contexte.ecran, SUGGESTIONS[contexte.ecran]);
 }
@@ -237,6 +250,9 @@ export function contexteValide(brut: unknown): ContexteEcran | null {
 
   return {
     ecran,
+    ...(estUuid(o.sessionLogId) ? { sessionLogId: o.sessionLogId as string } : {}),
+    ...(typeof o.numeroSerie === "number" && Number.isInteger(o.numeroSerie)
+      && o.numeroSerie > 0 && o.numeroSerie <= 100 ? { numeroSerie: o.numeroSerie } : {}),
     typeEntite,
     entiteId: typeEntite && estUuid(o.entiteId) ? (o.entiteId as string) : null,
     sujet,

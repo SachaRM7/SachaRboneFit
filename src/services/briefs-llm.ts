@@ -5,6 +5,8 @@
  * mais il ne parle plus à aucun fournisseur LLM. Le moteur calcule déjà les
  * faits ; cette couche ne fait que les mettre en forme de façon stable.
  */
+import { CoachIndisponible } from "@/lib/coach/llm-client";
+
 export interface TexteGenere {
   texte: string;
   modeleUtilise: string;
@@ -42,8 +44,17 @@ export function contenuIAValide(
 }
 
 export function raisonCourte(e: unknown): string {
-  if (e instanceof BriefIndisponible) return e.message || "données insuffisantes";
-  return "échec inattendu de la rédaction déterministe";
+  if (e instanceof BriefIndisponible) {
+    return /aucun texte|vide/i.test(e.message)
+      ? "réponse vide du modèle"
+      : e.message || "données insuffisantes";
+  }
+  if (e instanceof CoachIndisponible) {
+    return e.statut === undefined
+      ? "modèle non configuré ou requête refusée"
+      : `modèle indisponible (HTTP ${e.statut})`;
+  }
+  return "échec inattendu de l'appel au modèle";
 }
 
 type Objet = Record<string, unknown>;

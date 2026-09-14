@@ -1,6 +1,9 @@
 import {
-  lireSeanceProgrammee, preparerProposition, preparerPropositionContrainte, PropositionRefusee,
+  lireSeanceProgrammee, preparerProposition, preparerPropositionContrainte,
+  preparerPropositionConstruction, PropositionRefusee,
 } from "@/services/propositions-coach";
+import { randomUUID } from "node:crypto";
+import { sessionDraftSchema } from "@/lib/session-composer/draft";
 import { contraintesPourAffichage } from "@/services/contraintes";
 import type { OperationContrainte } from "./propositions-contraintes";
 import { BORNES, apercuEnTexte, prescription, type Operation } from "./propositions";
@@ -43,6 +46,7 @@ async function proposer(
   operation: Operation,
   userId: string,
   seanceTemplateId: string | null | undefined,
+  conversationId?: string | null,
 ): Promise<ToolExecutionResult> {
   if (!seanceTemplateId) {
     return echec(
@@ -52,7 +56,7 @@ async function proposer(
   }
 
   try {
-    const proposition = await preparerProposition({ userId, seanceTemplateId, operation });
+    const proposition = await preparerProposition({ userId, seanceTemplateId, operation, conversationId });
     return {
       success: true,
       output: JSON.stringify({
@@ -180,6 +184,39 @@ export const DEFINITIONS_ECRITURE: CoachTool[] = [
       required: ["exerciseInstanceId", "seriesCibles", "repsMin", "repsMax"],
     },
   },
+  {
+    name: "propose_session_build",
+    description:
+      "Prépare une séance complète et l'affiche pour confirmation. À appeler seulement après " +
+      "avoir consulté récupération, volume, phase et matériel, puis validé la même composition " +
+      "avec validate_session. Ne crée rien avant le oui de l'athlète.",
+    input_schema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Nom court et lisible de la séance" },
+        letter: { type: "string", description: "Repère court, par exemple ALT" },
+        gymId: { type: "string", description: "Identifiant exact issu de get_gym_equipment" },
+        durationMinutes: { type: "number", description: "Durée visée en minutes" },
+        exercises: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              exerciseInstanceId: { type: "string" },
+              sets: { type: "number" },
+              repMin: { type: "number" },
+              repMax: { type: "number" },
+              targetRir: { type: "number", description: "Objectif de répétitions en réserve, 0 à 5" },
+              tempo: { type: "string" },
+              restSeconds: { type: "number" },
+            },
+            required: ["exerciseInstanceId", "sets", "repMin", "repMax", "targetRir", "restSeconds"],
+          },
+        },
+      },
+      required: ["name", "gymId", "durationMinutes", "exercises"],
+    },
+  },
 ];
 
 export const EXECUTEURS_ECRITURE: Record<string, ToolExecutor> = {
@@ -212,6 +249,7 @@ export const EXECUTEURS_ECRITURE: Record<string, ToolExecutor> = {
       { type: "remplacer_exercice", ligneId, versInstanceId: vers },
       userId,
       texte(params.seanceTemplateId) ?? contexte?.seanceTemplateId,
+      contexte?.conversationId,
     );
   },
 
@@ -228,6 +266,7 @@ export const EXECUTEURS_ECRITURE: Record<string, ToolExecutor> = {
       { type: "ajuster_volume", ligneId, seriesCibles, repsMin, repsMax },
       userId,
       texte(params.seanceTemplateId) ?? contexte?.seanceTemplateId,
+      contexte?.conversationId,
     );
   },
 
@@ -238,6 +277,7 @@ export const EXECUTEURS_ECRITURE: Record<string, ToolExecutor> = {
       { type: "retirer_exercice", ligneId },
       userId,
       texte(params.seanceTemplateId) ?? contexte?.seanceTemplateId,
+      contexte?.conversationId,
     );
   },
 
@@ -253,7 +293,56 @@ export const EXECUTEURS_ECRITURE: Record<string, ToolExecutor> = {
       { type: "ajouter_exercice", exerciseInstanceId: instance, seriesCibles, repsMin, repsMax },
       userId,
       texte(params.seanceTemplateId) ?? contexte?.seanceTemplateId,
+      contexte?.conversationId,
     );
+  },
+
+  propose_session_build: async (params, userId, contexte) => {
+    const rawExercises = Array.isArray(params.exercises) ? params.exercises : [];
+    const draft = {
+      id: randomUUID(),
+      origin: "coach" as const,
+      name: texte(params.name) ?? "Séance alternative",
+      letter: texte(params.letter) ?? "ALT",
+      gymId: texte(params.gymId) ?? "",
+      durationMinutes: nombre(params.durationMinutes) ?? null,
+      exercises: rawExercises.map((raw, order) => {
+        const exercise = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+        return {
+          clientId: randomUUID(),
+          exerciseInstanceId: texte(exercise.exerciseInstanceId) ?? "",
+          order,
+          sets: nombre(exercise.sets) ?? 0,
+          repMin: nombre(exercise.repMin) ?? 0,
+          repMax: nombre(exercise.repMax) ?? 0,
+          targetRir: nombre(exercise.targetRir) ?? null,
+          tempo: texte(exercise.tempo),
+          restSeconds: nombre(exercise.restSeconds) ?? 0,
+        };
+      }),
+    };
+    const parsed = sessionDraftSchema.safeParse(draft);
+    if (!parsed.success) return echec(parsed.error.issues[0]?.message ?? "Séance incomplète.");
+    try {
+      const proposition = await preparerPropositionConstruction({
+        userId,
+        draft: parsed.data,
+        conversationId: contexte?.conversationId,
+      });
+      return {
+        success: true,
+        output: JSON.stringify({
+          propositionId: proposition.id,
+          seance: proposition.nomSeance,
+          apercu: apercuEnTexte(proposition.apercu),
+          etat: "en_attente_de_confirmation",
+          consigne: "Rien n'est créé. Présente brièvement cette séance ; l'athlète voit son contenu et décide.",
+        }),
+      };
+    } catch (error) {
+      if (error instanceof PropositionRefusee) return echec(error.raison);
+      throw error;
+    }
   },
 };
 
@@ -323,9 +412,10 @@ export const DEFINITIONS_CONTRAINTES: CoachTool[] = [
 async function proposerSurContrainte(
   operation: OperationContrainte,
   userId: string,
+  conversationId?: string | null,
 ): Promise<ToolExecutionResult> {
   try {
-    const proposition = await preparerPropositionContrainte({ userId, operation });
+    const proposition = await preparerPropositionContrainte({ userId, operation, conversationId });
     return {
       success: true,
       output: JSON.stringify({
@@ -370,7 +460,7 @@ export const EXECUTEURS_CONTRAINTES: Record<string, ToolExecutor> = {
     };
   },
 
-  propose_constraint: async (params, userId) => {
+  propose_constraint: async (params, userId, contexte) => {
     const muscle = texte(params.muscle);
     const severite = nombre(params.severite);
     if (!muscle || severite === undefined) {
@@ -379,12 +469,13 @@ export const EXECUTEURS_CONTRAINTES: Record<string, ToolExecutor> = {
     return proposerSurContrainte(
       { type: "creer_contrainte", muscle, severite, notes: texte(params.notes) },
       userId,
+      contexte?.conversationId,
     );
   },
 
-  propose_constraint_resolution: async (params, userId) => {
+  propose_constraint_resolution: async (params, userId, contexte) => {
     const contrainteId = texte(params.contrainteId);
     if (!contrainteId) return echec("contrainteId est requis.");
-    return proposerSurContrainte({ type: "resoudre_contrainte", contrainteId }, userId);
+    return proposerSurContrainte({ type: "resoudre_contrainte", contrainteId }, userId, contexte?.conversationId);
   },
 };

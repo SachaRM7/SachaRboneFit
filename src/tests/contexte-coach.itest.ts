@@ -12,7 +12,11 @@ import { randomUUID } from "node:crypto";
 
 const U = randomUUID();
 const AUTRE = randomUUID();
+const llmTest = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/supabase/auth-helper", () => ({ getAuthenticatedUserId: async () => U }));
+vi.mock("@/lib/coach/llm-client", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/coach/llm-client")>(), appelerLLM: llmTest,
+}));
 
 const { db } = await import("@/db/client");
 const schema = await import("@/db/schema");
@@ -96,6 +100,72 @@ afterAll(async () => {
 });
 
 describe("résolution du contexte d'écran", () => {
+  it("une erreur IA conserve l'échange et la nouvelle tentative ne duplique pas la question", async () => {
+    const { POST } = await import("@/app/api/coach/chat/route");
+    llmTest.mockRejectedValueOnce(new Error("Fournisseur temporairement indisponible"))
+      .mockResolvedValueOnce({ texte: "RPE 7 correspond à environ trois répétitions en réserve.", appelsOutils: [] });
+    let conversationId: string | undefined;
+    try {
+      const envoyer = (body: object) => POST(new Request("http://test/api/coach/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
+      const erreur = await envoyer({ message: "RPE 7 ?" });
+      expect(erreur.status).toBe(503);
+      conversationId = (await erreur.json()).conversationId;
+      expect(conversationId).toBeTruthy();
+      const reponse = await envoyer({ message: "RPE 7 ?", conversationId, retry: true });
+      expect(reponse.status).toBe(200);
+      const messages = await db.query.coachMessages.findMany({ where: eq(schema.coachMessages.conversationId, conversationId!) });
+      expect(messages.filter((m) => m.role === "user")).toHaveLength(1);
+      expect(messages.filter((m) => m.role === "assistant")).toHaveLength(1);
+    } finally {
+      if (conversationId) {
+        await db.delete(schema.coachMessages).where(eq(schema.coachMessages.conversationId, conversationId));
+        await db.delete(schema.coachConversations).where(eq(schema.coachConversations.id, conversationId));
+      }
+      llmTest.mockReset();
+    }
+  });
+  it("distingue cible, mesure et série désignée, sans révéler une séance étrangère ou archivée", async () => {
+    const [session] = await db.insert(schema.sessionLogs).values({ userId: U, seanceTemplateId: gabaritMien, date: "2026-09-12" }).returning();
+    const id = session!.id;
+    try {
+      await db.insert(schema.sessionPlanItems).values({ sessionLogId: id, exerciseInstanceId: instMienne, ordre: 1, seriesCibles: 2, fourchetteRepsMin: 8, fourchetteRepsMax: 12, rpeCible: 7, chargeSuggeree: 22.5, messageProgression: "Repère réel du moteur" });
+      await db.insert(schema.setLogs).values({ sessionLogId: id, exerciseInstanceId: instMienne, numeroSerie: 1, charge: 20, repsEffectuees: 10, rpeEffectif: 6 });
+      const contexte = { ecran: "seance" as const, typeEntite: "instance" as const, entiteId: instMienne, sessionLogId: id, numeroSerie: 2 };
+      const propre = await resoudreContexte(U, contexte);
+      expect(propre.refs?.sessionLogId).toBe(id);
+      expect(propre.texte).toContain("charge suggérée 22.5");
+      expect(propre.texte).toContain("Repère réel du moteur");
+      expect(propre.texte).toContain("série 1 : 20 kg × 10, RPE 6");
+      expect(propre.texte).toContain("Série désignée par l'écran : 2");
+      const etrangere = await resoudreContexte(AUTRE, contexte);
+      expect(etrangere.refs?.sessionLogId).toBeNull();
+      expect(etrangere.refs?.exerciseInstanceId).toBeNull();
+      expect(etrangere.texte).not.toContain("22.5");
+      await db.update(schema.exerciseInstances).set({ userId: AUTRE }).where(eq(schema.exerciseInstances.id, instMienne));
+      const machinePartagee = await resoudreContexte(U, contexte);
+      expect(machinePartagee.refs?.exerciseInstanceId).toBe(instMienne);
+      expect(machinePartagee.texte).toContain("charge suggérée 22.5");
+      expect(machinePartagee.texte).toContain("série 1 : 20 kg × 10");
+      const depuisHistorique = await resoudreContexte(U, { ecran: "progression", typeEntite: "instance", entiteId: instMienne });
+      expect(depuisHistorique.refs?.exerciseInstanceId).toBe(instMienne);
+      expect(depuisHistorique.texte).toContain("Exercice regardé : Developpe couche");
+      await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, id));
+      const ancienGabarit = await resoudreContexte(U, contexte);
+      expect(ancienGabarit.refs?.exerciseInstanceId).toBe(instMienne);
+      expect(ancienGabarit.texte).toContain("Aucun plan de séance figé");
+      expect(ancienGabarit.texte).not.toContain("charge suggérée 22.5");
+      await db.update(schema.exerciseInstances).set({ userId: U }).where(eq(schema.exerciseInstances.id, instMienne));
+      await db.update(schema.sessionLogs).set({ archiveLe: new Date() }).where(eq(schema.sessionLogs.id, id));
+      const archivee = await resoudreContexte(U, contexte);
+      expect(archivee.refs?.sessionLogId).toBeNull();
+      expect(archivee.texte).not.toContain("série 1 : 20");
+    } finally {
+      await db.update(schema.exerciseInstances).set({ userId: U }).where(eq(schema.exerciseInstances.id, instMienne));
+      await db.delete(schema.setLogs).where(eq(schema.setLogs.sessionLogId, id));
+      await db.delete(schema.sessionPlanItems).where(eq(schema.sessionPlanItems.sessionLogId, id));
+      await db.delete(schema.sessionLogs).where(eq(schema.sessionLogs.id, id));
+    }
+  });
   it("ne résout rien sans contexte", async () => {
     expect(await resoudreContexte(U, null)).toEqual({ texte: null, refs: null });
   });

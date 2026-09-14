@@ -41,6 +41,8 @@ export interface RefsContexteOutil {
   exerciseInstanceId: string | null;
   /** Séance du jour en cours, quand l'écran en désigne une. Jamais du modèle. */
   sessionLogId: string | null;
+  /** Conversation créée ou reprise par la route, jamais fournie par le modèle. */
+  conversationId?: string | null;
 }
 
 /**
