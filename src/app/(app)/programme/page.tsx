@@ -120,7 +120,7 @@ export default async function ProgrammePage({
             programmes={blocs.tous.map((item) => ({
               id: item.id,
               nom: item.nom,
-              actif: item.actif,
+              actif: Boolean(item.actif),
               typeCycle: item.typeCycle,
             }))}
             selectedId={selectedBloc?.id ?? null}
