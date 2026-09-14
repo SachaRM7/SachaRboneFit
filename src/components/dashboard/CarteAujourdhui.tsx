@@ -56,7 +56,10 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
   },
   prete: {
     icone: Dumbbell,
-    titre: (e) => (e.seance ? `Séance ${e.seance.lettre}` : "Séance du jour"),
+    // La lettre est un identifiant interne de rotation. Une séance déplacée
+    // depuis l'espace libre peut encore porter « LIBRE » sans que cela décrive
+    // son programme actuel. La Home doit donc montrer le nom utile à l'humain.
+    titre: (e) => (e.seance?.nom ? e.seance.nom : "Séance du jour"),
     texte: "",
     bouton: "Commencer ma séance",
   },
@@ -88,7 +91,7 @@ export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
         <Icone size={22} strokeWidth={1.5} aria-hidden />
       </div>
       {aFaire && etat.seance ? (
-        <Link href="/programme" prefetch={false} className="home-session-title" aria-label={`Voir dans le programme la séance ${etat.seance.lettre}`}>
+        <Link href="/programme" prefetch={false} className="home-session-title" aria-label={`Voir dans le programme la séance ${etat.seance.nom || etat.seance.lettre}`}>
           <h2 id="session-du-jour">{f.titre(etat)}</h2><ArrowRight size={22} aria-hidden />
         </Link>
       ) : <h2 id="session-du-jour">{f.titre(etat)}</h2>}
