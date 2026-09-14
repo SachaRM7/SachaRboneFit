@@ -7,7 +7,7 @@ import {
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { GestionProgramme, type SeanceProgramme, type MachineDisponible } from "@/components/programme/GestionProgramme";
-import { CreationBlocForm } from "@/components/programme/CreationBlocForm";
+import { ProgrammesManager } from "@/components/programme/ProgrammesManager";
 import { VueCycle, OptionsAvancees } from "@/components/programme/VueCycle";
 import { vueDuProgramme } from "@/services/cycle";
 import { lireBlocs } from "@/services/blocs";
@@ -15,37 +15,19 @@ import { onboardingTermine } from "@/services/profil-cache";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { resoudreMascotteProgramme } from "@/lib/coach/resoudre-mascotte";
 
-/**
- * Programme : comprendre et inspecter la programmation.
- *
- * Le rôle de cet écran est tranché. Il répond à « qu'est-ce qui est prévu, et
- * pourquoi ». Il ne double pas l'Accueil, qui reste le parcours opérationnel :
- * une séance se lance depuis là, ou depuis son propre détail. Il ne double pas
- * non plus Progression, qui répond à « qu'est-ce qui s'est passé ».
- *
- * L'écran était un CRUD — bloc, séances, exercices, séries, répétitions, RPE,
- * tempo, repos, le tout déplié d'emblée. Cette capacité n'est pas supprimée :
- * elle passe derrière « Édition avancée », là où elle sert.
- */
-export default async function ProgrammePage() {
+export default async function ProgrammePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ bloc?: string }>;
+}) {
   const userId = await getAuthenticatedUserId();
   if (!userId) redirect("/login");
-
-  // Sans onboarding terminé, il n'y a rien à programmer : on y renvoie plutôt
-  // que d'afficher un écran vide expliquant qu'il n'y a rien. La réponse est
-  // celle que le layout vient d'obtenir — la question n'est pas reposée.
   if (!(await onboardingTermine(userId))) redirect("/bienvenue");
 
-  /*
-   * Les blocs sont lus une fois, et la vue les reçoit.
-   *
-   * Les deux lectures étaient menées de front, faute de lien entre elles — mais
-   * elles n'étaient pas indépendantes : elles cherchaient le MÊME bloc actif,
-   * avec les mêmes critères. Les mener en parallèle ne faisait que payer deux
-   * fois en même temps.
-   */
+  const { bloc: requestedBlocId } = await searchParams;
   const blocs = await lireBlocs(userId);
-  const bloc = blocs.actif;
+  const activeBloc = blocs.actif;
+  const selectedBloc = blocs.tous.find((item) => item.id === requestedBlocId) ?? activeBloc ?? blocs.tous[0] ?? null;
   const vue = await vueDuProgramme(userId, undefined, { blocs });
 
   const [instances, salles] = await Promise.all([
@@ -71,9 +53,9 @@ export default async function ProgrammePage() {
 
   let seances: SeanceProgramme[] = [];
 
-  if (bloc) {
+  if (selectedBloc) {
     const templates = await db.query.seanceTemplates.findMany({
-      where: eq(seanceTemplates.blocId, bloc.id),
+      where: eq(seanceTemplates.blocId, selectedBloc.id),
       orderBy: [asc(seanceTemplates.ordreDansSemaine)],
     });
 
@@ -117,17 +99,6 @@ export default async function ProgrammePage() {
 
   return (
     <div className="min-h-dvh bg-papier text-encre p-4 space-y-5">
-      {/*
-        LE COACH QUI MONTRE LE PLAN.
-
-        Cet écran répond à « qu'est-ce qui est prévu, et pourquoi » : c'est la
-        définition même de `planification`. La mascotte prend la place d'action
-        de l'en-tête — celle qui existait déjà — plutôt qu'une carte de plus :
-        l'écran est une lecture, pas une célébration.
-
-        Le moteur de programmation n'est pas touché. `resoudreMascotteProgramme`
-        ne lit rien et ne calcule rien ; il nomme une intention.
-      */}
       <EnTeteSecondaire
         titre="Programme"
         vers="/settings"
@@ -145,11 +116,20 @@ export default async function ProgrammePage() {
 
       <OptionsAvancees>
         <div className="space-y-4">
-          {!bloc && <CreationBlocForm />}
+          <ProgrammesManager
+            programmes={blocs.tous.map((item) => ({
+              id: item.id,
+              nom: item.nom,
+              actif: item.actif,
+              typeCycle: item.typeCycle,
+            }))}
+            selectedId={selectedBloc?.id ?? null}
+            seances={seances.map((session) => ({ id: session.id, nom: session.nom, lettre: session.lettre }))}
+          />
           <GestionProgramme
             bloc={
-              bloc
-                ? { id: bloc.id, nom: bloc.nom, typeCycle: bloc.typeCycle }
+              selectedBloc
+                ? { id: selectedBloc.id, nom: selectedBloc.nom, typeCycle: selectedBloc.typeCycle }
                 : null
             }
             seances={seances}
