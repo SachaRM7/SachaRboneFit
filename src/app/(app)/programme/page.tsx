@@ -112,30 +112,29 @@ export default async function ProgrammePage({
         }
       />
 
+      <ProgrammesManager
+        programmes={blocs.tous.map((item) => ({
+          id: item.id,
+          nom: item.nom,
+          actif: Boolean(item.actif),
+          typeCycle: item.typeCycle,
+        }))}
+        selectedId={selectedBloc?.id ?? null}
+        seances={seances.map((session) => ({ id: session.id, nom: session.nom, lettre: session.lettre }))}
+      />
+
       <VueCycle vue={vue} />
 
       <OptionsAvancees>
-        <div className="space-y-4">
-          <ProgrammesManager
-            programmes={blocs.tous.map((item) => ({
-              id: item.id,
-              nom: item.nom,
-              actif: Boolean(item.actif),
-              typeCycle: item.typeCycle,
-            }))}
-            selectedId={selectedBloc?.id ?? null}
-            seances={seances.map((session) => ({ id: session.id, nom: session.nom, lettre: session.lettre }))}
-          />
-          <GestionProgramme
-            bloc={
-              selectedBloc
-                ? { id: selectedBloc.id, nom: selectedBloc.nom, typeCycle: selectedBloc.typeCycle }
-                : null
-            }
-            seances={seances}
-            machines={machines}
-          />
-        </div>
+        <GestionProgramme
+          bloc={
+            selectedBloc
+              ? { id: selectedBloc.id, nom: selectedBloc.nom, typeCycle: selectedBloc.typeCycle }
+              : null
+          }
+          seances={seances}
+          machines={machines}
+        />
       </OptionsAvancees>
     </div>
   );

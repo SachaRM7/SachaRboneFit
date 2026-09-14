@@ -5,13 +5,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DOMINANTES, LIBELLES_DOMINANTE } from "@/lib/referentiels/cycle";
 
-const TYPES_CYCLE = [
-  ...DOMINANTES.map((d) => ({ valeur: d, libelle: LIBELLES_DOMINANTE[d] })),
-  { valeur: "deload", libelle: "Décharge" },
-] as const;
+const TYPE_CYCLE_NON_DEFINI = "non_defini";
 
 export function CreationBlocForm({
   actifParDefaut = true,
@@ -23,7 +18,6 @@ export function CreationBlocForm({
   const router = useRouter();
   const [nom, setNom] = useState("");
   const [dateDebut, setDateDebut] = useState(new Date().toISOString().slice(0, 10));
-  const [typeCycle, setTypeCycle] = useState<string>("volume");
   const [envoi, setEnvoi] = useState(false);
 
   const creer = async () => {
@@ -36,7 +30,12 @@ export function CreationBlocForm({
       const res = await fetch("/api/programme/blocs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nom: nom.trim(), dateDebut, typeCycle, actif: actifParDefaut }),
+        body: JSON.stringify({
+          nom: nom.trim(),
+          dateDebut,
+          typeCycle: TYPE_CYCLE_NON_DEFINI,
+          actif: actifParDefaut,
+        }),
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) throw new Error(payload?.error ?? "Création impossible");
@@ -57,29 +56,25 @@ export function CreationBlocForm({
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-encre-3">Nouveau programme</p>
         <p className="mt-1 text-sm text-encre-2">
-          {actifParDefaut ? "Il deviendra le programme actif." : "Il sera enregistré sans changer ta rotation actuelle."}
+          {actifParDefaut
+            ? "Il deviendra le programme actif. Tu pourras préciser son orientation plus tard."
+            : "Il sera enregistré sans changer ta rotation actuelle. Son orientation pourra être définie plus tard."}
         </p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="nomBloc">Nom du programme</Label>
-        <Input id="nomBloc" value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Push / Pull / Legs" />
+        <Input
+          id="nomBloc"
+          value={nom}
+          onChange={(e) => setNom(e.target.value)}
+          placeholder="Push / Pull / Legs"
+          autoComplete="off"
+        />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-2">
-          <Label htmlFor="dateDebut">Début</Label>
-          <Input id="dateDebut" type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label>Type de cycle</Label>
-          <Select value={typeCycle} onValueChange={(v) => setTypeCycle(v ?? "volume")}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {TYPES_CYCLE.map((t) => (
-                <SelectItem key={t.valeur} value={t.valeur}>{t.libelle}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="dateDebut">Début</Label>
+        <Input id="dateDebut" type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
+        <p className="text-xs text-encre-3">Utilisé comme repère de calendrier, pas comme type de cycle.</p>
       </div>
       <Button className="w-full h-12" onClick={creer} disabled={envoi}>
         {envoi ? "Création…" : "Créer le programme"}

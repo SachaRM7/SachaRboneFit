@@ -1,24 +1,16 @@
 /**
  * Le vocabulaire des cycles, côté utilisateur.
  *
- * `programme_blocs.type_cycle` est une colonne texte sans contrainte. Trois
- * sources y écrivent : l'onboarding (« calibration »), le formulaire de
- * création (« mecanique », « metabolique », « force », « deload ») et l'API,
- * qui accepte n'importe quelle chaîne de 1 à 60 caractères. Il n'existe donc
- * pas d'énumération à laquelle se fier.
+ * `programme_blocs.type_cycle` est une colonne texte sans contrainte. Plusieurs
+ * sources y écrivent et le vocabulaire a déjà évolué. Les programmes créés
+ * manuellement peuvent donc rester sans orientation tant qu'aucune dominante
+ * n'a été décidée.
  *
- * Deux conséquences, tenues ici :
- *
- * — l'ancienne opposition « mécanique / métabolique » est abandonnée pour les
- *   NOUVEAUX cycles, au profit des dominantes réellement décidées : charge,
- *   volume, densité, proximité de l'échec. Les anciennes valeurs restent
- *   lisibles et ne sont pas réécrites en base : un cycle enregistré comme
- *   « mecanique » garde sa valeur et s'affiche sous un libellé compatible.
- * — aucune valeur brute n'atteint l'écran. Une valeur inconnue est humanisée
- *   plutôt que montrée telle quelle, et signalée comme héritée.
+ * Aucune valeur brute n'atteint l'écran : les valeurs historiques restent
+ * lisibles, et les valeurs inconnues sont humanisées.
  */
 
-/** Dominantes proposées aux nouveaux cycles. */
+/** Dominantes proposées aux nouveaux cycles quand une orientation est réellement définie. */
 export const DOMINANTES = ["charge", "volume", "densite", "proximite_echec"] as const;
 export type Dominante = (typeof DOMINANTES)[number];
 
@@ -62,16 +54,15 @@ function humaniser(valeur: string): string {
 /**
  * Le libellé d'un type de cycle, quelle que soit son origine.
  *
- * Les anciennes valeurs sont traduites sans être réécrites : « mecanique »
- * décrivait un travail à dominante de charge, « metabolique » un travail à
- * dominante de volume. La correspondance est approximative et assumée comme
- * telle — d'où le marqueur `herite`, qui permet à l'écran de ne pas présenter
- * une interprétation rétrospective comme une certitude.
+ * `non_defini` est volontairement neutre : il permet de créer un programme
+ * sans demander à l'utilisateur de choisir une taxonomie encore mouvante.
  */
 export function libelleCycle(typeCycle: string | null | undefined): LibelleCycle {
   const t = (typeCycle ?? "").toLowerCase().trim();
 
-  if (t === "") return { libelle: "Cycle en cours", intention: null, herite: false };
+  if (t === "" || t === "non_defini") {
+    return { libelle: "Programme en cours", intention: null, herite: false };
+  }
 
   if (t === "calibration") {
     return {
