@@ -23,6 +23,16 @@ describe("quota du coach", () => {
     });
     expect(attendre).not.toHaveBeenCalled();
   });
+  it("retire les espaces accidentels autour de la clé", async () => {
+    config();
+    vi.stubEnv("OPENCODE_API_KEY", "  test\r\n");
+    const fetch = vi.fn().mockResolvedValueOnce(ok());
+    vi.stubGlobal("fetch", fetch);
+    await appelerLLM(options);
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({
+      headers: { authorization: "Bearer test" },
+    });
+  });
   it("respecte le délai après épuisement des secours et reprend une seule fois", async () => {
     config(); const fetch = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota("4")).mockResolvedValueOnce(ok());
     vi.stubGlobal("fetch", fetch);

@@ -153,8 +153,9 @@ function justifieUnRepli(erreur: unknown): boolean {
 
 function cleApi(nom: string): string {
   const valeur = process.env[nom];
-  if (!valeur) throw new CoachIndisponible(`Clé ${nom} non configurée`);
-  return valeur;
+  const nettoyee = valeur?.trim();
+  if (!nettoyee) throw new CoachIndisponible(`Clé ${nom} non configurée`);
+  return nettoyee;
 }
 
 /** Le délai vient du fournisseur, jamais d'une boucle de tentatives immédiates. */
