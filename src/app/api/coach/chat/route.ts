@@ -8,43 +8,64 @@ import { loadCoachContext } from "@/lib/coach/context-loader";
 import { buildSystemPrompt } from "@/lib/coach/system-prompt";
 import { appelerLLM, CoachIndisponible, type AppelOutil, type MessageLLM } from "@/lib/coach/llm-client";
 import { createCoachTools } from "@/lib/coach/tools";
-import { contexteValide } from "@/lib/coach/contexte-ecran";
+import { contexteValide, extraireActionRapide } from "@/lib/coach/contexte-ecran";
 import { resoudreContexte } from "@/services/contexte-coach";
+import { repondreActionRapide } from "@/services/reponses-coach-rapides";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 90;
 
 const schema = z.object({
   retry: z.boolean().optional(),
   conversationId: z.string().uuid().nullable().optional(),
   message: z.string().trim().min(1).max(4000),
   sessionLogId: z.string().uuid().nullable().optional(),
-  /**
-   * Désignation de l'écran d'où la question est posée. Une désignation, jamais
-   * des données : le serveur les résout lui-même depuis la session
-   * authentifiée. Tout champ inattendu est ignoré par `contexteValide`.
-   */
   contexte: z.unknown().nullable().optional(),
 });
 
-/** Au-delà, on arrête la boucle : le modèle tourne en rond. */
 const TOURS_MAX = 4;
+const MESSAGES_HISTORIQUE_MAX = 12;
+const CARACTERES_HISTORIQUE_MAX = 12_000;
+const CARACTERES_RESULTAT_OUTIL_MAX = 6_000;
+const CARACTERES_RESULTATS_OUTILS_TOTAL_MAX = 12_000;
+const CARACTERES_REPONSE_MAX = 5_000;
 
-/**
- * Conversation avec le coach.
- *
- * La route ré-emballait le flux SSE du fournisseur sans jamais le décoder, et
- * n'a jamais transmis les outils au modèle — `createCoachTools()` n'était appelé
- * nulle part. Le coach affichait donc du protocole brut et n'avait aucun accès
- * aux données.
- *
- * Elle exécute désormais la boucle d'outils côté serveur et renvoie une réponse
- * complète. Les appels et leurs résultats sont archivés sur le message, dans les
- * colonnes prévues pour ça et jusqu'ici toujours vides.
- */
+function bornerHistorique(historique: Array<{ role: string; content: string }>): MessageLLM[] {
+  const candidats = historique
+    .filter((m) => m.role === "user" || m.role === "assistant")
+    .filter((m) => m.content.trim().length > 0)
+    .slice(-MESSAGES_HISTORIQUE_MAX);
+
+  const retenus: MessageLLM[] = [];
+  let caracteres = 0;
+  for (let i = candidats.length - 1; i >= 0; i -= 1) {
+    const m = candidats[i]!;
+    const restant = CARACTERES_HISTORIQUE_MAX - caracteres;
+    if (restant <= 0) break;
+    const content = m.content.length > restant ? m.content.slice(-restant) : m.content;
+    retenus.push({ role: m.role as "user" | "assistant", content });
+    caracteres += content.length;
+  }
+  return retenus.reverse();
+}
+
+function bornerResultatOutil(resultat: string, dejaConserve: number): string {
+  const restantGlobal = Math.max(0, CARACTERES_RESULTATS_OUTILS_TOTAL_MAX - dejaConserve);
+  const limite = Math.min(CARACTERES_RESULTAT_OUTIL_MAX, restantGlobal);
+  if (limite <= 0) return "Résultat omis : budget de contexte atteint.";
+  if (resultat.length <= limite) return resultat;
+  return `${resultat.slice(0, Math.max(0, limite - 31))}\n[… résultat tronqué côté serveur …]`;
+}
+
+function bornerReponse(texte: string): string {
+  const propre = texte.trim();
+  if (propre.length <= CARACTERES_REPONSE_MAX) return propre;
+  return `${propre.slice(0, CARACTERES_REPONSE_MAX)}\n\n[… réponse abrégée …]`;
+}
+
 export async function POST(request: Request) {
-  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(240_000)]);
+  const signal = AbortSignal.any([request.signal, AbortSignal.timeout(75_000)]);
   let convId: string | null = null;
   try {
     const userId = await getAuthenticatedUserId();
@@ -54,10 +75,12 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: "Message invalide" }, { status: 400 });
     }
+
     const { conversationId, message, sessionLogId } = parsed.data;
     const contexteEcran = contexteValide(parsed.data.contexte);
+    const actionRapide = extraireActionRapide(message);
+    const messageVisible = actionRapide?.message ?? message;
 
-    // --- Conversation ---
     convId = conversationId ?? null;
 
     if (convId) {
@@ -68,7 +91,7 @@ export async function POST(request: Request) {
     } else {
       const [nouvelle] = await db
         .insert(coachConversations)
-        .values({ userId, sessionLogId: sessionLogId ?? null, title: message.slice(0, 60) })
+        .values({ userId, sessionLogId: sessionLogId ?? null, title: messageVisible.slice(0, 60) })
         .returning();
       if (!nouvelle) return NextResponse.json({ error: "Création impossible" }, { status: 500 });
       convId = nouvelle.id;
@@ -77,11 +100,51 @@ export async function POST(request: Request) {
     const dernier = parsed.data.retry ? await db.query.coachMessages.findFirst({
       where: eq(coachMessages.conversationId, convId), orderBy: [desc(coachMessages.createdAt)],
     }) : null;
-    if (!(dernier?.role === "user" && dernier.content === message)) {
-      await db.insert(coachMessages).values({ conversationId: convId, role: "user", content: message });
+    if (!(dernier?.role === "user" && dernier.content === messageVisible)) {
+      await db.insert(coachMessages).values({
+        conversationId: convId,
+        role: "user",
+        content: messageVisible,
+      });
     }
 
-    // --- Contexte et historique ---
+    /**
+     * Bouton prédéfini : le Coach reste l'interface, mais aucun fournisseur IA
+     * n'est appelé. Les réponses viennent des mêmes services/règles que le reste
+     * de l'application et sont persistées comme un message normal du Coach.
+     */
+    if (actionRapide) {
+      const texte = bornerReponse(await repondreActionRapide({
+        actionId: actionRapide.id,
+        userId,
+        contexte: contexteEcran,
+      }));
+
+      const [enregistre] = await db
+        .insert(coachMessages)
+        .values({
+          conversationId: convId,
+          role: "assistant",
+          content: texte,
+          toolCalls: null,
+          toolResults: null,
+        })
+        .returning();
+
+      await db
+        .update(coachConversations)
+        .set({ updatedAt: new Date() })
+        .where(eq(coachConversations.id, convId));
+
+      return NextResponse.json({
+        conversationId: convId,
+        message: { id: enregistre?.id, role: "assistant", content: texte },
+        outilsUtilises: [],
+        deterministe: true,
+      });
+    }
+
+    // À partir d'ici seulement : vraie question libre -> LLM.
     const [contexte, contexteDeLEcran, historique] = await Promise.all([
       loadCoachContext(userId),
       resoudreContexte(userId, contexteEcran),
@@ -91,21 +154,16 @@ export async function POST(request: Request) {
       }),
     ]);
 
-    const messages: MessageLLM[] = historique
-      .filter((m) => m.role === "user" || m.role === "assistant")
-      .filter((m) => m.content.trim().length > 0)
-      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-
+    const messages = bornerHistorique(historique);
     const outils = createCoachTools();
     const profilAppel = contexteEcran?.sujet === "construire_seance" ? "lourd" : "courant";
 
-    // Le contexte d'écran s'ajoute au prompt plutôt qu'au message : c'est une
-    // situation, pas une question de l'utilisateur.
     const promptComplet = contexteDeLEcran.texte
       ? `${buildSystemPrompt(contexte)}\n\n## Écran en cours\n${contexteDeLEcran.texte}`
       : buildSystemPrompt(contexte);
 
     const resultatsOutils: Array<{ appel: AppelOutil; resultat: string }> = [];
+    let caracteresOutils = 0;
     let reponse = await appelerLLM({
       messages,
       sessionId: convId ?? undefined,
@@ -114,14 +172,11 @@ export async function POST(request: Request) {
       outils: outils.definitions,
     }, profilAppel);
 
-    // Boucle d'outils : le modèle demande des données, on les lui fournit, il conclut.
     let tour = 0;
     while (reponse.appelsOutils.length > 0 && tour < TOURS_MAX) {
       for (const appel of reponse.appelsOutils) {
         const executeur = outils.executors[appel.nom];
-        const resultat = executeur
-          // Les références de l'écran sont remises à l'outil directement : le
-          // modèle n'a pas à les recopier, et ne peut pas les remplacer.
+        const brut = executeur
           ? await executeur(
               appel.arguments,
               userId,
@@ -140,6 +195,8 @@ export async function POST(request: Request) {
               (e: unknown) => `Erreur : ${e instanceof Error ? e.message : String(e)}`,
             )
           : `Outil inconnu : ${appel.nom}`;
+        const resultat = bornerResultatOutil(brut, caracteresOutils);
+        caracteresOutils += resultat.length;
         resultatsOutils.push({ appel, resultat });
       }
 
@@ -154,11 +211,6 @@ export async function POST(request: Request) {
       tour += 1;
     }
 
-    // Certains modèles Go terminent un tour d'outils par un message vide : les
-    // données ont bien été consultées, mais aucune phrase n'est produite. Un
-    // dernier passage sans définition d'outil leur demande uniquement de
-    // synthétiser les résultats déjà obtenus, sans relancer la boucle ni
-    // dupliquer une décision métier.
     if (!reponse.texte.trim() && resultatsOutils.length > 0) {
       reponse = await appelerLLM({
         messages,
@@ -169,7 +221,7 @@ export async function POST(request: Request) {
       }, profilAppel);
     }
 
-    const texte = reponse.texte.trim() || "Je n'ai pas réussi à formuler de réponse.";
+    const texte = bornerReponse(reponse.texte) || "Je n'ai pas réussi à formuler de réponse.";
 
     const [enregistre] = await db
       .insert(coachMessages)
@@ -191,6 +243,7 @@ export async function POST(request: Request) {
       conversationId: convId,
       message: { id: enregistre?.id, role: "assistant", content: texte },
       outilsUtilises: resultatsOutils.map((r) => r.appel.nom),
+      deterministe: false,
     });
   } catch (error) {
     if (error instanceof CoachIndisponible) {
