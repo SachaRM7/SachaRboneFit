@@ -43,6 +43,24 @@ describe("quota du coach", () => {
       headers: { authorization: "Bearer test" },
     });
   });
+  it("peut synthétiser des résultats existants sans réexposer les outils", async () => {
+    config();
+    const fetch = vi.fn().mockResolvedValueOnce(ok());
+    vi.stubGlobal("fetch", fetch);
+    await appelerLLM({
+      ...options,
+      resultatsOutils: [{
+        appel: { id: "appel-1", nom: "get_today_readiness", arguments: {} },
+        resultat: "Feu vert",
+      }],
+    });
+    const corps = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+    expect(corps).not.toHaveProperty("tools");
+    expect(corps.messages).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "assistant", tool_calls: expect.any(Array) }),
+      { role: "tool", tool_call_id: "appel-1", content: "Feu vert" },
+    ]));
+  });
   it("respecte le délai après épuisement des secours et reprend une seule fois", async () => {
     config(); const fetch = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(quota("4")).mockResolvedValueOnce(ok());
     vi.stubGlobal("fetch", fetch);

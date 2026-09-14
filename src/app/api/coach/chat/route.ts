@@ -154,6 +154,21 @@ export async function POST(request: Request) {
       tour += 1;
     }
 
+    // Certains modèles Go terminent un tour d'outils par un message vide : les
+    // données ont bien été consultées, mais aucune phrase n'est produite. Un
+    // dernier passage sans définition d'outil leur demande uniquement de
+    // synthétiser les résultats déjà obtenus, sans relancer la boucle ni
+    // dupliquer une décision métier.
+    if (!reponse.texte.trim() && resultatsOutils.length > 0) {
+      reponse = await appelerLLM({
+        messages,
+        sessionId: convId ?? undefined,
+        signal,
+        system: `${promptComplet}\n\nLes consultations sont terminées. Réponds maintenant à la demande avec les résultats disponibles, sans demander de nouvel outil.`,
+        resultatsOutils,
+      }, profilAppel);
+    }
+
     const texte = reponse.texte.trim() || "Je n'ai pas réussi à formuler de réponse.";
 
     const [enregistre] = await db
