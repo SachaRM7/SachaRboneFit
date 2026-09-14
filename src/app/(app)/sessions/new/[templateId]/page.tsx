@@ -115,6 +115,7 @@ function ContenuSeanceLive() {
   const searchParams = useSearchParams();
   const gymId = searchParams.get("gymId") || "";
   const sessionId = searchParams.get("sessionId") || "";
+  const rotationTemplateId = searchParams.get("rotationTemplateId") || "";
   const router = useRouter();
 
   const {
@@ -347,7 +348,12 @@ function ContenuSeanceLive() {
         const res = await fetch("/api/seance-du-jour", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date, gymId, seanceTemplateId: templateId }),
+          body: JSON.stringify({
+            date,
+            gymId,
+            seanceTemplateId: templateId,
+            ...(rotationTemplateId ? { rotationTemplateId } : {}),
+          }),
         });
         if (!res.ok) throw new Error();
         const resultat: { seance: { id: string } } = await res.json();
@@ -399,7 +405,7 @@ function ContenuSeanceLive() {
       toast.error("Impossible de démarrer la séance");
       setOuverture(false);
     }
-  }, [ouverture, templateId, gymId, start, router]);
+  }, [ouverture, templateId, gymId, rotationTemplateId, start, router]);
 
   /**
    * Le pilier et le profil de l'exercice affiché.

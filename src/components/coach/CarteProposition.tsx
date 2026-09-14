@@ -24,6 +24,7 @@ export interface LigneApercu {
 export interface Proposition {
   id: string;
   operation: string;
+  sujet?: string;
   apercu: {
     resume: string;
     lignes: LigneApercu[];
@@ -73,7 +74,11 @@ export function CarteProposition({
       onDecide(
         proposition.id,
         decision,
-        decision === "appliquer" ? "Changement appliqué à ta séance." : "Proposition écartée.",
+        decision === "appliquer"
+          ? proposition.operation === "creer_seance"
+            ? "Séance ajoutée à ton programme."
+            : "Changement appliqué à ta séance."
+          : "Proposition écartée.",
       );
     } catch (e) {
       // Un refus d'application est presque toujours une raison lisible — séance
@@ -133,7 +138,11 @@ export function CarteProposition({
           disabled={enCours !== null}
           className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 rounded-full h-11"
         >
-          {enCours === "appliquer" ? "Un instant…" : "Appliquer"}
+          {enCours === "appliquer"
+            ? "Un instant…"
+            : proposition.operation === "creer_seance"
+              ? "Ajouter au programme"
+              : "Appliquer"}
         </Button>
         <Button
           variant="outline"

@@ -97,6 +97,7 @@ export async function POST(request: Request) {
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
     const outils = createCoachTools();
+    const profilAppel = contexteEcran?.sujet === "construire_seance" ? "lourd" : "courant";
 
     // Le contexte d'écran s'ajoute au prompt plutôt qu'au message : c'est une
     // situation, pas une question de l'utilisateur.
@@ -110,7 +111,7 @@ export async function POST(request: Request) {
       signal,
       system: promptComplet,
       outils: outils.definitions,
-    });
+    }, profilAppel);
 
     // Boucle d'outils : le modèle demande des données, on les lui fournit, il conclut.
     let tour = 0;
@@ -120,7 +121,20 @@ export async function POST(request: Request) {
         const resultat = executeur
           // Les références de l'écran sont remises à l'outil directement : le
           // modèle n'a pas à les recopier, et ne peut pas les remplacer.
-          ? await executeur(appel.arguments, userId, contexteDeLEcran.refs ?? undefined).then(
+          ? await executeur(
+              appel.arguments,
+              userId,
+              {
+                ...(contexteDeLEcran.refs ?? {
+                  ecran: contexteEcran?.ecran ?? "plus",
+                  blocId: null,
+                  seanceTemplateId: null,
+                  exerciseInstanceId: null,
+                  sessionLogId: null,
+                }),
+                conversationId: convId,
+              },
+            ).then(
               (r) => r.output,
               (e: unknown) => `Erreur : ${e instanceof Error ? e.message : String(e)}`,
             )
@@ -134,7 +148,7 @@ export async function POST(request: Request) {
         system: promptComplet,
         outils: outils.definitions,
         resultatsOutils,
-      });
+      }, profilAppel);
       tour += 1;
     }
 

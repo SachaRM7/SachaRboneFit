@@ -38,6 +38,7 @@ export const SUJETS = [
   "materiel",
   "stagnation",
   "expliquer_seance",
+  "construire_seance",
   /**
    * « J'ai remarqué quelque chose » — l'observateur de séance.
    *
@@ -156,6 +157,11 @@ const SUGGESTIONS_SUJET: Partial<Record<Sujet, Suggestion[]>> = {
     { libelle: "Changer d'exercice ?", message: "Est-ce que je devrais changer d'exercice ?" },
     { libelle: "Est-ce grave ?", message: "Est-ce que cette stagnation est un problème ?" },
   ],
+  construire_seance: [
+    { libelle: "Une séance plus courte", message: "Construis-moi une séance alternative plus courte pour aujourd'hui." },
+    { libelle: "Choisir les muscles", message: "Je veux construire une nouvelle séance autour de certains muscles." },
+    { libelle: "Adapter à ma récupération", message: "Propose-moi une séance complète adaptée à ma récupération et au matériel disponible." },
+  ],
 };
 
 /**
@@ -174,6 +180,7 @@ const AMORCES_SUJET: Record<Sujet, string> = {
   // conversation, elle ne répète pas le fait ni ne l'interprète.
   observation_seance: "Tu veux parler de ce que j'ai remarqué pendant ta séance.",
   expliquer_seance: "Tu veux comprendre la séance que je t'ai proposée.",
+  construire_seance: "Tu veux construire une nouvelle séance avec moi.",
 };
 
 const AMORCES_ECRAN: Record<Ecran, string> = {

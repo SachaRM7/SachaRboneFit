@@ -17,7 +17,7 @@ import { setTimeout as attendre } from "node:timers/promises";
  * bugs liée au parsing incrémental.
  */
 
-export type FournisseurLLM = "gemini" | "groq" | "openai" | "anthropic";
+export type FournisseurLLM = "opencode" | "gemini" | "openai" | "anthropic";
 
 export interface MessageLLM {
   role: "user" | "assistant";
@@ -78,25 +78,23 @@ export type ProfilAppel = "courant" | "lourd";
 /**
  * Chaînes de repli, par ordre de préférence.
  *
- * Le modèle principal est un Qwen encore marqué « Preview » chez Groq : son
- * nom, son quota, voire son existence peuvent changer sans préavis. Rien dans
- * l'application ne doit donc dépendre de ce nom. Il se règle par variable
- * d'environnement, au format `fournisseur:modele`, séparé par des virgules :
+ * Le fournisseur et le modèle restent configurables sans toucher au code. La
+ * valeur suit le format `fournisseur:modele`, séparé par des virgules :
  *
- *     LLM_CHAINE_COURANTE="groq:qwen/qwen3.8-27b,groq:openai/gpt-oss-120b"
+ *     LLM_CHAINE_COURANTE="opencode:glm-5.3-flash,opencode:glm-5.3"
  *
  * Les modèles suivants ne servent qu'en cas de quota atteint, de modèle retiré
  * ou de panne — jamais pour masquer une requête invalide.
  */
 const CHAINES_PAR_DEFAUT: Record<ProfilAppel, string> = {
-  // Qwen offre dix fois le quota quotidien de GPT-OSS ; GPT-OSS, en Production,
-  // prend le relais quand ce Preview défaille.
-  courant: "groq:qwen/qwen3.8-27b,groq:openai/gpt-oss-120b",
-  // L'ordre s'inverse : on paie la stabilité sur les décisions structurantes.
-  lourd: "groq:openai/gpt-oss-120b,groq:qwen/qwen3.8-27b",
+  // Flash privilégie la réactivité du chat. Le modèle complet prend le relais
+  // si nécessaire, avec la même API et la même clé OpenCode Zen.
+  courant: "opencode:glm-5.3-flash,opencode:glm-5.3",
+  // Pour les décisions structurantes, la qualité prime sur la latence.
+  lourd: "opencode:glm-5.3,opencode:glm-5.3-flash",
 };
 
-const FOURNISSEURS: readonly FournisseurLLM[] = ["gemini", "groq", "openai", "anthropic"];
+const FOURNISSEURS: readonly FournisseurLLM[] = ["opencode", "gemini", "openai", "anthropic"];
 
 function analyserChaine(brut: string): CibleLLM[] {
   return brut
@@ -124,7 +122,7 @@ export function chaineDeModeles(profil: ProfilAppel = "courant"): CibleLLM[] {
 
 /** Premier fournisseur de la chaîne courante — utile pour l'affichage. */
 export function fournisseurActif(): FournisseurLLM {
-  return chaineDeModeles("courant")[0]?.fournisseur ?? "groq";
+  return chaineDeModeles("courant")[0]?.fournisseur ?? "opencode";
 }
 
 export class CoachIndisponible extends Error {
@@ -247,7 +245,7 @@ async function appelerGemini(options: OptionsLLM, nomModele: string): Promise<Re
 }
 
 // ---------------------------------------------------------------------------
-// Groq et OpenAI — même protocole
+// OpenCode Zen et OpenAI — même protocole compatible OpenAI
 // ---------------------------------------------------------------------------
 
 async function appelerCompatibleOpenAI(
@@ -374,10 +372,10 @@ async function appelerAnthropic(options: OptionsLLM, nomModele: string): Promise
 
 async function appelerCible(cible: CibleLLM, options: OptionsLLM): Promise<ReponseLLM> {
   switch (cible.fournisseur) {
+    case "opencode":
+      return appelerCompatibleOpenAI(options, "https://opencode.ai/zen/v1", "OPENCODE_API_KEY", cible.modele);
     case "gemini":
       return appelerGemini(options, cible.modele);
-    case "groq":
-      return appelerCompatibleOpenAI(options, "https://api.groq.com/openai/v1", "GROQ_API_KEY", cible.modele);
     case "openai":
       return appelerCompatibleOpenAI(options, "https://api.openai.com/v1", "OPENAI_API_KEY", cible.modele);
     case "anthropic":

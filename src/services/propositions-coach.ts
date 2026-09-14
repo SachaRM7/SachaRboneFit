@@ -20,6 +20,7 @@ import {
   type OperationContrainte,
 } from "@/lib/coach/propositions-contraintes";
 import type { Lecteur } from "@/db/lecteur";
+import { sessionDraftSchema, targetRpe, type SessionDraft } from "@/lib/session-composer/draft";
 
 /**
  * Le chemin d'écriture du coach, de bout en bout.
@@ -207,6 +208,36 @@ async function controler(
   };
 }
 
+async function controlerConstruction(
+  userId: string,
+  draft: SessionDraft,
+  executeur: Lecteur = db,
+): Promise<Controle> {
+  const resultat = await validerSeanceComplete({
+    userId,
+    gymId: draft.gymId,
+    dureeDisponibleMinutes: draft.durationMinutes ?? undefined,
+    exercices: draft.exercises.map((exercise) => ({
+      exerciseInstanceId: exercise.exerciseInstanceId,
+      series: exercise.sets,
+      repsMin: exercise.repMin,
+      repsMax: exercise.repMax,
+      reposSecondes: exercise.restSeconds,
+      rirCible: exercise.targetRir,
+    })),
+    executeur,
+  });
+  const toutes = [
+    ...resultat.seance.anomalies,
+    ...resultat.semaine.anomalies,
+    ...resultat.cycle.motifs.map((message) => ({ message, gravite: "avertissement" as const })),
+  ];
+  return {
+    bloquants: toutes.filter((anomaly) => anomaly.gravite === "bloquant").map((anomaly) => anomaly.message),
+    avertissements: toutes.filter((anomaly) => anomaly.gravite !== "bloquant").map((anomaly) => anomaly.message),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 1 — Préparer : calculer et montrer, sans rien écrire
 // ---------------------------------------------------------------------------
@@ -215,7 +246,7 @@ export interface PropositionPreparee {
   id: string;
   seanceTemplateId: string;
   nomSeance: string;
-  operation: Operation["type"];
+  operation: string;
   apercu: Apercu;
   expireLe: string;
 }
@@ -285,6 +316,74 @@ export async function preparerProposition(entrees: {
   };
 }
 
+export async function preparerPropositionConstruction(entrees: {
+  userId: string;
+  draft: SessionDraft;
+  conversationId?: string | null;
+}): Promise<PropositionPreparee> {
+  const parsed = sessionDraftSchema.safeParse(entrees.draft);
+  if (!parsed.success) {
+    throw new PropositionRefusee(parsed.error.issues[0]?.message ?? "La séance proposée est incomplète.", 422);
+  }
+  const draft = parsed.data;
+  const bloc = await db.query.programmeBlocs.findFirst({
+    where: and(
+      eq(programmeBlocs.userId, entrees.userId),
+      eq(programmeBlocs.actif, true),
+      isNull(programmeBlocs.archiveLe),
+    ),
+  });
+  if (!bloc) throw new PropositionRefusee("Aucun programme actif ne peut recevoir cette séance.", 422);
+
+  const machines = await machinesDeLaSalle(draft.gymId);
+  const lignes: LigneProgramme[] = draft.exercises.map((exercise, index) => ({
+    id: `construction-${index}`,
+    ordre: index + 1,
+    exerciseInstanceId: exercise.exerciseInstanceId,
+    nom: machines.get(exercise.exerciseInstanceId) ?? "Exercice indisponible",
+    seriesCibles: exercise.sets,
+    repsMin: exercise.repMin,
+    repsMax: exercise.repMax,
+  }));
+  if (lignes.some((line) => !machines.has(line.exerciseInstanceId))) {
+    throw new PropositionRefusee("Un exercice proposé n'existe pas dans le lieu choisi.", 422);
+  }
+
+  const controle = await controlerConstruction(entrees.userId, draft);
+  if (controle.bloquants.length > 0) {
+    throw new PropositionRefusee(
+      `Cette séance ne passe pas les contrôles : ${controle.bloquants.join(" ; ")}`,
+      422,
+    );
+  }
+
+  const apercu = construireApercu([], lignes, controle.avertissements);
+  apercu.resume = `${draft.name} — ${draft.exercises.length} exercice${draft.exercises.length > 1 ? "s" : ""}, ${apercu.seriesApres} séries.`;
+
+  const [ligne] = await db.insert(coachPropositions).values({
+    userId: entrees.userId,
+    conversationId: entrees.conversationId ?? null,
+    sujet: "construction_seance",
+    seanceTemplateId: null,
+    operation: "creer_seance",
+    parametres: { draft, activeBlockId: bloc.id },
+    avant: [],
+    apres: lignes,
+    apercu: apercu as unknown as Record<string, unknown>,
+    empreinte: empreinteDe(lignes),
+  }).returning();
+  if (!ligne) throw new PropositionRefusee("Proposition non enregistrée.", 500);
+
+  return {
+    id: ligne.id,
+    seanceTemplateId: draft.id,
+    nomSeance: draft.name,
+    operation: "creer_seance",
+    apercu,
+    expireLe: new Date(ligne.createdAt.getTime() + BORNES.validiteMinutes * 60_000).toISOString(),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 2 — Lire : ce qui attend une décision
 // ---------------------------------------------------------------------------
@@ -303,6 +402,7 @@ export async function propositionsEnAttente(userId: string, conversationId?: str
     .map((l) => ({
       id: l.id,
       operation: l.operation,
+      sujet: l.sujet,
       apercu: l.apercu as unknown as Apercu,
       creeeLe: l.createdAt.toISOString(),
       expireLe: new Date(l.createdAt.getTime() + BORNES.validiteMinutes * 60_000).toISOString(),
@@ -383,6 +483,9 @@ export async function appliquerProposition(
   // écriture et statut dans une transaction — mais ne relit pas une séance.
   if (proposition.sujet === "contrainte") {
     return appliquerSurContrainte(userId, proposition);
+  }
+  if (proposition.sujet === "construction_seance") {
+    return appliquerConstruction(userId, propositionId);
   }
 
   if (!proposition.seanceTemplateId) {
@@ -476,6 +579,111 @@ export async function appliquerProposition(
     if (encore?.statut === "en_attente") {
       await marquer(propositionId, "echouee", { raison });
     }
+    throw erreur;
+  }
+}
+
+async function appliquerConstruction(
+  userId: string,
+  propositionId: string,
+): Promise<Application> {
+  try {
+    const resultat = await db.transaction(async (tx) => {
+      const [locked] = await tx
+        .select()
+        .from(coachPropositions)
+        .where(and(eq(coachPropositions.id, propositionId), eq(coachPropositions.userId, userId)))
+        .for("update");
+      if (!locked) throw new PropositionRefusee("Cette proposition est introuvable.", 404);
+      if (locked.statut !== "en_attente") {
+        throw new PropositionRefusee(
+          locked.statut === "appliquee" ? "Cette proposition a déjà été appliquée." : "Cette proposition n'attend plus de décision.",
+        );
+      }
+
+      const params = locked.parametres as { draft?: unknown; activeBlockId?: unknown };
+      const parsed = sessionDraftSchema.safeParse(params.draft);
+      if (!parsed.success || typeof params.activeBlockId !== "string") {
+        throw new PropositionRefusee("Cette proposition n'est plus exploitable.", 422);
+      }
+      const draft = parsed.data;
+
+      const bloc = await tx.query.programmeBlocs.findFirst({
+        where: and(
+          eq(programmeBlocs.id, params.activeBlockId),
+          eq(programmeBlocs.userId, userId),
+          eq(programmeBlocs.actif, true),
+          isNull(programmeBlocs.archiveLe),
+        ),
+      });
+      if (!bloc) throw new PropositionRefusee("Le programme actif a changé. Redemande une séance au Coach.", 409);
+
+      const machines = await machinesDeLaSalle(draft.gymId, tx);
+      const lignes: LigneProgramme[] = draft.exercises.map((exercise, index) => ({
+        id: `construction-${index}`,
+        ordre: index + 1,
+        exerciseInstanceId: exercise.exerciseInstanceId,
+        nom: machines.get(exercise.exerciseInstanceId) ?? "Exercice indisponible",
+        seriesCibles: exercise.sets,
+        repsMin: exercise.repMin,
+        repsMax: exercise.repMax,
+      }));
+      if (lignes.some((line) => !machines.has(line.exerciseInstanceId))) {
+        throw new PropositionRefusee("Le matériel disponible a changé. Redemande une proposition.", 409);
+      }
+      if (empreinteDe(lignes) !== locked.empreinte) {
+        throw new PropositionRefusee("Cette proposition a changé et ne peut pas être appliquée.", 409);
+      }
+
+      const controle = await controlerConstruction(userId, draft, tx);
+      if (controle.bloquants.length > 0) {
+        throw new PropositionRefusee(
+          `Le contexte a changé : ${controle.bloquants.join(" ; ")}`,
+          422,
+        );
+      }
+
+      const existing = await tx.query.seanceTemplates.findFirst({ where: eq(seanceTemplates.id, draft.id) });
+      if (existing) throw new PropositionRefusee("Cette séance existe déjà.", 409);
+      const templates = await tx.query.seanceTemplates.findMany({
+        where: eq(seanceTemplates.blocId, bloc.id),
+        orderBy: [desc(seanceTemplates.ordreDansSemaine)],
+      });
+      await tx.insert(seanceTemplates).values({
+        id: draft.id,
+        blocId: bloc.id,
+        lettre: draft.letter.trim().toUpperCase(),
+        nom: draft.name.trim(),
+        ordreDansSemaine: (templates[0]?.ordreDansSemaine ?? 0) + 1,
+      });
+      await tx.insert(exerciseInTemplate).values(draft.exercises.map((exercise, index) => ({
+        seanceTemplateId: draft.id,
+        exerciseInstanceId: exercise.exerciseInstanceId,
+        ordre: index + 1,
+        seriesCibles: exercise.sets,
+        fourchetteRepsMin: exercise.repMin,
+        fourchetteRepsMax: exercise.repMax,
+        rpeCible: targetRpe(exercise.targetRir),
+        tempo: exercise.tempo?.trim() || null,
+        reposSecondes: exercise.restSeconds,
+      })));
+
+      const apercu = locked.apercu as unknown as Apercu;
+      await tx.update(coachPropositions).set({
+        statut: "appliquee",
+        decideLe: new Date(),
+        resultat: { templateId: draft.id, avertissements: controle.avertissements },
+      }).where(eq(coachPropositions.id, propositionId));
+
+      return { apercu, avertissements: controle.avertissements };
+    });
+    return { id: propositionId, ...resultat };
+  } catch (erreur) {
+    const raison = erreur instanceof PropositionRefusee
+      ? erreur.raison
+      : erreur instanceof Error ? erreur.message : String(erreur);
+    const encore = await db.query.coachPropositions.findFirst({ where: eq(coachPropositions.id, propositionId) });
+    if (encore?.statut === "en_attente") await marquer(propositionId, "echouee", { raison });
     throw erreur;
   }
 }

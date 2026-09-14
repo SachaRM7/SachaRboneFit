@@ -262,7 +262,7 @@ describe("une panne du modèle ne peut plus être silencieuse", () => {
 
   it("l'erreur journalisée passe par le réducteur commun", () => {
     /*
-     * `e.message` traverse le fournisseur : `Groq 400 : {…}` reporte le corps
+     * `e.message` traverse le fournisseur : `OpenCode 400 : {…}` reporte le corps
      * de la réponse, qui peut reprendre la requête. `raisonCourte` rend une
      * catégorie et un code HTTP, rien d'autre.
      */

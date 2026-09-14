@@ -15,7 +15,7 @@ import { CoachIndisponible } from "@/lib/coach/llm-client";
  * réponse d'erreur peut reprendre tout ou partie de la requête.
  */
 
-const TRACE = { modeleUtilise: "groq:qwen", genereLe: "2026-09-07T20:00:00.000Z" };
+const TRACE = { modeleUtilise: "opencode:glm-5.3-flash", genereLe: "2026-09-07T20:00:00.000Z" };
 
 describe("reconnaître un contenu réellement produit par un modèle", () => {
   it("accepte un texte accompagné du modèle qui l'a écrit", () => {
@@ -66,9 +66,9 @@ describe("dire pourquoi sans dire ce qui a été envoyé", () => {
   it("distingue une panne du fournisseur d'une absence de configuration", () => {
     // Les deux n'appellent pas la même intervention : l'une s'attend, l'autre
     // se corrige.
-    expect(raisonCourte(new CoachIndisponible("Groq indisponible", 503)))
+    expect(raisonCourte(new CoachIndisponible("OpenCode indisponible", 503)))
       .toContain("HTTP 503");
-    expect(raisonCourte(new CoachIndisponible("Clé GROQ_API_KEY non configurée")))
+    expect(raisonCourte(new CoachIndisponible("Clé OPENCODE_API_KEY non configurée")))
       .toContain("non configuré");
   });
 
@@ -79,12 +79,12 @@ describe("dire pourquoi sans dire ce qui a été envoyé", () => {
 
   it("ne relaie jamais le message du fournisseur", () => {
     /*
-     * `Groq 400 : {…}` reporte le corps de la réponse. Rien ne garantit qu'il
+     * `OpenCode 400 : {…}` reporte le corps de la réponse. Rien ne garantit qu'il
      * n'y figure pas un morceau du prompt — c'est-à-dire l'entraînement d'une
      * personne, ses zones ménagées, son état de récupération.
      */
     const fuite = new CoachIndisponible(
-      'Groq 400 : {"prompt": "courbature 6/10 aux pectoraux, épaule ménagée"}', 400,
+      'OpenCode 400 : {"prompt": "courbature 6/10 aux pectoraux, épaule ménagée"}', 400,
     );
     const raison = raisonCourte(fuite);
     expect(raison).not.toContain("courbature");

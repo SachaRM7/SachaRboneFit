@@ -8,45 +8,41 @@ afterEach(() => {
 });
 
 describe("chaineDeModeles", () => {
-  it("place Qwen devant GPT-OSS pour les appels courants", () => {
+  it("utilise GLM 5.3 Flash via OpenCode pour les appels courants", () => {
     const chaine = chaineDeModeles("courant");
     expect(chaine.map((c) => c.modele)).toEqual([
-      "qwen/qwen3.8-27b",
-      "openai/gpt-oss-120b",
+      "glm-5.3-flash",
+      "glm-5.3",
     ]);
-    expect(chaine.every((c) => c.fournisseur === "groq")).toBe(true);
+    expect(chaine.every((c) => c.fournisseur === "opencode")).toBe(true);
   });
 
-  it("inverse l'ordre pour les appels lourds", () => {
-    // Le quota de GPT-OSS est dix fois plus petit : on ne le dépense que sur
-    // les décisions qui le justifient, mais on le préfère quand elles arrivent.
+  it("préfère GLM 5.3 complet pour les appels lourds", () => {
     expect(chaineDeModeles("lourd").map((c) => c.modele)).toEqual([
-      "openai/gpt-oss-120b",
-      "qwen/qwen3.8-27b",
+      "glm-5.3",
+      "glm-5.3-flash",
     ]);
   });
 
   it("se règle entièrement par variable d'environnement", () => {
-    // C'est la garantie recherchée : Qwen est en Preview chez Groq, changer de
-    // modèle ne doit toucher aucune ligne de code.
-    process.env.LLM_CHAINE_COURANTE = "gemini:gemini-2.0-flash,groq:llama-3.3-70b-versatile";
+    process.env.LLM_CHAINE_COURANTE = "gemini:gemini-2.0-flash,opencode:minimax-m3";
     expect(chaineDeModeles("courant")).toEqual([
       { fournisseur: "gemini", modele: "gemini-2.0-flash" },
-      { fournisseur: "groq", modele: "llama-3.3-70b-versatile" },
+      { fournisseur: "opencode", modele: "minimax-m3" },
     ]);
   });
 
   it("conserve les deux-points internes au nom du modèle", () => {
-    process.env.LLM_CHAINE_COURANTE = "groq:qwen/qwen3.8-27b:free";
+    process.env.LLM_CHAINE_COURANTE = "opencode:modele:variante";
     expect(chaineDeModeles("courant")).toEqual([
-      { fournisseur: "groq", modele: "qwen/qwen3.8-27b:free" },
+      { fournisseur: "opencode", modele: "modele:variante" },
     ]);
   });
 
   it("ignore les entrées inexploitables plutôt que de les propager", () => {
-    process.env.LLM_CHAINE_COURANTE = "inconnu:x,groq:,sansdeuxpoints,groq:openai/gpt-oss-120b";
+    process.env.LLM_CHAINE_COURANTE = "inconnu:x,opencode:,sansdeuxpoints,opencode:glm-5.3";
     expect(chaineDeModeles("courant")).toEqual([
-      { fournisseur: "groq", modele: "openai/gpt-oss-120b" },
+      { fournisseur: "opencode", modele: "glm-5.3" },
     ]);
   });
 
@@ -54,13 +50,13 @@ describe("chaineDeModeles", () => {
     // Une faute de frappe en production ne doit pas rendre le coach muet.
     process.env.LLM_CHAINE_COURANTE = "n'importe quoi";
     expect(chaineDeModeles("courant")).toHaveLength(2);
-    expect(chaineDeModeles("courant")[0]!.modele).toBe("qwen/qwen3.8-27b");
+    expect(chaineDeModeles("courant")[0]!.modele).toBe("glm-5.3-flash");
   });
 });
 
 describe("fournisseurActif", () => {
   it("désigne le premier fournisseur de la chaîne courante", () => {
-    expect(fournisseurActif()).toBe("groq");
+    expect(fournisseurActif()).toBe("opencode");
     process.env.LLM_CHAINE_COURANTE = "gemini:gemini-2.0-flash";
     expect(fournisseurActif()).toBe("gemini");
   });

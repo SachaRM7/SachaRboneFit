@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { construireSeanceDuJour, lirePlan } from "@/services/plan-seance";
+import {
+  ContexteSeanceInvalide,
+  construireSeanceDuJour,
+  lirePlan,
+} from "@/services/plan-seance";
 
 const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   gymId: z.string().uuid(),
   seanceTemplateId: z.string().uuid(),
+  rotationTemplateId: z.string().uuid().optional(),
 });
 
 /**
@@ -29,6 +34,9 @@ export async function POST(request: Request) {
     const resultat = await construireSeanceDuJour({ userId, ...parsed.data });
     return NextResponse.json(resultat, { status: 201 });
   } catch (error) {
+    if (error instanceof ContexteSeanceInvalide) {
+      return NextResponse.json({ error: error.raison }, { status: 409 });
+    }
     console.error("[seance-du-jour POST]", error);
     return NextResponse.json({ error: "Construction de la séance impossible" }, { status: 500 });
   }

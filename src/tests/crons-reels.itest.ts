@@ -47,7 +47,7 @@ let panne: Panne = null;
 /**
  * Un corps d'erreur qui RECOPIE la requête, comme le font les fournisseurs.
  *
- * `Groq 400 : {"error": …, "request": …}` reporte le corps de la réponse, et
+ * `OpenCode 400 : {"error": …, "request": …}` reporte le corps de la réponse, et
  * rien ne garantit qu'il n'y figure pas un morceau du prompt. La doublure met
  * donc un marqueur reconnaissable dans le message : si ce marqueur ressort dans
  * `erreurs`, c'est que le contexte personnel a fuité jusqu'au journal.
@@ -62,10 +62,10 @@ vi.mock("@/lib/coach/llm-client", async (original) => {
       appels += 1;
       promptsVus.push(options.messages.map((m) => m.content).join("\n"));
       if (panne === "http503") {
-        throw new vrai.CoachIndisponible(`Groq 503 : {"echo": "${MARQUEUR_FUITE}"}`, 503);
+        throw new vrai.CoachIndisponible(`OpenCode 503 : {"echo": "${MARQUEUR_FUITE}"}`, 503);
       }
       if (panne === "nonConfigure") {
-        throw new vrai.CoachIndisponible("Clé GROQ_API_KEY non configurée");
+        throw new vrai.CoachIndisponible("Clé OPENCODE_API_KEY non configurée");
       }
       return {
         texte: panne === "vide" ? "   " : `Texte du modèle numéro ${appels}`,
@@ -638,7 +638,7 @@ describe("une panne du modèle ne passe plus pour une semaine calme", () => {
     expect(texte).toContain("non configuré");
     // Le NOM de la variable d'environnement ne sort pas : recopié dans un
     // canal partagé, il renseigne sur l'infrastructure.
-    expect(texte, "le nom de la variable a fuité").not.toContain("GROQ_API_KEY");
+    expect(texte, "le nom de la variable a fuité").not.toContain("OPENCODE_API_KEY");
   });
 
   it("une réponse vide est une erreur, pas un texte", async () => {

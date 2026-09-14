@@ -8,15 +8,19 @@ const ok = () => Response.json({ choices: [{ message: { content: "Ta prochaine s
 const quota = (delai = "2") => new Response("Quota atteint", { status: 429, headers: { "retry-after": delai } });
 const options = { messages: [{ role: "user" as const, content: "Mon programme ?" }], system: "Coach" };
 function config() {
-  vi.stubEnv("GROQ_API_KEY", "test");
-  vi.stubEnv("LLM_CHAINE_COURANTE", "groq:principal,groq:secours");
+  vi.stubEnv("OPENCODE_API_KEY", "test");
+  vi.stubEnv("LLM_CHAINE_COURANTE", "opencode:principal,opencode:secours");
 }
 
 describe("quota du coach", () => {
   it("essaie le secours avant d'attendre", async () => {
     config(); const fetch = vi.fn().mockResolvedValueOnce(quota()).mockResolvedValueOnce(ok());
     vi.stubGlobal("fetch", fetch);
-    expect((await appelerLLM(options)).modeleUtilise).toBe("groq:secours");
+    expect((await appelerLLM(options)).modeleUtilise).toBe("opencode:secours");
+    expect(fetch.mock.calls[0]?.[0]).toBe("https://opencode.ai/zen/v1/chat/completions");
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({
+      headers: { authorization: "Bearer test" },
+    });
     expect(attendre).not.toHaveBeenCalled();
   });
   it("respecte le délai après épuisement des secours et reprend une seule fois", async () => {

@@ -82,6 +82,12 @@ describe("amorce et suggestions", () => {
     expect(suggestions(c).map((s) => s.libelle)).toContain("Changer mes jours");
   });
 
+  it("propose une construction complète depuis Séances", () => {
+    const c = { ecran: "programme" as const, sujet: "construire_seance" as const };
+    expect(amorce(c)).toMatch(/construire/i);
+    expect(suggestions(c).map((s) => s.libelle)).toContain("Une séance plus courte");
+  });
+
   it("adapte les suggestions à chaque écran", () => {
     expect(suggestions({ ecran: "seance" }).map((s) => s.libelle)).toContain("J'ai une gêne");
     expect(suggestions({ ecran: "progression" }).map((s) => s.libelle)).toContain("Pourquoi je stagne ?");

@@ -101,14 +101,14 @@ export function contenuIAValide(
  * Pourquoi l'appel a échoué, en une ligne qu'on peut journaliser.
  *
  * LE CONTEXTE N'EN SORT PAS. Le message d'origine traverse le fournisseur —
- * `Groq 400 : {…}` reporte le corps de la réponse, qui peut reprendre tout ou
+ * `OpenCode 400 : {…}` reporte le corps de la réponse, qui peut reprendre tout ou
  * partie de la requête, c'est-à-dire l'entraînement d'une personne, ses zones
  * ménagées et son état de récupération. On ne le relaie donc pas : on rend une
  * catégorie et un code HTTP, ce qui suffit à distinguer un quota d'une clé
  * absente sans rien emporter d'autre.
  *
  * Le nom d'une variable d'environnement n'est pas davantage repris : `Clé
- * GROQ_API_KEY non configurée` deviendrait, recopié dans un canal partagé, une
+ * OPENCODE_API_KEY non configurée` deviendrait, recopié dans un canal partagé, une
  * indication sur l'infrastructure. « non configuré ou refusé » se diagnostique
  * aussi bien.
  */
