@@ -96,7 +96,7 @@ export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
         </Link>
       ) : <h2 id="session-du-jour">{f.titre(etat)}</h2>}
       <div className="home-session-meta">
-        {etat.etat === "calibration" ? <span className="home-phase">Premiers repères · Calibration</span> : aFaire && etat.seance ? <span>{etat.seance.nom}</span> : null}
+        {etat.etat === "calibration" ? <span className="home-phase">Premiers repères · Calibration</span> : null}
         {aFaire && etat.salle && <span className="home-location"><MapPin size={14} aria-hidden />{etat.salle.nom}</span>}
       </div>
       <Link href={etat.action.href} prefetch={false} className="home-start">
