@@ -18,7 +18,7 @@ import {
   cibleDepuisChoix,
   libelleCibleEffort,
 } from "./cible-effort";
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Ellipsis, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
 
 export interface ExerciceProgramme {
   ligneId: string;
@@ -56,6 +56,7 @@ export interface MachineDisponible {
 interface Props {
   /** `semaineActuelle` n'est plus transmise : elle vaut 1 et ne bouge pas. */
   bloc: { id: string; nom: string; typeCycle: string } | null;
+  programmes: Array<{ id: string; nom: string }>;
   seances: SeanceProgramme[];
   machines: MachineDisponible[];
 }
@@ -224,7 +225,7 @@ function ChampsReglages({
   );
 }
 
-export function GestionProgramme({ bloc, seances, machines }: Props) {
+export function GestionProgramme({ bloc, programmes, seances, machines }: Props) {
   const router = useRouter();
   /**
    * Une séance à la fois.
@@ -259,6 +260,11 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
   const [editionSeance, setEditionSeance] = useState<SeanceProgramme | null>(null);
   const [nomSeanceEdition, setNomSeanceEdition] = useState("");
   const [lettreSeanceEdition, setLettreSeanceEdition] = useState("");
+  const [menuSeanceId, setMenuSeanceId] = useState<string | null>(null);
+  const [actionSeance, setActionSeance] = useState<{
+    type: "copier" | "transferer";
+    seance: SeanceProgramme;
+  } | null>(null);
 
   const creerSeance = async () => {
     if (!bloc) return;
@@ -470,6 +476,36 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
     }
   };
 
+  const appliquerDestination = async (destinationBlocId: string) => {
+    if (!actionSeance) return;
+    const destination = programmes.find((programme) => programme.id === destinationBlocId);
+    if (!destination) return;
+
+    setEnvoi(true);
+    try {
+      const copie = actionSeance.type === "copier";
+      const res = await fetch(`/api/programme/seances/${actionSeance.seance.id}`, {
+        method: copie ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ destinationBlocId }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(payload?.error ?? "Opération impossible");
+      toast.success(
+        copie
+          ? `Séance copiée dans ${destination.nom}`
+          : `Séance transférée vers ${destination.nom}`,
+      );
+      setActionSeance(null);
+      setMenuSeanceId(null);
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Opération impossible");
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const retirer = async (ligne: ExerciceProgramme) => {
     if (!confirm(`Retirer « ${ligne.exerciceNom} » de la séance ?`)) return;
     try {
@@ -566,7 +602,7 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
               <span className="text-encre-3 mr-2">{courante.lettre}</span>
               {courante.nom}
             </h2>
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="relative flex shrink-0 items-center gap-1">
               <Button variant="ghost" size="icon" className="h-11 w-11"
                 aria-label={`Modifier la séance ${courante.nom}`}
                 onClick={() => ouvrirEditionSeance(courante)}>
@@ -577,10 +613,36 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
                 onClick={() => void supprimerSeance(courante)}>
                 <Trash2 className="w-4 h-4 text-perte" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => setAjoutPour(courante)}>
-                <Plus className="w-4 h-4 mr-1" />
-                Exercice
+              <Button variant="ghost" size="icon" className="h-11 w-11"
+                aria-label={`Plus d'actions pour ${courante.nom}`}
+                aria-expanded={menuSeanceId === courante.id}
+                onClick={() => setMenuSeanceId((id) => id === courante.id ? null : courante.id)}>
+                <Ellipsis className="w-5 h-5" />
               </Button>
+
+              {menuSeanceId === courante.id && (
+                <div className="absolute right-0 top-12 z-30 w-52 overflow-hidden rounded-2xl border border-filet bg-carte p-1.5 shadow-lg">
+                  <button type="button"
+                    className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-encre hover:bg-papier-2"
+                    onClick={() => {
+                      setActionSeance({ type: "copier", seance: courante });
+                      setMenuSeanceId(null);
+                    }}>
+                    <Copy className="h-4 w-4 text-encre-3" aria-hidden />
+                    Copier vers…
+                  </button>
+                  <button type="button"
+                    className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-encre hover:bg-papier-2 disabled:opacity-40"
+                    disabled={programmes.length < 2}
+                    onClick={() => {
+                      setActionSeance({ type: "transferer", seance: courante });
+                      setMenuSeanceId(null);
+                    }}>
+                    <MoveRight className="h-4 w-4 text-encre-3" aria-hidden />
+                    Transférer vers…
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -602,6 +664,11 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
             <span className="text-encre-3 text-xs ml-1">
               Ordre <span className="chiffres">{courante.ordreDansSemaine}</span> dans la rotation
             </span>
+            <Button variant="ghost" size="sm" className="ml-auto"
+              onClick={() => setAjoutPour(courante)}>
+              <Plus className="w-4 h-4 mr-1" />
+              Exercice
+            </Button>
           </div>
 
           {/* Le repère de position : sans lui, on ne sait pas combien de
@@ -848,6 +915,35 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
               <Trash2 className="w-4 h-4 mr-2" />
               Supprimer la séance
             </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      <Drawer open={actionSeance !== null} onOpenChange={(open) => !open && setActionSeance(null)}>
+        <DrawerContent className="bg-papier border-filet text-encre">
+          <DrawerHeader>
+            <DrawerTitle className="text-encre">
+              {actionSeance?.type === "copier" ? "Copier" : "Transférer"} « {actionSeance?.seance.nom} »
+            </DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] space-y-2">
+            <p className="pb-2 text-sm text-encre-3">Choisis le programme de destination.</p>
+            {programmes
+              .filter((programme) => actionSeance?.type === "copier" || programme.id !== bloc.id)
+              .map((programme) => (
+                <Button key={programme.id} type="button" variant="outline"
+                  className="h-12 w-full justify-between rounded-xl bg-carte"
+                  disabled={envoi}
+                  onClick={() => void appliquerDestination(programme.id)}>
+                  {programme.nom}
+                  <MoveRight className="h-4 w-4 text-encre-3" aria-hidden />
+                </Button>
+              ))}
+            {actionSeance?.type === "transferer" && programmes.length < 2 && (
+              <p className="rounded-xl border border-filet bg-carte p-3 text-sm text-encre-3">
+                Crée un autre programme pour pouvoir y transférer cette séance.
+              </p>
+            )}
           </div>
         </DrawerContent>
       </Drawer>

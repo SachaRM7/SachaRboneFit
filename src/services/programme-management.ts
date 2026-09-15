@@ -1,5 +1,10 @@
 import { db } from "@/db/client";
-import { programmeBlocs, seanceTemplates, type SeanceTemplate } from "@/db/schema";
+import {
+  exerciseInTemplate,
+  programmeBlocs,
+  seanceTemplates,
+  type SeanceTemplate,
+} from "@/db/schema";
 import { and, asc, eq, isNull } from "drizzle-orm";
 
 export class ProgrammeManagementError extends Error {
@@ -236,6 +241,89 @@ export async function deplacerSeanceVersProgramme(
   destinationBlocId: string,
 ) {
   return modifierSeanceTemplate(userId, templateId, { destinationBlocId });
+}
+
+function prochaineLettreDisponible(lettres: string[]) {
+  const prises = new Set(lettres.map((lettre) => lettre.trim().toUpperCase()));
+  for (let code = 65; code <= 90; code += 1) {
+    const candidate = String.fromCharCode(code);
+    if (!prises.has(candidate)) return candidate;
+  }
+  return String(lettres.length + 1);
+}
+
+/**
+ * Copie une séance et sa prescription vers un programme choisi.
+ *
+ * La copie reçoit de nouveaux ids : elle pourra évoluer sans modifier la
+ * séance source ni lui emprunter son historique. Les instances d'exercice et
+ * les valeurs prescrites restent les mêmes, puisqu'elles constituent
+ * précisément la base que l'utilisateur demande de copier.
+ */
+export async function copierSeanceTemplate(
+  userId: string,
+  templateId: string,
+  destinationBlocId: string,
+) {
+  const sourceTemplate = await db.query.seanceTemplates.findFirst({
+    where: eq(seanceTemplates.id, templateId),
+  });
+  if (!sourceTemplate) throw new ProgrammeManagementError("Séance introuvable.", 404);
+  await ownedBlock(userId, sourceTemplate.blocId);
+  const destination = await ownedBlock(userId, destinationBlocId);
+
+  return db.transaction(async (tx) => {
+    const lignes = await tx.query.exerciseInTemplate.findMany({
+      where: and(
+        eq(exerciseInTemplate.seanceTemplateId, templateId),
+        isNull(exerciseInTemplate.archiveLe),
+      ),
+      orderBy: [asc(exerciseInTemplate.ordre)],
+    });
+    const existantes = await tx.query.seanceTemplates.findMany({
+      where: eq(seanceTemplates.blocId, destination.id),
+      orderBy: [asc(seanceTemplates.ordreDansSemaine)],
+    });
+
+    const lettreSource = sourceTemplate.lettre.trim().toUpperCase();
+    const lettre = destination.typeCycle === "libre"
+      ? "LIBRE"
+      : lettreSource !== "LIBRE" && !existantes.some((seance) => seance.lettre.trim().toUpperCase() === lettreSource)
+        ? sourceTemplate.lettre
+        : prochaineLettreDisponible(existantes.map((seance) => seance.lettre));
+
+    const [copie] = await tx
+      .insert(seanceTemplates)
+      .values({
+        blocId: destination.id,
+        lettre,
+        nom: sourceTemplate.blocId === destination.id
+          ? `${sourceTemplate.nom} — copie`
+          : sourceTemplate.nom,
+        ordreDansSemaine: (existantes.at(-1)?.ordreDansSemaine ?? 0) + 1,
+      })
+      .returning();
+    if (!copie) throw new ProgrammeManagementError("Copie impossible.", 500);
+
+    if (lignes.length > 0) {
+      await tx.insert(exerciseInTemplate).values(lignes.map((ligne) => ({
+        seanceTemplateId: copie.id,
+        exerciseInstanceId: ligne.exerciseInstanceId,
+        ordre: ligne.ordre,
+        seriesCibles: ligne.seriesCibles,
+        fourchetteRepsMin: ligne.fourchetteRepsMin,
+        fourchetteRepsMax: ligne.fourchetteRepsMax,
+        rpeCible: ligne.rpeCible,
+        tempo: ligne.tempo,
+        reposSecondes: ligne.reposSecondes,
+        chargeCible: ligne.chargeCible,
+        prescriptionParDefaut: ligne.prescriptionParDefaut,
+        notes: ligne.notes,
+      })));
+    }
+
+    return copie;
+  });
 }
 
 /**

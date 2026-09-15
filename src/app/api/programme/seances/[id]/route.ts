@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import {
   archiverSeanceTemplate,
+  copierSeanceTemplate,
   modifierSeanceTemplate,
   ProgrammeManagementError,
 } from "@/services/programme-management";
@@ -25,6 +26,35 @@ const schema = z.object({
   (modifications) => Object.keys(modifications).length > 0,
   { message: "Aucune modification demandée" },
 );
+
+const copieSchema = z.object({
+  destinationBlocId: z.string().uuid(),
+});
+
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const parsed = copieSchema.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Destination invalide" }, { status: 400 });
+  }
+
+  const { id } = await params;
+  try {
+    const copie = await copierSeanceTemplate(userId, id, parsed.data.destinationBlocId);
+    return NextResponse.json(copie, { status: 201 });
+  } catch (error) {
+    if (error instanceof ProgrammeManagementError) {
+      return NextResponse.json({ error: error.reason }, { status: error.status });
+    }
+    console.error("[programme/seances/:id POST]", error);
+    return NextResponse.json({ error: "Copie impossible" }, { status: 500 });
+  }
+}
 
 export async function PATCH(
   request: Request,

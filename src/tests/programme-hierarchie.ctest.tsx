@@ -10,7 +10,6 @@ vi.mock("sonner", () => ({
 }));
 
 import { ProgrammesManager } from "@/components/programme/ProgrammesManager";
-import { OptionsAvancees } from "@/components/programme/VueCycle";
 
 describe("hiérarchie des programmes", () => {
   it("distingue le programme consulté du programme actif", () => {
@@ -21,7 +20,6 @@ describe("hiérarchie des programmes", () => {
           { id: "ppl", nom: "PPLUL", actif: true, typeCycle: "hypertrophie" },
         ]}
         selectedId="libre"
-        seances={[]}
       />,
     );
 
@@ -48,11 +46,10 @@ describe("hiérarchie des programmes", () => {
           { id: "ppl", nom: "PPLUL", actif: true, typeCycle: "hypertrophie" },
         ]}
         selectedId="libre"
-        seances={[]}
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Supprimer ce programme" }));
+    await user.click(screen.getByRole("button", { name: "Supprimer le programme Séances libres" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       "/api/programme/blocs/libre",
@@ -61,31 +58,4 @@ describe("hiérarchie des programmes", () => {
     expect(push).toHaveBeenCalledWith("/programme");
   });
 
-  it("montre immédiatement le contenu d'un programme non actif", () => {
-    render(
-      <OptionsAvancees initialementOuvert>
-        <p>Aucune séance dans ce programme</p>
-      </OptionsAvancees>,
-    );
-
-    expect(screen.getByRole("button", { name: /Séances et exercices/ })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
-    expect(screen.getByText("Aucune séance dans ce programme")).toBeVisible();
-  });
-
-  it("peut replier les commandes quand une surface le demande", () => {
-    render(
-      <OptionsAvancees initialementOuvert={false}>
-        <p>Commandes du programme</p>
-      </OptionsAvancees>,
-    );
-
-    expect(screen.getByRole("button", { name: /Séances et exercices/ })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
-    expect(screen.queryByText("Commandes du programme")).not.toBeInTheDocument();
-  });
 });

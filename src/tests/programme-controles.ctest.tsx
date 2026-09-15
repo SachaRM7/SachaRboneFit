@@ -75,6 +75,10 @@ function rendre() {
   return render(
     <GestionProgramme
       bloc={{ id: "bloc-1", nom: "Cycle force", typeCycle: "force" }}
+      programmes={[
+        { id: "bloc-1", nom: "Cycle force" },
+        { id: "bloc-2", nom: "Volume" },
+      ]}
       seances={seances()}
       machines={machines}
     />,
@@ -230,6 +234,38 @@ describe("commandes visibles des séances et exercices", () => {
     expect(appels[0]).toMatchObject({
       url: "/api/programme/exercices/ligne-b",
       methode: "DELETE",
+    });
+  });
+
+  it("copie une séance vers un programme depuis le menu trois points", async () => {
+    const user = userEvent.setup();
+    rendre();
+
+    await user.click(screen.getByRole("button", { name: "Plus d'actions pour Poussée" }));
+    await user.click(screen.getByRole("button", { name: "Copier vers…" }));
+    await user.click(screen.getByRole("button", { name: /Volume/ }));
+
+    await waitFor(() => expect(appels).toHaveLength(1));
+    expect(appels[0]).toMatchObject({
+      url: "/api/programme/seances/seance-a",
+      methode: "POST",
+      corps: { destinationBlocId: "bloc-2" },
+    });
+  });
+
+  it("transfère une séance vers un programme depuis le même menu", async () => {
+    const user = userEvent.setup();
+    rendre();
+
+    await user.click(screen.getByRole("button", { name: "Plus d'actions pour Poussée" }));
+    await user.click(screen.getByRole("button", { name: "Transférer vers…" }));
+    await user.click(screen.getByRole("button", { name: /Volume/ }));
+
+    await waitFor(() => expect(appels).toHaveLength(1));
+    expect(appels[0]).toMatchObject({
+      url: "/api/programme/seances/seance-a",
+      methode: "PATCH",
+      corps: { destinationBlocId: "bloc-2" },
     });
   });
 });

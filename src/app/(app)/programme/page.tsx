@@ -8,8 +8,6 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { GestionProgramme, type SeanceProgramme, type MachineDisponible } from "@/components/programme/GestionProgramme";
 import { ProgrammesManager } from "@/components/programme/ProgrammesManager";
-import { VueCycle, OptionsAvancees } from "@/components/programme/VueCycle";
-import { vueDuProgramme } from "@/services/cycle";
 import { lireBlocs } from "@/services/blocs";
 import { onboardingTermine } from "@/services/profil-cache";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
@@ -28,8 +26,6 @@ export default async function ProgrammePage({
   const blocs = await lireBlocs(userId);
   const activeBloc = blocs.actif;
   const selectedBloc = blocs.tous.find((item) => item.id === requestedBlocId) ?? activeBloc ?? blocs.tous[0] ?? null;
-  const vue = await vueDuProgramme(userId, undefined, { blocs });
-  const programmeSelectionneEstActif = Boolean(selectedBloc?.actif);
 
   const [instances, salles] = await Promise.all([
     db.query.exerciseInstances.findMany({
@@ -122,30 +118,21 @@ export default async function ProgrammePage({
           typeCycle: item.typeCycle,
         }))}
         selectedId={selectedBloc?.id ?? null}
-        seances={seances.map((session) => ({ id: session.id, nom: session.nom, lettre: session.lettre }))}
       />
 
-      <OptionsAvancees
+      {/* Le programme choisi est le contenu de la page, sans résumé d'un autre
+          cycle ni accordéon intermédiaire. */}
+      <GestionProgramme
         key={selectedBloc?.id ?? "aucun-programme"}
-        initialementOuvert={Boolean(selectedBloc)}
-      >
-        <GestionProgramme
-          bloc={
-            selectedBloc
-              ? { id: selectedBloc.id, nom: selectedBloc.nom, typeCycle: selectedBloc.typeCycle }
-              : null
-          }
-          seances={seances}
-          machines={machines}
-        />
-      </OptionsAvancees>
-
-      {/* La vue de cycle décrit nécessairement le programme ACTIF. La montrer
-          sous un autre programme sélectionné mélangeait deux contextes : la
-          carte disait « Séances libres », puis le contenu décrivait PPLUL.
-          Les commandes du programme sélectionné passent avant ce bilan : cet
-          écran sert d'abord à composer ce que l'utilisateur vient d'ouvrir. */}
-      {programmeSelectionneEstActif && <VueCycle vue={vue} />}
+        bloc={
+          selectedBloc
+            ? { id: selectedBloc.id, nom: selectedBloc.nom, typeCycle: selectedBloc.typeCycle }
+            : null
+        }
+        programmes={blocs.tous.map((item) => ({ id: item.id, nom: item.nom }))}
+        seances={seances}
+        machines={machines}
+      />
     </div>
   );
 }
