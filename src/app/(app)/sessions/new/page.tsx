@@ -7,6 +7,7 @@ import { prochaineSeance } from "@/services/programmes";
 import { seanceCourante } from "@/services/seances";
 import { lireBlocs } from "@/services/blocs";
 import { SessionHub } from "@/components/session-composer/SessionHub";
+import { repereSeanceVisible } from "@/lib/session-composer/repere-visible";
 
 /**
  * Le centre de contrôle des séances.
@@ -46,6 +47,10 @@ export default async function SessionsPage({
         orderBy: [asc(seanceTemplates.ordreDansSemaine)],
       })
     : [];
+  const indexProchaine = next
+    ? next.toutesLesSeances.findIndex((template) => template.id === next.template.id)
+    : -1;
+  const positionProchaine = Math.max(indexProchaine, 0) + 1;
 
   return (
     <SessionHub
@@ -57,12 +62,24 @@ export default async function SessionsPage({
       }))}
       selectedProgrammeId={selectionne?.id ?? null}
       next={next
-        ? { id: next.template.id, letter: next.template.lettre, name: next.template.nom }
+        ? {
+            id: next.template.id,
+            marker: repereSeanceVisible(
+              next.template.lettre,
+              indexProchaine,
+              next.bloc.typeCycle,
+            ),
+            name: next.template.nom,
+            programName: next.bloc.nom,
+            programType: next.bloc.typeCycle,
+            position: positionProchaine,
+            total: next.toutesLesSeances.length,
+          }
         : null}
       defaultGymId={profile?.prefSalleParDefautId ?? ""}
-      templates={templates.map((template) => ({
+      templates={templates.map((template, index) => ({
         id: template.id,
-        letter: template.lettre,
+        marker: repereSeanceVisible(template.lettre, index, selectionne?.typeCycle ?? ""),
         name: template.nom,
       }))}
       current={current?.seanceTemplateId ? {

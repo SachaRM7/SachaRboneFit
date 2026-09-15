@@ -5,8 +5,8 @@ import { FournisseurCoach, useCoach } from "@/components/coach/ContexteCoach";
 import { SessionHub } from "@/components/session-composer/SessionHub";
 
 const templates = [
-  { id: "a", letter: "A", name: "Poussée" },
-  { id: "b", letter: "B", name: "Tirage" },
+  { id: "a", marker: "A", name: "Poussée" },
+  { id: "b", marker: "B", name: "Tirage" },
 ];
 
 const programmes = [
@@ -26,7 +26,7 @@ function renderHub(current: Parameters<typeof SessionHub>[0]["current"] = null) 
         blockName="Cycle force"
         programmes={programmes}
         selectedProgrammeId="bloc-1"
-        next={{ id: "b", letter: "B", name: "Tirage" }}
+        next={{ id: "b", marker: "B", name: "Tirage", programName: "Cycle force", programType: "force", position: 2, total: 2 }}
         defaultGymId="gym-1"
         templates={templates}
         current={current}
@@ -67,7 +67,7 @@ describe("centre de contrôle Séances", () => {
           blockName="Volume"
           programmes={programmes}
           selectedProgrammeId="bloc-2"
-          next={{ id: "b", letter: "B", name: "Tirage" }}
+          next={{ id: "b", marker: "B", name: "Tirage", programName: "Cycle force", programType: "force", position: 2, total: 2 }}
           defaultGymId="gym-1"
           templates={templates}
           current={null}
@@ -95,9 +95,9 @@ describe("centre de contrôle Séances", () => {
           blockName="Volume"
           programmes={programmes}
           selectedProgrammeId="bloc-2"
-          next={{ id: "b", letter: "B", name: "Tirage" }}
+          next={{ id: "b", marker: "B", name: "Tirage", programName: "Cycle force", programType: "force", position: 2, total: 2 }}
           defaultGymId="gym-1"
-          templates={[{ id: "a", letter: "A", name: "Poussée" }]}
+          templates={[{ id: "a", marker: "A", name: "Poussée" }]}
           current={null}
         />
       </FournisseurCoach>,
@@ -124,5 +124,25 @@ describe("centre de contrôle Séances", () => {
     );
 
     expect(screen.getByText("« Volume » n'a encore aucune séance.")).toBeVisible();
+  });
+
+  it("n'affiche pas Libre pour une séance désormais rattachée à un programme", () => {
+    render(
+      <FournisseurCoach>
+        <SessionHub
+          blockName="PPLUL"
+          programmes={programmes}
+          selectedProgrammeId="bloc-1"
+          next={{ id: "a", marker: "01", name: "Push", programName: "PPLUL", programType: "hypertrophie", position: 1, total: 2 }}
+          defaultGymId="gym-1"
+          templates={[{ id: "a", marker: "01", name: "Push" }]}
+          current={null}
+        />
+      </FournisseurCoach>,
+    );
+
+    expect(screen.getByText("PPLUL · séance 1/2")).toBeVisible();
+    expect(screen.queryByText(/Séance LIBRE/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^LIBRE$/i)).not.toBeInTheDocument();
   });
 });

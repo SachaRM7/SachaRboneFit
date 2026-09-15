@@ -7,8 +7,16 @@ import { DeclarerContexte, useCoach } from "@/components/coach/ContexteCoach";
 
 interface TemplateSummary {
   id: string;
-  letter: string;
+  /** Repère VISUEL déjà résolu depuis le programme parent actuel. */
+  marker: string;
   name: string;
+}
+
+interface NextTemplateSummary extends TemplateSummary {
+  programName: string;
+  programType: string;
+  position: number;
+  total: number;
 }
 
 interface ProgrammeSummary {
@@ -31,7 +39,7 @@ export function SessionHub({
   programmes: ProgrammeSummary[];
   selectedProgrammeId: string | null;
   /** La prochaine séance de la ROTATION, indépendante du programme affiché. */
-  next: TemplateSummary | null;
+  next: NextTemplateSummary | null;
   defaultGymId: string;
   templates: TemplateSummary[];
   current: { sessionId: string; templateId: string; gymId: string | null } | null;
@@ -103,9 +111,13 @@ export function SessionHub({
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-encre-3">Prochaine séance</p>
               <h2 className="mt-3 font-heading text-2xl font-semibold">{next.name}</h2>
-              <p className="mt-1 text-sm text-encre-3">Séance {next.letter}</p>
+              <p className="mt-1 text-sm text-encre-3">
+                {next.programType === "libre"
+                  ? "Séance libre"
+                  : `${next.programName} · séance ${next.position}/${next.total}`}
+              </p>
             </div>
-            <span className="grid size-12 place-items-center rounded-2xl bg-papier-2 font-heading text-lg font-semibold">{next.letter}</span>
+            <span className="grid size-12 place-items-center rounded-2xl bg-papier-2 font-heading text-lg font-semibold">{next.marker}</span>
           </div>
             <Link href={`/sessions/new/${next.id}?gymId=${defaultGymId}`} prefetch={false} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-full bg-primary px-5 font-medium text-primary-foreground hover:bg-primary/90">
             Commencer <ArrowRight aria-hidden />
@@ -146,7 +158,7 @@ export function SessionHub({
           <div className="space-y-2.5">
             {templates.map((template) => (
               <article key={template.id} className="flex items-center gap-3 rounded-2xl border border-filet bg-carte p-3.5">
-                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-papier-2 font-heading font-semibold">{template.letter}</span>
+                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-papier-2 font-heading font-semibold">{template.marker}</span>
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-medium">{template.name}</h3>
                   {next?.id === template.id && <p className="text-xs text-gain">Prochaine dans la rotation</p>}
