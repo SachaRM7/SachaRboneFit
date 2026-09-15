@@ -92,6 +92,7 @@ export default async function ProgrammePage({
             rpeCible: l.rpeCible,
             tempo: l.tempo,
             reposSecondes: l.reposSecondes,
+            chargeCible: l.chargeCible,
           };
         }),
     }));

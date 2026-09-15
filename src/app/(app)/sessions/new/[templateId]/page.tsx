@@ -817,7 +817,11 @@ function ContenuSeanceLive() {
      * l'autre n'existe — une machine sans historique — on annonce l'exercice et
      * le numéro, et rien de plus.
      */
-    const charge = courant.chargeSuggeree ?? courant.historique?.[0]?.charge;
+    const charge = courant.chargeSuggeree
+      ?? courant.historique?.[0]?.charge
+      ?? (courant.premiereCharge?.origine === "charge_programmee"
+        ? courant.premiereCharge.charge
+        : null);
     return [
       courant.nom,
       `Série ${prochain}`,

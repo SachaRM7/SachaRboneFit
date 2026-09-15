@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Copy, Dumbbell, Plus, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Copy, Dumbbell, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DeclarerContexte, useCoach } from "@/components/coach/ContexteCoach";
 
@@ -11,21 +11,32 @@ interface TemplateSummary {
   name: string;
 }
 
+interface ProgrammeSummary {
+  id: string;
+  nom: string;
+  actif: boolean;
+}
+
 export function SessionHub({
   blockName,
-  nextTemplateId,
+  programmes,
+  selectedProgrammeId,
+  next,
   defaultGymId,
   templates,
   current,
 }: {
+  /** Le nom du programme AFFICHÉ — celui dont les séances sont listées. */
   blockName: string | null;
-  nextTemplateId: string | null;
+  programmes: ProgrammeSummary[];
+  selectedProgrammeId: string | null;
+  /** La prochaine séance de la ROTATION, indépendante du programme affiché. */
+  next: TemplateSummary | null;
   defaultGymId: string;
   templates: TemplateSummary[];
   current: { sessionId: string; templateId: string; gymId: string | null } | null;
 }) {
   const { ouvrir } = useCoach();
-  const next = templates.find((template) => template.id === nextTemplateId) ?? null;
   const currentUrl = current
     ? `/sessions/new/${current.templateId}?${new URLSearchParams({
         sessionId: current.sessionId,
@@ -42,6 +53,41 @@ export function SessionHub({
         <h1 className="font-heading text-3xl font-semibold tracking-tight">Séances</h1>
         {blockName && <p className="text-sm text-encre-3">{blockName}</p>}
       </header>
+
+      {/* Le programme s'affiche ici sans devenir actif : consulter les séances
+          d'un autre programme ne doit pas détourner la rotation. Chaque tuile
+          dit donc son état — actif, sélectionné ou simplement enregistré — et
+          la sélection vit dans l'URL, donc elle se retrouve au retour. */}
+      {programmes.length > 1 && (
+        <nav
+          aria-label="Choisir un programme"
+          className="mb-5 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+        >
+          {programmes.map((programme) => {
+            const selectionne = programme.id === selectedProgrammeId;
+            const description = selectionne
+              ? (programme.actif ? "Actif · ses séances" : "Sélectionné · rotation inchangée")
+              : (programme.actif ? "Programme actif" : "Programme enregistré");
+            return (
+              <Link
+                key={programme.id}
+                href={`/sessions/new?programme=${programme.id}`}
+                prefetch={false}
+                aria-current={selectionne ? "true" : undefined}
+                className={`flex min-w-[10.5rem] shrink-0 flex-col gap-0.5 rounded-2xl border p-3 transition-colors ${
+                  selectionne ? "border-encre bg-papier-2" : "border-filet bg-carte"
+                }`}
+              >
+                <span className="flex items-center gap-2 text-sm font-medium text-encre">
+                  <span className="truncate">{programme.nom}</span>
+                  {programme.actif && <Check className="size-3.5 shrink-0 text-gain" aria-hidden />}
+                </span>
+                <span className="text-xs text-encre-3">{description}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      )}
 
       {currentUrl ? (
         <section className="mb-5 overflow-hidden rounded-[1.75rem] bg-encre p-5 text-papier shadow-sm">
@@ -103,7 +149,7 @@ export function SessionHub({
                 <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-papier-2 font-heading font-semibold">{template.letter}</span>
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate font-medium">{template.name}</h3>
-                  {template.id === nextTemplateId && <p className="text-xs text-gain">Prochaine dans la rotation</p>}
+                  {next?.id === template.id && <p className="text-xs text-gain">Prochaine dans la rotation</p>}
                 </div>
                 <Link href={`/sessions/compose?source=${template.id}`} prefetch={false} aria-label={`Dupliquer ${template.name}`} className="flex h-9 items-center gap-1 rounded-full px-2.5 text-[0.8rem] font-medium text-encre-2 hover:bg-muted">
                   <Copy className="size-3.5" aria-hidden /> Dupliquer
@@ -112,6 +158,14 @@ export function SessionHub({
             ))}
           </div>
         </section>
+      )}
+
+      {/* Un programme sans séance se dit : une section absente se lirait comme
+          une page qui n'a rien chargé. */}
+      {templates.length === 0 && (
+        <p className="rounded-2xl border border-filet bg-carte p-4 text-sm text-encre-3">
+          {blockName ? `« ${blockName} » n'a encore aucune séance.` : "Aucune séance à afficher."}
+        </p>
       )}
     </main>
   );

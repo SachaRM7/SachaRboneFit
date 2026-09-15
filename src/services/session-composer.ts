@@ -184,6 +184,17 @@ export async function saveSessionComposition(input: {
       rpeCible: targetRpe(exercise.targetRir),
       tempo: exercise.tempo?.trim() || null,
       reposSecondes: exercise.restSeconds,
+      /*
+       * La charge programmee, quand elle a ete declaree.
+       *
+       * `null` sinon — jamais un 0 : la double progression prend le relais des
+       * la premiere serie saisie, et c'est `set_logs` qui fait reference.
+       *
+       * Rien n'est marque « a confirmer » ici : le compositeur affiche toutes
+       * ces valeurs dans son formulaire avant d'enregistrer, y compris celles
+       * que Zod a completees par defaut. L'utilisateur les a vues.
+       */
+      chargeCible: exercise.chargeCible ?? null,
     })));
 
     return resultFor(draft.id, scope, draft.gymId);

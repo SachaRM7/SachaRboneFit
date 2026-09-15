@@ -47,6 +47,57 @@ describe("estimerPremiereCharge", () => {
     });
   });
 
+  /**
+   * La charge programmee : une INTENTION, pas une estimation.
+   *
+   * Elle a sa propre origine parce qu'elle ne vient d'aucun calcul : l'appeler
+   * « estimation » ferait passer un choix de l'utilisateur pour une deduction de
+   * l'application, et personne ne saurait quoi corriger quand elle ne convient
+   * pas. C'est le seul repere disponible avant la premiere serie.
+   */
+  it("propose la charge programmée quand l'historique est vide", () => {
+    const resultat = estimerPremiereCharge({ chargeProgrammee: 42.5, configuration: config });
+    expect(resultat).toMatchObject({
+      charge: 42.5,
+      origine: "charge_programmee",
+      confiance: "moyenne",
+    });
+    // Le mot « estim » n'apparaît nulle part : ce nombre n'est pas déduit.
+    expect(`${resultat.explication} ${resultat.origine}`).not.toMatch(/estim/i);
+  });
+
+  it("la charge programmée passe avant le premier cran de la machine", () => {
+    expect(estimerPremiereCharge({
+      chargeProgrammee: 42.5,
+      configuration: { ...config, paliersCharges: [5, 10, 15], chargeMinimale: 5 },
+    })).toMatchObject({ charge: 42.5, origine: "charge_programmee" });
+  });
+
+  it("l'historique reprend l'autorité dès qu'une série existe", () => {
+    expect(estimerPremiereCharge({
+      chargeProgrammee: 42.5,
+      chargeSuggereeHistorique: 45,
+      historiqueInstance: [{ charge: 40 }],
+      configuration: config,
+    })).toMatchObject({ charge: 45, origine: "historique_instance" });
+
+    // Et une série faite pendant cette séance prime encore sur l'historique.
+    expect(estimerPremiereCharge({
+      chargeCourante: 47.5,
+      chargeProgrammee: 42.5,
+      chargeSuggereeHistorique: 45,
+      historiqueInstance: [{ charge: 40 }],
+      configuration: config,
+    })).toMatchObject({ charge: 47.5, origine: "serie_courante" });
+  });
+
+  it("une charge programmée nulle ou absurde ne devient pas un point de départ", () => {
+    for (const charge of [null, undefined, 0, -10, Number.NaN]) {
+      expect(estimerPremiereCharge({ chargeProgrammee: charge, configuration: config }))
+        .toMatchObject({ charge: null, origine: "indisponible" });
+    }
+  });
+
   it("ne prend jamais le minimum d'une assistance pour un départ sûr", () => {
     expect(estimerPremiereCharge({
       configuration: { ...config, natureCharge: "assistance", chargeMinimale: 5 },

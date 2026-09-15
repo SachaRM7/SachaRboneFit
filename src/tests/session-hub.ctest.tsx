@@ -9,6 +9,11 @@ const templates = [
   { id: "b", letter: "B", name: "Tirage" },
 ];
 
+const programmes = [
+  { id: "bloc-1", nom: "Cycle force", actif: true },
+  { id: "bloc-2", nom: "Volume", actif: false },
+];
+
 function CoachState() {
   const { ouvert, contexte } = useCoach();
   return <output aria-label="Coach state">{ouvert ? contexte?.sujet : "fermé"}</output>;
@@ -19,7 +24,9 @@ function renderHub(current: Parameters<typeof SessionHub>[0]["current"] = null) 
     <FournisseurCoach>
       <SessionHub
         blockName="Cycle force"
-        nextTemplateId="b"
+        programmes={programmes}
+        selectedProgrammeId="bloc-1"
+        next={{ id: "b", letter: "B", name: "Tirage" }}
         defaultGymId="gym-1"
         templates={templates}
         current={current}
@@ -51,5 +58,71 @@ describe("centre de contrôle Séances", () => {
     renderHub();
     await userEvent.click(screen.getByRole("button", { name: /Demander au Coach/ }));
     expect(screen.getByLabelText("Coach state")).toHaveTextContent("construire_seance");
+  });
+
+  it("sélectionne un programme sans changer la rotation, et distingue les deux états", () => {
+    render(
+      <FournisseurCoach>
+        <SessionHub
+          blockName="Volume"
+          programmes={programmes}
+          selectedProgrammeId="bloc-2"
+          next={{ id: "b", letter: "B", name: "Tirage" }}
+          defaultGymId="gym-1"
+          templates={templates}
+          current={null}
+        />
+      </FournisseurCoach>,
+    );
+
+    // Choisir un programme ne l'active pas : le lien porte la sélection dans
+    // l'URL, et rien ici n'appelle l'activation.
+    const volume = screen.getByRole("link", { name: /Volume/ });
+    expect(volume).toHaveAttribute("href", "/sessions/new?programme=bloc-2");
+    expect(volume).toHaveAttribute("aria-current", "true");
+    expect(screen.getByText("Sélectionné · rotation inchangée")).toBeVisible();
+
+    // L'actif reste lisible comme actif, même quand il n'est pas sélectionné.
+    const force = screen.getByRole("link", { name: /Cycle force/ });
+    expect(force).not.toHaveAttribute("aria-current");
+    expect(screen.getByText("Programme actif")).toBeVisible();
+  });
+
+  it("nomme la prochaine séance de la rotation même quand un autre programme est affiché", () => {
+    render(
+      <FournisseurCoach>
+        <SessionHub
+          blockName="Volume"
+          programmes={programmes}
+          selectedProgrammeId="bloc-2"
+          next={{ id: "b", letter: "B", name: "Tirage" }}
+          defaultGymId="gym-1"
+          templates={[{ id: "a", letter: "A", name: "Poussée" }]}
+          current={null}
+        />
+      </FournisseurCoach>,
+    );
+
+    // La prochaine séance vit dans la rotation, pas dans le programme affiché :
+    // « Tirage » n'est pas listé ici, et il n'y a donc rien à marquer.
+    expect(screen.queryByText("Prochaine dans la rotation")).not.toBeInTheDocument();
+  });
+
+  it("dit qu'un programme n'a aucune séance plutôt que de laisser la section vide", () => {
+    render(
+      <FournisseurCoach>
+        <SessionHub
+          blockName="Volume"
+          programmes={programmes}
+          selectedProgrammeId="bloc-2"
+          next={null}
+          defaultGymId="gym-1"
+          templates={[]}
+          current={null}
+        />
+      </FournisseurCoach>,
+    );
+
+    expect(screen.getByText("« Volume » n'a encore aucune séance.")).toBeVisible();
   });
 });
