@@ -24,7 +24,23 @@ import {
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
 import { GuidagePremiereSerie, PreparationMachine } from "./GuidagePremiereSerie";
 import { phasesDuTempo, tempoAvecSecondes } from "./execution-client";
+import { ecrireTempo, lireTempo } from "@/lib/engine/execution";
 import type { ExercicePrescrit } from "./types";
+
+/**
+ * Le tempo PRESCRIT, écrit comme sur la ligne de prescription.
+ *
+ * Il n'était visible qu'après le fetch du contexte — c'est-à-dire souvent
+ * jamais, et jamais avant la première série. Le tempo de la prescription est
+ * pourtant déjà là, dans `exercice.tempo` : il s'affiche maintenant tout de
+ * suite, en notation compacte. La lecture en secondes et en mots reste dans la
+ * fiche technique, qui a la place pour l'expliquer.
+ */
+function tempoPrescrit(tempo: string | null | undefined): string | null {
+  if (!tempo) return null;
+  const lu = lireTempo(tempo);
+  return lu ? ecrireTempo(lu) : tempo.trim() || null;
+}
 
 /** Focus orchestre action, ressenti et aides autour du contrôleur de saisie commun. */
 interface Props {
@@ -84,6 +100,7 @@ export function LecteurExercice({
         phasesDuTempo(contexte.tempo.tempo, contexte.fiche?.libellesPhasesTempo),
       )
     : null;
+  const tempoDeLaPrescription = tempoPrescrit(exercice.tempo);
 
   return (
     <article className="focus-carte">
@@ -114,6 +131,7 @@ export function LecteurExercice({
               : ""}
             {exercice.seriesCibles} × {exercice.fourchetteRepsMin}–
             {exercice.fourchetteRepsMax}
+            {tempoDeLaPrescription ? ` · tempo ${tempoDeLaPrescription}` : ""}
             {exercice.reposSecondes ? ` · repos ${exercice.reposSecondes} s` : ""}
           </p>
           {libelleCibleEffort(exercice.rpeCible) && (

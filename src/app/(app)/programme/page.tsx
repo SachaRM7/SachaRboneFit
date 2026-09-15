@@ -8,8 +8,6 @@ import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { GestionProgramme, type SeanceProgramme, type MachineDisponible } from "@/components/programme/GestionProgramme";
 import { ProgrammesManager } from "@/components/programme/ProgrammesManager";
-import { VueCycle, OptionsAvancees } from "@/components/programme/VueCycle";
-import { vueDuProgramme } from "@/services/cycle";
 import { lireBlocs } from "@/services/blocs";
 import { onboardingTermine } from "@/services/profil-cache";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
@@ -28,7 +26,6 @@ export default async function ProgrammePage({
   const blocs = await lireBlocs(userId);
   const activeBloc = blocs.actif;
   const selectedBloc = blocs.tous.find((item) => item.id === requestedBlocId) ?? activeBloc ?? blocs.tous[0] ?? null;
-  const vue = await vueDuProgramme(userId, undefined, { blocs });
 
   const [instances, salles] = await Promise.all([
     db.query.exerciseInstances.findMany({
@@ -92,6 +89,7 @@ export default async function ProgrammePage({
             rpeCible: l.rpeCible,
             tempo: l.tempo,
             reposSecondes: l.reposSecondes,
+            chargeCible: l.chargeCible,
           };
         }),
     }));
@@ -120,22 +118,21 @@ export default async function ProgrammePage({
           typeCycle: item.typeCycle,
         }))}
         selectedId={selectedBloc?.id ?? null}
-        seances={seances.map((session) => ({ id: session.id, nom: session.nom, lettre: session.lettre }))}
       />
 
-      <VueCycle vue={vue} />
-
-      <OptionsAvancees>
-        <GestionProgramme
-          bloc={
-            selectedBloc
-              ? { id: selectedBloc.id, nom: selectedBloc.nom, typeCycle: selectedBloc.typeCycle }
-              : null
-          }
-          seances={seances}
-          machines={machines}
-        />
-      </OptionsAvancees>
+      {/* Le programme choisi est le contenu de la page, sans résumé d'un autre
+          cycle ni accordéon intermédiaire. */}
+      <GestionProgramme
+        key={selectedBloc?.id ?? "aucun-programme"}
+        bloc={
+          selectedBloc
+            ? { id: selectedBloc.id, nom: selectedBloc.nom, typeCycle: selectedBloc.typeCycle }
+            : null
+        }
+        programmes={blocs.tous.map((item) => ({ id: item.id, nom: item.nom }))}
+        seances={seances}
+        machines={machines}
+      />
     </div>
   );
 }

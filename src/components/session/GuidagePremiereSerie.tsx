@@ -31,6 +31,14 @@ export function libellesPremiereCharge(estimation: ChargeAffichable) {
     };
   }
 
+  if (estimation.origine === "charge_programmee") {
+    return {
+      titre: "Charge programmée",
+      badge: "Définie par toi",
+      explication: estimation.explication,
+    };
+  }
+
   return {
     titre: "Charge de référence",
     badge: estimation.origine === "serie_courante" ? "Série en cours" : "Historique réel",

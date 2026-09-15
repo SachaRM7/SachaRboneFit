@@ -360,6 +360,27 @@ export const seanceTemplates = pgTable("seance_templates", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+/**
+ * Les champs de prescription qu'un utilisateur peut laisser vides.
+ *
+ * Les colonnes correspondantes sont NOT NULL : le moteur de volume et la
+ * double progression lisent un nombre, pas une absence. Quand la saisie les
+ * omet, une valeur par defaut est donc ECRITE — et son nom est conserve, pour
+ * que l'ecran puisse dire « a confirmer » au lieu de faire passer un defaut de
+ * formulaire pour une prescription.
+ */
+export const CHAMPS_PRESCRIPTION_PAR_DEFAUT = [
+  "seriesCibles",
+  "fourchetteRepsMin",
+  "fourchetteRepsMax",
+  "reposSecondes",
+] as const;
+
+export type ChampPrescriptionParDefaut = (typeof CHAMPS_PRESCRIPTION_PAR_DEFAUT)[number];
+
+/** Les champs omis, tels qu'ils sont stockes : sans doublon, jamais vides. */
+export type PrescriptionParDefaut = ChampPrescriptionParDefaut[];
+
 export const exerciseInTemplate = pgTable("exercise_in_template", {
   id: uuid("id").defaultRandom().primaryKey(),
   seanceTemplateId: uuid("seance_template_id").references(() => seanceTemplates.id).notNull(),
@@ -371,6 +392,19 @@ export const exerciseInTemplate = pgTable("exercise_in_template", {
   rpeCible: real("rpe_cible"),
   tempo: text("tempo"),
   reposSecondes: integer("repos_secondes"),
+  /**
+   * La charge que l'utilisateur a programmee pour cet exercice, en kg.
+   *
+   * NULLABLE, et sans defaut : `null` veut dire « rien n'a ete programme »,
+   * jamais « 0 kg ». Un nombre ici est une INTENTION declaree, pas une mesure
+   * ni une estimation : il n'alimente aucun moteur de progression. Il sert de
+   * premier repere affichable tant qu'aucune serie n'a ete enregistree, et
+   * s'efface derriere l'historique des que `set_logs` en porte un — c'est la
+   * premiere charge reellement soulevee qui fait reference.
+   */
+  chargeCible: real("charge_cible"),
+  /** Les champs de cette ligne qui n'ont jamais ete choisis. */
+  prescriptionParDefaut: jsonb("prescription_par_defaut").$type<PrescriptionParDefaut>(),
   notes: text("notes"),
   /**
    * Date de retrait du programme.
@@ -715,6 +749,21 @@ export const sessionPlanItems = pgTable("session_plan_items", {
 
   /** Issue de la double progression sur l'historique de CETTE instance. */
   chargeSuggeree: real("charge_suggeree"),
+  /**
+   * La charge programmee sur la ligne de gabarit, recopiee ici a la
+   * construction du plan.
+   *
+   * Une copie, et non une lecture du gabarit courant : `session_plan_items` est
+   * la decision prise ce jour-la, et une ligne de programme peut etre reecrite
+   * ou retiree ensuite. Elle porte deja sa propre copie de `series_cibles`,
+   * `fourchette_reps_*`, `rpe_cible`, `tempo` et `repos_secondes` pour la meme
+   * raison. Distincte de `charge_suggeree`, qui ne parle que d'historique : ici
+   * c'est l'intention de l'utilisateur, et elle ne remplace jamais une serie
+   * reellement faite.
+   */
+  chargeCible: real("charge_cible"),
+  /** Les champs de prescription que le gabarit n'avait pas fait choisir. */
+  prescriptionParDefaut: jsonb("prescription_par_defaut").$type<PrescriptionParDefaut>(),
   repsSuggerees: jsonb("reps_suggerees").$type<number[]>(),
   messageProgression: text("message_progression"),
 

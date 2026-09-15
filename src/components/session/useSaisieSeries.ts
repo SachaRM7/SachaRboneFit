@@ -146,8 +146,25 @@ export function useSaisieSeries({
     rpeReduction,
   );
   const sansRepereComparable = (exercice.historique ?? []).length === 0;
-  const chargeParDefaut = modeReserve && sansRepereComparable
-    ? exercice.premiereCharge?.charge ?? null
+  /*
+   * L'ordre d'autorité du moteur reste intact : suggestion calculée, dernière
+   * série réelle, puis seulement le poids déclaré dans le programme.
+   *
+   * Le poids programmé était bien transporté jusqu'au Live, mais le contrôleur
+   * ne lisait `premiereCharge` qu'en mode calibration. Une séance ordinaire
+   * affichait donc un champ kg vide malgré le choix de l'utilisateur. Le
+   * repère matériel reste réservé au protocole de calibration ; la charge
+   * déclarée, elle, vaut dans toutes les phases tant qu'aucun fait ne l'a
+   * remplacée.
+   */
+  const chargeProgrammee = sansRepereComparable
+    && exercice.premiereCharge?.origine === "charge_programmee"
+    ? exercice.premiereCharge.charge
+    : null;
+  const chargeParDefaut = sansRepereComparable
+    ? chargeProgrammee
+      ?? (modeReserve ? exercice.premiereCharge?.charge : null)
+      ?? null
     : exercice.chargeSuggeree ?? exercice.historique?.[0]?.charge ?? null;
 
   /** Valeurs proposées pour une ligne, avant toute saisie de l'utilisateur. */

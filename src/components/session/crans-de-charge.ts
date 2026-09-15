@@ -65,9 +65,12 @@ export function cransDeCharge(
    * d'utile, pas zéro.
    */
   const courante = Number.parseFloat(valeur.replace(",", "."));
+  const chargeProgrammee = exercice.premiereCharge?.origine === "charge_programmee"
+    ? exercice.premiereCharge.charge
+    : null;
   const depart = Number.isFinite(courante)
     ? courante
-    : exercice.chargeSuggeree ?? config.chargeMinimale ?? 0;
+    : exercice.chargeSuggeree ?? chargeProgrammee ?? config.chargeMinimale ?? 0;
 
   const aller = (sens: "haut" | "bas") => {
     const r = voisineCharge(config, depart, sens);

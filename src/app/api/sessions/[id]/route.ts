@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { seanceTemplates, exerciseInTemplate, programmeBlocs, exerciseInstances, exercises, gyms } from "@/db/schema";
+import { seanceTemplates } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
-import { dernieresSeriesPour } from "@/services/plan-seance";
+import { chargeAffichable, dernieresSeriesPour } from "@/services/plan-seance";
 import { computeNextSets } from "@/lib/engine/double-progression";
 import { REPOS_PAR_DEFAUT_SECONDES } from "@/services/plan-seance";
 import { CHARGE_INCONNUE, configurationDe } from "@/lib/engine/charges";
@@ -103,8 +103,11 @@ export async function GET(
         const premiereCharge = inst
           ? estimerDepuisInstance({
               instance: inst,
-              chargeSuggereeHistorique: suggestion.charge,
+              chargeSuggereeHistorique: chargeAffichable(suggestion.charge),
               historiqueInstance: historique,
+              // La charge programmée n'est un repère que sur l'appareil prévu —
+              // et ici, c'est exactement celui du gabarit.
+              chargeProgrammee: eit.chargeCible,
               conventionCharge: inst.conventionCharge,
             })
           : null;
@@ -129,7 +132,11 @@ export async function GET(
           categorieRole: inst?.exercise?.categorieRole || "",
           profilTension: inst?.exercise?.profilTension || "",
           musclesPrincipaux: inst?.exercise?.musclesPrincipaux || [],
-          chargeSuggeree: suggestion.charge,
+          chargeCible: eit.chargeCible,
+          prescriptionParDefaut: eit.prescriptionParDefaut ?? [],
+          // `0` veut dire « rien à proposer », pas « fais 0 kg » : le champ kg
+          // reste vide tant qu'aucune série n'a été faite.
+          chargeSuggeree: chargeAffichable(suggestion.charge),
           premiereCharge,
           repsSuggerees: suggestion.reps,
           messageProgression: suggestion.messageProgression,
