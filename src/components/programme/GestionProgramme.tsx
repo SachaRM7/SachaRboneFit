@@ -256,6 +256,9 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
 
   const [edition, setEdition] = useState<ExerciceProgramme | null>(null);
   const [reglagesEdition, setReglagesEdition] = useState<ReglagesExercice>(REGLAGES_DEFAUT);
+  const [editionSeance, setEditionSeance] = useState<SeanceProgramme | null>(null);
+  const [nomSeanceEdition, setNomSeanceEdition] = useState("");
+  const [lettreSeanceEdition, setLettreSeanceEdition] = useState("");
 
   const creerSeance = async () => {
     if (!bloc) return;
@@ -417,6 +420,56 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
     }
   };
 
+  const ouvrirEditionSeance = (seance: SeanceProgramme) => {
+    setEditionSeance(seance);
+    setNomSeanceEdition(seance.nom);
+    setLettreSeanceEdition(seance.lettre);
+  };
+
+  const enregistrerSeance = async () => {
+    if (!editionSeance) return;
+    const nom = nomSeanceEdition.trim();
+    const lettre = lettreSeanceEdition.trim().toUpperCase();
+    if (!nom || !lettre) {
+      toast.error("Renseigne une lettre et un nom");
+      return;
+    }
+    setEnvoi(true);
+    try {
+      const res = await fetch(`/api/programme/seances/${editionSeance.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nom, lettre }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success("Séance mise à jour");
+      setEditionSeance(null);
+      router.refresh();
+    } catch {
+      toast.error("Modification impossible");
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const supprimerSeance = async (seance: SeanceProgramme) => {
+    if (!confirm(`Supprimer « ${seance.nom} » du programme ? Les séances déjà réalisées resteront dans ton historique.`)) {
+      return;
+    }
+    setEnvoi(true);
+    try {
+      const res = await fetch(`/api/programme/seances/${seance.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("Séance supprimée");
+      if (editionSeance?.id === seance.id) setEditionSeance(null);
+      router.refresh();
+    } catch {
+      toast.error("Suppression impossible");
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
   const retirer = async (ligne: ExerciceProgramme) => {
     if (!confirm(`Retirer « ${ligne.exerciceNom} » de la séance ?`)) return;
     try {
@@ -513,10 +566,22 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
               <span className="text-encre-3 mr-2">{courante.lettre}</span>
               {courante.nom}
             </h2>
-            <Button variant="ghost" size="sm" onClick={() => setAjoutPour(courante)}>
-              <Plus className="w-4 h-4 mr-1" />
-              Exercice
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button variant="ghost" size="icon" className="h-11 w-11"
+                aria-label={`Modifier la séance ${courante.nom}`}
+                onClick={() => ouvrirEditionSeance(courante)}>
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-11 w-11"
+                aria-label={`Supprimer la séance ${courante.nom}`}
+                onClick={() => void supprimerSeance(courante)}>
+                <Trash2 className="w-4 h-4 text-perte" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setAjoutPour(courante)}>
+                <Plus className="w-4 h-4 mr-1" />
+                Exercice
+              </Button>
+            </div>
           </div>
 
           {/* L'ordre des séances se COMMANDE, il ne se devine pas : deux boutons
@@ -598,6 +663,18 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
                         )}
                       </div>
                     </div>
+                    <div className="flex shrink-0 items-center">
+                      <Button variant="ghost" size="icon" className="h-10 w-10"
+                        aria-label={`Modifier ${e.exerciceNom}`}
+                        onClick={() => ouvrirEdition(e)}>
+                        <Pencil className="w-4 h-4 text-encre-2" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-10 w-10"
+                        aria-label={`Retirer ${e.exerciceNom}`}
+                        onClick={() => void retirer(e)}>
+                        <Trash2 className="w-4 h-4 text-perte" />
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Les commandes vivent SOUS la ligne qu'elles touchent et
@@ -617,16 +694,7 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
                       onClick={() => void deplacerExercice(e, 1)}>
                       <ArrowDown className="w-4 h-4 text-encre-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-11 text-encre-2"
-                      onClick={() => ouvrirEdition(e)}>
-                      <Pencil className="w-4 h-4 mr-1.5" />
-                      Modifier
-                    </Button>
-                    <Button variant="ghost" size="icon" className="h-11 w-11 ml-auto"
-                      aria-label={`Retirer ${e.exerciceNom}`}
-                      onClick={() => void retirer(e)}>
-                      <Trash2 className="w-4 h-4 text-encre-3" />
-                    </Button>
+                    <span className="ml-1 text-xs text-encre-3">Position {index + 1}</span>
                   </div>
                 </div>
               ))}
@@ -754,6 +822,32 @@ export function GestionProgramme({ bloc, seances, machines }: Props) {
                 Retirer de la séance
               </Button>
             </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      <Drawer open={editionSeance !== null} onOpenChange={(open) => !open && setEditionSeance(null)}>
+        <DrawerContent className="bg-papier border-filet text-encre">
+          <DrawerHeader><DrawerTitle className="text-encre">Modifier la séance</DrawerTitle></DrawerHeader>
+          <div className="px-4 pb-6 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="lettreSeanceEdition">Lettre</Label>
+              <Input id="lettreSeanceEdition" value={lettreSeanceEdition} maxLength={8}
+                onChange={(e) => setLettreSeanceEdition(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nomSeanceEdition">Nom</Label>
+              <Input id="nomSeanceEdition" value={nomSeanceEdition}
+                onChange={(e) => setNomSeanceEdition(e.target.value)} />
+            </div>
+            <Button className="w-full h-12" onClick={() => void enregistrerSeance()} disabled={envoi}>
+              {envoi ? "Enregistrement…" : "Enregistrer"}
+            </Button>
+            <Button variant="ghost" className="w-full h-12 text-perte" disabled={envoi}
+              onClick={() => editionSeance && void supprimerSeance(editionSeance)}>
+              <Trash2 className="w-4 h-4 mr-2" />
+              Supprimer la séance
+            </Button>
           </div>
         </DrawerContent>
       </Drawer>

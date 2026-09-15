@@ -112,6 +112,52 @@ export interface ModificationSeance {
 }
 
 /**
+ * Retire un programme des surfaces actives sans détruire son historique.
+ *
+ * Les séances réalisées pointent encore vers ses gabarits. Supprimer les
+ * lignes en cascade casserait cette provenance ; `archive_le` est précisément
+ * le contrat déjà porté par `programme_blocs`. Si le programme retiré pilotait
+ * la rotation, le plus ancien programme restant prend le relais.
+ */
+export async function archiverProgramme(userId: string, blocId: string) {
+  const programme = await ownedBlock(userId, blocId);
+
+  return db.transaction(async (tx) => {
+    const maintenant = new Date();
+    const [archive] = await tx
+      .update(programmeBlocs)
+      .set({ actif: false, archiveLe: maintenant, updatedAt: maintenant })
+      .where(
+        and(
+          eq(programmeBlocs.id, programme.id),
+          eq(programmeBlocs.userId, userId),
+          isNull(programmeBlocs.archiveLe),
+        ),
+      )
+      .returning();
+
+    if (!archive) throw new ProgrammeManagementError("Suppression impossible.", 500);
+
+    let nouveauProgrammeActif: string | null = null;
+    if (programme.actif) {
+      const suivant = await tx.query.programmeBlocs.findFirst({
+        where: and(eq(programmeBlocs.userId, userId), isNull(programmeBlocs.archiveLe)),
+        orderBy: [asc(programmeBlocs.createdAt)],
+      });
+      if (suivant) {
+        await tx
+          .update(programmeBlocs)
+          .set({ actif: true, updatedAt: maintenant })
+          .where(eq(programmeBlocs.id, suivant.id));
+        nouveauProgrammeActif = suivant.id;
+      }
+    }
+
+    return { id: archive.id, nouveauProgrammeActif };
+  });
+}
+
+/**
  * Renomme, déplace et/ou réordonne une séance de programme.
  *
  * Une seule transaction pour les trois : l'ancien chemin ne savait que
@@ -190,4 +236,49 @@ export async function deplacerSeanceVersProgramme(
   destinationBlocId: string,
 ) {
   return modifierSeanceTemplate(userId, templateId, { destinationBlocId });
+}
+
+/**
+ * Retire une séance de son programme en conservant son identité.
+ *
+ * `seance_templates` ne possède pas de drapeau d'archive et plusieurs tables
+ * historiques la référencent. La séance rejoint donc un bloc déjà archivé,
+ * invisible de toutes les lectures opérationnelles qui excluent
+ * `programme_blocs.archive_le`, tout en gardant le même id et le même type de
+ * cycle pour les séances Live éventuellement déjà ouvertes.
+ */
+export async function archiverSeanceTemplate(userId: string, templateId: string) {
+  const template = await db.query.seanceTemplates.findFirst({
+    where: eq(seanceTemplates.id, templateId),
+  });
+  if (!template) throw new ProgrammeManagementError("Séance introuvable.", 404);
+  const source = await ownedBlock(userId, template.blocId);
+
+  return db.transaction(async (tx) => {
+    const maintenant = new Date();
+    const [blocArchive] = await tx
+      .insert(programmeBlocs)
+      .values({
+        userId,
+        nom: `Archives · ${source.nom}`,
+        dateDebut: source.dateDebut,
+        dateFinPrevue: source.dateFinPrevue,
+        typeCycle: source.typeCycle,
+        semaineActuelle: source.semaineActuelle,
+        actif: false,
+        archiveLe: maintenant,
+      })
+      .returning();
+    if (!blocArchive) throw new ProgrammeManagementError("Suppression impossible.", 500);
+
+    const [archivee] = await tx
+      .update(seanceTemplates)
+      .set({ blocId: blocArchive.id, ordreDansSemaine: 1, updatedAt: maintenant })
+      .where(eq(seanceTemplates.id, templateId))
+      .returning();
+    if (!archivee) throw new ProgrammeManagementError("Suppression impossible.", 500);
+
+    await renumoterSeances(tx, source.id);
+    return archivee;
+  });
 }

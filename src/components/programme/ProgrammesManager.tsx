@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { FolderInput, Plus } from "lucide-react";
+import { FolderInput, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,6 +55,29 @@ export function ProgrammesManager({
       router.refresh();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Activation impossible");
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function removeProgram(programme: ProgrammeResume) {
+    const suite = programme.actif
+      ? " Un autre programme prendra automatiquement le relais s'il en reste un."
+      : "";
+    if (!confirm(`Supprimer « ${programme.nom} » ? Ses séances passées resteront dans ton historique.${suite}`)) {
+      return;
+    }
+
+    setPending(`delete:${programme.id}`);
+    try {
+      const response = await fetch(`/api/programme/blocs/${programme.id}`, { method: "DELETE" });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(payload?.error ?? "Suppression impossible");
+      toast.success("Programme supprimé");
+      router.push("/programme");
+      router.refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Suppression impossible");
     } finally {
       setPending(null);
     }
@@ -191,6 +214,17 @@ export function ProgrammesManager({
               disabled={pending !== null}
             >
               <Plus className="size-4" aria-hidden /> Ajouter une séance
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full rounded-full text-perte"
+              onClick={() => void removeProgram(selected)}
+              disabled={pending !== null}
+            >
+              <Trash2 className="size-4" aria-hidden />
+              {pending === `delete:${selected.id}` ? "Suppression…" : "Supprimer ce programme"}
             </Button>
           </div>
         )}

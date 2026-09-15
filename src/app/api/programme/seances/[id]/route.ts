@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import {
+  archiverSeanceTemplate,
   modifierSeanceTemplate,
   ProgrammeManagementError,
 } from "@/services/programme-management";
@@ -50,5 +51,26 @@ export async function PATCH(
     }
     console.error("[programme/seances/:id PATCH]", error);
     return NextResponse.json({ error: "Modification impossible" }, { status: 500 });
+  }
+}
+
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  try {
+    const template = await archiverSeanceTemplate(userId, id);
+    return NextResponse.json(template);
+  } catch (error) {
+    if (error instanceof ProgrammeManagementError) {
+      return NextResponse.json({ error: error.reason }, { status: error.status });
+    }
+    console.error("[programme/seances/:id DELETE]", error);
+    return NextResponse.json({ error: "Suppression impossible" }, { status: 500 });
   }
 }

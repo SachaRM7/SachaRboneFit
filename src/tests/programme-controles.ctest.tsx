@@ -20,8 +20,8 @@ import type { MachineDisponible, SeanceProgramme } from "@/components/programme/
  *     l'historique vers sa ligne d'origine.
  */
 
-const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push: vi.fn() }) }));
+const { refresh, push } = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push }) }));
 
 const { GestionProgramme } = await import("@/components/programme/GestionProgramme");
 
@@ -84,6 +84,8 @@ function rendre() {
 beforeEach(() => {
   appels = [];
   refresh.mockReset();
+  push.mockReset();
+  vi.stubGlobal("confirm", vi.fn(() => true));
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     appels.push({
       url: String(url),
@@ -157,8 +159,7 @@ describe("réglages d'un exercice programmé", () => {
     const user = userEvent.setup();
     rendre();
 
-    // Le second bouton « Modifier » appartient au Curl, deuxième ligne.
-    await user.click(screen.getAllByRole("button", { name: "Modifier" })[1]!);
+    await user.click(screen.getByRole("button", { name: "Modifier Curl" }));
 
     // Les six réglages sont là, avec les valeurs de la ligne.
     expect(screen.getByLabelText("Séries")).toHaveValue("3");
@@ -182,6 +183,54 @@ describe("réglages d'un exercice programmé", () => {
     expect(corps.chargeCible).toBeNull();
     // Et l'effort peut revenir à non prescrit.
     expect(corps.rpeCible).toBeNull();
+  });
+});
+
+describe("commandes visibles des séances et exercices", () => {
+  it("renomme une séance depuis son crayon", async () => {
+    const user = userEvent.setup();
+    rendre();
+
+    await user.click(screen.getByRole("button", { name: "Modifier la séance Poussée" }));
+    await user.clear(screen.getByLabelText("Nom"));
+    await user.type(screen.getByLabelText("Nom"), "Push lourd");
+    await user.clear(screen.getByLabelText("Lettre"));
+    await user.type(screen.getByLabelText("Lettre"), "P");
+    await user.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() => expect(appels).toHaveLength(1));
+    expect(appels[0]).toMatchObject({
+      url: "/api/programme/seances/seance-a",
+      methode: "PATCH",
+      corps: { nom: "Push lourd", lettre: "P" },
+    });
+  });
+
+  it("supprime une séance depuis sa corbeille", async () => {
+    const user = userEvent.setup();
+    rendre();
+
+    await user.click(screen.getByRole("button", { name: "Supprimer la séance Poussée" }));
+
+    await waitFor(() => expect(appels).toHaveLength(1));
+    expect(appels[0]).toMatchObject({
+      url: "/api/programme/seances/seance-a",
+      methode: "DELETE",
+    });
+  });
+
+  it("garde modifier et retirer dans l'en-tête de chaque exercice", async () => {
+    const user = userEvent.setup();
+    rendre();
+
+    expect(screen.getByRole("button", { name: "Modifier Squat" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Retirer Curl" }));
+
+    await waitFor(() => expect(appels).toHaveLength(1));
+    expect(appels[0]).toMatchObject({
+      url: "/api/programme/exercices/ligne-b",
+      methode: "DELETE",
+    });
   });
 });
 

@@ -125,14 +125,9 @@ export default async function ProgrammePage({
         seances={seances.map((session) => ({ id: session.id, nom: session.nom, lettre: session.lettre }))}
       />
 
-      {/* La vue de cycle décrit nécessairement le programme ACTIF. La montrer
-          sous un autre programme sélectionné mélangeait deux contextes : la
-          carte disait « Séances libres », puis le contenu décrivait PPLUL. */}
-      {programmeSelectionneEstActif && <VueCycle vue={vue} />}
-
       <OptionsAvancees
         key={selectedBloc?.id ?? "aucun-programme"}
-        initialementOuvert={Boolean(selectedBloc && !programmeSelectionneEstActif)}
+        initialementOuvert={Boolean(selectedBloc)}
       >
         <GestionProgramme
           bloc={
@@ -144,6 +139,13 @@ export default async function ProgrammePage({
           machines={machines}
         />
       </OptionsAvancees>
+
+      {/* La vue de cycle décrit nécessairement le programme ACTIF. La montrer
+          sous un autre programme sélectionné mélangeait deux contextes : la
+          carte disait « Séances libres », puis le contenu décrivait PPLUL.
+          Les commandes du programme sélectionné passent avant ce bilan : cet
+          écran sert d'abord à composer ce que l'utilisateur vient d'ouvrir. */}
+      {programmeSelectionneEstActif && <VueCycle vue={vue} />}
     </div>
   );
 }
