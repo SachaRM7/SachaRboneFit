@@ -29,6 +29,7 @@ export default async function ProgrammePage({
   const activeBloc = blocs.actif;
   const selectedBloc = blocs.tous.find((item) => item.id === requestedBlocId) ?? activeBloc ?? blocs.tous[0] ?? null;
   const vue = await vueDuProgramme(userId, undefined, { blocs });
+  const programmeSelectionneEstActif = Boolean(selectedBloc?.actif);
 
   const [instances, salles] = await Promise.all([
     db.query.exerciseInstances.findMany({
@@ -124,9 +125,15 @@ export default async function ProgrammePage({
         seances={seances.map((session) => ({ id: session.id, nom: session.nom, lettre: session.lettre }))}
       />
 
-      <VueCycle vue={vue} />
+      {/* La vue de cycle décrit nécessairement le programme ACTIF. La montrer
+          sous un autre programme sélectionné mélangeait deux contextes : la
+          carte disait « Séances libres », puis le contenu décrivait PPLUL. */}
+      {programmeSelectionneEstActif && <VueCycle vue={vue} />}
 
-      <OptionsAvancees>
+      <OptionsAvancees
+        key={selectedBloc?.id ?? "aucun-programme"}
+        initialementOuvert={Boolean(selectedBloc && !programmeSelectionneEstActif)}
+      >
         <GestionProgramme
           bloc={
             selectedBloc

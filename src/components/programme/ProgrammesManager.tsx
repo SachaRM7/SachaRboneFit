@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check, FolderInput, Plus } from "lucide-react";
+import { FolderInput, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,7 +127,9 @@ export function ProgrammesManager({
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-encre-3">Mes programmes</p>
-            <p className="mt-1 text-sm text-encre-2">Un seul pilote la rotation. Les autres restent modifiables.</p>
+            <p className="mt-1 text-sm text-encre-2">
+              Ouvre celui que tu veux consulter. Le programme actif pilote tes prochaines séances.
+            </p>
           </div>
           <Button type="button" size="sm" variant="outline" onClick={() => setCreating((value) => !value)}>
             <Plus className="size-4" aria-hidden /> Nouveau
@@ -141,13 +143,27 @@ export function ProgrammesManager({
               <Link
                 key={programme.id}
                 href={`/programme?bloc=${programme.id}`}
+                aria-current={selectedProgramme ? "page" : undefined}
                 className={`min-w-[12rem] rounded-2xl border p-3 transition-colors ${selectedProgramme ? "border-encre bg-papier-2" : "border-filet bg-carte"}`}
               >
-                <span className="flex items-center gap-2 text-sm font-medium text-encre">
-                  {programme.nom}
-                  {programme.actif && <Check className="size-4" aria-label="Programme actif" />}
+                <span className="flex items-start justify-between gap-2">
+                  <span className="min-w-0 text-sm font-medium text-encre">{programme.nom}</span>
+                  <span className="flex shrink-0 gap-1">
+                    {programme.actif && (
+                      <span className="rounded-full bg-encre px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-papier">
+                        Actif
+                      </span>
+                    )}
+                    {selectedProgramme && (
+                      <span className="rounded-full border border-encre/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-encre-2">
+                        Consulté
+                      </span>
+                    )}
+                  </span>
                 </span>
-                <span className="mt-1 block text-xs text-encre-3">{programme.actif ? "Actif dans la rotation" : "Programme enregistré"}</span>
+                <span className="mt-1 block text-xs text-encre-3">
+                  {programme.actif ? "Pilote la rotation" : "Programme enregistré"}
+                </span>
               </Link>
             );
           })}

@@ -365,8 +365,16 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
  * Elle s'adresse à quelqu'un qui sait ce qu'il modifie ; l'écran, lui,
  * s'adresse d'abord à quelqu'un qui veut comprendre.
  */
-export function OptionsAvancees({ children }: { children: React.ReactNode }) {
-  const [ouvert, setOuvert] = useState(false);
+export function OptionsAvancees({
+  children,
+  initialementOuvert = false,
+}: {
+  children: React.ReactNode;
+  /** Un programme non actif est consulté pour son contenu : on le montre sans
+      demander un détour par un accordéon fermé. */
+  initialementOuvert?: boolean;
+}) {
+  const [ouvert, setOuvert] = useState(initialementOuvert);
 
   return (
     <section className="pt-2">
@@ -378,7 +386,7 @@ export function OptionsAvancees({ children }: { children: React.ReactNode }) {
       >
         <span className="flex flex-wrap items-center gap-2">
           <Wrench className="w-4 h-4" aria-hidden />
-          Édition avancée
+          Séances et exercices
         </span>
         <ChevronRight
           className={`w-4 h-4 transition-transform ${ouvert ? "rotate-90" : ""}`}
