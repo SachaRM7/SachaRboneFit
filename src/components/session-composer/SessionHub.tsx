@@ -157,13 +157,21 @@ export function SessionHub({
           </div>
           <div className="space-y-2.5">
             {templates.map((template) => (
-              <article key={template.id} className="flex items-center gap-3 rounded-2xl border border-filet bg-carte p-3.5">
-                <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-papier-2 font-heading font-semibold">{template.marker}</span>
-                <div className="min-w-0 flex-1">
-                  <h3 className="truncate font-medium">{template.name}</h3>
-                  {next?.id === template.id && <p className="text-xs text-gain">Prochaine dans la rotation</p>}
-                </div>
-                <Link href={`/sessions/compose?source=${template.id}`} prefetch={false} aria-label={`Dupliquer ${template.name}`} className="flex h-9 items-center gap-1 rounded-full px-2.5 text-[0.8rem] font-medium text-encre-2 hover:bg-muted">
+              <article key={template.id} className="flex items-center gap-2 rounded-2xl border border-filet bg-carte p-3 transition-colors hover:border-encre-3">
+                <Link
+                  href={`/sessions/new/${template.id}/details`}
+                  prefetch={false}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-encre"
+                  aria-label={`Voir le détail de ${template.name}`}
+                >
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-papier-2 font-heading font-semibold">{template.marker}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{template.name}</span>
+                    {next?.id === template.id && <span className="block text-xs text-gain">Prochaine dans la rotation</span>}
+                  </span>
+                  <ArrowRight className="size-4 shrink-0 text-encre-3" aria-hidden />
+                </Link>
+                <Link href={`/sessions/compose?source=${template.id}`} prefetch={false} aria-label={`Dupliquer ${template.name}`} className="flex h-10 shrink-0 items-center gap-1 rounded-full px-2 text-[0.75rem] font-medium text-encre-2 hover:bg-papier-2">
                   <Copy className="size-3.5" aria-hidden /> Dupliquer
                 </Link>
               </article>

@@ -4,7 +4,7 @@ import { renderingForExercise } from "@/lib/exercises-3d/catalogue";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { db } from "@/db/client";
 import { exercises, exerciseInstances } from "@/db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { PilierBadge } from "@/components/exercises/PilierBadge";
 import { DemonstrationExercice } from "@/components/exercises/DemonstrationExercice";
 import { TechniqueExercice } from "@/components/exercises/TechniqueExercice";
@@ -27,8 +27,10 @@ import { versMuscles } from "@/lib/referentiels/muscles";
 
 export default async function ExerciseDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string }>;
 }) {
   // Mémoïsé pour la durée du rendu : le layout vient de faire cet
   // aller-retour vers le serveur d'authentification, inutile de le refaire.
@@ -36,6 +38,9 @@ export default async function ExerciseDetailPage({
   if (!userId) redirect("/login");
 
   const { id } = await params;
+  const { from } = await searchParams;
+  const retour = from?.startsWith("/sessions/new/") ? from : "/exercises";
+  const retourLabel = retour === "/exercises" ? "Banque d’exercices" : "Retour à la séance";
 
   const exercise = await db.query.exercises.findFirst({
     where: eq(exercises.id, id),
@@ -71,8 +76,8 @@ export default async function ExerciseDetailPage({
 
   return (
     <div className="movement-page p-4 space-y-6">
-      <Link href="/exercises" className="movement-back">
-        <ArrowLeft size={18} aria-hidden /> Banque d’exercices
+      <Link href={retour} className="movement-back">
+        <ArrowLeft size={18} aria-hidden /> {retourLabel}
       </Link>
 
       <div>

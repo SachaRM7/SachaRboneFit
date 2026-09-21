@@ -42,6 +42,7 @@ describe("centre de contrôle Séances", () => {
     expect(screen.getByRole("heading", { name: "Tirage", level: 2 })).toBeVisible();
     expect(screen.getByRole("link", { name: /Commencer/ })).toHaveAttribute("href", "/sessions/new/b?gymId=gym-1");
     expect(screen.getByRole("link", { name: /Composer moi-même/ })).toHaveAttribute("href", "/sessions/compose");
+    expect(screen.getByRole("link", { name: "Voir le détail de Poussée" })).toHaveAttribute("href", "/sessions/new/a/details");
     expect(screen.getByRole("link", { name: "Dupliquer Poussée" })).toHaveAttribute("href", "/sessions/compose?source=a");
   });
 
