@@ -4,9 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
   GripVertical,
   Plus,
   Trash2,
@@ -133,6 +131,8 @@ export function SessionEditor({
   const [newMachineId, setNewMachineId] = useState("");
   const [newConfiguration, setNewConfiguration] = useState(configurationVide);
   const [saving, setSaving] = useState(false);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const editing = draft.find((exercise) => exercise.clientId === editingId) ?? null;
   const selectedMachine = machines.find((machine) => machine.id === newMachineId) ?? null;
@@ -154,6 +154,53 @@ export function SessionEditor({
       next[destination] = moving;
       return next;
     });
+  }
+
+  function reorderTo(clientId: string, destinationId: string) {
+    setDraft((current) => {
+      const sourceIndex = current.findIndex((exercise) => exercise.clientId === clientId);
+      const destinationIndex = current.findIndex((exercise) => exercise.clientId === destinationId);
+      if (sourceIndex < 0 || destinationIndex < 0 || sourceIndex === destinationIndex) return current;
+
+      const next = [...current];
+      const [moving] = next.splice(sourceIndex, 1);
+      if (!moving) return current;
+      next.splice(destinationIndex, 0, moving);
+      return next;
+    });
+  }
+
+  function startDragging(event: React.PointerEvent<HTMLButtonElement>, clientId: string) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDraggingId(clientId);
+    setDragOverId(clientId);
+  }
+
+  function dragOver(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!draggingId || event.buttons === 0) return;
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>("[data-editor-exercise-id]");
+    const destinationId = target?.dataset.editorExerciseId;
+    if (!destinationId || destinationId === draggingId) return;
+    reorderTo(draggingId, destinationId);
+    setDragOverId(destinationId);
+  }
+
+  function stopDragging(event?: React.PointerEvent<HTMLButtonElement>) {
+    if (event?.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setDraggingId(null);
+    setDragOverId(null);
+  }
+
+  function keyboardMove(event: React.KeyboardEvent<HTMLButtonElement>, clientId: string) {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+    event.preventDefault();
+    move(clientId, event.key === "ArrowUp" ? -1 : 1);
   }
 
   function remove(clientId: string) {
@@ -270,7 +317,15 @@ export function SessionEditor({
           </div>
         )}
         {draft.map((exercise, index) => (
-          <div key={exercise.clientId} className="rounded-[1.35rem] border border-filet bg-carte p-3.5">
+          <div
+            key={exercise.clientId}
+            data-editor-exercise-id={exercise.clientId}
+            className={`rounded-[1.35rem] border bg-carte p-3.5 transition-[border-color,box-shadow,opacity] ${
+              dragOverId === exercise.clientId && draggingId !== exercise.clientId
+                ? "border-primary shadow-[0_0_0_2px_color-mix(in_srgb,var(--primary)_25%,transparent)]"
+                : "border-filet"
+            } ${draggingId === exercise.clientId ? "opacity-70 shadow-lg" : ""}`}
+          >
             <div className="flex items-start gap-3">
               <span className="mt-1 text-sm text-encre-3 chiffres">{index + 1}</span>
               {exercise.slug ? <IllustrationExercice slug={exercise.slug} nom={exercise.nom} className="size-11 shrink-0 text-encre-2" /> : <span className="size-11 shrink-0 rounded-xl bg-papier-2" />}
@@ -286,9 +341,21 @@ export function SessionEditor({
                 </span>
               </button>
               <div className="flex shrink-0 flex-col items-center gap-1">
-                <GripVertical className="size-4 text-encre-3" aria-hidden />
-                <button type="button" onClick={() => move(exercise.clientId, -1)} disabled={index === 0} aria-label={`Monter ${exercise.nom}`} className="grid size-9 place-items-center rounded-xl text-encre-3 hover:bg-papier-2 disabled:opacity-30"><ArrowUp className="size-4" aria-hidden /></button>
-                <button type="button" onClick={() => move(exercise.clientId, 1)} disabled={index === draft.length - 1} aria-label={`Descendre ${exercise.nom}`} className="grid size-9 place-items-center rounded-xl text-encre-3 hover:bg-papier-2 disabled:opacity-30"><ArrowDown className="size-4" aria-hidden /></button>
+                <button
+                  type="button"
+                  aria-label={`Maintenir pour déplacer ${exercise.nom}`}
+                  aria-pressed={draggingId === exercise.clientId}
+                  title="Maintiens pour déplacer"
+                  className="grid size-10 touch-none cursor-grab place-items-center rounded-xl text-encre-3 hover:bg-papier-2 active:cursor-grabbing"
+                  style={{ touchAction: "none" }}
+                  onPointerDown={(event) => startDragging(event, exercise.clientId)}
+                  onPointerMove={dragOver}
+                  onPointerUp={stopDragging}
+                  onPointerCancel={stopDragging}
+                  onKeyDown={(event) => keyboardMove(event, exercise.clientId)}
+                >
+                  <GripVertical className="size-5" aria-hidden />
+                </button>
                 <button type="button" onClick={() => remove(exercise.clientId)} aria-label={`Supprimer ${exercise.nom}`} className="grid size-9 place-items-center rounded-xl text-perte hover:bg-perte/10"><Trash2 className="size-4" aria-hidden /></button>
               </div>
             </div>
