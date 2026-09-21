@@ -3,6 +3,7 @@ import { DetailsLive } from "./DetailsLive";
 import { Feu } from "@/components/carnet/Feu";
 import type { ExercicePrescrit } from "./types";
 import { classeDuMotif, estUneMontee } from "./motif-progression";
+import { TrendingUp } from "lucide-react";
 
 interface Props {
   feuJour?: string | null;
@@ -55,6 +56,25 @@ export function BandeauAdaptation({
       aria-label="Adaptations de la séance"
       className="live-adaptation border-b border-filet bg-papier-2 px-4 py-2 space-y-2"
     >
+      {/* La hausse se voit SANS rien ouvrir.
+
+          Une charge qui monte est la contrepartie du travail accompli : elle
+          méritait mieux qu'une phrase rangée dans un détail fermé. Le filtre
+          est `estUneMontee` — une référence tronquée ou une butée d'appareil
+          ne sont pas des hausses et restent dans le détail, sans couleur de
+          gain. */}
+      {hausses.length > 0 && (
+        <p className="flex items-center gap-2 text-sm font-semibold text-gain" role="status">
+          <TrendingUp className="w-4 h-4 shrink-0" aria-hidden />
+          <span>
+            {hausses.length === 1
+              ? `Bravo, ta charge augmente sur ${hausses[0]!.nom}${
+                  hausses[0]!.messageProgression ? ` · ${hausses[0]!.messageProgression}` : ""
+                }`
+              : `Bravo, ta charge augmente sur ${hausses.length} exercices`}
+          </span>
+        </p>
+      )}
       <DetailsLive titre="Adaptations de la séance" action={volumeReduit ? `Séance adaptée · volume −${Math.abs(volumeAjustePct!)} % · Pourquoi ?` : "Les ajustements de cette séance"}>
       {feuJour && (
         <p className="flex items-center gap-2 text-sm text-encre-2">

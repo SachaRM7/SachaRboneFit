@@ -1,9 +1,9 @@
 import { db } from "@/db/client";
 import {
-  contraintes, dailyStates, exerciseInTemplate, exerciseInstances, exercises,
+  dailyStates, exerciseInTemplate, exerciseInstances, exercises,
   programmeBlocs, seanceTemplates, sessionLogs, sessionPlanItems, setLogs, users,
 } from "@/db/schema";
-import { and, asc, desc, eq, ne, getTableName, inArray, isNull, or, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, getTableName, inArray, isNull, sql } from "drizzle-orm";
 import { computeFeuJour, etatPourLeMoteur } from "@/lib/engine/feu-biologique";
 import { contraintesActives } from "./contraintes";
 import { musclesSousContrainte } from "@/lib/engine/contraintes";
@@ -17,10 +17,11 @@ import { resoudrePourSalle, type InstanceResolvable } from "@/lib/engine/resolut
 import { versMuscles } from "@/lib/referentiels/muscles";
 import { expliquerRetours } from "@/services/retours";
 import type { DailyStateInput } from "@/lib/validators/daily-state";
-import type { SessionLog, SessionPlanItem } from "@/db/schema";
+import type { PrescriptionParDefaut, SessionLog, SessionPlanItem } from "@/db/schema";
 import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { seriesRealisees } from "@/lib/engine/serie-realisee";
 import { chargerContexteColdStart } from "@/services/cold-start";
+import { REPOS_PAR_DEFAUT_SECONDES } from "@/lib/session-composer/draft";
 
 /**
  * Construction de la seance du jour.
@@ -112,6 +113,9 @@ async function musclesAMenager(
  * qu'une machine hors service en sort — et y revient.
  */
 export async function chargerParc(userId: string): Promise<InstanceResolvable[]> {
+  // Le paramètre fait partie du contrat d'isolation du service. Le parc est
+  // actuellement partagé entre comptes ; l'appelant reste néanmoins explicite.
+  void userId;
   const lignes = await db
     .select({
       id: exerciseInstances.id,
@@ -152,8 +156,28 @@ export async function chargerParc(userId: string): Promise<InstanceResolvable[]>
  * Ce n'est pas une recommandation d'entraînement : c'est ce qui permet au
  * chronomètre de démarrer, donc à l'intervalle entre séries d'être mesuré. Sans
  * lui, `lancerRepos` sort immédiatement et la colonne reste vide.
+ *
+ * La valeur vient des défauts historiques partagés : elle est écrite telle
+ * quelle à la création d'un exercice, et relue ici pour tout ce qui a été créé
+ * avant. Deux constantes à 120 auraient fini par diverger.
  */
-export const REPOS_PAR_DEFAUT_SECONDES = 120;
+export { REPOS_PAR_DEFAUT_SECONDES };
+
+/**
+ * `0` n'est pas une charge : c'est l'absence d'historique.
+ *
+ * `computeNextSets` rend `0` quand il n'a rien sur quoi s'appuyer — « je ne
+ * propose rien », pas « fais 0 kg ». Les deux chemins qui exposent sa réponse
+ * (le plan calculé et le repli du gabarit) écrivaient la valeur brute : l'écran
+ * de séance pré-remplissait donc le champ kg avec un zéro, et l'utilisateur
+ * devait l'effacer avant de saisir quoi que ce soit.
+ *
+ * La conversion est ici, en un seul endroit : les deux chemins ne peuvent plus
+ * diverger sur ce que veut dire « rien à proposer ».
+ */
+export function chargeAffichable(charge: number | null | undefined): number | null {
+  return charge != null && Number.isFinite(charge) && charge > 0 ? charge : null;
+}
 
 /**
  * Combien de séries la séance de référence demandait pour CETTE machine.
@@ -504,7 +528,13 @@ export async function construireSeanceDuJour(ctx: ContexteSeance): Promise<Resul
                 // pour la séance entière. La même donnée ne peut pas avoir deux
                 // défauts à 78 lignes d'écart.
                 reposSecondes: r.ligne.reposSecondes ?? REPOS_PAR_DEFAUT_SECONDES,
-                chargeSuggeree: suggestion.charge || null,
+                // La charge programmée voyage à côté de la suggestion : elle
+                // ne la remplace jamais, et elle est recopiée ici pour que le
+                // plan reste la décision prise ce jour-là même si le gabarit
+                // change ensuite.
+                chargeCible: r.ligne.chargeCible,
+                prescriptionParDefaut: r.ligne.prescriptionParDefaut,
+                chargeSuggeree: chargeAffichable(suggestion.charge),
                 repsSuggerees: suggestion.reps,
                 messageProgression: suggestion.messageProgression,
                 statut: "prevu" as const,
@@ -593,6 +623,23 @@ export interface ItemPlanEnrichi {
   /** Ce qu'il faut saisir sur cet appareil, et dans quel sens le lire. */
   conventionCharge: string;
   natureCharge: string;
+  /**
+   * La charge que l'utilisateur a programmée sur cet exercice, en kg.
+   *
+   * `null` quand rien n'a été programmé, ET quand la machine du jour n'est pas
+   * celle du programme : après une substitution, la charge choisie appartient à
+   * l'appareil prévu, pas au remplaçant. Zéro n'y apparaît jamais — un zéro
+   * écrit par défaut serait une charge inventée.
+   */
+  chargeCible: number | null;
+  /**
+   * Les champs de prescription que personne n'a choisis, remplis par défaut.
+   *
+   * Vide quand l'utilisateur a tout renseigné. C'est ce qui permet à l'écran de
+   * demander de les confirmer, au lieu de présenter « 3 × 8-12 » comme une
+   * prescription.
+   */
+  prescriptionParDefaut: PrescriptionParDefaut;
   chargeSuggeree: number | null;
   repsSuggerees: number[] | null;
   messageProgression: string | null;
@@ -634,6 +681,8 @@ export async function lirePlan(userId: string, sessionLogId: string) {
       tempo: sessionPlanItems.tempo,
       reposSecondes: sessionPlanItems.reposSecondes,
       chargeSuggeree: sessionPlanItems.chargeSuggeree,
+      chargeCible: sessionPlanItems.chargeCible,
+      prescriptionParDefaut: sessionPlanItems.prescriptionParDefaut,
       repsSuggerees: sessionPlanItems.repsSuggerees,
       messageProgression: sessionPlanItems.messageProgression,
       raisonSubstitution: sessionPlanItems.raisonSubstitution,
@@ -647,6 +696,7 @@ export async function lirePlan(userId: string, sessionLogId: string) {
        */
       contexteAdaptation: sessionPlanItems.contexteAdaptation,
       exerciseInstancePrevuId: sessionPlanItems.exerciseInstancePrevuId,
+      substitutionDeInstanceId: sessionPlanItems.substitutionDeInstanceId,
       machineNom: exerciseInstances.machineNom,
       exerciseId: exerciseInstances.exerciseId,
       incrementsPossibles: exerciseInstances.incrementsPossibles,
@@ -690,9 +740,22 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         reps: s.reps,
         rpe: null,
       }));
+      /*
+       * La charge programmée ne s'applique qu'à l'appareil prévu.
+       *
+       * Après une substitution, `exerciseInstanceId` n'est plus celui du
+       * programme : annoncer « tu avais programmé 40 kg » sur une machine où
+       * l'utilisateur n'a rien programmé serait exactement le transfert de
+       * charge que la substitution refuse. En cas de doute — la seule trace est
+       * `substitutionDeInstanceId` — on se tait.
+       */
+      const machineDuProgramme = l.substitutionDeInstanceId == null
+        && (l.exerciseInstancePrevuId == null || l.exerciseInstancePrevuId === l.exerciseInstanceId);
+      const chargeProgrammee = machineDuProgramme ? l.chargeCible : null;
       const premiereCharge = estimerDepuisInstance({
         instance: l,
         chargeSuggereeHistorique: l.chargeSuggeree,
+        chargeProgrammee,
         historiqueInstance: historique,
         conventionCharge: l.conventionCharge,
         profil: contexteColdStart.coldStart,
@@ -728,6 +791,8 @@ export async function lirePlan(userId: string, sessionLogId: string) {
         poidsNonCompte: l.poidsNonCompte,
         conventionCharge: l.conventionCharge,
         natureCharge: l.natureCharge,
+        chargeCible: chargeProgrammee,
+        prescriptionParDefaut: l.prescriptionParDefaut ?? [],
         chargeSuggeree: l.chargeSuggeree,
         repsSuggerees: l.repsSuggerees,
         messageProgression: l.messageProgression,

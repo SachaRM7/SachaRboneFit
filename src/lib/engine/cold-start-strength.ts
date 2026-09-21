@@ -5,6 +5,7 @@ export const VERSION_MODELE_COLD_START = "cold-start-v1.0.0";
 export type OriginePremiereCharge =
   | "serie_courante"
   | "historique_instance"
+  | "charge_programmee"
   | "minimum_materiel"
   | "indisponible";
 
@@ -41,6 +42,15 @@ interface EntreesColdStart {
   chargeCourante?: number | null;
   chargeSuggereeHistorique?: number | null;
   historiqueInstance?: { charge: number }[];
+  /**
+   * La charge que l'utilisateur a programmee sur son exercice, en kg.
+   *
+   * Elle n'est ni mesuree ni calculee : elle est DECLAREE. C'est pourquoi elle
+   * a sa propre origine — l'appeler « estimation » ferait passer un choix de
+   * l'utilisateur pour une deduction de l'application, et personne ne pourrait
+   * plus savoir quoi corriger quand elle ne convient pas.
+   */
+  chargeProgrammee?: number | null;
   conventionCharge?: string | null;
   configuration: ConfigurationCharge;
   profil?: ProfilColdStart | null;
@@ -62,17 +72,24 @@ const resultat = (
 /**
  * Résout le premier nombre affichable sans fabriquer de force théorique.
  *
- * La fonction encode l'ordre d'autorité disponible aujourd'hui. Les transferts
- * entre appareils et les priors anthropométriques restent volontairement hors
- * de cette version : le projet ne possède ni table d'équivalence documentée,
- * ni coefficient primaire assez général pour convertir un profil en charge
- * sûre sur une machine donnée.
+ * La fonction encode l'ordre d'autorité disponible aujourd'hui : ce qui vient
+ * d'être fait pendant cette séance, puis l'historique de cette machine, puis la
+ * charge que l'utilisateur a programmée, puis le premier cran réel de
+ * l'appareil. Les transferts entre appareils et les priors anthropométriques
+ * restent volontairement hors de cette version : le projet ne possède ni table
+ * d'équivalence documentée, ni coefficient primaire assez général pour
+ * convertir un profil en charge sûre sur une machine donnée.
+ *
+ * Aucune branche de cette fonction ne calcule une progression : dès qu'un
+ * historique existe, c'est `computeNextSets` qui décide, et ici on ne fait que
+ * le relayer.
  */
 export function estimerPremiereCharge(entrees: EntreesColdStart): EstimationPremiereCharge {
   const {
     chargeCourante,
     chargeSuggereeHistorique,
     historiqueInstance = [],
+    chargeProgrammee,
     conventionCharge,
     configuration,
   } = entrees;
@@ -93,6 +110,20 @@ export function estimerPremiereCharge(entrees: EntreesColdStart): EstimationPrem
       "haute",
       "historique_instance",
       "Calculée à partir de tes séries précédentes sur cette machine.",
+    );
+  }
+
+  // La charge programmee vient APRES l'historique, et avant tout repere
+  // materiel : c'est une intention de l'utilisateur, donc plus precise que le
+  // premier cran de la machine — mais moins autoritaire qu'une serie deja
+  // faite, qui est un fait. La confiance est « moyenne » pour la meme raison :
+  // le nombre est certain, son adequation au jour ne l'est pas.
+  if (chargeProgrammee != null && Number.isFinite(chargeProgrammee) && chargeProgrammee > 0) {
+    return resultat(
+      chargeProgrammee,
+      "moyenne",
+      "charge_programmee",
+      "Charge que tu as programmée pour cet exercice. Elle sert de repère jusqu'à ta première série saisie.",
     );
   }
 

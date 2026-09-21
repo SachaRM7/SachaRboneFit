@@ -132,6 +132,30 @@ describe("cas 1 — première machine sans historique", () => {
     expect(estimation).not.toHaveTextContent(/estimé/i);
   });
 
+  it("préremplit une charge déclarée dans le programme même hors calibration", () => {
+    render(
+      <LecteurExercice
+        exercice={{
+          ...EXERCICE,
+          premiereCharge: {
+            charge: 42.5,
+            confiance: "moyenne",
+            origine: "charge_programmee",
+            explication: "Charge que tu as programmée pour cet exercice.",
+            versionModele: "cold-start-v1.0.0",
+          },
+        } as never}
+        rpeReduction={0}
+        modeReserve={false}
+        onSerieValidee={() => {}}
+        onSuivant={null}
+      />,
+    );
+
+    expect(screen.getByLabelText("Charge série 1")).toHaveValue("42.5");
+    expect(screen.getByLabelText("Répétitions série 1")).toHaveValue("8");
+  });
+
   it("sépare la cible du ressenti et ne présélectionne aucune réponse", async () => {
     rendre();
     expect(screen.queryByRole("group", { name: "Ton ressenti : répétitions encore possibles" })).not.toBeInTheDocument();

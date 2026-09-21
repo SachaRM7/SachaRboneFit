@@ -89,6 +89,18 @@ function updateExercise(
   };
 }
 
+/**
+ * Le kg visé d'un exercice du brouillon.
+ *
+ * `null` veut dire « aucun poids décidé » et aucun zéro n'est fabriqué : un
+ * champ vide n'est pas une charge de 0 kg. La valeur traverse le schéma
+ * partagé, qui la déclare facultative — un brouillon sans charge reste valide.
+ */
+function chargeCibleDe(exercise: SessionDraftExercise): number | null {
+  const charge = exercise.chargeCible;
+  return typeof charge === "number" && Number.isFinite(charge) ? charge : null;
+}
+
 function plural(count: number, singular: string, pluralForm = `${singular}s`) {
   return count > 1 ? pluralForm : singular;
 }
@@ -117,6 +129,9 @@ export function SessionComposer({
   const [query, setQuery] = useState("");
   const [saving, setSaving] = useState<SessionScope["type"] | null>(null);
 
+  /* Le stockage navigateur est une source externe et ne peut être lu pendant
+     le rendu serveur. Sa valeur est donc restaurée après hydratation. */
+  /* eslint-disable react-hooks/set-state-in-effect -- synchronisation initiale avec localStorage */
   useEffect(() => {
     try {
       const stored = window.localStorage.getItem(storageKey);
@@ -130,6 +145,7 @@ export function SessionComposer({
     }
     setHydrated(true);
   }, [storageKey]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!hydrated) return;
@@ -190,6 +206,16 @@ export function SessionComposer({
     setDraft((current) => ({
       ...current,
       exercises: normalizeDraftExercises(current.exercises.filter((exercise) => exercise.clientId !== clientId)),
+    }));
+  }
+
+  /** La charge visée, en kg — facultative, et vide par défaut. */
+  function definirCharge(clientId: string, chargeCible: number | null) {
+    setDraft((current) => ({
+      ...current,
+      exercises: current.exercises.map((exercise) =>
+        exercise.clientId === clientId ? { ...exercise, chargeCible } : exercise,
+      ),
     }));
   }
 
@@ -288,6 +314,7 @@ export function SessionComposer({
             <div className="space-y-2.5">
               {draft.exercises.map((exercise, index) => {
                 const machine = machines.find((item) => item.id === exercise.exerciseInstanceId);
+                const chargeKg = chargeCibleDe(exercise);
                 return (
                   <details key={exercise.clientId} className="group rounded-2xl border border-filet bg-carte open:shadow-sm">
                     <summary className="flex min-h-20 cursor-pointer list-none items-center gap-3 p-3.5 [&::-webkit-details-marker]:hidden">
@@ -295,7 +322,7 @@ export function SessionComposer({
                       {machine?.slug && <IllustrationExercice slug={machine.slug} nom={machine.name} className="size-10 shrink-0 text-encre-2" />}
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{machine?.name ?? "Exercice indisponible"}</span>
-                        <span className="mt-0.5 block truncate text-xs text-encre-3">{exercise.sets} × {exercise.repMin}–{exercise.repMax} · {exercise.targetRir === null ? "réserve libre" : `${exercise.targetRir} en réserve`} · {exercise.restSeconds}s</span>
+                        <span className="mt-0.5 block truncate text-xs text-encre-3">{exercise.sets} × {exercise.repMin}–{exercise.repMax} · {exercise.targetRir === null ? "réserve libre" : `${exercise.targetRir} en réserve`} · {exercise.restSeconds}s{chargeKg !== null ? ` · ${chargeKg} kg` : ""}</span>
                       </span>
                       <ChevronDown className="size-4 shrink-0 text-encre-3 transition-transform group-open:rotate-180" aria-hidden />
                     </summary>
@@ -314,7 +341,7 @@ export function SessionComposer({
                         <NumberField label="Reps min" value={exercise.repMin} min={1} max={50} onChange={(repMin) => setDraft((current) => updateExercise(current, exercise.clientId, { repMin }))} />
                         <NumberField label="Reps max" value={exercise.repMax} min={1} max={50} onChange={(repMax) => setDraft((current) => updateExercise(current, exercise.clientId, { repMax }))} />
                       </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2.5">
+                      <div className="mt-3 grid grid-cols-2 gap-2.5">
                         <label className="space-y-1.5 text-xs font-medium text-encre-2">Réserve cible
                           <select value={exercise.targetRir ?? "none"} onChange={(event) => setDraft((current) => updateExercise(current, exercise.clientId, { targetRir: event.target.value === "none" ? null : Number(event.target.value) }))} className="h-10 w-full rounded-xl border border-input bg-transparent px-2 text-sm">
                             <option value="none">Libre</option>
@@ -325,6 +352,24 @@ export function SessionComposer({
                           <Input value={exercise.tempo ?? ""} onChange={(event) => setDraft((current) => updateExercise(current, exercise.clientId, { tempo: event.target.value || null }))} placeholder="3-0-1-0" className="h-10 px-2.5" />
                         </label>
                         <NumberField label="Repos (s)" value={exercise.restSeconds} min={0} max={900} onChange={(restSeconds) => setDraft((current) => updateExercise(current, exercise.clientId, { restSeconds }))} />
+                        {/* Facultatif, et vide par défaut : la charge n'est pas
+                            déduite d'un profil ni d'un coefficient — seule
+                            une personne sait ce qu'elle compte mettre sur la
+                            machine, et elle peut aussi ne rien décider. */}
+                        <label className="space-y-1.5 text-xs font-medium text-encre-2">Charge (kg) · Facultatif
+                          <Input
+                            type="text"
+                            inputMode="decimal"
+                            value={chargeKg === null ? "" : String(chargeKg)}
+                            placeholder="—"
+                            className="h-10 px-2.5"
+                            onChange={(event) => {
+                              const brut = event.target.value.trim().replace(",", ".");
+                              const nombre = brut === "" ? null : Number(brut);
+                              definirCharge(exercise.clientId, nombre !== null && Number.isFinite(nombre) ? nombre : null);
+                            }}
+                          />
+                        </label>
                       </div>
                     </div>
                   </details>

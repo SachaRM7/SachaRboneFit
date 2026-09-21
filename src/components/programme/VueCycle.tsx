@@ -3,10 +3,8 @@ import Link from "next/link";
 import { useCoach, DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { useState } from "react";
 import {
-  ChevronRight,
   Info,
   Sparkles,
-  Wrench,
   Check,
   ArrowUpRight,
 } from "lucide-react";
@@ -74,7 +72,6 @@ function Etiquette({ etat, adaptee }: { etat: EtatSeance; adaptee: boolean }) {
     </>
   );
 }
-
 function EtatVide({
   titre,
   texte,
@@ -357,35 +354,5 @@ export function VueCycle({ vue }: { vue: VueProgramme }) {
         </p>
       </section>
     </div>
-  );
-}
-
-/**
- * L'édition manuelle reste entière, mais cesse d'être la première chose vue.
- * Elle s'adresse à quelqu'un qui sait ce qu'il modifie ; l'écran, lui,
- * s'adresse d'abord à quelqu'un qui veut comprendre.
- */
-export function OptionsAvancees({ children }: { children: React.ReactNode }) {
-  const [ouvert, setOuvert] = useState(false);
-
-  return (
-    <section className="pt-2">
-      <button
-        type="button"
-        onClick={() => setOuvert((o) => !o)}
-        aria-expanded={ouvert}
-        className="w-full flex items-center justify-between py-3 text-encre-2 text-sm border-t border-filet"
-      >
-        <span className="flex flex-wrap items-center gap-2">
-          <Wrench className="w-4 h-4" aria-hidden />
-          Édition avancée
-        </span>
-        <ChevronRight
-          className={`w-4 h-4 transition-transform ${ouvert ? "rotate-90" : ""}`}
-          aria-hidden
-        />
-      </button>
-      {ouvert && <div className="pt-2">{children}</div>}
-    </section>
   );
 }

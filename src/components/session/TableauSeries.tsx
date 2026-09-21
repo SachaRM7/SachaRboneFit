@@ -17,6 +17,21 @@ import {
 import { useSaisieSeries, type SerieValidee } from "./useSaisieSeries";
 import { GuidagePremiereSerie, PreparationMachine } from "./GuidagePremiereSerie";
 import { phasesDuTempo, tempoAvecSecondes } from "./execution-client";
+import { ecrireTempo, lireTempo } from "@/lib/engine/execution";
+
+/**
+ * Le tempo PRESCRIT, écrit comme sur la ligne de prescription.
+ *
+ * Il n'apparaissait qu'une fois le contexte d'exécution chargé, donc souvent
+ * pas du tout en début de séance. `exercice.tempo` porte pourtant déjà la
+ * consigne : elle se lit maintenant dans l'en-tête, à côté des séries et des
+ * répétitions. Les secondes et les mots restent dans la fiche technique.
+ */
+function tempoPrescrit(tempo: string | null | undefined): string | null {
+  if (!tempo) return null;
+  const lu = lireTempo(tempo);
+  return lu ? ecrireTempo(lu) : tempo.trim() || null;
+}
 
 interface Props {
   exercice: ExercicePrescrit;
@@ -118,6 +133,7 @@ export function TableauSeries({
         phasesDuTempo(contexte.tempo.tempo, contexte.fiche?.libellesPhasesTempo),
       )
     : null;
+  const tempoDeLaPrescription = tempoPrescrit(exercice.tempo);
 
   return (
     <section
@@ -155,6 +171,7 @@ export function TableauSeries({
               : ""}
             {exercice.seriesCibles} × {exercice.fourchetteRepsMin}–
             {exercice.fourchetteRepsMax}
+            {tempoDeLaPrescription ? ` · tempo ${tempoDeLaPrescription}` : ""}
             {exercice.reposSecondes ? ` · repos ${exercice.reposSecondes} s` : ""}
             {/* Dit dans la même ligne discrète que le reste : la colonne RPE
                 pouvait être vide sans qu'on sache si c'était un oubli de
