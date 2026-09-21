@@ -123,7 +123,10 @@ export function SessionOverview({
         </div>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 z-20 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-3 pointer-events-none">
+      <div
+        className="session-overview-actions fixed inset-x-0 z-20 px-4 pt-3 pointer-events-none"
+        style={{ bottom: "var(--barre-nav)" }}
+      >
         <div className="mx-auto flex max-w-2xl gap-2 rounded-[1.5rem] border border-filet bg-papier/95 p-2 shadow-[0_-10px_30px_rgba(20,30,24,.1)] backdrop-blur pointer-events-auto">
           <Link href={`/sessions/new/${detail.id}/edit`} prefetch={false} className="flex h-12 flex-1 items-center justify-center gap-2 rounded-full border border-filet bg-carte px-3 text-sm font-medium text-encre-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-encre">
             <Edit3 className="size-4" aria-hidden /> Modifier

@@ -944,6 +944,10 @@ h3,
   backdrop-filter: blur(20px);
   border-top: 1px solid var(--filet-doux);
 }
+.session-overview-actions {
+  /* The mobile navigation owns the bottom edge; keep the overview CTAs above it. */
+  bottom: var(--barre-nav) !important;
+}
 .nav-items {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1184,6 +1188,9 @@ h3,
     padding: 34px 20px 110px !important;
     backdrop-filter: none;
     background: var(--carte);
+  }
+  .session-overview-actions {
+    bottom: 0 !important;
   }
   .sidebar-brand {
     display: flex;
