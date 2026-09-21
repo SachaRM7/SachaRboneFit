@@ -131,6 +131,51 @@ export function SessionHub({
         </section>
       )}
 
+      {templates.length > 0 && (
+        <section className="mb-8" aria-labelledby="programmed-sessions">
+          <div className="mb-3 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-encre-3">{blockName ?? "Ton programme"}</p>
+              <h2 id="programmed-sessions" className="mt-1 font-heading text-xl font-semibold">Toutes les séances</h2>
+            </div>
+            <Link href="/programme" className="text-sm font-medium text-encre-2 underline-offset-4 hover:underline">Gérer</Link>
+          </div>
+          <div className="space-y-2.5">
+            {templates.map((template) => (
+              <article
+                key={template.id}
+                className="flex min-h-[4.5rem] items-center gap-2 rounded-2xl border border-filet bg-carte p-3 transition-colors hover:border-encre-3"
+              >
+                <Link
+                  href={`/sessions/new/${template.id}/details`}
+                  prefetch={false}
+                  aria-label={`Voir le détail de ${template.name}`}
+                  className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-encre"
+                >
+                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-papier-2 font-heading font-semibold">{template.marker}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{template.name}</span>
+                    <span className={`block text-xs ${next?.id === template.id ? "text-gain" : "text-encre-3"}`}>
+                      {next?.id === template.id ? "Prochaine dans la rotation" : "Dans la rotation"}
+                    </span>
+                  </span>
+                  <ArrowRight className="size-5 shrink-0 text-encre-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+                </Link>
+                <Link
+                  href={`/sessions/compose?source=${template.id}`}
+                  prefetch={false}
+                  aria-label={`Dupliquer ${template.name}`}
+                  onClick={(event) => event.stopPropagation()}
+                  className="grid size-10 shrink-0 place-items-center rounded-full text-encre-3 hover:bg-papier-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-encre"
+                >
+                  <Copy className="size-4" aria-hidden />
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="mb-8 rounded-[1.75rem] bg-[#e9efe8] p-5 text-encre dark:bg-papier-2">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-encre-3">Prends le contrôle</p>
         <h2 className="mt-2 font-heading text-xl font-semibold">Crée la séance que tu veux faire.</h2>
@@ -139,46 +184,12 @@ export function SessionHub({
             <span className="flex items-center gap-2"><Plus aria-hidden /> Composer moi-même</span>
             <ArrowRight aria-hidden />
           </Link>
-          <Button type="button" variant="outline" className="h-12 justify-between rounded-full border-filet bg-carte px-5" onClick={() => ouvrir("construire_seance")}> 
+          <Button type="button" variant="outline" className="h-12 justify-between rounded-full border-filet bg-carte px-5" onClick={() => ouvrir("construire_seance")}>
             <span className="flex items-center gap-2"><Sparkles aria-hidden /> Demander au Coach</span>
             <ArrowRight aria-hidden />
           </Button>
         </div>
       </section>
-
-      {templates.length > 0 && (
-        <section aria-labelledby="programmed-sessions">
-          <div className="mb-3 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-encre-3">Ton programme</p>
-              <h2 id="programmed-sessions" className="mt-1 font-heading text-xl font-semibold">Partir d&apos;une base</h2>
-            </div>
-            <Link href="/programme" className="text-sm font-medium text-encre-2 underline-offset-4 hover:underline">Voir le programme</Link>
-          </div>
-          <div className="space-y-2.5">
-            {templates.map((template) => (
-              <article key={template.id} className="flex items-center gap-2 rounded-2xl border border-filet bg-carte p-3 transition-colors hover:border-encre-3">
-                <Link
-                  href={`/sessions/new/${template.id}/details`}
-                  prefetch={false}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-encre"
-                  aria-label={`Voir le détail de ${template.name}`}
-                >
-                  <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-papier-2 font-heading font-semibold">{template.marker}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{template.name}</span>
-                    {next?.id === template.id && <span className="block text-xs text-gain">Prochaine dans la rotation</span>}
-                  </span>
-                  <ArrowRight className="size-4 shrink-0 text-encre-3" aria-hidden />
-                </Link>
-                <Link href={`/sessions/compose?source=${template.id}`} prefetch={false} aria-label={`Dupliquer ${template.name}`} className="flex h-10 shrink-0 items-center gap-1 rounded-full px-2 text-[0.75rem] font-medium text-encre-2 hover:bg-papier-2">
-                  <Copy className="size-3.5" aria-hidden /> Dupliquer
-                </Link>
-              </article>
-            ))}
-          </div>
-        </section>
-      )}
 
       {/* Un programme sans séance se dit : une section absente se lirait comme
           une page qui n'a rien chargé. */}
