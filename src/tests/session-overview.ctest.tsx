@@ -41,7 +41,7 @@ const detail: SeanceProgrammeDetail = {
 
 describe("vue de consultation d'une séance", () => {
   it("expose le détail, la fiche exercice et le mode édition", () => {
-    render(
+    const { container } = render(
       <FournisseurCoach>
         <SessionOverview detail={detail} defaultGymId="gym-test" />
       </FournisseurCoach>,
@@ -64,5 +64,8 @@ describe("vue de consultation d'une séance", () => {
       "href",
       "/sessions/new/template-push?gymId=gym-test",
     );
+    expect(container.querySelector(".session-overview-actions")).toHaveStyle({
+      bottom: "var(--barre-nav)",
+    });
   });
 });
