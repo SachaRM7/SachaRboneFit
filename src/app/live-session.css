@@ -1746,3 +1746,280 @@
   .focus-carte .mesure-choix { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .live-aides-compactes { gap: 0 6px; }
 }
+
+/* -------------------------------------------------------------------------
+   Live Focus — hiérarchie de séance
+
+   Ces règles ne changent ni les sources ni les actions du Live. Elles donnent
+   simplement une place stable à l'état de la séance, aux consignes de
+   l'exercice et à la série active.
+   ------------------------------------------------------------------------- */
+.live-focus-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* Le chrono visible de la nouvelle barre de résumé suffit ; le nœud conservé
+   dans la surface persistante maintient le contrat de rendu historique sans
+   afficher deux durées concurrentes. */
+.live-session-persistent .live-time-context {
+  display: none;
+}
+.live-focus-title {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 6px;
+}
+.live-focus-title > button {
+  flex-shrink: 0;
+}
+.live-focus-title h1 {
+  overflow: hidden;
+  color: var(--encre);
+  font-family: var(--font-heading);
+  font-size: clamp(1.05rem, 5vw, 1.25rem);
+  font-weight: 650;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-focus-title p {
+  margin-top: 3px;
+  overflow: hidden;
+  color: var(--encre-3);
+  font-size: .72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.live-focus-progress {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 7px;
+  color: var(--encre-3);
+}
+.live-focus-progress .mascotte {
+  width: 34px;
+  height: 34px;
+}
+.live-progress-segments {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 78px;
+}
+.live-progress-segments span {
+  display: block;
+  width: 14px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--filet-doux);
+}
+.live-progress-segments span.is-complete {
+  background: var(--gain);
+}
+.live-progress-segments span.is-current {
+  background: var(--electric);
+}
+.live-progress-count {
+  font-size: .75rem;
+  white-space: nowrap;
+}
+.live-focus-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+  margin: 10px 0 2px;
+}
+.live-focus-summary-item {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--papier-2);
+}
+.live-focus-summary-item > span {
+  color: var(--encre-3);
+  font-size: .63rem;
+}
+.live-focus-summary-item > strong,
+.live-focus-summary-item > div > span {
+  color: var(--encre);
+  font-family: var(--font-heading);
+  font-size: .92rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+.live-focus-summary-item > div {
+  display: block;
+  padding: 0;
+}
+.live-focus-summary-item > div > span {
+  font-size: .92rem;
+}
+.live-finish-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 56px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary) 13%, var(--papier));
+  color: var(--primary);
+  font-size: .72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.live-finish-button:active {
+  transform: translateY(1px);
+}
+
+.focus-exercise-info {
+  display: grid;
+  gap: 9px;
+}
+.focus-exercise-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.focus-exercise-tags span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--papier-2);
+  color: var(--encre-2);
+  font-size: .7rem;
+  font-weight: 600;
+}
+.focus-exercise-tags span:first-child {
+  background: color-mix(in srgb, var(--primary) 12%, var(--papier-2));
+  color: var(--primary);
+}
+.focus-exercise-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.focus-exercise-metrics > div {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  min-height: 56px;
+  padding: 7px 5px;
+  border-radius: 13px;
+  background: var(--papier-2);
+  text-align: center;
+}
+.focus-exercise-metrics strong {
+  overflow: hidden;
+  color: var(--encre);
+  font-family: var(--font-heading);
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.focus-exercise-metrics span {
+  margin-top: 4px;
+  color: var(--encre-3);
+  font-size: .59rem;
+  line-height: 1.1;
+}
+.focus-technique-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 13px;
+  border-radius: 14px;
+  background: var(--papier-2);
+  color: var(--encre-2);
+  font-size: .78rem;
+  font-weight: 600;
+  text-align: left;
+}
+.focus-technique-link:active {
+  background: var(--filet-doux);
+}
+.focus-history {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 60px;
+  padding: 10px 13px;
+  border: 1px solid var(--filet-doux);
+  border-radius: 15px;
+  background: var(--carte);
+}
+.focus-history > div {
+  min-width: 0;
+}
+.focus-history > div > span {
+  display: block;
+  margin-top: 3px;
+  color: var(--encre-3);
+  font-size: .66rem;
+}
+.focus-history > strong {
+  color: var(--encre);
+  font-size: .86rem;
+  text-align: right;
+}
+.focus-carte .serie-en-cours {
+  margin: 0;
+  border-radius: 22px;
+  padding: 18px 16px;
+}
+.focus-carte .serie-en-cours .mesure-valeur {
+  color: var(--hero-ink);
+}
+.focus-carte .serie-en-cours .mesure-ligne > button {
+  background: #ffffff14;
+  color: var(--hero-ink);
+}
+.focus-carte .serie-en-cours .mesure-ligne > button:active {
+  background: #ffffff24;
+}
+.focus-carte .serie-valider {
+  min-height: 60px;
+  background: var(--electric);
+  color: #263727;
+}
+.serie-effort-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid #ffffff24;
+  border-radius: 999px;
+  color: var(--hero-ink);
+  font-size: .67rem;
+  white-space: nowrap;
+}
+.focus-carte .live-detail-trigger {
+  justify-self: start;
+  min-height: 40px;
+  padding-inline: 0;
+  color: var(--encre-2);
+  font-size: .73rem;
+}
+
+@media (max-width: 379px) {
+  .live-focus-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .live-finish-button {
+    grid-column: 1 / -1;
+  }
+  .focus-exercise-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -25,6 +25,7 @@ import { libelleCibleEffort } from "@/components/programme/cible-effort";
 import { GuidagePremiereSerie, PreparationMachine } from "./GuidagePremiereSerie";
 import { phasesDuTempo, tempoAvecSecondes } from "./execution-client";
 import { ecrireTempo, lireTempo } from "@/lib/engine/execution";
+import { libelleMuscle } from "@/lib/referentiels/libelles";
 import type { ExercicePrescrit } from "./types";
 
 /**
@@ -101,6 +102,7 @@ export function LecteurExercice({
       )
     : null;
   const tempoDeLaPrescription = tempoPrescrit(exercice.tempo);
+  const muscles = (exercice.musclesPrincipaux ?? []).slice(0, 3);
 
   return (
     <article className="focus-carte">
@@ -145,6 +147,38 @@ export function LecteurExercice({
           <span>/{avancement.cibles}</span>
         </span>
       </header>
+
+      <section className="focus-exercise-info" aria-label="Consignes de l'exercice">
+        {muscles.length > 0 && (
+          <div className="focus-exercise-tags" aria-label="Muscles sollicités">
+            {muscles.map((muscle) => <span key={muscle}>{libelleMuscle(muscle)}</span>)}
+          </div>
+        )}
+        <div className="focus-exercise-metrics">
+          <div>
+            <strong className="chiffres">{exercice.seriesCibles} × {exercice.fourchetteRepsMin}–{exercice.fourchetteRepsMax}</strong>
+            <span>Séries × reps</span>
+          </div>
+          <div>
+            <strong>{libelleCibleEffort(exercice.rpeCible) || "Libre"}</strong>
+            <span>Effort cible</span>
+          </div>
+          <div>
+            <strong className="chiffres">{exercice.reposSecondes ?? "—"}{exercice.reposSecondes !== null && exercice.reposSecondes !== undefined ? " s" : ""}</strong>
+            <span>Repos</span>
+          </div>
+          <div>
+            <strong className="chiffres">{tempoDeLaPrescription ?? "—"}</strong>
+            <span>Tempo</span>
+          </div>
+        </div>
+        {contexte && (
+          <button type="button" className="focus-technique-link" onClick={() => setFiche(true)}>
+            <span>Technique & réglages</span>
+            <ChevronRight className="w-4 h-4" aria-hidden />
+          </button>
+        )}
+      </section>
 
       {(exercice.raisonSubstitution || exercice.messageProgression) && (
         <DetailsLive titre="Pourquoi cette prescription ?" action="Pourquoi cette charge / cet exercice ?">
@@ -249,21 +283,20 @@ export function LecteurExercice({
         />
       )}
 
+      {derniereFois && (
+        <section className="focus-history" aria-label="Historique de cet exercice">
+          <div>
+            <p className="eyebrow">Historique de cet exercice</p>
+            <span>Dernier repère</span>
+          </div>
+          <strong className="chiffres">{derniereFois}</strong>
+        </section>
+      )}
+
       <div className="live-aides-compactes">
       <details className="live-exercise-help">
         <summary>{sansRepere ? "Aide · premier repère" : "Mes repères"}</summary>
       <div className="lecteur-reperes">
-        {derniereFois && (
-          <section>
-            <p className="eyebrow">Dernière fois</p>
-            {/* Jamais de faux repère : après une substitution, la nouvelle machine
-                n'a pas d'historique, et emprunter la charge de l'ancienne ferait
-                croire à une progression là où le même nombre ne déplace pas la
-                même chose. */}
-            <p className="lecteur-repere-valeur chiffres">{derniereFois}</p>
-          </section>
-        )}
-
         {contexte && (contexte.tempo || contexte.resumeReglages || contexte.note) && (
           <section>
             <p className="eyebrow">Repères</p>
@@ -294,9 +327,6 @@ export function LecteurExercice({
       )}
 
       </details>
-      {contexte && <button type="button" className="live-technique-link" onClick={() => setFiche(true)}>
-        Technique & réglages
-      </button>}
       </div>
 
       {/* ------------------------------------------------------------------
@@ -334,7 +364,7 @@ export function LecteurExercice({
           ------------------------------------------------------------------ */}
       {coach && !exercice.raisonSubstitution && !exercice.messageProgression && <button className="coach-text-action live-detail-trigger" onClick={() => coach.ouvrir("expliquer_seance", {
         typeEntite: "instance", entiteId: exercice.id, numeroSerie: serieCourante ?? undefined,
-      })}>Pourquoi cette charge ?</button>}
+      })}>Conseil du coach</button>}
       <div className="lecteur-actions">
         {actions}
         <button type="button" onClick={ajouterUneSerie}>
@@ -450,6 +480,11 @@ function SerieEnCours({
             <>Série <span className="chiffres">{numero}</span> sur <span className="chiffres">{total}</span></>
           )}
         </p>
+        {!ressenti && reserveCible !== null && (
+          <span className="serie-effort-badge">
+            {reserveCible} reps en réserve
+          </span>
+        )}
         {/* Discrète, jamais rouge en permanence : c'est un geste rare, pas une
             alarme. Elle ne s'affiche que sur une série hors prescription — la
             prescription, elle, appartient au moteur. */}
@@ -657,7 +692,7 @@ function SerieEnCours({
           taille sur l'écran, pour qu'aucun autre ne lui ressemble. */}
       <button type="button" onClick={ressenti ? onValider : terminerSerie} className="serie-valider" disabled={ressenti && modeReserve && reserve === null}>
         <Check className="w-5 h-5" aria-hidden />
-        {ressenti ? "Enregistrer la série" : "J’ai fini ma série"}
+        {ressenti ? "Enregistrer la série" : "Valider la série"}
       </button>
     </section>
   );

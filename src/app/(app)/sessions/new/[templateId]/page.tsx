@@ -37,7 +37,6 @@ import { ClotureSeance } from "@/components/session/ClotureSeance";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
 import { ObservateurSeance } from "@/components/session/ObservateurSeance";
 import { ChronoSeance } from "@/components/session/ChronoSeance";
-import { Feu } from "@/components/carnet/Feu";
 import { modeSaisieEffort } from "@/lib/engine/reserve";
 import { resoudreMascotteLive } from "@/lib/coach/resoudre-mascotte";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
@@ -943,8 +942,8 @@ function ContenuSeanceLive() {
         className="live-session-header sticky z-20 bg-papier border-b border-filet px-4 py-2"
         style={{ top: "var(--marge-haut)" }}
       >
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="live-focus-topline">
+          <div className="live-focus-title">
             <Button
               variant="ghost"
               size="icon"
@@ -953,11 +952,15 @@ function ContenuSeanceLive() {
             >
               <ArrowLeft className="w-5 h-5 text-encre-2" />
             </Button>
-            <h1 className="text-lg font-semibold text-encre truncate">
-              {seance.nom}
-            </h1>
+            <div className="min-w-0">
+              <h1>Séance du jour</h1>
+              <p>
+                {seance.nom === "Séance du jour" ? "Séance" : seance.nom}
+                {visibles.length > 0 && ` · Exercice ${index + 1} sur ${visibles.length}`}
+              </p>
+            </div>
           </div>
-          <span className="flex items-center gap-2 text-xs text-encre-3 shrink-0">
+          <div className="live-focus-progress" aria-label={`${termines} exercices terminés sur ${visibles.length}`}>
             {/*
               LA PRÉSENCE AMBIANTE DU COACH — la seule du Live.
 
@@ -979,12 +982,42 @@ function ContenuSeanceLive() {
                 anime={etatMascotte === "encouragement"}
               />
             )}
-            <Feu niveau={seance.feuBiologiqueJour} />
-            <span className="chiffres">
-              {termines}/{visibles.length}
-            </span>{" "}
-            exercices
-          </span>
+            <div className="live-progress-segments" aria-hidden="true">
+              {visibles.map((exercise, exerciseIndex) => {
+                const statut = etats.find((etat) => etat.id === exercise.id)?.statut;
+                return (
+                  <span
+                    key={exercise.id}
+                    className={exerciseIndex < index || statut === "termine" ? "is-complete" : exerciseIndex === index ? "is-current" : undefined}
+                  />
+                );
+              })}
+            </div>
+            <span className="live-progress-count chiffres">{termines}/{visibles.length}</span>
+          </div>
+        </div>
+        <div className="live-focus-summary">
+          <div className="live-focus-summary-item">
+            <span>Durée</span>
+            {active?.startedAt ? (
+              <ChronoSeance
+                demarreeA={active.startedAt}
+                dureeCibleMinutes={seance.dureeCibleMinutes}
+                dureeMaxMinutes={seance.dureeMaxMinutes}
+              />
+            ) : <strong className="chiffres">00:00</strong>}
+          </div>
+          <div className="live-focus-summary-item">
+            <span>Volume estimé</span>
+            <strong className="chiffres">— kg</strong>
+          </div>
+          <button
+            type="button"
+            className="live-finish-button"
+            onClick={() => router.push(`/sessions/new/${templateId}/finish`)}
+          >
+            <span aria-hidden>□</span> Finir la séance
+          </button>
         </div>
         <nav
           className="live-session-persistent"

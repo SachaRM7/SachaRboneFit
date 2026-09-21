@@ -23,6 +23,8 @@ export interface ExercicePrescrit {
   exerciseId?: string | null;
   machineNom: string;
   slug?: string | null;
+  /** Muscles principalement sollicités, quand le plan les expose au Live. */
+  musclesPrincipaux?: string[];
   seriesCibles: number;
   seriesPrevuesAvantAjustement?: number | null;
   fourchetteRepsMin: number;
