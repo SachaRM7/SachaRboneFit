@@ -149,7 +149,7 @@ describe("une seule présence forte par surface", () => {
   it("le Live n'affiche jamais l'ambiante en même temps que la feuille de repos", () => {
     // Deux mascottes à l'écran pour un seul état, et l'image cesse de vouloir
     // dire quoi que ce soit.
-    expect(LIVE).toMatch(/etatMascotte !== "repos" &&/);
+    expect(src("components/session/EnteteLive.tsx")).toMatch(/etatMascotte !== "repos" &&/);
   });
 
   it("l'accueil n'a qu'un seul point de calcul", () => {

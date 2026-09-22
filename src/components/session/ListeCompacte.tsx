@@ -10,7 +10,7 @@ import {
   Zap,
 } from "@/components/ui/icons";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
-import { libelleMuscle } from "@/lib/referentiels/libelles";
+import { ligneMusclesLive } from "./presentation-live";
 import { ecrireTempo, lireTempo } from "@/lib/engine/execution";
 import type { AvancementExercice } from "@/lib/live/vue-live";
 import type { ExercicePrescrit } from "./types";
@@ -51,7 +51,7 @@ export function ListeCompacte({
           const actif = index === courant;
           const termine = etat.statut === "termine";
           const tempo = tempoPrescrit(exercice.tempo);
-          const muscles = (exercice.musclesPrincipaux ?? []).slice(0, 3);
+          const muscles = ligneMusclesLive(exercice.musclesPrincipaux, exercice.musclesSecondaires);
 
           return (
             <li
@@ -97,9 +97,7 @@ export function ListeCompacte({
                     )}
                   </span>
                   <span className="live-list-muscles">
-                    {muscles.length > 0
-                      ? muscles.map((muscle) => libelleMuscle(muscle)).join(" · ")
-                      : reportes.includes(etat.id) ? "Reporté" : ""}
+                    {muscles ?? (reportes.includes(etat.id) ? "Reporté" : "")}
                   </span>
                 </span>
                 <span className="live-list-open" aria-hidden><ChevronRight /></span>

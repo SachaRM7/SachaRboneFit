@@ -217,6 +217,37 @@ function seriesAttenduesDeLaReference() {
 export interface ReferenceExercice {
   sets: Array<{ numero: number; reps: number; charge: number; rpe: number | null }>;
   seriesAttendues: number | null;
+  /** Affichage uniquement ; la progression continue de lire `sets`. */
+  historiqueSeances: SeanceHistorique[];
+}
+
+/** Ce qu'une séance passée montre d'un exercice, pour la lecture. */
+export interface SeanceHistorique {
+  sessionLogId: string;
+  /** Date réelle de la séance, au format `YYYY-MM-DD`. */
+  date: string;
+  sets: Array<{ numero: number; charge: number; reps: number; rpe: number | null }>;
+}
+
+export const SEANCES_HISTORIQUE_LIVE = 2;
+
+/** Entrée triée par séance décroissante ; une séance reste entière. */
+export function seancesRecentes<T extends {
+  sessionLogId: string; date: string; numero: number; charge: number; reps: number;
+  rpe: number | null;
+}>(valides: T[], limite = SEANCES_HISTORIQUE_LIVE): SeanceHistorique[] {
+  const parSeance = new Map<string, SeanceHistorique>();
+  for (const ligne of valides) {
+    const existante = parSeance.get(ligne.sessionLogId);
+    if (!existante && parSeance.size === limite) break;
+    const seance = existante
+      ?? { sessionLogId: ligne.sessionLogId, date: ligne.date, sets: [] };
+    seance.sets.push({
+      numero: ligne.numero, charge: ligne.charge, reps: ligne.reps, rpe: ligne.rpe,
+    });
+    parSeance.set(ligne.sessionLogId, seance);
+  }
+  return [...parSeance.values()];
 }
 
 /**
@@ -247,6 +278,7 @@ export async function dernieresSeriesPour(
     .select({
       exerciseInstanceId: setLogs.exerciseInstanceId,
       sessionLogId: setLogs.sessionLogId,
+      date: sessionLogs.date,
       numero: setLogs.numeroSerie,
       reps: setLogs.repsEffectuees,
       charge: setLogs.charge,
@@ -302,6 +334,8 @@ export async function dernieresSeriesPour(
       // Identique sur toutes les lignes de la référence : la sous-requête ne
       // dépend que de la séance et de la machine.
       seriesAttendues: deLaReference[0]!.seriesAttendues ?? null,
+      // Les deux dernières séances datées, tirées des mêmes lignes filtrées.
+      historiqueSeances: seancesRecentes(valides),
     });
   }
 
@@ -654,6 +688,8 @@ export interface ItemPlanEnrichi {
    */
   lignee: string[];
   historique: { charge: number; reps: number; rpe: number | null }[];
+  /** Historique daté de présentation, distinct de la référence de progression. */
+  historiqueSeances: SeanceHistorique[];
   /** Proposition explicable de cold-start, calculée à la lecture et jamais persistée. */
   premiereCharge: EstimationPremiereCharge;
 }
@@ -810,19 +846,18 @@ export async function lirePlan(userId: string, sessionLogId: string) {
             ? [l.exerciseInstancePrevuId, l.exerciseInstanceId]
             : []),
         historique,
+        historiqueSeances: derniere?.historiqueSeances ?? [],
         premiereCharge,
       };
     }),
   );
 
-  // La phase du cycle change ce qu'on demande à l'utilisateur pendant la
-  // séance : en calibration, une réserve de répétitions plutôt qu'un RPE.
-  const bloc = seance.seanceTemplateId
+  const template = seance.seanceTemplateId
     ? await db.query.seanceTemplates
         .findFirst({ where: eq(seanceTemplates.id, seance.seanceTemplateId) })
-        .then((t) =>
-          t ? db.query.programmeBlocs.findFirst({ where: eq(programmeBlocs.id, t.blocId) }) : null,
-        )
+    : null;
+  const bloc = template
+    ? await db.query.programmeBlocs.findFirst({ where: eq(programmeBlocs.id, template.blocId) })
     : null;
 
   /**
@@ -836,6 +871,8 @@ export async function lirePlan(userId: string, sessionLogId: string) {
     seance,
     items,
     phaseCycle: bloc?.typeCycle ?? null,
+    nom: template?.nom ?? null,
+    lettre: template?.lettre ?? null,
     dureeCibleMinutes: contexteColdStart.dureeCibleMinutes,
     dureeMaxMinutes: contexteColdStart.dureeMaxMinutes,
   };

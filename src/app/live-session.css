@@ -90,11 +90,6 @@
    gestes qui n'attendent pas. Les redescendre dans la zone défilante les rendait
    introuvables au milieu d'une séance. Cette rangée ne quitte donc pas
    l'en-tête, quelle que soit la vue. */
-
-.live-session-header {
-  backdrop-filter: blur(12px);
-  background: color-mix(in srgb, var(--papier) 88%, transparent);
-}
 .live-session-persistent {
   display: flex;
   align-items: center;
@@ -326,51 +321,7 @@
    LE FOCUS — un lecteur de séance
    =========================================================================== */
 
-.focus-v2 {
-  display: grid;
-  gap: 14px;
-}
-
 /* La navigation : le RANG porte la position, le nom est déjà en grand dessous. */
-.focus-nav {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.focus-nav > button {
-  display: grid;
-  place-items: center;
-  min-width: 48px;
-  min-height: 48px;
-  border-radius: 16px;
-  background: var(--carte);
-  color: var(--encre-2);
-  transition: background-color 160ms ease;
-}
-.focus-nav > button:disabled {
-  opacity: 0.3;
-}
-.focus-nav > button:not(:disabled):active {
-  background: var(--papier-2);
-}
-.focus-nav-rang {
-  flex: 1;
-  min-width: 0;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 14px;
-}
-.focus-nav-rang > .chiffres {
-  font-family: var(--font-heading);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--encre);
-}
-.focus-nav-rang > svg {
-  color: var(--encre-3);
-}
 
 /* --- Le lecteur lui-même --- */
 
@@ -385,68 +336,14 @@
    Une seule carte, donc, avec ses sections internes. Elle se détache par son
    rayon, son fond et une ombre très légère — pas par des bordures.
    --------------------------------------------------------------------------- */
-
-.focus-carte {
-  background: var(--carte);
-  border-radius: 28px;
-  padding: 18px 16px 16px;
-  display: grid;
-  gap: 12px;
-  /* La profondeur, à peine : la V2 sépare par le fond et l'espace, pas par le trait. */
-  box-shadow:
-    0 1px 2px color-mix(in srgb, var(--encre) 5%, transparent),
-    0 12px 28px -14px color-mix(in srgb, var(--encre) 22%, transparent);
-  /* Un changement d'exercice se sent, sans spectacle. */
-  animation: focus-entre 260ms ease;
-}
 @keyframes focus-entre {
   from {
     opacity: 0;
     transform: translateY(6px);
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .focus-carte {
-    animation: none;
-  }
-}
 
 /* --- Le hero : le dessin fait l'identité de l'exercice --- */
-
-.lecteur-hero {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.lecteur-illustration {
-  flex-shrink: 0;
-  width: 104px;
-  height: 104px;
-  display: grid;
-  place-items: center;
-  border-radius: 24px;
-  background: var(--papier-2);
-  color: var(--encre-2);
-  padding: 9px;
-}
-.lecteur-titre {
-  min-width: 0;
-  flex: 1;
-}
-.lecteur-titre h2 {
-  font-size: clamp(23px, 6.2vw, 30px);
-  font-weight: 550;
-  line-height: 1.05;
-  letter-spacing: -0.035em;
-  color: var(--encre);
-  overflow-wrap: anywhere;
-}
-.lecteur-titre p {
-  margin-top: 5px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--encre-3);
-}
 .lecteur-avancement {
   flex-shrink: 0;
   align-self: flex-start;
@@ -592,25 +489,7 @@
    partagent une rangée, les crans ont fondu de 60 à 48 px (au-dessus des 44 px
    d'iOS), et le contexte de l'exercice reste visible au-dessus.
    --------------------------------------------------------------------------- */
-
-.serie-en-cours {
-  background: var(--hero);
-  color: var(--hero-ink);
-  border-radius: 22px;
-  padding: 14px 13px;
-  display: grid;
-  gap: 11px;
-}
 /* Le bandeau de la série : son rang à gauche, son geste rare à droite. */
-.serie-en-cours-tete {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  /* La poubelle est plus haute que le titre : on la laisse déborder du flux
-     plutôt que d'épaissir le bandeau pour elle seule. */
-  margin-block: -6px;
-}
 /*
  * Supprimer une série ajoutée à la main.
  *
@@ -636,127 +515,17 @@
   color: #ffb4a2;
   background: #ffffff1f;
 }
-
-.serie-en-cours-titre {
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: #b6c5b6;
-}
-.serie-en-cours-titre .chiffres {
-  color: var(--electric);
-  font-size: 12px;
-}
-.serie-en-cours .eyebrow {
-  color: #9fb3a1;
-  font-size: 9px;
-}
-
-.mesures-paire {
-  display: grid;
-  /*
-   * `minmax(0, 1fr)` et non `1fr`.
-   *
-   * Le minimum implicite d'une colonne de grille est `auto`, c'est-à-dire la
-   * taille MINIMALE DU CONTENU : un champ de saisie revendique la largeur de
-   * son attribut `size`, la colonne refusait de descendre en dessous, et la
-   * valeur débordait puis se faisait rogner. À 320 px, « 32,5 » s'affichait
-   * « 32. » — un chiffre faux, sur l'écran qui sert à charger la machine.
-   */
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-.mesure {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-.mesure-ligne {
-  display: grid;
-  /* La colonne du nombre ne descend jamais sous son contenu : `minmax(0, 1fr)`
-     partout où un champ vit dans une grille, sinon il déborde et se fait rogner. */
-  grid-template-columns: 42px minmax(0, 1fr) 42px;
-  align-items: center;
-  gap: 4px;
-}
-.mesure-ligne > button {
-  display: grid;
-  place-items: center;
-  height: 48px;
-  border-radius: 14px;
-  background: #ffffff14;
-  color: var(--hero-ink);
-  transition: background-color 140ms ease, transform 140ms ease;
-}
-.mesure-ligne > button:active {
-  background: #ffffff2b;
-  transform: scale(0.95);
-}
 /* La valeur reste un champ : toucher le nombre ouvre le clavier. Le parcours
    normal passe par les crans, les cas particuliers par la saisie. */
-.mesure-valeur {
-  width: 100%;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  text-align: center;
-  font-family: var(--font-heading);
-  /*
-   * Dimensionné pour « 32,5 » à 320 px, pas pour « 60 ».
-   *
-   * Une charge à décimale est le cas courant sur les machines à pile ; c'est
-   * elle qui décide de la taille, et non le nombre le plus court. Avec le
-   * palier précédent la valeur se faisait couper et « 32,5 » s'affichait
-   * « 32. » — un nombre faux sur l'écran qui sert à charger la machine.
-   */
-  font-size: clamp(21px, 6vw, 30px);
-  font-weight: 500;
-  letter-spacing: -0.04em;
-  line-height: 1;
-  color: var(--hero-ink);
-}
-.mesure-valeur:focus {
-  outline: none;
-  color: var(--electric);
-}
-.mesure-valeur::placeholder {
-  color: #ffffff40;
-}
-.mesure-aide,
-.reserve-question,
-.reserve-objectif {
+.mesure-aide {
   font-size: 10px;
   line-height: 1.4;
 }
-.mesure-aide,
-.reserve-objectif {
+.mesure-aide {
   color: #9fb3a1;
-}
-.reserve-question {
-  color: var(--hero-ink);
 }
 
 /* Les crans de réserve : des pastilles, pas un menu déroulant. */
-.mesure-choix {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 5px;
-}
-.mesure-choix > button {
-  min-height: 46px;
-  border-radius: 13px;
-  background: #ffffff14;
-  color: var(--hero-ink);
-  font-family: var(--font-heading);
-  font-size: 16px;
-  font-weight: 550;
-  transition: background-color 140ms ease;
-}
-.mesure-choix > button[aria-pressed="true"] {
-  background: var(--electric);
-  color: #263727;
-}
 
 .mesure-alerte {
   display: grid;
@@ -805,28 +574,6 @@
    la consigne de calibration est repliée par défaut, comme dans l'application.
    Le CTA tient alors dans le premier écran, à sa place, sans rien recouvrir.
 */
-.serie-valider {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 56px;
-  border-radius: 17px;
-  background: var(--electric);
-  color: #263727;
-  font-family: var(--font-heading);
-  font-size: 16px;
-  font-weight: 650;
-  letter-spacing: 0.01em;
-  transition: transform 160ms ease, background-color 160ms ease;
-}
-.serie-valider:hover {
-  background: #e8f7b9;
-}
-.serie-valider:active {
-  transform: scale(0.985);
-}
 
 /* --- La fin d'une étape : un état, pas un formulaire vide --- */
 
@@ -881,7 +628,6 @@
 
 /* --- Les actions de l'exercice, hiérarchisées --- */
 
-.lecteur-actions,
 .live-carte-actions {
   display: flex;
   flex-wrap: wrap;
@@ -890,13 +636,10 @@
 /* « Remplacer » est l'action structurante : elle prend la largeur. Les deux
    incidents restent côte à côte, immédiatement atteignables — une action
    critique ne s'enterre pas dans un menu. */
-.lecteur-actions > *:first-child,
 .live-carte-actions > *:first-child {
   flex: 1 1 100%;
 }
-.lecteur-actions button,
 .live-carte-actions button,
-.lecteur-actions > *:first-child > button,
 .live-carte-actions > *:first-child > button {
   width: 100%;
   min-height: 48px;
@@ -910,12 +653,10 @@
   font-weight: 600;
   text-decoration: none;
 }
-.lecteur-actions > button:not(:first-child),
 .live-carte-actions > button:not(:first-child) {
   flex: 1 1 0;
   min-width: 0;
 }
-.lecteur-actions button:active,
 .live-carte-actions button:active {
   background: var(--filet-doux);
 }
@@ -1361,12 +1102,6 @@
   .live-session > main {
     padding-top: 8px;
   }
-  .live-session-header h1 {
-    font-size: 16px;
-  }
-  .live-session-header {
-    padding-bottom: 0;
-  }
   .live-session-persistent {
     margin-inline: -4px;
   }
@@ -1394,9 +1129,7 @@
     height: 44px;
   }
   /* « Machine occupée » tenait sur deux lignes et déséquilibrait la rangée. */
-  .lecteur-actions button,
   .live-carte-actions button,
-  .lecteur-actions > *:first-child > button,
   .live-carte-actions > *:first-child > button {
     font-size: 12px;
     padding: 0 8px;
@@ -1408,30 +1141,11 @@
      et une série déjà faite au-dessus de la série en cours. Chaque interligne
      compte pour que le CTA reste dans le premier écran — c'est le contrôle
      `captures.mts` qui arbitre, pas l'œil. */
-  .focus-carte {
-    padding: 13px 12px 12px;
-    border-radius: 24px;
-    gap: 8px;
-  }
-  .lecteur-titre h2 {
-    font-size: 21px;
-  }
   .lecteur-reperes {
     gap: 4px 14px;
   }
   /* Toutes ces cibles restent au-dessus des 44 px d'iOS : c'est la marge
      au-dessus du plancher qui est rendue, pas le plancher lui-même. */
-  .serie-valider {
-    min-height: 52px;
-  }
-  .lecteur-hero {
-    gap: 11px;
-  }
-  .lecteur-illustration {
-    width: 72px;
-    height: 72px;
-    border-radius: 19px;
-  }
   .lecteur-reperes {
     padding: 6px 12px;
   }
@@ -1445,44 +1159,13 @@
   }
   /* Une carte peut porter deux séries faites ET une série ajoutée : c'est la
      composition la plus haute du Live, et celle qui décide du palier étroit. */
-  .serie-en-cours {
-    gap: 9px;
-  }
-  .mesure {
-    gap: 5px;
-  }
   .lecteur-avancement {
     font-size: 20px;
   }
   /* Les crans passent sous la valeur : à 320 px, trois colonnes par mesure et
      deux mesures par rangée ne laissent plus 44 px au bouton. La cible reste
      entière, c'est la disposition qui cède. */
-  .mesures-paire {
-    gap: 8px;
-  }
-  .mesure-ligne {
-    grid-template-columns: 38px minmax(0, 1fr) 38px;
-    gap: 3px;
-  }
-  .mesure-ligne > button {
-    height: 44px;
-    border-radius: 12px;
-  }
   /* « 32,5 » doit tenir en entier : c'est la charge d'une pile, pas un cas rare. */
-  .mesure-valeur {
-    font-size: 20px;
-  }
-  .mesure-choix {
-    gap: 4px;
-  }
-  .mesure-choix > button {
-    min-height: 44px;
-    font-size: 15px;
-    border-radius: 12px;
-  }
-  .serie-en-cours {
-    padding: 13px 11px;
-  }
   .lecteur-faites > li {
     flex-wrap: wrap;
     gap: 4px 8px;
@@ -1649,12 +1332,6 @@
   color: var(--encre-3);
 }
 /* Live orienté action : mêmes données, niveaux de lecture distincts. */
-.focus-carte { border: 0; box-shadow: none; overflow: hidden; }
-.lecteur-hero { padding: 1rem 1rem .5rem; gap: .8rem; }
-.lecteur-illustration { width: 64px; height: 74px; flex-shrink: 0; }
-.lecteur-titre h2 { font-size: clamp(1.2rem, 5.5vw, 1.6rem); line-height: 1.12; }
-.lecteur-titre p { font-size: .75rem; }
-.lecteur-hero .lecteur-avancement { display: none; }
 .live-exercise-help { padding: 0 1rem; font-size: .8rem; }
 .live-exercise-help > summary, .live-debrief-detail > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; color: var(--primary); font-weight: 600; }
 .live-exercise-help > summary::after, .live-debrief-detail > summary::after { content: '+'; margin-left: auto; }
@@ -1665,15 +1342,10 @@
 .live-detail-sheet [data-slot="dialog-header"] { position: relative; padding: 1.25rem 4rem 1.25rem 1.25rem; border-bottom: 1px solid var(--filet-doux); }
 .live-detail-close { position: absolute; right: .75rem; top: .75rem; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--papier-2); cursor: pointer; }
 .live-detail-body { padding: 1.25rem max(1.25rem, env(safe-area-inset-right)) max(1.5rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left)); min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: grid; gap: 1rem; }
-.serie-en-cours { margin: .5rem; padding: 1rem; border-radius: 1.2rem; }
-.mesures-paire[hidden] { display: none; }
-.mesure-valeur { font-variant-numeric: tabular-nums; }
 .live-effort-cible { font-size: .8rem; margin: .5rem 0; color: var(--encre-2); }
 .live-ressenti-recap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; }
 .live-ressenti-recap strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
 .live-ressenti-recap button { min-height: 44px; text-decoration: underline; text-underline-offset: 3px; font-size: .75rem; cursor: pointer; }
-.serie-valider { min-height: 56px; font-size: 1rem; }
-.serie-valider:disabled { opacity: .45; cursor: not-allowed; }
 .live-adaptation { padding-block: 0; border: 0; background: transparent; }
 .live-adaptation > .live-detail-trigger { padding-inline: 0; }
 .coach-constat { padding-block: .6rem; }
@@ -1690,47 +1362,15 @@
 .live-debrief-detail { border-top: 1px solid var(--filet-doux); }
 .live-save { min-height: 56px; }
 .live-save-error { padding: 1rem; background: var(--perte-fond); color: var(--perte); border-radius: 1rem; }
-.live-session :is(button,a,summary):focus-visible, .live-detail-sheet :is(button,a,summary):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
-@media (max-width: 359px) {
-  .serie-en-cours { padding: .75rem; }
-  .mesure-valeur { font-size: 1.65rem; }
-  .lecteur-illustration { width: 52px; height: 62px; }
-}
+.live-session :is(button,a,summary):focus-visible,.live-detail-sheet :is(button,a,summary):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 @media (min-width: 640px) {
   .live-detail-sheet[data-slot="dialog-content"] { top: 50%; bottom: auto; translate: -50% -50%; border-radius: 1.5rem; max-height: 85dvh; }
 }
 /* Les chiffres ont toute la largeur de leur colonne ; les crans restent à 44 px. */
-.serie-en-cours .mesures-paire .mesure-ligne { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem; }
-.serie-en-cours .mesures-paire .mesure-valeur { grid-column: 1 / -1; grid-row: 1; min-height: 50px; font-size: clamp(2rem, 8vw, 3rem); }
-.serie-en-cours .mesures-paire .mesure-ligne > :is(button,span) { grid-row: 2; }
 .live-effort-cible { color: #cbd7c9; }
-.focus-nav { margin-bottom: .5rem; }
 .live-session > main { padding-top: .5rem; }
 
 /* Polish ciblé : mêmes surfaces pour la saisie, le ressenti et l'édition. */
-.focus-carte .serie-en-cours {
-  display: flex;
-  flex-direction: column;
-  min-height: 292px;
-  gap: 14px;
-  border: 1px solid transparent;
-}
-.focus-carte .serie-en-cours[data-edition] { border-color: var(--electric); }
-.focus-carte .serie-en-cours-titre { display: flex; align-items: center; gap: 5px; }
-.focus-carte .serie-valider { width: 100%; margin-top: auto; border-radius: 14px; }
-.focus-carte .live-ressenti { gap: 12px; }
-.focus-carte .reserve-question { font-family: var(--font-heading); font-size: 1.08rem; line-height: 1.35; font-weight: 550; }
-.focus-carte .reserve-objectif { font-size: .75rem; }
-.focus-carte .live-ressenti-recap { padding-bottom: 8px; border-bottom: 1px solid #ffffff1f; }
-.focus-carte .live-ressenti-recap strong { font-size: 1.1rem; }
-.focus-carte .live-ressenti-recap button { color: #cbd7c9; }
-.focus-carte .mesure-choix { gap: 6px; grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.focus-carte .mesure-choix > button { min-height: 48px; border-radius: 12px; }
-.focus-carte .lecteur-faites { margin: 0 .5rem; }
-.focus-carte .lecteur-faites > li { flex-wrap: nowrap; padding: 4px 10px; gap: 8px; background: var(--papier-2); border-radius: 14px; }
-.focus-carte .lecteur-faites > li > button { min-width: 44px; padding: 0; justify-content: center; }
-.focus-carte .lecteur-faite-nom { font-size: .65rem; }
-.focus-carte .lecteur-faite-valeur { flex: 1; font-size: .78rem; }
 .live-aides-compactes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 8px; margin: 0 .5rem; align-items: start; }
 .live-aides-compactes .live-exercise-help { padding: 0; font-size: .75rem; }
 .live-aides-compactes .live-exercise-help > summary { gap: 6px; font-weight: 500; color: var(--encre-2); }
@@ -1739,1166 +1379,6 @@
 .live-aides-compactes :is(.premier-repere, .preparation-machine, .premier-repere-estimation) { background: transparent; border: 0; box-shadow: none; padding-inline: 0; }
 .live-aides-compactes .premier-repere { margin: 0; }
 .live-aides-compactes .premier-repere-conseil { background: var(--papier-2); color: var(--encre-2); border-radius: 12px; }
-.focus-carte .lecteur-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0 .5rem .5rem; }
-.focus-carte .lecteur-actions > *:first-child { min-width: 0; }
-.focus-carte .lecteur-actions button { min-height: 44px; border-radius: 12px; padding: 0 8px; font-size: .75rem; font-weight: 500; display: flex; justify-content: center; align-items: center; gap: 5px; }
 @media (max-width: 379px) {
-  .focus-carte .mesure-choix { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .live-aides-compactes { gap: 0 6px; }
-}
-/* -------------------------------------------------------------------------
-   Live Focus — hiérarchie de séance
-
-   Ces règles ne changent ni les sources ni les actions du Live. Elles donnent
-   simplement une place stable à l'état de la séance, aux consignes de
-   l'exercice et à la série active.
-   ------------------------------------------------------------------------- */
-.live-focus-topline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-/* Le chrono visible de la nouvelle barre de résumé suffit ; le nœud conservé
-   dans la surface persistante maintient le contrat de rendu historique sans
-   afficher deux durées concurrentes. */
-.live-session-persistent .live-time-context {
-  display: none;
-}
-.live-focus-title {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  gap: 6px;
-}
-.live-focus-title > button {
-  flex-shrink: 0;
-}
-.live-focus-title h1 {
-  overflow: hidden;
-  color: var(--encre);
-  font-family: var(--font-heading);
-  font-size: clamp(1.05rem, 5vw, 1.25rem);
-  font-weight: 650;
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.live-focus-title p {
-  margin-top: 3px;
-  overflow: hidden;
-  color: var(--encre-3);
-  font-size: .72rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.live-focus-progress {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: 7px;
-  color: var(--encre-3);
-}
-.live-focus-progress .mascotte {
-  width: 34px;
-  height: 34px;
-}
-.live-progress-segments {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  max-width: 78px;
-}
-.live-progress-segments span {
-  display: block;
-  width: 14px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--filet-doux);
-}
-.live-progress-segments span.is-complete {
-  background: var(--gain);
-}
-.live-progress-segments span.is-current {
-  background: var(--electric);
-}
-.live-progress-count {
-  font-size: .75rem;
-  white-space: nowrap;
-}
-.live-focus-summary {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: stretch;
-  gap: 8px;
-  margin: 10px 0 2px;
-}
-.live-focus-summary-item {
-  display: grid;
-  align-content: center;
-  gap: 3px;
-  min-width: 0;
-  padding: 8px 10px;
-  border-radius: 14px;
-  background: var(--papier-2);
-}
-.live-focus-summary-item > span {
-  color: var(--encre-3);
-  font-size: .63rem;
-}
-.live-focus-summary-item > strong,
-.live-focus-summary-item > div > span {
-  color: var(--encre);
-  font-family: var(--font-heading);
-  font-size: .92rem;
-  font-weight: 600;
-  line-height: 1.1;
-}
-.live-focus-summary-item > div {
-  display: block;
-  padding: 0;
-}
-.live-focus-summary-item > div > span {
-  font-size: .92rem;
-}
-.live-finish-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 56px;
-  padding: 0 12px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--primary) 13%, var(--papier));
-  color: var(--primary);
-  font-size: .72rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
-.live-finish-button:active {
-  transform: translateY(1px);
-}
-
-.focus-exercise-info {
-  display: grid;
-  gap: 9px;
-}
-.focus-exercise-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.focus-exercise-tags span {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: var(--papier-2);
-  color: var(--encre-2);
-  font-size: .7rem;
-  font-weight: 600;
-}
-.focus-exercise-tags span:first-child {
-  background: color-mix(in srgb, var(--primary) 12%, var(--papier-2));
-  color: var(--primary);
-}
-.focus-exercise-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 6px;
-}
-.focus-exercise-metrics > div {
-  display: grid;
-  align-content: center;
-  min-width: 0;
-  min-height: 56px;
-  padding: 7px 5px;
-  border-radius: 13px;
-  background: var(--papier-2);
-  text-align: center;
-}
-.focus-exercise-metrics strong {
-  overflow: hidden;
-  color: var(--encre);
-  font-family: var(--font-heading);
-  font-size: .78rem;
-  font-weight: 600;
-  line-height: 1.15;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.focus-exercise-metrics span {
-  margin-top: 4px;
-  color: var(--encre-3);
-  font-size: .59rem;
-  line-height: 1.1;
-}
-.focus-technique-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 48px;
-  padding: 0 13px;
-  border-radius: 14px;
-  background: var(--papier-2);
-  color: var(--encre-2);
-  font-size: .78rem;
-  font-weight: 600;
-  text-align: left;
-}
-.focus-technique-link:active {
-  background: var(--filet-doux);
-}
-.focus-history {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 60px;
-  padding: 10px 13px;
-  border: 1px solid var(--filet-doux);
-  border-radius: 15px;
-  background: var(--carte);
-}
-.focus-history > div {
-  min-width: 0;
-}
-.focus-history > div > span {
-  display: block;
-  margin-top: 3px;
-  color: var(--encre-3);
-  font-size: .66rem;
-}
-.focus-history > strong {
-  color: var(--encre);
-  font-size: .86rem;
-  text-align: right;
-}
-.focus-carte .serie-en-cours {
-  margin: 0;
-  border-radius: 22px;
-  padding: 18px 16px;
-}
-.focus-carte .serie-en-cours .mesure-valeur {
-  color: var(--hero-ink);
-}
-.focus-carte .serie-en-cours .mesure-ligne > button {
-  background: #ffffff14;
-  color: var(--hero-ink);
-}
-.focus-carte .serie-en-cours .mesure-ligne > button:active {
-  background: #ffffff24;
-}
-.focus-carte .serie-valider {
-  min-height: 60px;
-  background: var(--electric);
-  color: #263727;
-}
-.serie-effort-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 9px;
-  border: 1px solid #ffffff24;
-  border-radius: 999px;
-  color: var(--hero-ink);
-  font-size: .67rem;
-  white-space: nowrap;
-}
-.focus-carte .live-detail-trigger {
-  justify-self: start;
-  min-height: 40px;
-  padding-inline: 0;
-  color: var(--encre-2);
-  font-size: .73rem;
-}
-
-@media (max-width: 379px) {
-  .live-focus-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .live-finish-button {
-    grid-column: 1 / -1;
-  }
-  .focus-exercise-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-/* ========================================================================== */
-/* Live 2026 — composition validée pour Focus et Liste                        */
-/* ========================================================================== */
-
-.live-session {
-  --live-card-radius: 22px;
-  --live-soft: color-mix(in srgb, var(--papier-2) 84%, white);
-  max-width: 640px;
-  margin-inline: auto;
-  padding-bottom: calc(24px + var(--marge-bas));
-}
-
-.live-session-header {
-  border-bottom: 0 !important;
-  padding: 12px 20px 10px !important;
-  backdrop-filter: blur(18px);
-}
-
-.live-focus-topline {
-  gap: 12px;
-}
-
-.live-focus-title {
-  flex: 1;
-  gap: 8px;
-}
-
-.live-focus-title > button {
-  width: 42px;
-  height: 42px;
-  padding: 0;
-}
-
-.live-focus-title h1 {
-  font-size: clamp(1.18rem, 5.5vw, 1.45rem);
-  font-weight: 700;
-}
-
-.live-focus-title p {
-  margin-top: 5px;
-  font-size: .78rem;
-}
-
-.live-focus-progress {
-  gap: 6px;
-}
-
-.live-coach-state {
-  display: grid;
-  width: 42px;
-  height: 48px;
-  place-items: center;
-  flex-shrink: 0;
-}
-
-.live-focus-progress .mascotte {
-  width: 42px;
-  height: 42px;
-}
-
-.live-progress-segments {
-  max-width: 76px;
-  gap: 3px;
-}
-
-.live-progress-segments span {
-  width: 13px;
-  height: 6px;
-}
-
-.live-progress-count {
-  font-size: .72rem;
-}
-
-.live-view-switch {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border-radius: 15px;
-  background: var(--papier-2);
-  color: var(--encre);
-  flex-shrink: 0;
-}
-
-.live-view-switch > svg {
-  width: 26px;
-  height: 26px;
-}
-
-.live-focus-summary {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(142px, auto);
-  gap: 10px;
-  margin-top: 12px;
-}
-
-.live-focus-summary-item {
-  grid-template-columns: 34px minmax(0, 1fr);
-  grid-template-rows: auto auto;
-  column-gap: 10px;
-  row-gap: 1px;
-  min-height: 62px;
-  padding: 9px 12px;
-  border-radius: 15px;
-  text-align: left;
-}
-
-.live-focus-summary-item > svg {
-  grid-row: 1 / 3;
-  align-self: center;
-  width: 25px;
-  height: 25px;
-  color: var(--encre);
-}
-
-.live-focus-summary-item > span {
-  align-self: end;
-  font-size: .65rem;
-}
-
-.live-focus-summary-item > strong,
-.live-focus-summary-item > div {
-  align-self: start;
-}
-
-.live-focus-summary-item > div,
-.live-focus-summary-item > div > span {
-  padding: 0;
-  font-size: .98rem;
-}
-
-.live-finish-button {
-  min-height: 62px;
-  padding-inline: 14px;
-  border-radius: 15px;
-  font-size: .8rem;
-}
-
-.live-finish-button > svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 1.8;
-}
-
-/* État et durée restent accessibles sans ajouter une rangée absente du design :
-   mascotte et tuile Durée portent désormais ces deux actions. */
-.live-session-persistent {
-  display: none;
-}
-
-.live-session > main {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 18px 20px;
-}
-
-.live-session > main > :is(.focus-v2, .live-list-view) {
-  order: 1;
-}
-
-.live-session > main > .live-calibration {
-  order: 2;
-  margin-top: 12px;
-}
-
-.live-secondary-signals {
-  display: grid;
-  gap: 10px;
-  padding-bottom: 12px;
-}
-
-.focus-v2 {
-  gap: 14px;
-}
-
-.focus-carte {
-  display: grid;
-  gap: 14px;
-  padding: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.focus-carte > .focus-exercise-card { order: 1; }
-.focus-carte > .lecteur-faites { order: 2; }
-.focus-carte > .serie-en-cours { order: 3; }
-.focus-carte > .focus-history-block { order: 4; }
-.focus-carte > .lecteur-actions { order: 5; }
-.focus-carte > .lecteur-fin { order: 6; }
-.focus-carte > .live-aides-compactes { order: 7; }
-.focus-carte > .live-detail-trigger { order: 8; }
-
-.focus-exercise-card {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--filet-doux);
-  border-radius: var(--live-card-radius);
-  background: var(--carte);
-  box-shadow: 0 8px 28px -24px color-mix(in srgb, var(--encre) 40%, transparent);
-}
-
-.focus-nav {
-  margin: 0;
-  gap: 8px;
-}
-
-.focus-nav > button {
-  min-width: 44px;
-  min-height: 44px;
-  border-radius: 999px;
-  background: var(--papier-2);
-}
-
-.focus-nav-rang {
-  background: transparent !important;
-}
-
-.focus-nav-rang .eyebrow {
-  color: var(--encre-3);
-  font-size: .78rem;
-  font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.focus-nav-rang > .chiffres {
-  font-size: .78rem;
-  font-weight: 500;
-  color: var(--encre-3);
-}
-
-.focus-nav-rang > svg {
-  display: none;
-}
-
-.lecteur-hero {
-  display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) 46px;
-  gap: 12px;
-  align-items: center;
-}
-
-.lecteur-illustration {
-  width: 90px;
-  height: 96px;
-  border-radius: 20px;
-  padding: 8px;
-}
-
-.lecteur-illustration-fallback {
-  width: 30px;
-  height: 30px;
-}
-
-.lecteur-titre h2 {
-  font-size: clamp(1.12rem, 5.2vw, 1.4rem);
-  font-weight: 700;
-  line-height: 1.05;
-}
-
-.lecteur-titre p {
-  margin-top: 4px;
-  font-size: .75rem;
-}
-
-.live-replace-trigger {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  place-items: center;
-  border-radius: 14px;
-  background: var(--papier-2);
-  color: var(--encre);
-}
-
-.focus-exercise-info {
-  gap: 10px;
-}
-
-.focus-exercise-tags {
-  padding-left: 102px;
-  margin-top: -26px;
-}
-
-.focus-exercise-tags span {
-  padding: 8px 13px;
-  border-radius: 11px;
-  font-size: .72rem;
-}
-
-.focus-exercise-metrics {
-  gap: 7px;
-}
-
-.focus-exercise-metrics > div {
-  min-height: 76px;
-  padding: 9px 5px 7px;
-  border-radius: 14px;
-}
-
-.focus-exercise-metrics strong {
-  display: flex;
-  min-height: 32px;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: .73rem;
-  white-space: normal;
-}
-
-.focus-exercise-metrics strong > svg {
-  width: 21px;
-  height: 21px;
-  flex-shrink: 0;
-}
-
-.focus-exercise-metrics span {
-  margin-top: 6px;
-  font-size: .61rem;
-}
-
-.focus-technique-link {
-  min-height: 50px;
-  border-radius: 13px;
-  padding-inline: 14px;
-  font-size: .8rem;
-}
-
-.focus-technique-link > span {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.focus-technique-link > span > svg {
-  width: 20px;
-  height: 20px;
-}
-
-.focus-carte .serie-en-cours {
-  min-height: 300px;
-  padding: 18px;
-  border-radius: var(--live-card-radius);
-  gap: 14px;
-  box-shadow: 0 14px 32px -24px color-mix(in srgb, var(--hero) 85%, transparent);
-}
-
-.serie-en-cours-tete {
-  margin: -4px 0 0;
-}
-
-.serie-en-cours-titre {
-  font-size: .68rem;
-}
-
-.serie-en-cours-titre .chiffres {
-  font-size: .9rem;
-}
-
-.serie-effort-badge {
-  gap: 6px;
-  min-height: 32px;
-  padding-inline: 10px;
-}
-
-.serie-effort-badge > svg {
-  width: 16px;
-  height: 16px;
-}
-
-.focus-carte .serie-en-cours .mesures-paire {
-  position: relative;
-  gap: 18px;
-}
-
-.focus-carte .serie-en-cours .mesures-paire::after {
-  position: absolute;
-  top: 4px;
-  bottom: 0;
-  left: 50%;
-  width: 1px;
-  background: #ffffff20;
-  content: "";
-}
-
-.focus-carte .serie-en-cours .mesure {
-  gap: 8px;
-}
-
-.focus-carte .serie-en-cours .eyebrow {
-  font-size: .62rem;
-  letter-spacing: .12em;
-}
-
-.serie-en-cours .mesures-paire .mesure-ligne {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.serie-en-cours .mesures-paire .mesure-valeur-composee {
-  grid-column: 1 / -1;
-  grid-row: 1;
-  display: flex;
-  min-width: 0;
-  min-height: 58px;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-}
-
-.serie-en-cours .mesures-paire .mesure-valeur {
-  grid-column: auto;
-  grid-row: auto;
-  width: auto;
-  max-width: 105px;
-  min-height: 0;
-  font-size: clamp(2.35rem, 11vw, 3.4rem);
-  font-weight: 650;
-}
-
-.mesure-valeur-composee > span {
-  color: #a8b6a9;
-  font-size: 1rem;
-  white-space: nowrap;
-}
-
-.serie-en-cours .mesures-paire .mesure-ligne > :is(button,span) {
-  grid-row: 2;
-}
-
-.serie-en-cours .mesures-paire .mesure-ligne > button {
-  height: 52px;
-  border-radius: 14px;
-}
-
-.focus-carte .serie-valider {
-  min-height: 58px;
-  margin-top: auto;
-  border-radius: 14px;
-  font-size: .95rem;
-}
-
-.focus-history-block {
-  display: grid;
-  gap: 8px;
-}
-
-.focus-history-block > header {
-  display: flex;
-  min-height: 28px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.focus-history-block h3 {
-  color: var(--encre-2);
-  font-size: .82rem;
-  font-weight: 500;
-}
-
-.focus-history-block header > button {
-  display: flex;
-  min-height: 36px;
-  align-items: center;
-  gap: 3px;
-  color: var(--encre-2);
-  font-size: .72rem;
-}
-
-.focus-history-block header > button svg {
-  width: 15px;
-  height: 15px;
-}
-
-.focus-history-grid,
-.focus-history-empty {
-  border: 1px solid var(--filet-doux);
-  border-radius: 15px;
-  background: var(--carte);
-}
-
-.focus-history-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 12px 14px;
-}
-
-.focus-history-grid > div {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  padding-inline: 12px;
-}
-
-.focus-history-grid > div:first-child {
-  padding-left: 0;
-}
-
-.focus-history-grid > div + div {
-  border-left: 1px solid var(--filet-doux);
-}
-
-.focus-history-grid span {
-  color: var(--encre-3);
-  font-size: .62rem;
-}
-
-.focus-history-grid strong {
-  font-size: .78rem;
-}
-
-.focus-history-empty {
-  display: flex;
-  min-height: 92px;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
-}
-
-.focus-history-empty > svg {
-  width: 52px;
-  height: 52px;
-  padding: 13px;
-  border-radius: 999px;
-  background: var(--papier-2);
-  color: var(--encre-3);
-}
-
-.focus-history-empty strong {
-  color: var(--encre);
-  font-size: .78rem;
-}
-
-.focus-history-empty p {
-  margin-top: 4px;
-  color: var(--encre-3);
-  font-size: .68rem;
-  line-height: 1.4;
-}
-
-.focus-carte .lecteur-actions {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0;
-}
-
-.focus-carte .lecteur-actions button {
-  min-height: 52px;
-  border-radius: 14px;
-  background: var(--papier-2);
-  font-size: .75rem;
-}
-
-.focus-carte .live-detail-trigger {
-  margin-inline: 2px;
-}
-
-/* Vue Liste */
-.live-list-view {
-  display: grid;
-  gap: 10px;
-}
-
-.live-list {
-  display: grid;
-  gap: 8px;
-}
-
-.live-list-item {
-  display: grid;
-  grid-template-columns: 31px minmax(0, 1fr);
-  min-height: 112px;
-}
-
-.live-list-state {
-  display: flex;
-  min-height: 100%;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  border-radius: 16px 0 0 16px;
-  background: var(--papier-2);
-  color: var(--encre-2);
-}
-
-.live-list-state > svg {
-  width: 17px;
-  height: 17px;
-}
-
-.live-list-state > b {
-  font-size: .75rem;
-  font-weight: 600;
-}
-
-.live-list-item[data-status="termine"] .live-list-state {
-  background: var(--gain);
-  color: white;
-}
-
-.live-list-item[data-status="courant"] .live-list-state {
-  background: var(--electric);
-  color: #263727;
-}
-
-.live-list-item[data-status="termine"] .live-list-card {
-  background: color-mix(in srgb, var(--gain-fond) 45%, var(--carte));
-  border-color: color-mix(in srgb, var(--gain) 18%, var(--filet-doux));
-}
-
-.live-list-card {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr) 36px;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 12px 10px 12px 12px;
-  border: 1px solid var(--filet-doux);
-  border-left: 0;
-  border-radius: 0 18px 18px 0;
-  background: var(--carte);
-  text-align: left;
-}
-
-.live-list-illustration {
-  display: grid;
-  width: 76px;
-  height: 80px;
-  place-items: center;
-  padding: 7px;
-  border-radius: 16px;
-  background: var(--papier-2);
-  color: var(--encre-3);
-}
-
-.live-list-illustration > svg {
-  width: 28px;
-  height: 28px;
-}
-
-.live-list-content {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
-
-.live-list-content > strong {
-  overflow: hidden;
-  color: var(--encre);
-  font-family: var(--font-heading);
-  font-size: .92rem;
-  font-weight: 650;
-  line-height: 1.12;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.live-list-content > small {
-  overflow: hidden;
-  color: var(--encre-3);
-  font-size: .68rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.live-list-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 2px;
-}
-
-.live-list-metrics > span {
-  display: inline-flex;
-  min-height: 24px;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 7px;
-  border-radius: 999px;
-  background: var(--papier-2);
-  color: var(--encre-2);
-  font-size: .62rem;
-}
-
-.live-list-metrics svg {
-  width: 15px;
-  height: 15px;
-}
-
-.live-list-muscles {
-  min-height: 14px;
-  overflow: hidden;
-  color: var(--encre-3);
-  font-size: .64rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.live-list-open {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--papier-2);
-  color: var(--encre);
-}
-
-.live-list-open svg {
-  width: 18px;
-  height: 18px;
-}
-
-.live-quick-note {
-  border: 1px solid var(--filet-doux);
-  border-radius: 14px;
-  background: var(--carte);
-}
-
-.live-quick-note > summary {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 20px;
-  min-height: 52px;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  list-style: none;
-  color: var(--encre-2);
-  font-size: .76rem;
-  cursor: pointer;
-}
-
-.live-quick-note > summary::-webkit-details-marker {
-  display: none;
-}
-
-.live-quick-note > summary svg {
-  width: 20px;
-  height: 20px;
-}
-
-.live-quick-note[open] > summary svg:last-child {
-  transform: rotate(180deg);
-}
-
-.live-quick-note label {
-  display: block;
-  padding: 0 12px 12px;
-}
-
-.live-quick-note textarea {
-  width: 100%;
-  resize: vertical;
-  border: 1px solid var(--filet);
-  border-radius: 12px;
-  background: var(--papier-2);
-  padding: 10px 12px;
-  color: var(--encre);
-  font-size: .8rem;
-  line-height: 1.45;
-}
-
-@media (max-width: 480px) {
-  .live-session-header {
-    padding-inline: 14px !important;
-  }
-
-  .live-focus-title > button {
-    width: 36px;
-  }
-
-  .live-focus-progress {
-    gap: 4px;
-  }
-
-  .live-progress-segments {
-    display: flex;
-    max-width: 46px;
-    gap: 3px;
-  }
-
-  .live-progress-segments span {
-    width: 7px;
-    min-width: 7px;
-  }
-
-  .live-focus-summary {
-    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(128px, auto);
-    gap: 6px;
-  }
-
-  .live-focus-summary-item {
-    grid-template-columns: 27px minmax(0, 1fr);
-    column-gap: 6px;
-    padding-inline: 8px;
-  }
-
-  .live-focus-summary-item > svg {
-    width: 21px;
-    height: 21px;
-  }
-
-  .live-finish-button {
-    padding-inline: 9px;
-  }
-
-  .live-session > main {
-    padding-inline: 12px;
-  }
-
-  .focus-exercise-card {
-    padding: 11px;
-  }
-
-  .lecteur-hero {
-    grid-template-columns: 82px minmax(0, 1fr) 44px;
-    gap: 10px;
-  }
-
-  .lecteur-illustration {
-    width: 82px;
-    height: 88px;
-  }
-
-  .focus-exercise-tags {
-    padding-left: 92px;
-  }
-
-  .focus-carte .serie-en-cours {
-    padding: 16px 14px;
-  }
-}
-
-@media (max-width: 379px) {
-  .live-focus-progress .mascotte,
-  .live-coach-state {
-    width: 36px;
-    height: 40px;
-  }
-
-  .live-progress-count {
-    display: none;
-  }
-
-  .live-focus-summary {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .live-finish-button {
-    grid-column: 1 / -1;
-    min-height: 48px;
-  }
-
-  .focus-exercise-tags {
-    padding-left: 0;
-    margin-top: 0;
-  }
-
-  .focus-exercise-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .focus-carte .lecteur-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .live-list-card {
-    grid-template-columns: 62px minmax(0, 1fr) 32px;
-  }
-
-  .live-list-illustration {
-    width: 62px;
-    height: 68px;
-  }
 }

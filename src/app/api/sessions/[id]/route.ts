@@ -132,6 +132,7 @@ export async function GET(
           categorieRole: inst?.exercise?.categorieRole || "",
           profilTension: inst?.exercise?.profilTension || "",
           musclesPrincipaux: inst?.exercise?.musclesPrincipaux || [],
+          musclesSecondaires: inst?.exercise?.musclesSecondaires || [],
           chargeCible: eit.chargeCible,
           prescriptionParDefaut: eit.prescriptionParDefaut ?? [],
           // `0` veut dire « rien à proposer », pas « fais 0 kg » : le champ kg
@@ -144,6 +145,9 @@ export async function GET(
           // le motif y voyage tel quel, sans avoir à être redérivé.
           motifProgression: suggestion.motifProgression,
           historique,
+          // Les séances datées, comme le plan calculé : même lecture, même
+          // forme, pour que l'écran n'ait pas deux contrats d'historique.
+          historiqueSeances: derniere?.historiqueSeances ?? [],
         };
       }),
     );

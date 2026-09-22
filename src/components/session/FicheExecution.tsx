@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { X } from "@/components/ui/icons";
 import { MemoireDeSaisie } from "@/lib/engine/memoire-de-saisie";
 import { prochaineIntention } from "@/lib/engine/intention";
@@ -21,6 +21,7 @@ interface Props {
   nom: string;
   onFermer: () => void;
   onEnregistre: (maj: ContexteExecutionClient) => void;
+  aide?: ReactNode;
 }
 
 /**
@@ -75,7 +76,7 @@ interface Props {
  * « non renseigné » décoratif. Ce qui manque se voit à l'endroit où on peut le
  * renseigner, c'est-à-dire dans les réglages.
  */
-export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props) {
+export function FicheExecution({ contexte, nom, onFermer, onEnregistre, aide }: Props) {
   // Le signalement porte sur l'exercice et vit dans la séance en cours : il
   // s'applique aussi aux séries validées après coup.
   const { active, signalerTempo } = useSessionStore();
@@ -315,6 +316,7 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
             la feuille est collée au bas de l'écran, donc la dernière ligne de
             technique tombait sous le home indicator. */}
         <div className="flex-1 overflow-y-auto px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-5">
+          {aide}
           {/*
             L'ORDRE, et pourquoi celui-là.
 
@@ -381,7 +383,7 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre }: Props)
           )}
 
           {contexte.exerciseInstanceId && (
-            <section>
+            <section data-execution-reglages>
               <h3 className="text-xs uppercase tracking-wide text-encre-3 mb-2">
                 Réglages de cet appareil
               </h3>

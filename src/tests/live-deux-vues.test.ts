@@ -359,31 +359,23 @@ describe("le Live dégage les zones réservées d'iOS", () => {
       .not.toMatch(/className="min-h-screen bg-papier pb-\d+"/);
   });
 
-  it("l'en-tête collant se pose sous l'encoche, pas dessous", () => {
-    // À `top-0`, il glissait derrière la barre d'état dès le premier
-    // défilement — nom de la séance, chrono et bouton quitter compris.
-    const page = lire(PAGE);
-    expect(page).toMatch(/top: "var\(--marge-haut\)"/);
+  it("l'en-tête défile et le layout réserve les marges du téléphone", () => {
+    expect(lire("app/live-focus.css")).toMatch(/\.live-session-header\s*\{[^}]*position:\s*static/);
+    expect(lire("app/(app)/layout.tsx")).toContain('paddingTop: "var(--marge-haut)"');
+    expect(lire("app/live-focus.css")).toContain("var(--marge-bas)");
   });
 
-  it("État et Temps restent dans la surface persistante du Live", () => {
+  it("État et Temps restent accessibles depuis l'en-tête", () => {
     const page = lire(PAGE);
-    const header = page.match(/<header[\s\S]*?<\/header>/)?.[0];
-
-    expect(header, "le Live n'a plus d'en-tête persistant").toBeDefined();
-    expect(header).toContain("live-session-persistent");
-    expect(header).toMatch(/setModaleSOS\("etat"\)/);
-    expect(header).toMatch(/setModaleSOS\("temps"\)/);
-    expect(header).toContain("État");
-    expect(header).toContain("Temps");
+    const header = lire("components/session/EnteteLive.tsx");
+    expect(page).toContain("<EnteteLive");
+    expect(header).toContain('aria-label="Coach et ajustements de la séance"');
+    expect(header).toContain("onClick={onAides}");
+    expect(header).toContain("onClick={onDuree}");
     expect(header).toContain("<ChronoSeance");
-
-    const css = lire("app/live-session.css");
-    expect(page).toMatch(/className="live-session-header sticky/);
-    // L'espace après `:` est optionnel : ce garde protège une hauteur de cible
-    // tactile, pas un style de mise en forme du CSS.
-    expect(css).toMatch(/\.live-session-persistent\s*\{[^}]*min-height:\s*44px/);
-    expect(css).not.toContain(".live-session-context");
+    expect(page).toContain('setModaleSOS("etat")');
+    expect(page).toContain('setModaleSOS("temps")');
+    expect(page).toContain("keepMounted");
   });
 
   it("les actions restent dans le contenu, sans barre SOS fixe", () => {
@@ -424,7 +416,7 @@ describe("le Live dégage les zones réservées d'iOS", () => {
      * sont passées dans la feuille du Live avec la refonte. Le garde suit —
      * l'invariant est la taille, pas l'endroit où elle est écrite.
      */
-    const css = lire("app/live-session.css");
+    const css = lire("app/live-session.css") + lire("app/live-focus.css");
 
     /**
      * La hauteur déclarée par un sélecteur, en pixels.
@@ -436,7 +428,7 @@ describe("le Live dégage les zones réservées d'iOS", () => {
      */
     const hauteurDe = (selecteur: string): number | null => {
       const bloc = css.match(
-        new RegExp(`${selecteur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`),
+        new RegExp(`(?:^|\\n)\\s*${selecteur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`),
       )?.[1];
       const px = bloc?.match(/(?:^|[\s;])(?:min-)?height:\s*(\d+)px/)?.[1];
       return px ? Number(px) : null;
@@ -448,7 +440,7 @@ describe("le Live dégage les zones réservées d'iOS", () => {
       ".live-serie-geste",
       ".mesure-ligne > button",
       ".mesure-choix > button",
-      ".serie-valider",
+      ".serie-en-cours .serie-valider",
       ".focus-nav > button",
       // La suppression d'une série ajoutée : une icône de 16 px, une cible de 44.
       ".serie-supprimer",
@@ -480,7 +472,7 @@ describe("le Live dégage les zones réservées d'iOS", () => {
       ".mesure-choix > button",
     ]) {
       const bloc = etroit.match(
-        new RegExp(`${selecteur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`),
+        new RegExp(`(?:^|\\n)\\s*${selecteur.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\{([^}]*)\\}`),
       )?.[1];
       // Absent du palier étroit : la règle générale s'applique, déjà vérifiée.
       if (!bloc) continue;

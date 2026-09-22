@@ -5,13 +5,14 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, ChartNoAxesCombined, Square, Stopwatch } from "@/components/ui/icons";
+import { Zap, X } from "@/components/ui/icons";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { EnteteLive } from "@/components/session/EnteteLive";
 import { RestTimer } from "@/components/session/RestTimer";
 import { type ExercicePrescrit } from "@/components/session/types";
 import { VueFocus } from "@/components/session/VueFocus";
 import { ListeCompacte } from "@/components/session/ListeCompacte";
 import type { SerieValidee } from "@/components/session/useSaisieSeries";
-import { SelecteurVue } from "@/components/session/SelecteurVue";
 import {
   avancement,
   exerciceAffiche,
@@ -36,10 +37,8 @@ import { SOSTempsDepasse } from "@/components/session/SOSTempsDepasse";
 import { ClotureSeance } from "@/components/session/ClotureSeance";
 import { ProactiveAlert } from "@/components/coach/ProactiveAlert";
 import { ObservateurSeance } from "@/components/session/ObservateurSeance";
-import { ChronoSeance } from "@/components/session/ChronoSeance";
 import { modeSaisieEffort } from "@/lib/engine/reserve";
 import { resoudreMascotteLive } from "@/lib/coach/resoudre-mascotte";
-import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import type {
   ExerciseInstanceWithExercise,
   SubstituteResult,
@@ -192,6 +191,7 @@ function ContenuSeanceLive() {
   // Changer de lieu se décide avant de commencer, pas en pleine série : le
   // panneau reste replié tant qu'on ne le demande pas.
   const [changementDeLieu, setChangementDeLieu] = useState(false);
+  const [aidesOuvertes, setAidesOuvertes] = useState(false);
   const [dureeSOSMin, setDureeSOSMin] = useState(0);
   const [parcSalle, setParcSalle] = useState<ExerciseInstanceWithExercise[]>(
     [],
@@ -208,7 +208,7 @@ function ContenuSeanceLive() {
           .then((plan) =>
             plan?.items?.length
               ? {
-                  nom: "Séance du jour",
+                  nom: plan.nom ?? "Séance",
                   feuBiologiqueJour: plan.seance.feuBiologiqueJour,
                   volumeAjustePct: plan.seance.volumeAjustePct,
                   volumeAjusteRaison: plan.seance.volumeAjusteRaison,
@@ -746,7 +746,6 @@ function ContenuSeanceLive() {
    */
   const index = exerciceAffiche(etats, active?.currentExerciseIndex ?? null);
   const courant = visibles[index];
-  const termines = etats.filter((e) => e.statut === "termine").length;
   const seanceTerminee = visibles.length > 0 && etats.every((e) => e.statut === "termine");
   const reportesIncomplets = etats.filter(
     (e) => e.statut !== "termine" && exercicesReportes.includes(e.id),
@@ -883,7 +882,7 @@ function ContenuSeanceLive() {
         className="live-context-action"
         onClick={() => ouvrirIncidentExercice(exercice.id, "douleur")}
       >
-        Douleur
+        <Zap aria-hidden /> Douleur
       </button>
     </>
   );
@@ -929,199 +928,50 @@ function ContenuSeanceLive() {
 
   return (
     <div
-      className="live-session min-h-screen bg-papier"
+      className="live-session bg-papier"
       onPointerDown={interaction}
     >
       <DeclarerContexte ecran="seance" typeEntite="instance" entiteId={visibles[index]?.id} sessionLogId={active?.id} />
       <ActionsCoachLive onAction={(action) => { const exo = visibles[index]; if (exo) ouvrirIncidentExercice(exo.id, action); }} />
-      {/* Collé sous l'encoche, pas sous l'heure : à `top-0`, l'en-tête de la
-          séance — nom de la séance, chrono, bouton quitter — glissait derrière
-          la barre d'état dès le premier défilement. */}
-      <header
-        className="live-session-header sticky z-20 bg-papier border-b border-filet px-4 py-2"
-        style={{ top: "var(--marge-haut)" }}
-      >
-        <div className="live-focus-topline">
-          <div className="live-focus-title">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Quitter la séance"
-              onClick={() => router.push("/")}
-            >
-              <ArrowLeft className="w-5 h-5 text-encre-2" />
-            </Button>
-            <div className="min-w-0">
-              <h1>Séance du jour</h1>
-              <p>
-                {seance.nom === "Séance du jour" ? "Séance" : seance.nom}
-                {visibles.length > 0 && (vue === "focus"
-                  ? ` · Exercice ${index + 1} sur ${visibles.length}`
-                  : ` · ${visibles.length} exercice${visibles.length > 1 ? "s" : ""}`)}
-              </p>
-            </div>
-          </div>
-          <div className="live-focus-progress" aria-label={`${termines} exercices terminés sur ${visibles.length}`}>
-            {/*
-              LA PRÉSENCE AMBIANTE DU COACH — la seule du Live.
+      <EnteteLive
+        nom={seance.nom}
+        vue={vue}
+        courant={index}
+        etats={etats}
+        etatMascotte={etatMascotte}
+        demarreeA={active?.startedAt}
+        dureeCibleMinutes={seance.dureeCibleMinutes}
+        dureeMaxMinutes={seance.dureeMaxMinutes}
+        onRetour={() => router.push("/")}
+        onAides={() => setAidesOuvertes(true)}
+        onVue={choisirVue}
+        onDuree={() => {
+          setDureeSOSMin(active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0);
+          setModaleSOS("temps");
+        }}
+        onTerminer={() => router.push(`/sessions/new/${templateId}/finish`)}
+      />
 
-              Elle ne montre jamais `repos` ni `intervention` : ces deux-là ont
-              leur propre surface — la feuille de repos et l'encart de constat —
-              et les doubler ici donnerait deux mascottes à l'écran pour un seul
-              état. C'est la règle « une présence forte par surface », appliquée
-              en creux.
-
-              Discrète (40 px), dans l'en-tête : elle ne dispute rien à
-              l'illustration de l'exercice, à la charge, aux répétitions ni au
-              bouton de validation.
-            */}
-            {etatMascotte !== "repos" && (
-              <button
-                type="button"
-                className="live-coach-state"
-                onClick={() => setModaleSOS("etat")}
-                aria-label="Signaler un changement d’état"
-              >
-                <MascotteCoach
-                  etat={etatMascotte}
-                  taille="compact"
-                  presence="discrete"
-                  anime={etatMascotte === "encouragement"}
-                />
-              </button>
-            )}
-            <div className="live-progress-segments" aria-hidden="true">
-              {visibles.map((exercise, exerciseIndex) => {
-                const statut = etats.find((etat) => etat.id === exercise.id)?.statut;
-                return (
-                  <span
-                    key={exercise.id}
-                    className={exerciseIndex < index || statut === "termine" ? "is-complete" : exerciseIndex === index ? "is-current" : undefined}
-                  />
-                );
-              })}
-            </div>
-            <span className="live-progress-count chiffres">{termines}/{visibles.length}</span>
-            <SelecteurVue vue={vue} onChanger={choisirVue} />
-          </div>
-        </div>
-        <div className="live-focus-summary">
-          <button
-            type="button"
-            className="live-focus-summary-item"
-            onClick={() => {
-              setDureeSOSMin(active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0);
-              setModaleSOS("temps");
-            }}
-            aria-label="Adapter la durée de la séance"
-          >
-            <Stopwatch aria-hidden />
-            <span>Durée</span>
-            {active?.startedAt ? (
-              <ChronoSeance
-                demarreeA={active.startedAt}
-                dureeCibleMinutes={seance.dureeCibleMinutes}
-                dureeMaxMinutes={seance.dureeMaxMinutes}
-              />
-            ) : <strong className="chiffres">00:00</strong>}
-          </button>
-          <div className="live-focus-summary-item">
-            <ChartNoAxesCombined aria-hidden />
-            <span>Volume estimé</span>
-            <strong className="chiffres">— kg</strong>
-          </div>
-          <button
-            type="button"
-            className="live-finish-button"
-            onClick={() => router.push(`/sessions/new/${templateId}/finish`)}
-          >
-            <Square aria-hidden /> Finir la séance
-          </button>
-        </div>
-        <nav
-          className="live-session-persistent"
-          aria-label="Ajustements permanents de la séance"
-        >
-          <div className="live-time-context">
-            {active?.startedAt && (
-              <ChronoSeance
-                demarreeA={active.startedAt}
-                dureeCibleMinutes={seance.dureeCibleMinutes}
-                dureeMaxMinutes={seance.dureeMaxMinutes}
-              />
-            )}
-          </div>
-          <div className="live-persistent-actions">
-            <button
-              type="button"
-              className="live-persistent-action"
-              aria-label="Mon état a changé"
-              onClick={() => setModaleSOS("etat")}
-            >
-              État
-            </button>
-            <button
-              type="button"
-              className="live-persistent-action"
-              aria-label="Adapter la durée"
-              onClick={() => {
-                setDureeSOSMin(
-                  active
-                    ? Math.floor((Date.now() - active.startedAt) / 60000)
-                    : 0,
-                );
-                setModaleSOS("temps");
-              }}
-            >
-              Temps
-            </button>
-          </div>
-        </nav>
-      </header>
-
-      {/* La séance entière tient dans une page défilante : on voit ce qui reste
-          sans naviguer, et corriger une série faite plus tôt ne demande pas de
-          revenir en arrière. */}
-      <main className="px-4 py-4 space-y-3">
-        {/*
-          Le sélecteur ne change pas d'écran : il change ce qui est rendu. Rien
-          n'est rechargé, aucun brouillon ne se perd, le minuteur continue.
-        */}
-        {/*
-          La consigne de calibration : UNE fois, en tête de séance.
-
-          Elle était répétée sur chaque carte d'exercice — six bandes disant la
-          même chose sur une séance de six exercices, à relire à chaque
-          défilement. C'est une consigne de phase, pas une propriété d'un
-          exercice : elle appartient à la séance. Le détail complet reste à un
-          appui, pour qui découvre la notion.
-        */}
-        {visibles.length > 0 && modeSaisieEffort(seance.phaseCycle) === "reserve" && (
-          <details className="live-calibration">
-            <summary>
-              <span className="eyebrow">Tes premiers repères</span>
-              2 séries par exercice, puis du repos.
-            </summary>
-            <div>
-              <p>
-                Une série, c&apos;est plusieurs répétitions du même mouvement, puis une
-                pause. Arrête-toi alors que tu pourrais encore faire quelques
-                répétitions propres.
-              </p>
-              <p>
-                Après la série, imagine que tu continues avec une technique propre :
-                combien de répétitions supplémentaires aurais-tu pu faire ?
-              </p>
-              <p className="live-calibration-echelle chiffres">
-                <span>0 = aucune</span>
-                <span>1 = encore une</span>
-                <span>2 = encore deux</span>
-                <span>3 = encore trois</span>
-                <span>5+ = très facile</span>
-              </p>
-            </div>
-          </details>
-        )}
+      <main className="live-session-body">
+        <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
+        <ObservateurSeance
+          onDemanderCoach={(evenement) =>
+            ouvrirCoach("observation_seance", {
+              typeEntite: "instance",
+              entiteId: evenement.exerciseInstanceId,
+              signal: evenement.type,
+            })
+          }
+          prescriptions={visibles.map((e) => ({
+            exerciseInstanceId: e.id,
+            seriesCibles: e.seriesCibles,
+            fourchetteRepsMin: e.fourchetteRepsMin,
+            fourchetteRepsMax: e.fourchetteRepsMax,
+            rpeCible: e.rpeCible,
+            reposSecondes: e.reposSecondes,
+          }))}
+          ordreDesExercices={visibles.map((e) => e.id)}
+        />
 
         {visibles.length === 0 ? (
           <p className="text-encre-3">Aucun exercice dans cette séance.</p>
@@ -1157,7 +1007,45 @@ function ContenuSeanceLive() {
         )}
       </main>
 
-      <section className="live-secondary-signals" aria-label="Ajustements de la séance">
+      <Dialog open={aidesOuvertes} onOpenChange={setAidesOuvertes}>
+        <DialogContent className="live-detail-sheet live-session-help-sheet" keepMounted showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Coach et ajustements</DialogTitle>
+            <DialogClose className="live-detail-close" aria-label="Fermer"><X aria-hidden /></DialogClose>
+          </DialogHeader>
+          <div className="live-detail-body">
+            <button type="button" className="live-persistent-action" onClick={() => { setAidesOuvertes(false); setModaleSOS("etat"); }}>Mon état a changé</button>
+            <button type="button" className="live-persistent-action" onClick={() => {
+              setAidesOuvertes(false);
+              setDureeSOSMin(active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0);
+              setModaleSOS("temps");
+            }}>Adapter la durée</button>
+        {visibles.length > 0 && modeSaisieEffort(seance.phaseCycle) === "reserve" && (
+          <details className="live-calibration">
+            <summary>
+              <span className="eyebrow">Tes premiers repères</span>
+              2 séries par exercice, puis du repos.
+            </summary>
+            <div>
+              <p>
+                Une série, c&apos;est plusieurs répétitions du même mouvement, puis une
+                pause. Arrête-toi alors que tu pourrais encore faire quelques
+                répétitions propres.
+              </p>
+              <p>
+                Après la série, imagine que tu continues avec une technique propre :
+                combien de répétitions supplémentaires aurais-tu pu faire ?
+              </p>
+              <p className="live-calibration-echelle chiffres">
+                <span>0 = aucune</span>
+                <span>1 = encore une</span>
+                <span>2 = encore deux</span>
+                <span>3 = encore trois</span>
+                <span>5+ = très facile</span>
+              </p>
+            </div>
+          </details>
+        )}
         <BandeauAdaptation
           feuJour={seance.feuBiologiqueJour}
           volumeAjustePct={seance.volumeAjustePct}
@@ -1165,27 +1053,8 @@ function ContenuSeanceLive() {
           exercices={visibles}
         />
 
-        <ObservateurSeance
-          onDemanderCoach={(evenement) =>
-            ouvrirCoach("observation_seance", {
-              typeEntite: "instance",
-              entiteId: evenement.exerciseInstanceId,
-              signal: evenement.type,
-            })
-          }
-          prescriptions={visibles.map((e) => ({
-            exerciseInstanceId: e.id,
-            seriesCibles: e.seriesCibles,
-            fourchetteRepsMin: e.fourchetteRepsMin,
-            fourchetteRepsMax: e.fourchetteRepsMax,
-            rpeCible: e.rpeCible,
-            reposSecondes: e.reposSecondes,
-          }))}
-          ordreDesExercices={visibles.map((e) => e.id)}
-        />
 
         <div className="px-4 pt-1 space-y-2">
-          <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
 
           {sessionId &&
             gymId &&
@@ -1210,7 +1079,10 @@ function ContenuSeanceLive() {
               </button>
             ))}
         </div>
-      </section>
+
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {reportesIncomplets.length > 0 && !seanceTerminee && (
         <p className="live-reportes-resume" aria-live="polite">

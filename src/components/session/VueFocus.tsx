@@ -81,6 +81,7 @@ export function VueFocus({
         compteur : les pouces atteignent les bords de l'écran, pas son centre.
       */}
       <LecteurExercice
+        key={exercice.id}
         exercice={exercice}
         rpeReduction={rpeReduction(exercice.id)}
         modeReserve={modeReserve}
@@ -108,7 +109,7 @@ export function VueFocus({
         >
           <span className="eyebrow">Exercice</span>
           <span className="chiffres">
-            {courant + 1} / {exercices.length}
+            {courant + 1} sur {exercices.length}
           </span>
           <ChevronDown className="w-4 h-4" aria-hidden />
         </button>

@@ -81,9 +81,9 @@ const CHROME: Array<{ fichier: string; attend: string[]; pourquoi: string }> = [
     pourquoi: "les deux bords sont dégagés une fois pour tous les écrans",
   },
   {
-    fichier: "app/(app)/sessions/new/[templateId]/page.tsx",
-    attend: ["--marge-haut"],
-    pourquoi: "l’en-tête reste sous l’encoche, les actions défilent avec le contenu",
+    fichier: "app/live-focus.css",
+    attend: ["--marge-haut", "--marge-bas"],
+    pourquoi: "le Live défile dans le layout qui réserve l’encoche et dégage le bas",
   },
   {
     fichier: "components/coach/BoutonCoach.tsx",

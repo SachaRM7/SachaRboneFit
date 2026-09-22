@@ -56,4 +56,9 @@ export interface ExercicePrescrit {
   motifProgression?: MotifProgression | null;
   raisonSubstitution?: string | null;
   historique?: { charge: number; reps: number }[];
+  historiqueSeances?: {
+    sessionLogId: string;
+    date: string;
+    sets: { numero: number; charge: number; reps: number; rpe: number | null }[];
+  }[];
 }

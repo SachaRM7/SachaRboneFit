@@ -31,10 +31,12 @@ export function ChronoSeance({
   demarreeA,
   dureeCibleMinutes,
   dureeMaxMinutes,
+  compact = false,
 }: {
   demarreeA: number;
   dureeCibleMinutes?: number | null;
   dureeMaxMinutes?: number | null;
+  compact?: boolean;
 }) {
   const [duree, setDuree] = useState<DureeDeLaSeance | null>(null);
 
@@ -64,6 +66,8 @@ export function ChronoSeance({
 
   const message = messageDuree(duree);
   const ton = tonDuree(duree.etat);
+
+  if (compact) return <strong className={`chiffres live-duration ${CLASSES[ton]}`} title={message ?? undefined} aria-label={[formaterEcoulee(duree.ecouleeSecondes), message].filter(Boolean).join(" · ")}>{formaterEcoulee(duree.ecouleeSecondes)}</strong>;
 
   return (
     <div className="px-4 pt-2 flex items-baseline gap-2">
