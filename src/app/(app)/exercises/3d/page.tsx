@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/ui/icons";
 import { Exercise3DStudio } from "@/components/exercises/three/ExerciseViewer";
 
 export default function Exercise3DPage() {

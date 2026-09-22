@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
+import { X } from "@/components/ui/icons";
 import { MemoireDeSaisie } from "@/lib/engine/memoire-de-saisie";
 import { prochaineIntention } from "@/lib/engine/intention";
 import { useSessionStore } from "@/stores/sessionStore";

@@ -7,7 +7,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { MUSCLES as REFERENTIEL_MUSCLES, LIBELLES, type Muscle } from "@/lib/referentiels/muscles";
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@/components/ui/icons";
 
 // La liste vient du referentiel : elle etait auparavant redigee ici dans un
 // vocabulaire propre a l'interface, qui ne correspondait a aucun autre.

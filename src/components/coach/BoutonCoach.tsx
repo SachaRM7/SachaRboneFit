@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "@/components/ui/icons";
 import { useCoach } from "./ContexteCoach";
 import { CoachDrawer } from "./CoachDrawer";
 

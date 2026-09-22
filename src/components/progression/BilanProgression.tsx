@@ -8,7 +8,7 @@ import {
   CalendarCheck,
   HelpCircle,
   Sparkles,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { LIBELLES as LIBELLES_MUSCLES, versMuscle } from "@/lib/referentiels/muscles";
 import type { Bilan } from "@/lib/engine/bilan-progression";
 import { nombre, pluriel } from "@/lib/format";

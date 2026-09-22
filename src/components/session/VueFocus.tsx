@@ -1,6 +1,6 @@
 "use client";
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, X } from "@/components/ui/icons";
 import { LecteurExercice } from "./LecteurExercice";
 import { ListeCompacte } from "./ListeCompacte";
 import type { ExercicePrescrit } from "./types";

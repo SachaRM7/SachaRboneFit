@@ -1,4 +1,4 @@
-import { CircleGauge, SlidersHorizontal } from "lucide-react";
+import { CircleGauge, SlidersHorizontal } from "@/components/ui/icons";
 import { effortPropose, effortSaisi } from "./effort-propose";
 import { configurationDeLExercice } from "./crans-de-charge";
 import { rpeVersReserve } from "@/lib/engine/reserve";

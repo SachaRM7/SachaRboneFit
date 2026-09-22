@@ -1,7 +1,7 @@
 "use client";
 import { versMuscles } from "@/lib/referentiels/muscles";
 import { libelleMuscles } from "@/lib/referentiels/libelles";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { Search, SlidersHorizontal, X } from "@/components/ui/icons";
 import { useState, useMemo } from "react";
 import { ExerciseFilters } from "./ExerciseFilters";
 import { ExerciseList } from "./ExerciseList";

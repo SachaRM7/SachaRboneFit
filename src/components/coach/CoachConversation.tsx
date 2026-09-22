@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, ChevronLeft, History, Plus, Send } from "lucide-react";
+import { ArrowUpRight, ChevronLeft, History, Plus, Send } from "@/components/ui/icons";
 import { messageErreur } from "@/lib/messages";
 import { useCoach } from "./ContexteCoach";
 import { MascotteCoach } from "./MascotteCoach";

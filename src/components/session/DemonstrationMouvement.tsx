@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X } from "@/components/ui/icons";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { urlIllustration } from "@/lib/referentiels/catalogue";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";

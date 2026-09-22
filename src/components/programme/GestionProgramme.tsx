@@ -18,7 +18,7 @@ import {
   cibleDepuisChoix,
   libelleCibleEffort,
 } from "./cible-effort";
-import { ArrowDown, ArrowUp, Copy, Ellipsis, MoveRight, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Ellipsis, MoveRight, Pencil, Plus, Trash2 } from "@/components/ui/icons";
 
 export interface ExerciceProgramme {
   ligneId: string;

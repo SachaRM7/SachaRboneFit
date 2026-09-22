@@ -1,4 +1,4 @@
-import { Activity, Sparkles, ChevronRight } from "lucide-react";
+import { Activity, Sparkles, ChevronRight } from "@/components/ui/icons";
 
 /** Même géométrie que les résumés streamés, sans afficher de fausse valeur. */
 export function AttenteMuscles() {

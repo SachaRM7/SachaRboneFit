@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { messageErreur } from "@/lib/messages";
 import Link from "next/link";
-import { Loader2, AlertTriangle, Ruler } from "lucide-react";
+import { Loader2, AlertTriangle, Ruler } from "@/components/ui/icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { lienDemarrage } from "@/lib/engine/etat-du-jour";

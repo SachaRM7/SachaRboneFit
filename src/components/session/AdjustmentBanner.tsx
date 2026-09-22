@@ -1,6 +1,6 @@
 "use client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Clock } from "lucide-react";
+import { AlertTriangle, Clock } from "@/components/ui/icons";
 
 interface AdjustmentBannerProps {
   totalPct: number;

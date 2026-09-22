@@ -8,7 +8,7 @@ import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/u
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { MachineForm, type ExerciceSelectionnable, type MachineExistante } from "./MachineForm";
 import { LIBELLES_CONVENTION, LIBELLES_POULIE } from "@/lib/validators/exercise-instance";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "@/components/ui/icons";
 
 export interface MachineAffichee extends MachineExistante {
   exerciseId: string;

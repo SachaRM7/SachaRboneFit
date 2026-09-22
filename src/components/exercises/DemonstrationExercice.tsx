@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Play, Pause } from "lucide-react";
+import { Play, Pause } from "@/components/ui/icons";
 import { IllustrationExercice } from "./IllustrationExercice";
 import {
   ANOMALIES_ILLUSTRATIONS,

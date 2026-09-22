@@ -1,5 +1,5 @@
 "use client";
-import { Check } from "lucide-react";
+import { Check } from "@/components/ui/icons";
 import type { AvancementExercice } from "@/lib/live/vue-live";
 
 /**

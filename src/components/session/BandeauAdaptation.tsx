@@ -3,7 +3,7 @@ import { DetailsLive } from "./DetailsLive";
 import { Feu } from "@/components/carnet/Feu";
 import type { ExercicePrescrit } from "./types";
 import { classeDuMotif, estUneMontee } from "./motif-progression";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp } from "@/components/ui/icons";
 
 interface Props {
   feuJour?: string | null;

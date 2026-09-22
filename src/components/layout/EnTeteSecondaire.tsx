@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/ui/icons";
 
 /**
  * L'en-tête de toute page qui n'est pas une racine de la navigation basse.

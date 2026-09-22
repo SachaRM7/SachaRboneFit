@@ -9,7 +9,7 @@ import { PilierBadge } from "@/components/exercises/PilierBadge";
 import { DemonstrationExercice } from "@/components/exercises/DemonstrationExercice";
 import { TechniqueExercice } from "@/components/exercises/TechniqueExercice";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/ui/icons";
 import { EquiperDansSalle } from "@/components/exercises/EquiperDansSalle";
 import { FICHES_TECHNIQUES } from "@/lib/referentiels/fiches-techniques";
 import { ficheRenseignee } from "@/lib/engine/execution";

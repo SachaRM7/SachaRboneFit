@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles } from "@/components/ui/icons";
 import {
   ASSETS_MASCOTTE,
   LARGEURS_MASCOTTE,

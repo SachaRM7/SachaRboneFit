@@ -1,4 +1,4 @@
-import { Activity, ChevronRight } from "lucide-react";
+import { Activity, ChevronRight } from "@/components/ui/icons";
 import { complementTableauDeBordMemoise } from "@/services/tableau-de-bord";
 import type { RecuperationMusculaire } from "@/services/recuperation";
 import { CarteRecuperation } from "./CarteRecuperation";

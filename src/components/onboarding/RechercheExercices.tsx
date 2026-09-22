@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 
 /**

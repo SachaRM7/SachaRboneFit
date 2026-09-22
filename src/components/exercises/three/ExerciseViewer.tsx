@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, RotateCcw, Rotate3D } from "lucide-react";
+import { Pause, Play, RotateCcw, Rotate3D } from "@/components/ui/icons";
 import { MOVEMENTS_3D } from "@/lib/exercises-3d/catalogue";
 import type { MovementId } from "@/lib/exercises-3d/rig";
 import styles from "./viewer.module.css";

@@ -1,6 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
-import { X } from "lucide-react";
+import { X } from "@/components/ui/icons";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 /** Aide de présentation : aucune donnée ni décision n'est créée à l'ouverture. */

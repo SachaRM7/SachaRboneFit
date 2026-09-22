@@ -18,7 +18,7 @@ import {
   ArrowRight,
   HeartPulse,
   Backpack,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { toast } from "sonner";
 import {
   MATERIEL_PORTABLE,

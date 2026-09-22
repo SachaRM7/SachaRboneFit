@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { X } from "lucide-react";
+import { X } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { tempsDepasse } from "@/lib/sos/temps-depasse";
 import { formaterEcoulee } from "@/lib/engine/duree-seance";

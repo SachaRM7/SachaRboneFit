@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@/components/ui/icons";
 import { complementTableauDeBordMemoise } from "@/services/tableau-de-bord";
 
 /**

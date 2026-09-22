@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { MapPin, Plus } from "lucide-react";
+import { MapPin, Plus } from "@/components/ui/icons";
 import { LIBELLES_CONVENTION, CONVENTIONS_CHARGE } from "@/lib/validators/exercise-instance";
 
 interface Salle {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, ChartNoAxesCombined } from "lucide-react";
+import { ArrowUpRight, ChartNoAxesCombined } from "@/components/ui/icons";
 import type { ReactNode } from "react";
 
 export function RepereEnConstruction({

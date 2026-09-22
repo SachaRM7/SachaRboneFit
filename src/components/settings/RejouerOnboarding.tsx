@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { messageErreur } from "@/lib/messages";
 import { useRouter } from "next/navigation";
-import { RotateCcw, Loader2 } from "lucide-react";
+import { RotateCcw, Loader2 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 
 /**

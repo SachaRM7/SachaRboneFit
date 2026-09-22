@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { messageErreur } from "@/lib/messages";
 import { Button } from "@/components/ui/button";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "@/components/ui/icons";
 
 /**
  * Ce que l'athlète regarde avant de dire oui.

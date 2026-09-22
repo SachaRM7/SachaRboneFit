@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { WifiOff } from "lucide-react";
+import { WifiOff } from "@/components/ui/icons";
 
 /**
  * Indique la perte de connexion reseau.

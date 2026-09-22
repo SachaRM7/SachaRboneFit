@@ -1,5 +1,5 @@
 "use client";
-import { LayoutList, Focus } from "lucide-react";
+import { LayoutList, Focus } from "@/components/ui/icons";
 import { VUES_LIVE, type VueLive } from "@/lib/live/vue-live";
 
 /**

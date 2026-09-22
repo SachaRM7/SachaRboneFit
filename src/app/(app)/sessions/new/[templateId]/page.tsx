@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/ui/icons";
 import { RestTimer } from "@/components/session/RestTimer";
 import { type ExercicePrescrit } from "@/components/session/types";
 import { TableauSeries } from "@/components/session/TableauSeries";

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { GestionMachines, type MachineAffichee } from "@/components/gyms/GestionMachines";
 import type { ExerciceSelectionnable } from "@/components/gyms/MachineForm";
 import { CATALOGUE_PAR_SLUG } from "@/lib/referentiels/catalogue";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft } from "@/components/ui/icons";
 import { peutGererLaSalle, REFUS_GESTION_SALLE } from "@/lib/autorisations";
 import { MaterielDuLieu } from "@/components/gyms/MaterielDuLieu";
 import { apportDeChaqueEquipement, exercicesRealisables, statutInventaire } from "@/lib/engine/disponibilite";

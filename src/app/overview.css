@@ -300,7 +300,7 @@
   .dashboard-v2 .metric-empty {
     font-size: 0.8rem;
   }
-  .dashboard-v2 .weight-tile svg:not(.lucide) {
+  .dashboard-v2 .weight-tile svg:not(.tabler-icon) {
     display: none;
   }
   .dashboard-v2 .metric-caption {

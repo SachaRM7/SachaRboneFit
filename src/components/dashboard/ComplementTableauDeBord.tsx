@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Calendar, Dumbbell, Activity, TrendingDown, Sparkles, ChevronRight } from "lucide-react";
+import { Calendar, Dumbbell, Activity, TrendingDown, Sparkles, ChevronRight } from "@/components/ui/icons";
 import { AlertList } from "@/components/alerts/AlertList";
 import { complementTableauDeBordMemoise, type ComplementTableauDeBord } from "@/services/tableau-de-bord";
 import { phase, publier } from "@/lib/mesure/trace";

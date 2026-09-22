@@ -13,7 +13,7 @@ import {
   MapPin,
   Scale,
   HeartPulse,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useSessionStore } from "@/stores/sessionStore";

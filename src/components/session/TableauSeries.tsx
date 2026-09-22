@@ -1,7 +1,7 @@
 "use client";
 import { useState, type ReactNode } from "react";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
-import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Pencil, Plus, Trash2 } from "@/components/ui/icons";
 import { DemonstrationMouvement } from "./DemonstrationMouvement";
 import { FicheExecution } from "./FicheExecution";
 import { useContexteExecution } from "./useContexteExecution";

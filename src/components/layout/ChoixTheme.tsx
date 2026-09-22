@@ -1,7 +1,7 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Sun, Moon, SunMoon } from "lucide-react";
+import { Sun, Moon, SunMoon } from "@/components/ui/icons";
 
 /** Thème clair par défaut ; le choix sombre ou système reste mémorisé. */
 

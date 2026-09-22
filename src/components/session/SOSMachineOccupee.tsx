@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Check } from "lucide-react";
+import { X, Check } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { machineOccupee } from "@/lib/sos/machine-occupee";
 import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engine/substitutions";

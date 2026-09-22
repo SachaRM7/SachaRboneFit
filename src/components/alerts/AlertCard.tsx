@@ -1,6 +1,6 @@
 "use client";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertTriangle, Info, AlertOctagon } from "lucide-react";
+import { AlertTriangle, Info, AlertOctagon } from "@/components/ui/icons";
 import type { Alert as AlertType } from "@/lib/engine/alerts";
 
 interface AlertCardProps {

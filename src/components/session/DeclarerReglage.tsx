@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@/components/ui/icons";
 import {
   LIBELLES_COURANTS, LIMITE_LIBELLE_REGLAGE, LIMITE_OPTION_REGLAGE, LIMITE_UNITE_REGLAGE,
   MAX_OPTIONS_REGLAGE, messageDeRefusDeclaration, validerDeclaration,

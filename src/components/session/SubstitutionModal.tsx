@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeftRight, Check } from "lucide-react";
+import { ArrowLeftRight, Check } from "@/components/ui/icons";
 import { findSubstitutes, type SubstituteResult } from "@/lib/engine/substitutions";
 
 interface SubstitutionModalProps {

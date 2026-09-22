@@ -7,7 +7,7 @@ import {
   Dumbbell,
   Edit3,
   MoreHorizontal,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { libelleMuscle } from "@/lib/referentiels/libelles";

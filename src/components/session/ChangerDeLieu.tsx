@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { messageErreur } from "@/lib/messages";
 import { useRouter } from "next/navigation";
-import { MapPin, ArrowRight, AlertTriangle, Check, Loader2 } from "lucide-react";
+import { MapPin, ArrowRight, AlertTriangle, Check, Loader2 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { MATERIEL_PORTABLE, LIBELLES_PORTABLE } from "@/lib/referentiels/capacites";
 

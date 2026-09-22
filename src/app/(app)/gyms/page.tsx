@@ -5,7 +5,7 @@ import { exerciseInstances, gyms } from "@/db/schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { GymCard } from "@/components/gyms/GymCard";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus } from "@/components/ui/icons";
 import Link from "next/link";
 import { machinesUtilisablesAujourdhui } from "@/db/archivage";
 import { EnTeteSecondaire } from "@/components/layout/EnTeteSecondaire";

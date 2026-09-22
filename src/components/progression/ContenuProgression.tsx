@@ -6,7 +6,7 @@ import {
   ChartNoAxesCombined,
   Trophy,
   Scale,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { ExerciseProgressionChart } from "@/components/progression/ExerciseProgressionChart";
 import { PillarVolumeChart } from "@/components/progression/PillarVolumeChart";
 import { BodyWeightChart } from "@/components/progression/BodyWeightChart";

@@ -7,7 +7,7 @@ import {
   Sparkles,
   Check,
   ArrowUpRight,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { libellePilier } from "@/lib/referentiels/libelles";
 import {
   LIBELLES_PHASE,

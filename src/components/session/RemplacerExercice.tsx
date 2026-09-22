@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, Check, Loader2 } from "lucide-react";
+import { ArrowLeftRight, Check, Loader2 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstituteResult } from "@/lib/engine/substitutions";
 import { toast } from "sonner";

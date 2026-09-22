@@ -24,7 +24,7 @@ import {
   ChevronRight,
   Scale,
   TimerReset,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { useSessionStore } from "@/stores/sessionStore";
 import type { EtatDuJour } from "@/lib/engine/etat-du-jour";
 import { CarteAujourdhui } from "@/components/dashboard/CarteAujourdhui";

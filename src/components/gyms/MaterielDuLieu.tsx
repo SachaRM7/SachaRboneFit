@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Check } from "lucide-react";
+import { Check } from "@/components/ui/icons";
 import { LIBELLES_EQUIPEMENT, type Equipement } from "@/lib/referentiels/equipements";
 import { CAPACITES, FAMILLES_A_COCHER, LIBELLES_CAPACITE } from "@/lib/referentiels/capacites";
 

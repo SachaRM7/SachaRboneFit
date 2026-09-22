@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type FocusEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Check, ChevronLeft, Dumbbell, Home, MapPin, Plus, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, Check, ChevronLeft, Dumbbell, Home, MapPin, Plus, ShieldCheck, Sparkles } from "@/components/ui/icons";
 import { Input } from "@/components/ui/input";
 import { messageErreur } from "@/lib/messages";
 import { BORNES_DUREE, LIBELLES_MATERIEL, LIBELLES_OBJECTIF, MOIS_AVANT_REPRISE, NIVEAUX, OBJECTIFS, PREFERENCES_MATERIEL, estUneReprise } from "@/lib/validators/onboarding";

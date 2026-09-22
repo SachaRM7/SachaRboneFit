@@ -1,5 +1,5 @@
 "use client";
-import { X, BatteryLow, Activity } from "lucide-react";
+import { X, BatteryLow, Activity } from "@/components/ui/icons";
 
 /**
  * Le choix entre deux choses qu'on confondait faute d'endroit où les séparer.

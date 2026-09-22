@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { ChevronRight } from "@/components/ui/icons";
+import type { AppIcon } from "@/components/ui/icons";
 
 /**
  * Les entrées de l'écran « Plus ».
@@ -20,7 +20,7 @@ export interface Entree {
   libelle: string;
   /** Facultative : « Salles » n'a pas besoin qu'on explique ce que c'est. */
   description?: string;
-  icone: LucideIcon;
+  icone: AppIcon;
 }
 
 export function GroupeReglages({ titre, entrees }: { titre: string; entrees: Entree[] }) {
@@ -58,7 +58,7 @@ export function LigneAction({
 }: {
   libelle: string;
   description?: string;
-  icone: LucideIcon;
+  icone: AppIcon;
   onClick: () => void;
   disabled?: boolean;
   danger?: boolean;

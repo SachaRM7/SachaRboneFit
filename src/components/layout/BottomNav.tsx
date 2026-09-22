@@ -4,7 +4,7 @@ import { Fragment } from "react";
 import { usePathname } from "next/navigation";
 import {
   House,
-  Dumbbell,
+  Barbell,
   ChartNoAxesCombined,
   SlidersHorizontal,
   CalendarRange,
@@ -12,12 +12,12 @@ import {
   MapPin,
   Activity,
   ArrowUpRight,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { useCoach } from "@/components/coach/ContexteCoach";
 
 const ONGLETS = [
   { href: "/dashboard", label: "Aujourd’hui", icon: House },
-  { href: "/sessions/new", label: "Séances", icon: Dumbbell },
+  { href: "/sessions/new", label: "Séances", icon: Barbell },
   { href: "/progression", label: "Progrès", icon: ChartNoAxesCombined },
   { href: "/settings", label: "Mon espace", icon: SlidersHorizontal },
 ];

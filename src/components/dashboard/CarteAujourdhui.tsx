@@ -9,7 +9,7 @@ import {
   Ruler,
   CheckCircle2,
   TrendingUp,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import type { EtatDuJour, NomEtat } from "@/lib/engine/etat-du-jour";
 import { DetailsAccueil } from "./DetailsAccueil";
 

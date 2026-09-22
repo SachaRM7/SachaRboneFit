@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Check, Copy, Dumbbell, Plus, Sparkles } from "lucide-react";
+import { ArrowRight, Check, Copy, Dumbbell, Plus, Sparkles } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { DeclarerContexte, useCoach } from "@/components/coach/ContexteCoach";
 

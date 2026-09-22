@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, RefreshCw, Activity, Clock } from "lucide-react";
+import { AlertTriangle, RefreshCw, Activity, Clock } from "@/components/ui/icons";
 
 interface SOSBarProps {
   onMachineOccupee: () => void;

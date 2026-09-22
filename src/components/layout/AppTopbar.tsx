@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowUpRight, UserRound, Activity } from "lucide-react";
+import { ArrowUpRight, UserRound, Activity } from "@/components/ui/icons";
 
 export function AppTopbar() {
   const chemin = usePathname();

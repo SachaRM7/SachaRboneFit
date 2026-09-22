@@ -1,4 +1,4 @@
-import { Check, TriangleAlert } from "lucide-react";
+import { Check, TriangleAlert } from "@/components/ui/icons";
 import { ficheRenseignee, type FicheTechnique } from "@/lib/engine/execution";
 
 export function TechniqueExercice({

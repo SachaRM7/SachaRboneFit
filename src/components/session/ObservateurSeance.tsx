@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { DialogClose } from "@/components/ui/dialog";
 import { DetailsLive } from "./DetailsLive";
-import { X } from "lucide-react";
+import { X } from "@/components/ui/icons";
 import { useSessionStore } from "@/stores/sessionStore";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import {

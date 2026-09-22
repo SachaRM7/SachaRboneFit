@@ -6,7 +6,7 @@ import { DialogClose } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { motifSerieInvalide, LIBELLES_MOTIF_INVALIDE } from "@/lib/engine/serie-realisee";
 import { chargeAEnregistrer } from "@/lib/validators/exercise-instance";
-import { Check, ChevronRight, Minus, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Minus, Pencil, Plus, Trash2 } from "@/components/ui/icons";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { DemonstrationMouvement } from "./DemonstrationMouvement";
 import { FicheExecution } from "./FicheExecution";

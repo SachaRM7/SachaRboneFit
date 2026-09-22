@@ -4,7 +4,7 @@ import {
   Sparkles,
   SlidersHorizontal,
   MessageCircle,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import { useCoach } from "@/components/coach/ContexteCoach";
 import { DialogClose } from "@/components/ui/dialog";
 

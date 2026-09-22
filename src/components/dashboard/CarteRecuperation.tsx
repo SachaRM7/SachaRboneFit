@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { HeartPulse, ChevronDown } from "lucide-react";
+import { HeartPulse, ChevronDown } from "@/components/ui/icons";
 import {
   LIBELLES_ETAT_RECUPERATION,
   resumeRecuperation,
