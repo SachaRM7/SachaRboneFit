@@ -1,78 +1,132 @@
 "use client";
-import { Check } from "@/components/ui/icons";
-import type { AvancementExercice } from "@/lib/live/vue-live";
 
-/**
- * Toute la séance en quelques lignes, depuis la vue Focus.
- *
- * La vue Focus montre un exercice à la fois — c'est son intérêt, et c'est aussi
- * ce qu'elle coûte : on perd de vue ce qui reste. Cette liste rend le reste en
- * un coup d'œil sans quitter l'écran, et permet d'ouvrir n'importe quel
- * exercice, terminé compris.
- *
- * ELLE NE CALCULE RIEN. `avancement` a déjà répondu, une fois, pour les deux
- * vues. Recompter ici « combien de séries faites » aurait produit un second
- * décompte, et le jour où l'un des deux change de règle, l'écran s'affiche en
- * se contredisant lui-même.
- *
- * La navigation reste libre : on peut revenir sur un exercice terminé pour
- * relire ou corriger. Un enchaînement qu'on ne peut pas remonter serait un
- * assistant, pas un carnet.
- */
+import {
+  Activity,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Dumbbell,
+  Hourglass,
+  Zap,
+} from "@/components/ui/icons";
+import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
+import { libelleMuscle } from "@/lib/referentiels/libelles";
+import { ecrireTempo, lireTempo } from "@/lib/engine/execution";
+import type { AvancementExercice } from "@/lib/live/vue-live";
+import type { ExercicePrescrit } from "./types";
 
 interface Props {
+  exercices: ExercicePrescrit[];
   etats: AvancementExercice[];
-  /** L'exercice actuellement affiché — mis en évidence, pas verrouillé. */
   courant: number;
   onChoisir: (index: number) => void;
   reportes?: string[];
+  note?: string;
+  onNote?: (note: string) => void;
+  afficherNote?: boolean;
 }
 
-export function ListeCompacte({ etats, courant, onChoisir, reportes = [] }: Props) {
+function tempoPrescrit(tempo: string | null | undefined): string | null {
+  if (!tempo) return null;
+  const lu = lireTempo(tempo);
+  return lu ? ecrireTempo(lu) : tempo.trim() || null;
+}
+
+export function ListeCompacte({
+  exercices,
+  etats,
+  courant,
+  onChoisir,
+  reportes = [],
+  note = "",
+  onNote,
+  afficherNote = false,
+}: Props) {
   return (
-    <ul className="space-y-1" aria-label="Exercices de la séance">
-      {etats.map((e, i) => {
-        const actif = i === courant;
-        return (
-          <li key={e.id}>
-            <button
-              onClick={() => onChoisir(i)}
-              aria-current={actif ? "true" : undefined}
-              className={`w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors ${
-                actif ? "bg-papier-2 border border-encre" : "border border-transparent active:bg-papier-2"
-              }`}
+    <div className="live-list-view">
+      <ol className="live-list" aria-label="Exercices de la séance">
+        {etats.map((etat, index) => {
+          const exercice = exercices.find((item) => item.id === etat.id);
+          if (!exercice) return null;
+          const actif = index === courant;
+          const termine = etat.statut === "termine";
+          const tempo = tempoPrescrit(exercice.tempo);
+          const muscles = (exercice.musclesPrincipaux ?? []).slice(0, 3);
+
+          return (
+            <li
+              key={etat.id}
+              className="live-list-item"
+              data-status={termine ? "termine" : actif ? "courant" : "a-venir"}
             >
-              <span className="chiffres text-xs text-encre-3 w-4 shrink-0">{i + 1}</span>
-              <span className={`flex-1 text-sm truncate ${
-                e.statut === "termine" ? "text-encre-3" : "text-encre"
-              }`}>
-                {e.nom}
-                {e.statut !== "termine" && reportes.includes(e.id) && (
-                  <small className="ml-2 uppercase tracking-wide text-[10px] text-encre-3">Reporté</small>
-                )}
+              <span className="live-list-state" aria-hidden>
+                {termine && <Check />}
+                <b className="chiffres">{index + 1}</b>
               </span>
-              {/*
-                L'état ne repose pas sur la seule couleur : une coche pour
-                terminé, un compte pour en cours, un tiret pour à faire. Ça se
-                lit aussi en niveaux de gris, et par un lecteur d'écran.
-              */}
-              {e.statut === "termine" ? (
-                <span className="flex items-center gap-1 text-xs text-encre-3 shrink-0">
-                  <Check className="w-4 h-4" aria-hidden />
-                  <span className="sr-only">terminé</span>
+              <button
+                type="button"
+                onClick={() => onChoisir(index)}
+                aria-current={actif ? "true" : undefined}
+                className="live-list-card"
+              >
+                <span className="live-list-illustration">
+                  {exercice.slug ? (
+                    <IllustrationExercice
+                      slug={exercice.slug}
+                      nom={exercice.nom}
+                      className="w-full h-full"
+                    />
+                  ) : (
+                    <Dumbbell aria-hidden />
+                  )}
                 </span>
-              ) : e.statut === "en_cours" ? (
-                <span className="chiffres text-xs text-encre-2 shrink-0">
-                  {e.faites}/{e.cibles}
-                  <span className="sr-only"> séries faites</span>
+                <span className="live-list-content">
+                  <strong>{exercice.nom}</strong>
+                  {exercice.machineNom && exercice.machineNom !== exercice.nom && (
+                    <small>{exercice.machineNom}</small>
+                  )}
+                  <span className="live-list-metrics">
+                    <span className="chiffres">
+                      {exercice.seriesCibles} × {exercice.fourchetteRepsMin}–{exercice.fourchetteRepsMax}
+                    </span>
+                    {exercice.reposSecondes != null && (
+                      <span className="chiffres"><Hourglass aria-hidden />{exercice.reposSecondes} s</span>
+                    )}
+                    {tempo && (
+                      <span className="chiffres"><Activity aria-hidden />{tempo}</span>
+                    )}
+                  </span>
+                  <span className="live-list-muscles">
+                    {muscles.length > 0
+                      ? muscles.map((muscle) => libelleMuscle(muscle)).join(" · ")
+                      : reportes.includes(etat.id) ? "Reporté" : ""}
+                  </span>
                 </span>
-              ) : (
-                <span className="text-xs text-encre-3 shrink-0" aria-label="pas encore commencé">—</span>
-              )}
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+                <span className="live-list-open" aria-hidden><ChevronRight /></span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
+      {afficherNote && onNote && (
+        <details className="live-quick-note">
+          <summary>
+            <Zap aria-hidden />
+            <span>Note rapide de la séance</span>
+            <ChevronDown aria-hidden />
+          </summary>
+          <label>
+            <span className="sr-only">Note rapide de la séance</span>
+            <textarea
+              value={note}
+              onChange={(event) => onNote(event.target.value)}
+              placeholder="Note ce que tu veux retenir de cette séance."
+              rows={3}
+            />
+          </label>
+        </details>
+      )}
+    </div>
   );
 }

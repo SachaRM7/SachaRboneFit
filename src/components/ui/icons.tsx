@@ -34,6 +34,7 @@ export {
   IconX as XIcon,
   IconCopy as Copy,
   IconSend as Send,
+  IconSquare as Square,
 } from "@tabler/icons-react";
 
 // Workout vocabulary.

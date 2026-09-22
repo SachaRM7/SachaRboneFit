@@ -25,29 +25,16 @@ const LIBELLES: Record<VueLive, { texte: string; Icone: typeof Focus }> = {
 };
 
 export function SelecteurVue({ vue, onChanger }: Props) {
+  const destination = VUES_LIVE.find((candidate) => candidate !== vue) ?? "focus";
+  const { texte, Icone } = LIBELLES[destination];
   return (
-    <div
-      role="group"
-      aria-label="Affichage de la séance"
-      className="inline-flex rounded-2xl bg-papier-2 p-1"
+    <button
+      type="button"
+      onClick={() => onChanger(destination)}
+      className="live-view-switch"
+      aria-label={`Afficher la vue ${texte}`}
     >
-      {VUES_LIVE.map((v) => {
-        const { texte, Icone } = LIBELLES[v];
-        const actif = v === vue;
-        return (
-          <button
-            key={v}
-            onClick={() => onChanger(v)}
-            aria-pressed={actif}
-            className={`flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-medium transition-colors ${
-              actif ? "bg-carte text-primary shadow-sm" : "text-encre-3"
-            }`}
-          >
-            <Icone className="w-3.5 h-3.5" aria-hidden />
-            {texte}
-          </button>
-        );
-      })}
-    </div>
+      <Icone aria-hidden />
+    </button>
   );
 }

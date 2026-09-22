@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, Check, Loader2 } from "@/components/ui/icons";
+import { ArrowLeftRight, Check, Loader2, RefreshCw } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstituteResult } from "@/lib/engine/substitutions";
 import { toast } from "sonner";
@@ -53,6 +53,8 @@ interface Props {
   /** Appliqué APRÈS confirmation du serveur, jamais avant. */
   onRemplace: (remplacant: SubstituteResult) => void;
   onReporter?: () => void;
+  onMachineOccupee?: () => void;
+  affichage?: "texte" | "icone";
 }
 
 export function RemplacerExercice({
@@ -68,6 +70,8 @@ export function RemplacerExercice({
   debutant = false,
   onRemplace,
   onReporter,
+  onMachineOccupee,
+  affichage = "texte",
 }: Props) {
   const [ouvert, setOuvert] = useState(false);
   const [raison, setRaison] = useState<Raison | null>(null);
@@ -127,10 +131,17 @@ export function RemplacerExercice({
       <button
         type="button"
         onClick={() => setOuvert(true)}
-        className="inline-flex items-center gap-1.5 text-encre-2 text-xs border border-filet rounded-md px-2.5 py-1.5 bg-papier-2"
+        className={affichage === "icone" ? "live-replace-trigger" : "inline-flex items-center gap-1.5 text-encre-2 text-xs border border-filet rounded-md px-2.5 py-1.5 bg-papier-2"}
+        aria-label={affichage === "icone" ? `Remplacer ${exerciceNom}` : undefined}
       >
-        <ArrowLeftRight className="w-3.5 h-3.5" aria-hidden />
-        Remplacer
+        {affichage === "icone" ? (
+          <RefreshCw className="w-5 h-5" aria-hidden />
+        ) : (
+          <>
+            <ArrowLeftRight className="w-3.5 h-3.5" aria-hidden />
+            Remplacer
+          </>
+        )}
       </button>
 
       {ouvert && (
@@ -157,7 +168,14 @@ export function RemplacerExercice({
                     <button
                       key={r.cle}
                       type="button"
-                      onClick={() => setRaison(r.cle)}
+                      onClick={() => {
+                        if (r.cle === "occupee" && onMachineOccupee) {
+                          fermer();
+                          onMachineOccupee();
+                          return;
+                        }
+                        setRaison(r.cle);
+                      }}
                       className="w-full text-left px-4 py-3 rounded-lg border border-filet bg-papier-2 text-encre text-sm"
                     >
                       {r.libelle}

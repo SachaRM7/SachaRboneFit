@@ -1746,7 +1746,6 @@
   .focus-carte .mesure-choix { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .live-aides-compactes { gap: 0 6px; }
 }
-
 /* -------------------------------------------------------------------------
    Live Focus — hiérarchie de séance
 
@@ -2021,5 +2020,885 @@
   }
   .focus-exercise-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ========================================================================== */
+/* Live 2026 — composition validée pour Focus et Liste                        */
+/* ========================================================================== */
+
+.live-session {
+  --live-card-radius: 22px;
+  --live-soft: color-mix(in srgb, var(--papier-2) 84%, white);
+  max-width: 640px;
+  margin-inline: auto;
+  padding-bottom: calc(24px + var(--marge-bas));
+}
+
+.live-session-header {
+  border-bottom: 0 !important;
+  padding: 12px 20px 10px !important;
+  backdrop-filter: blur(18px);
+}
+
+.live-focus-topline {
+  gap: 12px;
+}
+
+.live-focus-title {
+  flex: 1;
+  gap: 8px;
+}
+
+.live-focus-title > button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+}
+
+.live-focus-title h1 {
+  font-size: clamp(1.18rem, 5.5vw, 1.45rem);
+  font-weight: 700;
+}
+
+.live-focus-title p {
+  margin-top: 5px;
+  font-size: .78rem;
+}
+
+.live-focus-progress {
+  gap: 6px;
+}
+
+.live-coach-state {
+  display: grid;
+  width: 42px;
+  height: 48px;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.live-focus-progress .mascotte {
+  width: 42px;
+  height: 42px;
+}
+
+.live-progress-segments {
+  max-width: 76px;
+  gap: 3px;
+}
+
+.live-progress-segments span {
+  width: 13px;
+  height: 6px;
+}
+
+.live-progress-count {
+  font-size: .72rem;
+}
+
+.live-view-switch {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: 15px;
+  background: var(--papier-2);
+  color: var(--encre);
+  flex-shrink: 0;
+}
+
+.live-view-switch > svg {
+  width: 26px;
+  height: 26px;
+}
+
+.live-focus-summary {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(142px, auto);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.live-focus-summary-item {
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 1px;
+  min-height: 62px;
+  padding: 9px 12px;
+  border-radius: 15px;
+  text-align: left;
+}
+
+.live-focus-summary-item > svg {
+  grid-row: 1 / 3;
+  align-self: center;
+  width: 25px;
+  height: 25px;
+  color: var(--encre);
+}
+
+.live-focus-summary-item > span {
+  align-self: end;
+  font-size: .65rem;
+}
+
+.live-focus-summary-item > strong,
+.live-focus-summary-item > div {
+  align-self: start;
+}
+
+.live-focus-summary-item > div,
+.live-focus-summary-item > div > span {
+  padding: 0;
+  font-size: .98rem;
+}
+
+.live-finish-button {
+  min-height: 62px;
+  padding-inline: 14px;
+  border-radius: 15px;
+  font-size: .8rem;
+}
+
+.live-finish-button > svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.8;
+}
+
+/* État et durée restent accessibles sans ajouter une rangée absente du design :
+   mascotte et tuile Durée portent désormais ces deux actions. */
+.live-session-persistent {
+  display: none;
+}
+
+.live-session > main {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 18px 20px;
+}
+
+.live-session > main > :is(.focus-v2, .live-list-view) {
+  order: 1;
+}
+
+.live-session > main > .live-calibration {
+  order: 2;
+  margin-top: 12px;
+}
+
+.live-secondary-signals {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+
+.focus-v2 {
+  gap: 14px;
+}
+
+.focus-carte {
+  display: grid;
+  gap: 14px;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.focus-carte > .focus-exercise-card { order: 1; }
+.focus-carte > .lecteur-faites { order: 2; }
+.focus-carte > .serie-en-cours { order: 3; }
+.focus-carte > .focus-history-block { order: 4; }
+.focus-carte > .lecteur-actions { order: 5; }
+.focus-carte > .lecteur-fin { order: 6; }
+.focus-carte > .live-aides-compactes { order: 7; }
+.focus-carte > .live-detail-trigger { order: 8; }
+
+.focus-exercise-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--filet-doux);
+  border-radius: var(--live-card-radius);
+  background: var(--carte);
+  box-shadow: 0 8px 28px -24px color-mix(in srgb, var(--encre) 40%, transparent);
+}
+
+.focus-nav {
+  margin: 0;
+  gap: 8px;
+}
+
+.focus-nav > button {
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 999px;
+  background: var(--papier-2);
+}
+
+.focus-nav-rang {
+  background: transparent !important;
+}
+
+.focus-nav-rang .eyebrow {
+  color: var(--encre-3);
+  font-size: .78rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.focus-nav-rang > .chiffres {
+  font-size: .78rem;
+  font-weight: 500;
+  color: var(--encre-3);
+}
+
+.focus-nav-rang > svg {
+  display: none;
+}
+
+.lecteur-hero {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) 46px;
+  gap: 12px;
+  align-items: center;
+}
+
+.lecteur-illustration {
+  width: 90px;
+  height: 96px;
+  border-radius: 20px;
+  padding: 8px;
+}
+
+.lecteur-illustration-fallback {
+  width: 30px;
+  height: 30px;
+}
+
+.lecteur-titre h2 {
+  font-size: clamp(1.12rem, 5.2vw, 1.4rem);
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.lecteur-titre p {
+  margin-top: 4px;
+  font-size: .75rem;
+}
+
+.live-replace-trigger {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--papier-2);
+  color: var(--encre);
+}
+
+.focus-exercise-info {
+  gap: 10px;
+}
+
+.focus-exercise-tags {
+  padding-left: 102px;
+  margin-top: -26px;
+}
+
+.focus-exercise-tags span {
+  padding: 8px 13px;
+  border-radius: 11px;
+  font-size: .72rem;
+}
+
+.focus-exercise-metrics {
+  gap: 7px;
+}
+
+.focus-exercise-metrics > div {
+  min-height: 76px;
+  padding: 9px 5px 7px;
+  border-radius: 14px;
+}
+
+.focus-exercise-metrics strong {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: .73rem;
+  white-space: normal;
+}
+
+.focus-exercise-metrics strong > svg {
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+}
+
+.focus-exercise-metrics span {
+  margin-top: 6px;
+  font-size: .61rem;
+}
+
+.focus-technique-link {
+  min-height: 50px;
+  border-radius: 13px;
+  padding-inline: 14px;
+  font-size: .8rem;
+}
+
+.focus-technique-link > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.focus-technique-link > span > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.focus-carte .serie-en-cours {
+  min-height: 300px;
+  padding: 18px;
+  border-radius: var(--live-card-radius);
+  gap: 14px;
+  box-shadow: 0 14px 32px -24px color-mix(in srgb, var(--hero) 85%, transparent);
+}
+
+.serie-en-cours-tete {
+  margin: -4px 0 0;
+}
+
+.serie-en-cours-titre {
+  font-size: .68rem;
+}
+
+.serie-en-cours-titre .chiffres {
+  font-size: .9rem;
+}
+
+.serie-effort-badge {
+  gap: 6px;
+  min-height: 32px;
+  padding-inline: 10px;
+}
+
+.serie-effort-badge > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.focus-carte .serie-en-cours .mesures-paire {
+  position: relative;
+  gap: 18px;
+}
+
+.focus-carte .serie-en-cours .mesures-paire::after {
+  position: absolute;
+  top: 4px;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #ffffff20;
+  content: "";
+}
+
+.focus-carte .serie-en-cours .mesure {
+  gap: 8px;
+}
+
+.focus-carte .serie-en-cours .eyebrow {
+  font-size: .62rem;
+  letter-spacing: .12em;
+}
+
+.serie-en-cours .mesures-paire .mesure-ligne {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.serie-en-cours .mesures-paire .mesure-valeur-composee {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 58px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.serie-en-cours .mesures-paire .mesure-valeur {
+  grid-column: auto;
+  grid-row: auto;
+  width: auto;
+  max-width: 105px;
+  min-height: 0;
+  font-size: clamp(2.35rem, 11vw, 3.4rem);
+  font-weight: 650;
+}
+
+.mesure-valeur-composee > span {
+  color: #a8b6a9;
+  font-size: 1rem;
+  white-space: nowrap;
+}
+
+.serie-en-cours .mesures-paire .mesure-ligne > :is(button,span) {
+  grid-row: 2;
+}
+
+.serie-en-cours .mesures-paire .mesure-ligne > button {
+  height: 52px;
+  border-radius: 14px;
+}
+
+.focus-carte .serie-valider {
+  min-height: 58px;
+  margin-top: auto;
+  border-radius: 14px;
+  font-size: .95rem;
+}
+
+.focus-history-block {
+  display: grid;
+  gap: 8px;
+}
+
+.focus-history-block > header {
+  display: flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.focus-history-block h3 {
+  color: var(--encre-2);
+  font-size: .82rem;
+  font-weight: 500;
+}
+
+.focus-history-block header > button {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 3px;
+  color: var(--encre-2);
+  font-size: .72rem;
+}
+
+.focus-history-block header > button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.focus-history-grid,
+.focus-history-empty {
+  border: 1px solid var(--filet-doux);
+  border-radius: 15px;
+  background: var(--carte);
+}
+
+.focus-history-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 12px 14px;
+}
+
+.focus-history-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding-inline: 12px;
+}
+
+.focus-history-grid > div:first-child {
+  padding-left: 0;
+}
+
+.focus-history-grid > div + div {
+  border-left: 1px solid var(--filet-doux);
+}
+
+.focus-history-grid span {
+  color: var(--encre-3);
+  font-size: .62rem;
+}
+
+.focus-history-grid strong {
+  font-size: .78rem;
+}
+
+.focus-history-empty {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+}
+
+.focus-history-empty > svg {
+  width: 52px;
+  height: 52px;
+  padding: 13px;
+  border-radius: 999px;
+  background: var(--papier-2);
+  color: var(--encre-3);
+}
+
+.focus-history-empty strong {
+  color: var(--encre);
+  font-size: .78rem;
+}
+
+.focus-history-empty p {
+  margin-top: 4px;
+  color: var(--encre-3);
+  font-size: .68rem;
+  line-height: 1.4;
+}
+
+.focus-carte .lecteur-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.focus-carte .lecteur-actions button {
+  min-height: 52px;
+  border-radius: 14px;
+  background: var(--papier-2);
+  font-size: .75rem;
+}
+
+.focus-carte .live-detail-trigger {
+  margin-inline: 2px;
+}
+
+/* Vue Liste */
+.live-list-view {
+  display: grid;
+  gap: 10px;
+}
+
+.live-list {
+  display: grid;
+  gap: 8px;
+}
+
+.live-list-item {
+  display: grid;
+  grid-template-columns: 31px minmax(0, 1fr);
+  min-height: 112px;
+}
+
+.live-list-state {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border-radius: 16px 0 0 16px;
+  background: var(--papier-2);
+  color: var(--encre-2);
+}
+
+.live-list-state > svg {
+  width: 17px;
+  height: 17px;
+}
+
+.live-list-state > b {
+  font-size: .75rem;
+  font-weight: 600;
+}
+
+.live-list-item[data-status="termine"] .live-list-state {
+  background: var(--gain);
+  color: white;
+}
+
+.live-list-item[data-status="courant"] .live-list-state {
+  background: var(--electric);
+  color: #263727;
+}
+
+.live-list-item[data-status="termine"] .live-list-card {
+  background: color-mix(in srgb, var(--gain-fond) 45%, var(--carte));
+  border-color: color-mix(in srgb, var(--gain) 18%, var(--filet-doux));
+}
+
+.live-list-card {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 36px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 10px 12px 12px;
+  border: 1px solid var(--filet-doux);
+  border-left: 0;
+  border-radius: 0 18px 18px 0;
+  background: var(--carte);
+  text-align: left;
+}
+
+.live-list-illustration {
+  display: grid;
+  width: 76px;
+  height: 80px;
+  place-items: center;
+  padding: 7px;
+  border-radius: 16px;
+  background: var(--papier-2);
+  color: var(--encre-3);
+}
+
+.live-list-illustration > svg {
+  width: 28px;
+  height: 28px;
+}
+
+.live-list-content {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.live-list-content > strong {
+  overflow: hidden;
+  color: var(--encre);
+  font-family: var(--font-heading);
+  font-size: .92rem;
+  font-weight: 650;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-list-content > small {
+  overflow: hidden;
+  color: var(--encre-3);
+  font-size: .68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-list-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.live-list-metrics > span {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--papier-2);
+  color: var(--encre-2);
+  font-size: .62rem;
+}
+
+.live-list-metrics svg {
+  width: 15px;
+  height: 15px;
+}
+
+.live-list-muscles {
+  min-height: 14px;
+  overflow: hidden;
+  color: var(--encre-3);
+  font-size: .64rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.live-list-open {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--papier-2);
+  color: var(--encre);
+}
+
+.live-list-open svg {
+  width: 18px;
+  height: 18px;
+}
+
+.live-quick-note {
+  border: 1px solid var(--filet-doux);
+  border-radius: 14px;
+  background: var(--carte);
+}
+
+.live-quick-note > summary {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 20px;
+  min-height: 52px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  list-style: none;
+  color: var(--encre-2);
+  font-size: .76rem;
+  cursor: pointer;
+}
+
+.live-quick-note > summary::-webkit-details-marker {
+  display: none;
+}
+
+.live-quick-note > summary svg {
+  width: 20px;
+  height: 20px;
+}
+
+.live-quick-note[open] > summary svg:last-child {
+  transform: rotate(180deg);
+}
+
+.live-quick-note label {
+  display: block;
+  padding: 0 12px 12px;
+}
+
+.live-quick-note textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--filet);
+  border-radius: 12px;
+  background: var(--papier-2);
+  padding: 10px 12px;
+  color: var(--encre);
+  font-size: .8rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 480px) {
+  .live-session-header {
+    padding-inline: 14px !important;
+  }
+
+  .live-focus-title > button {
+    width: 36px;
+  }
+
+  .live-focus-progress {
+    gap: 4px;
+  }
+
+  .live-progress-segments {
+    display: flex;
+    max-width: 46px;
+    gap: 3px;
+  }
+
+  .live-progress-segments span {
+    width: 7px;
+    min-width: 7px;
+  }
+
+  .live-focus-summary {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(128px, auto);
+    gap: 6px;
+  }
+
+  .live-focus-summary-item {
+    grid-template-columns: 27px minmax(0, 1fr);
+    column-gap: 6px;
+    padding-inline: 8px;
+  }
+
+  .live-focus-summary-item > svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .live-finish-button {
+    padding-inline: 9px;
+  }
+
+  .live-session > main {
+    padding-inline: 12px;
+  }
+
+  .focus-exercise-card {
+    padding: 11px;
+  }
+
+  .lecteur-hero {
+    grid-template-columns: 82px minmax(0, 1fr) 44px;
+    gap: 10px;
+  }
+
+  .lecteur-illustration {
+    width: 82px;
+    height: 88px;
+  }
+
+  .focus-exercise-tags {
+    padding-left: 92px;
+  }
+
+  .focus-carte .serie-en-cours {
+    padding: 16px 14px;
+  }
+}
+
+@media (max-width: 379px) {
+  .live-focus-progress .mascotte,
+  .live-coach-state {
+    width: 36px;
+    height: 40px;
+  }
+
+  .live-progress-count {
+    display: none;
+  }
+
+  .live-focus-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .live-finish-button {
+    grid-column: 1 / -1;
+    min-height: 48px;
+  }
+
+  .focus-exercise-tags {
+    padding-left: 0;
+    margin-top: 0;
+  }
+
+  .focus-exercise-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .focus-carte .lecteur-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .live-list-card {
+    grid-template-columns: 62px minmax(0, 1fr) 32px;
+  }
+
+  .live-list-illustration {
+    width: 62px;
+    height: 68px;
   }
 }

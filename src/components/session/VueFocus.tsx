@@ -42,6 +42,7 @@ interface Props {
   modeReserve?: boolean;
   /** Les actions propres à un exercice — remplacement, réglages — déjà montées. */
   actions?: (exercice: ExercicePrescrit) => ReactNode;
+  remplacement?: (exercice: ExercicePrescrit) => ReactNode;
   reportes?: string[];
 }
 
@@ -54,6 +55,7 @@ export function VueFocus({
   onSerieValidee,
   modeReserve = false,
   actions,
+  remplacement,
   reportes = [],
 }: Props) {
   const [listeOuverte, setListeOuverte] = useState(false);
@@ -78,7 +80,16 @@ export function VueFocus({
         par un contrôle utilitaire posé à côté. Les flèches encadrent le
         compteur : les pouces atteignent les bords de l'écran, pas son centre.
       */}
-      <nav className="focus-nav" aria-label="Navigation entre les exercices">
+      <LecteurExercice
+        exercice={exercice}
+        rpeReduction={rpeReduction(exercice.id)}
+        modeReserve={modeReserve}
+        onSerieValidee={onSerieValidee}
+        actions={actions?.(exercice)}
+        remplacement={remplacement?.(exercice)}
+        onSuivant={suivant !== null ? () => aller(suivant) : null}
+        reporte={reportes.includes(exercice.id)}
+        navigation={<nav className="focus-nav" aria-label="Navigation entre les exercices">
         <button
           onClick={() => precedent !== null && aller(precedent)}
           disabled={precedent === null}
@@ -109,16 +120,7 @@ export function VueFocus({
         >
           <ChevronRight className="w-5 h-5" aria-hidden />
         </button>
-      </nav>
-
-      <LecteurExercice
-        exercice={exercice}
-        rpeReduction={rpeReduction(exercice.id)}
-        modeReserve={modeReserve}
-        onSerieValidee={onSerieValidee}
-        actions={actions?.(exercice)}
-        onSuivant={suivant !== null ? () => aller(suivant) : null}
-        reporte={reportes.includes(exercice.id)}
+      </nav>}
       />
 
       {/*
@@ -150,7 +152,7 @@ export function VueFocus({
                 <X className="w-5 h-5" aria-hidden />
               </button>
             </header>
-            <ListeCompacte etats={etats} courant={courant} onChoisir={aller} reportes={reportes} />
+            <ListeCompacte exercices={exercices} etats={etats} courant={courant} onChoisir={aller} reportes={reportes} />
           </div>
         </div>
       )}

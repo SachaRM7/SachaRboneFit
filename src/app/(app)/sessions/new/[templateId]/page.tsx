@@ -5,11 +5,11 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft } from "@/components/ui/icons";
+import { ArrowLeft, ChartNoAxesCombined, Square, Stopwatch } from "@/components/ui/icons";
 import { RestTimer } from "@/components/session/RestTimer";
 import { type ExercicePrescrit } from "@/components/session/types";
-import { TableauSeries } from "@/components/session/TableauSeries";
 import { VueFocus } from "@/components/session/VueFocus";
+import { ListeCompacte } from "@/components/session/ListeCompacte";
 import type { SerieValidee } from "@/components/session/useSaisieSeries";
 import { SelecteurVue } from "@/components/session/SelecteurVue";
 import {
@@ -124,6 +124,7 @@ function ContenuSeanceLive() {
     hydraterLignees,
     hydraterDeferredExercises,
     setCurrentExerciseIndex,
+    setNotes,
     noterSubstitution,
     startRest,
     skipRest,
@@ -854,31 +855,29 @@ function ContenuSeanceLive() {
     setCurrentExerciseIndex(position);
     setModaleSOS(incident);
   };
+  const remplacementDeLExercice = (exercice: (typeof visibles)[number]) => (
+    active?.id && gymId ? (
+      <RemplacerExercice
+        sessionLogId={active.id}
+        exerciceId={exercice.id}
+        exerciceNom={exercice.nom}
+        pilier={pilierDe(exercice)}
+        profilTension={profilDe(exercice)}
+        gymId={gymId}
+        parcSalle={parcSalle}
+        dejaAuProgramme={visibles.map((e) => e.id)}
+        musclesCourbatures={musclesCourbatures}
+        debutant={modeSaisieEffort(seance.phaseCycle) === "reserve"}
+        onRemplace={(r) => remplacer(exercice.id, r)}
+        onReporter={() => reporterExercice(exercice.id, exercice.nom, false)}
+        onMachineOccupee={() => ouvrirIncidentExercice(exercice.id, "machine")}
+        affichage="icone"
+      />
+    ) : null
+  );
+
   const actionsDeLExercice = (exercice: (typeof visibles)[number]) => (
     <>
-      {active?.id && gymId && (
-        <RemplacerExercice
-          sessionLogId={active.id}
-          exerciceId={exercice.id}
-          exerciceNom={exercice.nom}
-          pilier={pilierDe(exercice)}
-          profilTension={profilDe(exercice)}
-          gymId={gymId}
-          parcSalle={parcSalle}
-          dejaAuProgramme={visibles.map((e) => e.id)}
-          musclesCourbatures={musclesCourbatures}
-          debutant={modeSaisieEffort(seance.phaseCycle) === "reserve"}
-          onRemplace={(r) => remplacer(exercice.id, r)}
-          onReporter={() => reporterExercice(exercice.id, exercice.nom, false)}
-        />
-      )}
-      <button
-        type="button"
-        className="live-context-action"
-        onClick={() => ouvrirIncidentExercice(exercice.id, "machine")}
-      >
-        Machine occupée
-      </button>
       <button
         type="button"
         className="live-context-action"
@@ -956,7 +955,9 @@ function ContenuSeanceLive() {
               <h1>Séance du jour</h1>
               <p>
                 {seance.nom === "Séance du jour" ? "Séance" : seance.nom}
-                {visibles.length > 0 && ` · Exercice ${index + 1} sur ${visibles.length}`}
+                {visibles.length > 0 && (vue === "focus"
+                  ? ` · Exercice ${index + 1} sur ${visibles.length}`
+                  : ` · ${visibles.length} exercice${visibles.length > 1 ? "s" : ""}`)}
               </p>
             </div>
           </div>
@@ -975,12 +976,19 @@ function ContenuSeanceLive() {
               bouton de validation.
             */}
             {etatMascotte !== "repos" && (
-              <MascotteCoach
-                etat={etatMascotte}
-                taille="compact"
-                presence="discrete"
-                anime={etatMascotte === "encouragement"}
-              />
+              <button
+                type="button"
+                className="live-coach-state"
+                onClick={() => setModaleSOS("etat")}
+                aria-label="Signaler un changement d’état"
+              >
+                <MascotteCoach
+                  etat={etatMascotte}
+                  taille="compact"
+                  presence="discrete"
+                  anime={etatMascotte === "encouragement"}
+                />
+              </button>
             )}
             <div className="live-progress-segments" aria-hidden="true">
               {visibles.map((exercise, exerciseIndex) => {
@@ -994,10 +1002,20 @@ function ContenuSeanceLive() {
               })}
             </div>
             <span className="live-progress-count chiffres">{termines}/{visibles.length}</span>
+            <SelecteurVue vue={vue} onChanger={choisirVue} />
           </div>
         </div>
         <div className="live-focus-summary">
-          <div className="live-focus-summary-item">
+          <button
+            type="button"
+            className="live-focus-summary-item"
+            onClick={() => {
+              setDureeSOSMin(active ? Math.floor((Date.now() - active.startedAt) / 60000) : 0);
+              setModaleSOS("temps");
+            }}
+            aria-label="Adapter la durée de la séance"
+          >
+            <Stopwatch aria-hidden />
             <span>Durée</span>
             {active?.startedAt ? (
               <ChronoSeance
@@ -1006,8 +1024,9 @@ function ContenuSeanceLive() {
                 dureeMaxMinutes={seance.dureeMaxMinutes}
               />
             ) : <strong className="chiffres">00:00</strong>}
-          </div>
+          </button>
           <div className="live-focus-summary-item">
+            <ChartNoAxesCombined aria-hidden />
             <span>Volume estimé</span>
             <strong className="chiffres">— kg</strong>
           </div>
@@ -1016,7 +1035,7 @@ function ContenuSeanceLive() {
             className="live-finish-button"
             onClick={() => router.push(`/sessions/new/${templateId}/finish`)}
           >
-            <span aria-hidden>□</span> Finir la séance
+            <Square aria-hidden /> Finir la séance
           </button>
         </div>
         <nav
@@ -1060,73 +1079,6 @@ function ContenuSeanceLive() {
         </nav>
       </header>
 
-      {/* L'ajustement était calculé, stocké, puis jamais montré — et seul le
-          volume l'était, jamais les substitutions ni les charges en hausse. */}
-      <BandeauAdaptation
-        feuJour={seance.feuBiologiqueJour}
-        volumeAjustePct={seance.volumeAjustePct}
-        volumeAjusteRaison={seance.volumeAjusteRaison}
-        exercices={visibles}
-      />
-
-      {/*
-        Le Coach regarde la séance pendant qu'elle a lieu. Ce que le moteur
-        retient — et lui seul décide quoi — s'affiche ici, sans appel au modèle.
-      */}
-      {/*
-        « En parler au coach » ouvre le tiroir SANS quitter la séance.
-
-        Aucun appel au modèle n'a lieu ici : le tiroir s'ouvre avec le sujet et
-        l'exercice désignés, et c'est l'utilisateur qui parle en premier. Le
-        constat lui-même n'est pas transporté — le serveur relit la séance
-        depuis la session authentifiée.
-      */}
-      <ObservateurSeance
-        onDemanderCoach={(evenement) =>
-          ouvrirCoach("observation_seance", {
-            typeEntite: "instance",
-            entiteId: evenement.exerciseInstanceId,
-            signal: evenement.type,
-          })
-        }
-        prescriptions={visibles.map((e) => ({
-          exerciseInstanceId: e.id,
-          seriesCibles: e.seriesCibles,
-          fourchetteRepsMin: e.fourchetteRepsMin,
-          fourchetteRepsMax: e.fourchetteRepsMax,
-          rpeCible: e.rpeCible,
-          reposSecondes: e.reposSecondes,
-        }))}
-        ordreDesExercices={visibles.map((e) => e.id)}
-      />
-
-      <div className="px-4 pt-1 space-y-2">
-        <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
-
-        {sessionId &&
-          gymId &&
-          (changementDeLieu ? (
-            <div className="rounded-xl border border-filet bg-carte p-4">
-              <ChangerDeLieu
-                sessionLogId={sessionId}
-                lieuActuelId={gymId}
-                onApplique={() => {
-                  setChangementDeLieu(false);
-                  window.location.reload();
-                }}
-              />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setChangementDeLieu(true)}
-              className="text-encre-2 text-sm underline underline-offset-4"
-            >
-              Changer de salle
-            </button>
-          ))}
-      </div>
-
       {/* La séance entière tient dans une page défilante : on voit ce qui reste
           sans naviguer, et corriger une série faite plus tôt ne demande pas de
           revenir en arrière. */}
@@ -1135,12 +1087,6 @@ function ContenuSeanceLive() {
           Le sélecteur ne change pas d'écran : il change ce qui est rendu. Rien
           n'est rechargé, aucun brouillon ne se perd, le minuteur continue.
         */}
-        {visibles.length > 0 && (
-          <div className="flex justify-end">
-            <SelecteurVue vue={vue} onChanger={choisirVue} />
-          </div>
-        )}
-
         {/*
           La consigne de calibration : UNE fois, en tête de séance.
 
@@ -1189,24 +1135,82 @@ function ContenuSeanceLive() {
             modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
             onSerieValidee={lancerRepos}
             actions={actionsDeLExercice}
+            remplacement={remplacementDeLExercice}
             reportes={idsReportesIncomplets}
           />
         ) : (
           /* La vue Liste : toute la séance d'un coup, pour scanner ce qui reste
              ou corriger plusieurs séries d'affilée. */
-          visibles.map((exercice) => (
-            <TableauSeries
-              key={exercice.id}
-              exercice={exercice}
-              rpeReduction={reductionsRPE[exercice.id] ?? 0}
-              modeReserve={modeSaisieEffort(seance.phaseCycle) === "reserve"}
-              onSerieValidee={lancerRepos}
-              actions={actionsDeLExercice(exercice)}
-              reporte={idsReportesIncomplets.includes(exercice.id)}
-            />
-          ))
+          <ListeCompacte
+            exercices={visibles}
+            etats={etats}
+            courant={index}
+            onChoisir={(position) => {
+              setCurrentExerciseIndex(position);
+              choisirVue("focus");
+            }}
+            reportes={idsReportesIncomplets}
+            note={active?.notesSeance ?? ""}
+            onNote={setNotes}
+            afficherNote
+          />
         )}
       </main>
+
+      <section className="live-secondary-signals" aria-label="Ajustements de la séance">
+        <BandeauAdaptation
+          feuJour={seance.feuBiologiqueJour}
+          volumeAjustePct={seance.volumeAjustePct}
+          volumeAjusteRaison={seance.volumeAjusteRaison}
+          exercices={visibles}
+        />
+
+        <ObservateurSeance
+          onDemanderCoach={(evenement) =>
+            ouvrirCoach("observation_seance", {
+              typeEntite: "instance",
+              entiteId: evenement.exerciseInstanceId,
+              signal: evenement.type,
+            })
+          }
+          prescriptions={visibles.map((e) => ({
+            exerciseInstanceId: e.id,
+            seriesCibles: e.seriesCibles,
+            fourchetteRepsMin: e.fourchetteRepsMin,
+            fourchetteRepsMax: e.fourchetteRepsMax,
+            rpeCible: e.rpeCible,
+            reposSecondes: e.reposSecondes,
+          }))}
+          ordreDesExercices={visibles.map((e) => e.id)}
+        />
+
+        <div className="px-4 pt-1 space-y-2">
+          <ProactiveAlert onShowSOS={() => setModaleSOS("energie")} />
+
+          {sessionId &&
+            gymId &&
+            (changementDeLieu ? (
+              <div className="rounded-xl border border-filet bg-carte p-4">
+                <ChangerDeLieu
+                  sessionLogId={sessionId}
+                  lieuActuelId={gymId}
+                  onApplique={() => {
+                    setChangementDeLieu(false);
+                    window.location.reload();
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setChangementDeLieu(true)}
+                className="text-encre-2 text-sm underline underline-offset-4"
+              >
+                Changer de salle
+              </button>
+            ))}
+        </div>
+      </section>
 
       {reportesIncomplets.length > 0 && !seanceTerminee && (
         <p className="live-reportes-resume" aria-live="polite">

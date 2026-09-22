@@ -69,7 +69,7 @@ describe("le tempo prescrit se lit sur la tuile", () => {
       />,
     );
 
-    expect(screen.getByText(/tempo 3-0-1-0/)).toBeVisible();
+    expect(screen.getByText("3-0-1-0")).toBeVisible();
   });
 
   it("l'affiche dans la ligne de prescription de la Liste", () => {
