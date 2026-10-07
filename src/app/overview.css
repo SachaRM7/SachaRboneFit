@@ -353,6 +353,33 @@
   font-size: 0.8rem;
   line-height: 1.5;
 }
+
+.progress-evidence {
+  border: 1px solid var(--filet);
+  border-radius: 1.4rem;
+  background: var(--carte);
+  padding: 1.15rem;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--encre) 6%, transparent);
+}
+.progress-evidence-heading { display: flex; align-items: center; gap: .55rem; }
+.progress-evidence-heading .eyebrow { margin: 0; }
+.progress-evidence-icon { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .75rem; background: var(--papier-2); color: var(--primary); }
+.progress-evidence-main { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: end; gap: .9rem; margin-top: 1rem; }
+.progress-evidence-main > strong { color: var(--encre); font-family: var(--font-heading); font-size: clamp(2.5rem, 12vw, 4rem); font-weight: 650; letter-spacing: -.06em; line-height: .9; }
+.progress-evidence-main h2 { color: var(--encre); font-family: var(--font-heading); font-size: 1.05rem; font-weight: 650; line-height: 1.15; }
+.progress-evidence-main p { margin-top: .25rem; color: var(--encre-2); font-size: .78rem; line-height: 1.35; }
+.progress-regularity { margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--filet); }
+.progress-regularity-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(2rem, 1fr); align-items: end; gap: .55rem; height: 4.7rem; }
+.progress-regularity-bars > span { display: grid; grid-template-rows: 1fr auto; align-items: end; gap: .3rem; height: 100%; text-align: center; color: var(--encre-3); }
+.progress-regularity-bars i { display: block; min-height: .3rem; border-radius: .45rem .45rem .16rem .16rem; background: var(--filet); }
+.progress-regularity-bars span[data-tenue="true"] i { background: var(--gain); }
+.progress-regularity-bars small { font-size: .68rem; font-variant-numeric: tabular-nums; }
+.progress-regularity > p { margin-top: .7rem; color: var(--encre-2); font-size: .78rem; }
+.progress-evidence-note { margin-top: .75rem; color: var(--encre-3); font-size: .72rem; line-height: 1.45; }
+
+@media (max-width: 360px) {
+  .progress-evidence-main { grid-template-columns: 1fr; }
+}
 .pillar-legend { display:flex; flex-wrap:wrap; gap:.6rem 1rem; padding:.5rem; }
 .pillar-legend li { display:flex; align-items:center; gap:.4rem; font-size:.75rem; color:var(--encre-2); }
 .pillar-legend li > span { width:.65rem; height:.65rem; border-radius:3px; flex-shrink:0; }

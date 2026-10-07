@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "@/components/ui/icons";
+import { CheckCircle2, Plus, Search, Trash2 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { CreationBlocForm } from "./CreationBlocForm";
 
@@ -18,18 +18,36 @@ export interface ProgrammeResume {
 export function ProgrammesManager({
   programmes,
   selectedId,
+  selectedSessionCount = 0,
+  selectedExerciseCount = 0,
 }: {
   programmes: ProgrammeResume[];
   selectedId: string | null;
+  selectedSessionCount?: number;
+  selectedExerciseCount?: number;
 }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   const selected = useMemo(
     () => programmes.find((programme) => programme.id === selectedId) ?? null,
     [programmes, selectedId],
   );
+  const filteredProgrammes = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase("fr-FR");
+    if (!normalized) return programmes;
+    return programmes.filter((programme) => programme.nom.toLocaleLowerCase("fr-FR").includes(normalized));
+  }, [programmes, query]);
+  const buildSteps = selected ? [
+    { label: "Objectif", complete: selected.typeCycle !== "non_defini" },
+    { label: "Séances", complete: selectedSessionCount > 0 },
+    { label: "Exercices & réglages", complete: selectedExerciseCount > 0 },
+    { label: "Activation", complete: selected.actif },
+  ] : [];
+  const currentStep = buildSteps.findIndex((step) => !step.complete);
 
   async function activate(programmeId: string) {
     setPending(`activate:${programmeId}`);
@@ -74,13 +92,28 @@ export function ProgrammesManager({
       <div className="rounded-[1.5rem] border border-filet bg-carte p-4">
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-encre-3">Mes programmes</p>
-          <Button type="button" size="sm" variant="outline" onClick={() => setCreating((value) => !value)}>
-            <Plus className="size-4" aria-hidden /> Nouveau
-          </Button>
+          <div className="flex items-center gap-1">
+            {programmes.length > 5 && (
+              <Button type="button" size="icon" variant="ghost" className="h-9 w-9 rounded-full" onClick={() => setSearchOpen((value) => !value)} aria-label="Rechercher un programme">
+                <Search className="size-4" aria-hidden />
+              </Button>
+            )}
+            <Button type="button" size="sm" variant="outline" onClick={() => setCreating((value) => !value)}>
+              <Plus className="size-4" aria-hidden /> Nouveau
+            </Button>
+          </div>
         </div>
 
+        {searchOpen && programmes.length > 5 && (
+          <label className="mt-3 flex h-11 items-center gap-2 rounded-xl border border-filet bg-papier px-3">
+            <Search className="size-4 shrink-0 text-encre-3" aria-hidden />
+            <span className="sr-only">Rechercher un programme</span>
+            <input className="min-w-0 flex-1 bg-transparent text-sm outline-none" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nom du programme" autoFocus />
+          </label>
+        )}
+
         <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {programmes.map((programme) => {
+          {filteredProgrammes.map((programme) => {
             const selectedProgramme = programme.id === selectedId;
             return (
               <Link
@@ -111,7 +144,31 @@ export function ProgrammesManager({
             );
           })}
           {programmes.length === 0 && <p className="text-sm text-encre-3">Aucun programme enregistré.</p>}
+          {programmes.length > 0 && filteredProgrammes.length === 0 && <p className="py-3 text-sm text-encre-3">Aucun programme ne correspond.</p>}
         </div>
+
+        {selected && (
+          <div className="mt-4 border-t border-filet pt-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-encre-3">Construction</p>
+                <p className="mt-1 text-sm text-encre-2">Tu vois ce qui est prêt et ce qui reste à préciser.</p>
+              </div>
+              <span className="text-xs tabular-nums text-encre-3">{buildSteps.filter((step) => step.complete).length}/4</span>
+            </div>
+            <ol className="grid grid-cols-4 gap-1" aria-label="Étapes de construction du programme">
+              {buildSteps.map((step, index) => {
+                const active = index === currentStep;
+                return (
+                  <li key={step.label} className={`min-w-0 rounded-xl px-2 py-2 ${step.complete ? "bg-encre text-papier" : active ? "bg-brand-soft text-encre" : "bg-papier-2 text-encre-3"}`} aria-current={active ? "step" : undefined}>
+                    <span className="mb-1 flex h-4 items-center text-[10px] font-semibold tabular-nums">{step.complete ? <CheckCircle2 className="size-3.5" aria-hidden /> : String(index + 1).padStart(2, "0")}</span>
+                    <span className="block text-[10px] font-medium leading-tight">{step.label}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          </div>
+        )}
 
         {selected && (
           <div className="mt-3 flex items-center justify-end gap-2">

@@ -3,7 +3,9 @@ import Link from "next/link";
 import {
   ArrowRight,
   ArrowUpRight,
+  ChevronRight,
   Dumbbell,
+  HeartPulse,
   MapPin,
   Wrench,
   Ruler,
@@ -79,26 +81,68 @@ const FORMULATIONS: Record<NomEtat, Formulation> = {
   },
 };
 
-export function CarteAujourdhui({ etat }: { etat: EtatDuJour }) {
+export function CarteAujourdhui({
+  etat,
+  feuJour = null,
+  raison,
+  onOuvrirCoach,
+}: {
+  etat: EtatDuJour;
+  /**
+   * Le feu du jour, déjà calculé par le moteur. Optionnel : les surfaces qui
+   * n'ont que l'état du jour (aperçus, tests) continuent de rendre la carte.
+   */
+  feuJour?: "vert" | "orange" | "rouge" | null;
+  /** La phrase courte du Coach, déjà écrite par l'accueil. Rien n'est déduit ici. */
+  raison?: string;
+  /** Ouvre le Coach existant ; absent, la raison reste lisible sans action. */
+  onOuvrirCoach?: () => void;
+}) {
   const f = FORMULATIONS[etat.etat];
   const Icone = f.icone;
   const aFaire = etat.etat === "calibration" || etat.etat === "prete";
   const faite = etat.etat === "deja_entraine" || etat.etat === "semaine_complete";
+  // La disponibilité vient du même feu que la ligne « Forme » des synthèses :
+  // une seule valeur, lue à deux endroits.
+  const disponibilite = feuJour
+    ? { vert: "Favorable", orange: "À adapter", rouge: "Récupérer" }[feuJour]
+    : "À renseigner";
   return (
     <section className="home-session" aria-labelledby="session-du-jour">
       <div className="home-session-top">
         <p className="home-eyebrow">{aFaire ? "Prochaine séance" : faite ? "Bien joué" : "Pour commencer"}</p>
-        <Icone size={22} strokeWidth={1.5} aria-hidden />
+        <div className="home-session-tags">
+          <span className="home-availability" data-feu={feuJour ?? "inconnu"}>
+            <HeartPulse size={14} aria-hidden />
+            {disponibilite}
+          </span>
+          <Icone size={22} strokeWidth={1.5} aria-hidden />
+        </div>
       </div>
       {aFaire && etat.seance ? (
         <Link href="/programme" prefetch={false} className="home-session-title" aria-label={`Voir dans le programme la séance ${etat.seance.nom || etat.seance.lettre}`}>
           <h2 id="session-du-jour">{f.titre(etat)}</h2><ArrowRight size={22} aria-hidden />
         </Link>
       ) : <h2 id="session-du-jour">{f.titre(etat)}</h2>}
+      {faite && etat.seance && (
+        <p className="home-session-next">
+          Prochaine : <strong>{etat.seance.nom || etat.seance.lettre}</strong>
+        </p>
+      )}
       <div className="home-session-meta">
         {etat.etat === "calibration" ? <span className="home-phase">Premiers repères · Calibration</span> : null}
         {aFaire && etat.salle && <span className="home-location"><MapPin size={14} aria-hidden />{etat.salle.nom}</span>}
       </div>
+      {raison && (
+        onOuvrirCoach ? (
+          <button type="button" className="home-session-coach" onClick={onOuvrirCoach}>
+            <span>{raison}</span>
+            <ChevronRight size={16} aria-hidden />
+          </button>
+        ) : (
+          <p className="home-session-coach" data-statique="true">{raison}</p>
+        )
+      )}
       <Link href={etat.action.href} prefetch={false} className="home-start">
         {f.bouton}<ArrowRight size={21} aria-hidden />
       </Link>

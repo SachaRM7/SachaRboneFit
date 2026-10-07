@@ -1,6 +1,17 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpRight, ChevronLeft, History, Plus, Send } from "@/components/ui/icons";
+import {
+  ArrowUpRight,
+  ChevronLeft,
+  History,
+  Plus,
+  Send,
+  HelpCircle,
+  TrendingUp,
+  SlidersHorizontal,
+  RefreshCw,
+  X,
+} from "@/components/ui/icons";
 import { messageErreur } from "@/lib/messages";
 import { useCoach } from "./ContexteCoach";
 import { MascotteCoach } from "./MascotteCoach";
@@ -101,12 +112,28 @@ export function CoachConversation({ contexte, onClose }: {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [accueil, setAccueil] = useState<AccueilCoach | null>(null);
+  const [decouverteInitialisee, setDecouverteInitialisee] = useState(false);
+  const [decouverteVisible, setDecouverteVisible] = useState(false);
   const [chargementThread, setChargementThread] = useState(false);
   const [dernierEssai, setDernierEssai] = useState<string | null>(null);
   const corpsRef = useRef<HTMLDivElement>(null);
   const procheDuBas = useRef(true);
   const demande = useRef(0);
+  const messageTemporaire = useRef(0);
   const { agir } = useCoach();
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const dejaVue = window.localStorage.getItem("coach-capacites-v1") === "vue";
+      setDecouverteVisible(!dejaVue);
+      setDecouverteInitialisee(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function fermerDecouverte() {
+    window.localStorage.setItem("coach-capacites-v1", "vue");
+    setDecouverteVisible(false);
+  }
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/coach/accueil", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -219,7 +246,7 @@ export function CoachConversation({ contexte, onClose }: {
     setErreur(null);
 
     const tempUserMsg: Message = {
-      id: `temp-${Date.now()}`,
+      id: `temp-${++messageTemporaire.current}`,
       role: "user",
       content: userMessage,
       createdAt: new Date().toISOString(),
@@ -318,6 +345,28 @@ export function CoachConversation({ contexte, onClose }: {
           <h1>On en parle.</h1>
           <p>{contexte?.ecran === "seance" ? "Un repère à comprendre pendant ta séance." : "Une question. Un prochain pas clair."}</p>
           {accueil?.repere && <div className="coach-context"><span>Dans sportperso</span><strong>{accueil.repere}</strong></div>}
+          {decouverteInitialisee && (decouverteVisible ? (
+            <section className="coach-discovery" aria-labelledby="coach-discovery-title">
+              <header>
+                <div>
+                  <span>Dans toute l’app</span>
+                  <h2 id="coach-discovery-title">Demande au bon moment.</h2>
+                </div>
+                <button type="button" onClick={fermerDecouverte} aria-label="Fermer la découverte du Coach"><X size={18} /></button>
+              </header>
+              <ul>
+                <li><HelpCircle aria-hidden /><span><strong>Pourquoi cette charge ?</strong><small>Depuis l’exercice en Live</small></span></li>
+                <li><TrendingUp aria-hidden /><span><strong>Est-ce que je progresse ?</strong><small>Depuis tes données de Progrès</small></span></li>
+                <li><SlidersHorizontal aria-hidden /><span><strong>Adapte cette séance</strong><small>Depuis ton programme</small></span></li>
+                <li><RefreshCw aria-hidden /><span><strong>La machine est prise</strong><small>Depuis la séance en cours</small></span></li>
+              </ul>
+              <p>Le Coach reçoit alors le contexte réel de l’écran. Rien n’est appliqué sans confirmation.</p>
+            </section>
+          ) : (
+            <button type="button" className="coach-discovery-reopen" onClick={() => setDecouverteVisible(true)}>
+              Voir ce que le Coach peut faire <ArrowUpRight size={16} aria-hidden />
+            </button>
+          ))}
           <div className="coach-suggestions">{(accueil?.suggestions ?? QUESTIONS_PEDAGOGIQUES).map((s) =>
             <button key={s.libelle} onClick={() => void handleSend(s.message)}>{s.libelle}<ArrowUpRight size={18} /></button>)}</div>
         </section>}

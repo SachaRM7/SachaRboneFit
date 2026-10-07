@@ -165,9 +165,6 @@ export function ContenuTableauDeBord({
       <header className="home-greeting">
         <div>
           <h1>Salut{data.user.nom?.trim() ? ` ${data.user.nom.trim()}` : ""}<span>.</span></h1>
-          <button className="home-coach-message" onClick={() => ouvrir()}>
-            {messageCoach}<ChevronRight size={14} aria-hidden />
-          </button>
         </div>
         {(canResume || mascotteDuJour) && (
           <button className="home-mascot" aria-label="Demander au coach" onClick={() => ouvrir()}>
@@ -178,15 +175,30 @@ export function ContenuTableauDeBord({
 
       {canResume && (
         <section className="home-session" aria-labelledby="session-en-cours">
-          <p className="home-eyebrow">Séance en cours</p>
+          <div className="home-session-top">
+            <p className="home-eyebrow">Séance en cours</p>
+            <span className="home-availability" data-feu={data.feuJour ?? "inconnu"}>
+              <HeartPulse size={14} aria-hidden />
+              {forme}
+            </span>
+          </div>
           <h2 id="session-en-cours">On reprend ?</h2>
           <p className="home-session-meta">{active.sets.filter((s) => s.validatedAt).length} séries enregistrées</p>
+          <button type="button" className="home-session-coach" onClick={() => ouvrir()}>
+            <span>{messageCoach}</span>
+            <ChevronRight size={16} aria-hidden />
+          </button>
           <Button className="home-start" onClick={handleResume}>Reprendre ma séance <Play size={18} aria-hidden /></Button>
           <button className="home-session-secondary" onClick={() => setConfirmationAbandon(true)}>Abandonner</button>
         </section>
       )}
       {!canResume && (
-        <CarteAujourdhui etat={data.etat} />
+        <CarteAujourdhui
+          etat={data.etat}
+          feuJour={data.feuJour}
+          raison={messageCoach}
+          onOuvrirCoach={() => ouvrir()}
+        />
       )}
       {active && isSessionStale && (
         <section className="stale-session">

@@ -118,6 +118,8 @@ export default async function ProgrammePage({
           typeCycle: item.typeCycle,
         }))}
         selectedId={selectedBloc?.id ?? null}
+        selectedSessionCount={seances.length}
+        selectedExerciseCount={seances.reduce((total, seance) => total + seance.exercices.length, 0)}
       />
 
       {/* Le programme choisi est le contenu de la page, sans résumé d'un autre

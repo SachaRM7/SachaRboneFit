@@ -6,6 +6,8 @@ import {
   ChartNoAxesCombined,
   Trophy,
   Scale,
+  CalendarCheck,
+  TrendingUp,
 } from "@/components/ui/icons";
 import { ExerciseProgressionChart } from "@/components/progression/ExerciseProgressionChart";
 import { PillarVolumeChart } from "@/components/progression/PillarVolumeChart";
@@ -100,6 +102,33 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
       : "Découvrir tes repères",
     poids: "Suivi optionnel · ajouter une pesée",
   };
+  const progressionPrincipale = bilan.enProgression[0] ?? null;
+  const preuvePrincipale = progressionPrincipale
+    ? {
+        libelle: "Progression confirmée",
+        valeur: `+${progressionPrincipale.progressionPct.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`,
+        titre: progressionPrincipale.exerciceNom,
+        detail: `${progressionPrincipale.e1rmDebut.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} → ${progressionPrincipale.e1rmActuel.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} kg estimés`,
+        icone: TrendingUp,
+      }
+    : bilan.adherence
+      ? {
+          libelle: "Régularité du programme",
+          valeur: `${bilan.adherence.semainesTenues}/${bilan.adherence.semainesObservees}`,
+          titre: "semaines dans ton rythme",
+          detail: `Fourchette prévue : ${bilan.adherence.min} à ${bilan.adherence.max} séances`,
+          icone: CalendarCheck,
+        }
+      : {
+          libelle: bilan.etat === "sans_donnees" ? "Point de départ" : "Historique en construction",
+          valeur: String(bilan.seancesTotal),
+          titre: `séance${bilan.seancesTotal > 1 ? "s" : ""} enregistrée${bilan.seancesTotal > 1 ? "s" : ""}`,
+          detail: bilan.dureeMedianeMinutes !== null
+            ? `${bilan.dureeMedianeMinutes} min de durée habituelle`
+            : "Chaque séance ajoute un point de comparaison.",
+          icone: Dumbbell,
+        };
+  const IconePreuve = preuvePrincipale.icone;
 
   // La liste n'est chargée qu'à l'ouverture de la vue qui en a besoin.
   useEffect(() => {
@@ -267,32 +296,36 @@ export function ContenuProgression({ bilan }: { bilan: Bilan }) {
       </header>
 
       <div className="px-4 space-y-6">
-        <section className="progress-snapshot">
-          <p className="eyebrow">
-            {bilan.etat === "en_route"
-              ? "Dans la durée"
-              : "Tes premières références"}
-          </p>
-          <h2>
-            {bilan.etat === "sans_donnees"
-              ? "Tout commence par une séance."
-              : bilan.etat === "premieres_references"
-                ? "Tu poses tes bases."
-                : "Regarde le chemin parcouru."}
-          </h2>
-          <p>
-            <strong>{bilan.seancesTotal}</strong> séance
-            {bilan.seancesTotal > 1 ? "s" : ""} enregistrée
-            {bilan.seancesTotal > 1 ? "s" : ""}
-            {bilan.dureeMedianeMinutes !== null && (
-              <> · {bilan.dureeMedianeMinutes} min de durée habituelle</>
-            )}
-          </p>
-          <span>
+        <section className="progress-evidence" aria-labelledby="progress-evidence-title">
+          <div className="progress-evidence-heading">
+            <span className="progress-evidence-icon"><IconePreuve size={19} aria-hidden /></span>
+            <p className="eyebrow">{preuvePrincipale.libelle}</p>
+          </div>
+          <div className="progress-evidence-main">
+            <strong className="chiffres">{preuvePrincipale.valeur}</strong>
+            <div>
+              <h2 id="progress-evidence-title">{preuvePrincipale.titre}</h2>
+              <p>{preuvePrincipale.detail}</p>
+            </div>
+          </div>
+          {bilan.adherence && (
+            <div className="progress-regularity" aria-label={`${bilan.adherence.semainesTenues} semaines sur ${bilan.adherence.semainesObservees} dans ton rythme`}>
+              <div className="progress-regularity-bars" aria-hidden>
+                {bilan.adherence.seancesParSemaine.map((seances, index) => (
+                  <span key={index} data-tenue={seances >= bilan.adherence!.min}>
+                    <i style={{ height: `${Math.max(18, Math.min(100, (seances / Math.max(bilan.adherence!.max, 1)) * 100))}%` }} />
+                    <small>{seances}</small>
+                  </span>
+                ))}
+              </div>
+              <p><strong>{bilan.adherence.semainesTenues}</strong> semaine{bilan.adherence.semainesTenues > 1 ? "s" : ""} sur {bilan.adherence.semainesObservees} à ton minimum ou au-dessus.</p>
+            </div>
+          )}
+          <p className="progress-evidence-note">
             {bilan.enProgression.length
-              ? "Tes progrès se lisent exercice par exercice, sur le même matériel."
-              : "Tes mesures construisent les comparaisons des prochaines séances."}
-          </span>
+              ? "Comparaison faite sur le même exercice et le même matériel."
+              : "Aucun score n’est estimé tant que les données ne permettent pas une comparaison fiable."}
+          </p>
         </section>
         {/* Plus de spinner plein écran : le bilan arrive avec la page. */}
         {/* Les vues détaillées restent accessibles, mais après le bilan : on y

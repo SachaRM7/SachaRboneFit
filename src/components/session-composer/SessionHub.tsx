@@ -69,7 +69,8 @@ export function SessionHub({
       {programmes.length > 1 && (
         <nav
           aria-label="Choisir un programme"
-          className="mb-5 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+          className="sticky z-20 mb-5 -mx-4 flex gap-2 overflow-x-auto border-y border-filet-doux bg-papier px-4 py-2"
+          style={{ top: "var(--marge-haut)" }}
         >
           {programmes.map((programme) => {
             const selectionne = programme.id === selectedProgrammeId;

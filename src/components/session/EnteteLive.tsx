@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ChartNoAxesCombined, Square, Stopwatch } from "@/components/ui/icons";
+import { ArrowLeft, Square, Stopwatch } from "@/components/ui/icons";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import type { ComponentProps } from "react";
 import type { AvancementExercice, VueLive } from "@/lib/live/vue-live";
@@ -60,11 +60,6 @@ export function EnteteLive({
             <span>Durée</span>
             {demarreeA ? <ChronoSeance demarreeA={demarreeA} dureeCibleMinutes={dureeCibleMinutes} dureeMaxMinutes={dureeMaxMinutes} compact /> : <strong className="chiffres">0 min</strong>}
           </button>
-          <div className="live-focus-summary-item">
-            <ChartNoAxesCombined aria-hidden />
-            <span>Volume estimé</span>
-            <strong className="chiffres">— kg</strong>
-          </div>
         </div>
         <button type="button" className="live-finish-button" onClick={onTerminer}>
           <Square aria-hidden /> Finir la séance
