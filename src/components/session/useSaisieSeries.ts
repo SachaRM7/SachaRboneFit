@@ -349,10 +349,54 @@ export function useSaisieSeries({
       slotsARemplir(lignee, apres, exercice.seriesCibles).length === 0;
 
     setRessenti(null);
+    const avant = useSessionStore.getState().active;
     onSerieValidee({
       exerciseInstanceId: exercice.id,
       reposSecondes: exercice.reposSecondes ?? null,
       exerciceTermine,
+    });
+    proposerAnnulation(numero, v, {
+      index: avant?.currentExerciseIndex ?? 0,
+      repos: avant?.restStartTimestamp ?? null,
+      reposApres: useSessionStore.getState().active?.restStartTimestamp ?? null,
+    });
+  };
+
+  /**
+   * « Annuler » pendant 5 secondes, juste après une validation.
+   *
+   * Un doigt qui glisse sur « Enregistrer » validait la série, lançait le
+   * repos et, sur la dernière série, passait à l'exercice suivant. Corriger
+   * demandait de revenir en arrière, rouvrir la série et passer le repos.
+   * L'annulation défait les trois : la série redevient une saisie avec ses
+   * valeurs, le repos qu'elle a lancé s'arrête, et l'écran revient sur
+   * l'exercice si la validation l'avait fait avancer.
+   */
+  const proposerAnnulation = (
+    numero: number,
+    saisie: Brouillon,
+    avant: { index: number; repos: number | null; reposApres: number | null },
+  ) => {
+    toast.success(`Série ${numero} validée`, {
+      id: `serie-validee-${exercice.id}`,
+      duration: 5000,
+      action: {
+        label: "Annuler",
+        onClick: () => {
+          const store = useSessionStore.getState();
+          if (!store.active?.sets.some((s) => s.exerciseInstanceId === exercice.id && s.numeroSerie === numero)) return;
+          setBrouillons((b) => ({ ...b, [numero]: saisie }));
+          store.removeSet(exercice.id, numero);
+          // Le repos n'est arrêté que s'il est bien celui de cette validation.
+          if (avant.reposApres !== null && avant.reposApres !== avant.repos
+            && store.active.restStartTimestamp === avant.reposApres) {
+            store.clearRest();
+          }
+          if (store.active.currentExerciseIndex !== avant.index) {
+            store.setCurrentExerciseIndex(avant.index);
+          }
+        },
+      },
     });
   };
 

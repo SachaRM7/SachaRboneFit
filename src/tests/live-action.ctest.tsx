@@ -48,6 +48,21 @@ describe("repos : la durée suit le départ mémorisé", () => {
     expect(screen.getByRole("button", { name: "Continuer" })).toBeVisible();
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
+  it("ajuste le repos de −30 s, +30 s ou +1 min, sans descendre sous ce qui reste", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(100_000);
+    const onExtend = vi.fn();
+    const { rerender } = render(<RestTimer durationSeconds={120} startedAt={90_000} onComplete={() => {}} onSkip={() => {}} onExtend={onExtend} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    act(() => { screen.getByRole("button", { name: "Retirer 30 secondes de repos" }).click(); });
+    act(() => { screen.getByRole("button", { name: "Ajouter 30 secondes de repos" }).click(); });
+    act(() => { screen.getByRole("button", { name: "Ajouter 1 minute de repos" }).click(); });
+    expect(onExtend.mock.calls).toEqual([[-30], [30], [60]]);
+
+    // Plus que 20 s : « −30 s » n'a plus rien à retirer.
+    rerender(<RestTimer durationSeconds={30} startedAt={90_000} onComplete={() => {}} onSkip={() => {}} onExtend={onExtend} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    expect(screen.getByRole("button", { name: "Retirer 30 secondes de repos" })).toBeDisabled();
+  });
   it("se replie en pastille sans perdre l'horloge ni rejouer le signal", async () => {
     vi.useFakeTimers(); vi.setSystemTime(100_000);
     const onComplete = vi.fn();

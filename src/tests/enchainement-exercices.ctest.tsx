@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 
@@ -25,6 +25,15 @@ vi.mock("@/components/session/serie-en-vol", () => ({
   pousserSerie: () => {},
   retirerSerieEnVol: () => {},
   revisionSuivante: () => Date.now(),
+}));
+// Les toasts sont capturés pour pouvoir déclencher « Annuler ».
+const toasts = vi.hoisted(() => ({ success: [] as { message: string; options?: { action?: { onClick: () => void } } }[] }));
+vi.mock("sonner", () => ({
+  toast: {
+    success: (message: string, options?: { action?: { onClick: () => void } }) => { toasts.success.push({ message, options }); },
+    error: () => {},
+    info: () => {},
+  },
 }));
 vi.mock("@/components/session/useContexteExecution", () => ({
   useContexteExecution: () => ({ contexte: null, remplacer: () => {} }),
@@ -158,6 +167,24 @@ describe("valider la dernière série passe à l'exercice suivant", () => {
     const sets = useSessionStore.getState().active!.sets;
     expect(sets.filter((s) => s.exerciseInstanceId === A)).toHaveLength(2);
     expect(sets.find((s) => s.numeroSerie === 2)?.charge).toBe(60);
+  });
+
+  it("« Annuler » défait tout : série, repos et passage à l'exercice suivant", async () => {
+    toasts.success.length = 0;
+    render(<EcranDeSeance exercices={exercices} />);
+    await valider();
+    const toast = toasts.success.find((t) => t.message === "Série 2 validée");
+    expect(toast?.options?.action, "aucune annulation proposée").toBeDefined();
+
+    act(() => toast!.options!.action!.onClick());
+
+    const etat = useSessionStore.getState().active!;
+    expect(etat.sets.filter((s) => s.exerciseInstanceId === A)).toHaveLength(1);
+    expect(etat.restDurationSeconds).toBeNull();
+    expect(etat.currentExerciseIndex).toBe(0);
+    // La saisie revient telle qu'elle était, prête à être corrigée.
+    expect(etat.saisiesEnCours?.[A]?.[2]?.charge).toBe("60");
+    expect(exerciceAffiche()).toBe("Deadlift");
   });
 
   it("le repos reste rattaché à l'exercice TERMINÉ, pas au suivant", async () => {

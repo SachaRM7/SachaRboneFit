@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/icons";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
 import { MenuSeance } from "./MenuSeance";
+import { LienRetour } from "@/components/layout/LienRetour";
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
@@ -29,13 +30,13 @@ export function SessionOverview({
       <DeclarerContexte ecran="programme" typeEntite="seance" entiteId={detail.id} />
 
       <header className="flex items-center gap-3 py-2">
-        <Link
+        <LienRetour
           href="/sessions/new"
           aria-label="Retour aux séances"
           className="grid size-11 shrink-0 place-items-center rounded-2xl bg-carte shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-encre"
         >
           <ArrowLeft className="size-5" aria-hidden />
-        </Link>
+        </LienRetour>
         <div className="min-w-0 flex-1">
           <p className="text-sm text-encre-2">Séances</p>
           <h1 className="truncate font-heading text-xl font-semibold">{detail.nom}</h1>

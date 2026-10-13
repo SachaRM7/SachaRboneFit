@@ -326,7 +326,8 @@ export const useSessionStore = create<SessionStore>()(
         return {
           active: {
             ...state.active,
-            restDurationSeconds: state.active.restDurationSeconds + extraSeconds,
+            // « −30 s » ne descend jamais sous zéro : un repos négatif n'a pas de sens.
+            restDurationSeconds: Math.max(1, state.active.restDurationSeconds + extraSeconds),
           }
         };
       }),
