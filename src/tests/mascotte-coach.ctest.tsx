@@ -321,7 +321,7 @@ describe("l'accueil : un Coach, une journée", () => {
     // Elle précède la carte dans le flux : le titre et le CTA restent lisibles
     // et atteignables, ce qui est toute la condition de sa présence.
     const { container } = rendreAccueil("prete");
-    expect(screen.getByRole("heading", { name: "Séance A" }).textContent).toContain("Séance A");
+    expect(screen.getByRole("heading", { name: "Haut du corps" }).textContent).toContain("Haut du corps");
     expect(screen.getByRole("link", { name: "Commencer ma séance" }).textContent).toContain("Commencer ma séance");
     expect(container.querySelector<HTMLElement>(".home-mascot")!.style.pointerEvents)
       .not.toBe("auto");

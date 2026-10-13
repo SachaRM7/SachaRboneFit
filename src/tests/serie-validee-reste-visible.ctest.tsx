@@ -52,6 +52,9 @@ const DEADLIFT = {
   fourchetteRepsMax: 12,
   incrementsPossibles: [2.5],
   chargeSuggeree: 60,
+  // Une séance déjà faite : sans elle, le Live ne propose aucune charge
+  // (protocole de première séance) et la validation demande de la saisir.
+  historique: [{ charge: 57.5, reps: 10 }],
   rpeCible: 8,
   reposSecondes: 120,
 };
@@ -180,7 +183,7 @@ describe("cas 3 et 4 — Focus et Liste montrent exactement le même état", () 
     const user = userEvent.setup();
     const vue = focus();
 
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
     vue.unmount();
 
@@ -302,9 +305,9 @@ describe("la fin d'un exercice est un état, pas un formulaire vide", () => {
     const user = userEvent.setup();
     focus();
 
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
     expect(screen.getByText("Exercice terminé")).toBeInTheDocument();
@@ -327,9 +330,9 @@ describe("la fin d'un exercice est un état, pas un formulaire vide", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
     // Le bouton existe — il n'a pas été déclenché tout seul.
@@ -384,7 +387,7 @@ describe("le Focus n'affiche qu'UNE représentation éditable de la série", () 
     const user = userEvent.setup();
     focus({ ...DEADLIFT, seriesCibles: 3 } as never);
 
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
     const enCours = document.querySelector(".serie-en-cours");
@@ -429,11 +432,11 @@ describe("série supplémentaire — même vérité en Focus et Liste", () => {
     const user = userEvent.setup();
     focus();
     await user.click(screen.getByRole("button", { name: "Série en plus" }));
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
     vi.spyOn(window, "confirm").mockReturnValue(true);

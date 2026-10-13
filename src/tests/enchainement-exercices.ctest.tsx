@@ -47,6 +47,9 @@ const exo = (id: string, nom: string, seriesCibles: number) => ({
   fourchetteRepsMax: 12,
   incrementsPossibles: [2.5],
   chargeSuggeree: id === A ? 60 : 32.5,
+  // Une séance déjà faite : sans elle, le Live ne propose aucune charge
+  // (protocole de première séance) et la validation demande de la saisir.
+  historique: [{ charge: id === A ? 57.5 : 30, reps: 10 }],
   rpeCible: 8,
   reposSecondes: 120,
 });
@@ -109,7 +112,7 @@ beforeEach(demarrer);
 
 const valider = async () => {
   const user = userEvent.setup();
-  await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+  await user.click(screen.getByRole("button", { name: "Valider la série" }));
   await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 };
 

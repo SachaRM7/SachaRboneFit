@@ -86,6 +86,7 @@ export function ProgrammesManager({
               <Link
                 key={programme.id}
                 href={`/programme?bloc=${programme.id}`}
+                prefetch={false}
                 aria-current={selectedProgramme ? "page" : undefined}
                 className={`min-w-[12rem] rounded-2xl border p-3 transition-colors ${selectedProgramme ? "border-encre bg-papier-2" : "border-filet bg-carte"}`}
               >

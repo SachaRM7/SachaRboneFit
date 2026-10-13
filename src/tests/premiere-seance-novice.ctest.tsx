@@ -69,6 +69,15 @@ const CONTEXTE = {
   peutDecrire: false,
 };
 
+/**
+ * Le guidage de première série vit dans la feuille « Technique & réglages »
+ * depuis la refonte compacte du Focus : la carte garde la série, la feuille
+ * garde l'aide.
+ */
+async function ouvrirTechnique(user = userEvent.setup()) {
+  await user.click(screen.getByRole("button", { name: "Technique & réglages" }));
+}
+
 function rendre(exercice = EXERCICE) {
   return render(
     <LecteurExercice
@@ -104,15 +113,20 @@ describe("cas 1 — première machine sans historique", () => {
     expect(libelles.titre).toBe("Charge d’essai");
   });
 
-  it("ne devine aucune charge et réutilise la convention de la vue Focus", () => {
+  it("ne devine aucune charge et réutilise la convention de la vue Focus", async () => {
     rendre();
     expect(screen.getByLabelText("Charge série 1")).toHaveValue("");
-    expect(screen.queryByRole("button", { name: /Charge : un cran/ })).not.toBeInTheDocument();
-    expect(within(screen.getByRole("region", { name: "Série 1" })).getByText("Note le nombre lu sur la pile.")).toBeVisible();
+    // Les crans restent en place pour que la carte ne saute pas, mais rien à
+    // incrémenter tant qu'aucune charge n'est saisie.
+    for (const cran of screen.getAllByRole("button", { name: /Charge : un cran/ })) {
+      expect(cran).toBeDisabled();
+    }
+    expect(within(screen.getByRole("region", { name: "Série 1" })).getByRole("button", { name: "Note le nombre lu sur la pile." })).toBeVisible();
+    await ouvrirTechnique();
     expect(screen.getByText("Commence volontairement léger.")).toBeInTheDocument();
   });
 
-  it("affiche et préremplit le premier cran documenté comme repère matériel", () => {
+  it("affiche et préremplit le premier cran documenté comme repère matériel", async () => {
     rendre({
       ...EXERCICE,
       premiereCharge: {
@@ -124,6 +138,7 @@ describe("cas 1 — première machine sans historique", () => {
       },
     } as never);
     expect(screen.getByLabelText("Charge série 1")).toHaveValue("5");
+    await ouvrirTechnique();
     const estimation = screen.getByTestId("charge-essai");
     expect(within(estimation).getByText("Point de départ")).toBeInTheDocument();
     expect(within(estimation).getByText("5 kg")).toBeInTheDocument();
@@ -160,7 +175,7 @@ describe("cas 1 — première machine sans historique", () => {
     rendre();
     expect(screen.queryByRole("group", { name: "Ton ressenti : répétitions encore possibles" })).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Charge série 1"), "20");
-    await userEvent.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await userEvent.click(screen.getByRole("button", { name: "Valider la série" }));
     expect(screen.getByRole("button", { name: "Enregistrer la série" })).toBeDisabled();
     expect(screen.getByText(/Objectif : environ 3 en réserve/)).toBeInTheDocument();
     const groupe = screen.getByRole("group", {
@@ -175,14 +190,15 @@ describe("cas 1 — première machine sans historique", () => {
     const user = userEvent.setup();
     rendre();
     await user.type(screen.getByLabelText("Charge série 1"), "20");
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "5 ou plus, très facile" }));
+    await ouvrirTechnique(user);
     expect(screen.getByText(/essaie 25 kg, le cran suivant/)).toBeInTheDocument();
   });
 });
 
 describe("cas 2 — machine avec réglages connus", () => {
-  it("montre les réglages essentiels et les valeurs personnelles avant S1", () => {
+  it("montre les réglages essentiels et les valeurs personnelles avant S1", async () => {
     execution.contexte = {
       ...CONTEXTE,
       reglages: [
@@ -192,6 +208,7 @@ describe("cas 2 — machine avec réglages connus", () => {
       resumeReglages: "Siège 4",
     };
     rendre();
+    await ouvrirTechnique();
     const preparation = screen.getByLabelText("Installation et réglages");
     expect(within(preparation).getByText("Siège")).toBeInTheDocument();
     expect(within(preparation).getByText("4")).toBeInTheDocument();
@@ -201,8 +218,9 @@ describe("cas 2 — machine avec réglages connus", () => {
 });
 
 describe("cas 3 — machine sans définition de réglage", () => {
-  it("reste honnête et garde l'installation générale accessible", () => {
+  it("reste honnête et garde l'installation générale accessible", async () => {
     rendre();
+    await ouvrirTechnique();
     const preparation = screen.getByLabelText("Installation et réglages");
     expect(within(preparation).getByText(/Aucun réglage spécifique/)).toBeInTheDocument();
     expect(within(preparation).getByText(CONTEXTE.fiche.installation)).toBeInTheDocument();
@@ -226,7 +244,7 @@ describe("cas 5 — exercice de calibration terminé", () => {
     const user = userEvent.setup();
     rendre();
     await user.type(screen.getByLabelText("Charge série 1"), "20");
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "3 répétitions possibles" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
@@ -246,7 +264,7 @@ describe("reprise au milieu de la saisie", () => {
     const user = userEvent.setup();
     const vue = rendre();
     await user.type(screen.getByLabelText("Charge série 1"), "22,5");
-    await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+    await user.click(screen.getByRole("button", { name: "Valider la série" }));
     expect(useSessionStore.getState().active?.sets).toHaveLength(0);
     vue.unmount();
     await useSessionStore.persist.rehydrate();
@@ -265,7 +283,7 @@ it("garde la carte commune pour action, ressenti et édition, puis restitue la s
   await user.type(screen.getByLabelText("Charge série 1"), "20");
   const carte = screen.getByRole("region", { name: "Série 1" });
   expect(carte).toHaveAttribute("data-etape", "serie");
-  await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+  await user.click(screen.getByRole("button", { name: "Valider la série" }));
   expect(screen.getByRole("region", { name: "Série 1" })).toBe(carte);
   expect(carte).toHaveAttribute("data-etape", "ressenti");
   await user.click(screen.getByRole("button", { name: "3 répétitions possibles" }));
@@ -274,8 +292,10 @@ it("garde la carte commune pour action, ressenti et édition, puis restitue la s
   expect(screen.getByRole("region", { name: "Série 1" })).toHaveAttribute("data-edition", "true");
   await user.clear(screen.getByLabelText("Charge série 1"));
   await user.type(screen.getByLabelText("Charge série 1"), "25");
-  await user.click(screen.getByRole("button", { name: "J’ai fini ma série" }));
+  await user.click(screen.getByRole("button", { name: "Valider la série" }));
   await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
   expect(useSessionStore.getState().active?.sets).toEqual([expect.objectContaining({ charge: 25, rpeEffectif: 7, numeroSerie: 1 })]);
-  expect(screen.getByRole("button", { name: "Modifier la série 1" })).toBeVisible();
+  // La série corrigée reste là, repliée sous « Voir / modifier ».
+  expect(screen.getByText(/1 série validée/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Modifier la série 1" })).toBeInTheDocument();
 });
