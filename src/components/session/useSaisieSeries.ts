@@ -17,6 +17,7 @@ import {
   slotsARemplir,
   type LigneeSlot,
 } from "@/lib/live/vue-live";
+import { demanderConfirmation } from "@/components/ui/confirmation";
 
 /**
  * Tout ce qu'une vue doit SAVOIR et POUVOIR FAIRE d'un exercice — sans rien
@@ -361,10 +362,14 @@ export function useSaisieSeries({
     toast.success(`SÉRIE ${numero} AJOUTÉE`);
   };
 
-  const retirerLaDerniereSerie = () => {
+  const retirerLaDerniereSerie = async () => {
     if (derniereEnPlus === null) return;
     const validee = estValidee(derniereEnPlus);
-    if (validee && !confirm(`Supprimer la série ${derniereEnPlus} déjà validée ?`))
+    if (validee && !(await demanderConfirmation({
+      titre: `Supprimer la série ${derniereEnPlus} déjà validée ?`,
+      action: "Supprimer la série",
+      destructif: true,
+    })))
       return;
 
     // L'ordre compte : retirer la série enregistrée AVANT de réduire le

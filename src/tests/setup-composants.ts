@@ -13,10 +13,13 @@ import { cleanup } from "@testing-library/react";
 
 afterEach(cleanup);
 
-// `confirm` : le retrait d'une série déjà validée le demande. Il rend `true`
-// pour que le geste aille au bout ; les tests qui vérifient le refus le
-// redéfinissent localement.
-vi.stubGlobal("confirm", () => true);
+// La confirmation de l'application (qui remplace `window.confirm`) répond
+// « oui » : les gestes vont au bout sans ouvrir de feuille.
+// `confirmation.ctest.tsx` teste la vraie feuille avec `vi.unmock`.
+vi.mock("@/components/ui/confirmation", async (original) => ({
+  ...(await original<typeof import("@/components/ui/confirmation")>()),
+  demanderConfirmation: vi.fn(async () => true),
+}));
 
 // `matchMedia` est lu par des composants d'interface tiers.
 vi.stubGlobal(

@@ -1,5 +1,6 @@
 "use client";
 import { X, BatteryLow, Activity } from "@/components/ui/icons";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 
 /**
  * Le choix entre deux choses qu'on confondait faute d'endroit où les séparer.
@@ -29,9 +30,12 @@ interface Props {
 }
 
 export function SOSEtat({ onEnergie, onSymptome, onClose }: Props) {
+  // Tirer la feuille vers le bas la ferme, comme la croix.
+  const glisse = useGlisserPourFermer<HTMLDivElement>(onClose);
   return (
     <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
-      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-3">
+      <div ref={glisse}
+        className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-encre">Qu&apos;est-ce qui se passe ?</h2>
           <button onClick={onClose} className="p-2" aria-label="Fermer">

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@
 import { EnteteLive } from "@/components/session/EnteteLive";
 import { RestTimer } from "@/components/session/RestTimer";
 import { useEcranAllume } from "@/components/session/useEcranAllume";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 import { type ExercicePrescrit } from "@/components/session/types";
 import { VueFocus } from "@/components/session/VueFocus";
 import { ListeCompacte } from "@/components/session/ListeCompacte";
@@ -594,6 +595,8 @@ function ContenuSeanceLive() {
       appliquer();
     }
   };
+  // Tirer la feuille de repos vers le bas la replie en pastille.
+  const glisseRepos = useGlisserPourFermer<HTMLDivElement>(reposReduit ? null : () => basculerRepos(true));
 
   /*
    * Consigner un incident, sans jamais retenir personne.
@@ -1138,7 +1141,7 @@ function ContenuSeanceLive() {
             if (!reposReduit && e.target === e.currentTarget) basculerRepos(true);
           }}
         >
-          <div className="repos-panneau">
+          <div className="repos-panneau" ref={glisseRepos}>
             {/* Elle accompagne le compte à rebours sans jamais le masquer, ni
                 « Passer », ni « +30 s ». Voir `.repos-mascotte`. */}
             <RestTimer

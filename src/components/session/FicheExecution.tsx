@@ -15,6 +15,7 @@ import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { Mannequin } from "@/components/anatomie/Mannequin";
 import { faceLaPlusParlante, type Face } from "@/lib/referentiels/anatomie";
 import { libelleMuscles } from "@/lib/referentiels/libelles";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 
 interface Props {
   contexte: ContexteExecutionClient;
@@ -280,6 +281,9 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre, aide }: 
   }, [contexte.exerciseInstanceId, contexte.exerciseId]);
 
 
+  // Tirer la feuille vers le bas la ferme, comme un toucher sur le fond.
+  const glisse = useGlisserPourFermer<HTMLDivElement>(() => { quitterLaNote(); onFermer(); });
+
   return (
     <div
       role="dialog"
@@ -289,6 +293,7 @@ export function FicheExecution({ contexte, nom, onFermer, onEnregistre, aide }: 
       onClick={() => { quitterLaNote(); onFermer(); }}
     >
       <div
+        ref={glisse}
         className="w-full max-h-[92vh] bg-papier rounded-t-2xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >

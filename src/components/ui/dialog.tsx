@@ -6,6 +6,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "@/components/ui/icons"
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
@@ -44,11 +45,17 @@ function DialogContent({
   children,
   showCloseButton = true,
   keepMounted = false,
+  glisserPourFermer,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
   keepMounted?: boolean
+  /** Fermer en tirant vers le bas. Par défaut : les fenêtres posées en feuille (classe « …-sheet »). */
+  glisserPourFermer?: boolean
 }) {
+  const fermeture = React.useRef<HTMLButtonElement>(null)
+  const estFeuille = glisserPourFermer ?? (typeof className === "string" && /(^|\s|-)sheet(\s|$)/.test(className))
+  const glisse = useGlisserPourFermer<HTMLDivElement>(estFeuille ? () => fermeture.current?.click() : null)
   return (
     <DialogPortal keepMounted={keepMounted}>
       <DialogOverlay />
@@ -59,8 +66,13 @@ function DialogContent({
           className
         )}
         {...props}
+        ref={estFeuille ? glisse : undefined}
       >
         {children}
+        {/* Le geste de glisser ferme par ce bouton, comme la croix : même chemin. */}
+        {estFeuille && (
+          <DialogPrimitive.Close ref={fermeture} hidden tabIndex={-1} aria-hidden />
+        )}
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"

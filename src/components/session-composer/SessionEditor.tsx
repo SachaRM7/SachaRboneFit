@@ -24,6 +24,7 @@ import {
   libelleCibleEffort,
 } from "@/components/programme/cible-effort";
 import type { SeanceProgrammeDetail } from "@/services/seance-template";
+import { demanderConfirmation } from "@/components/ui/confirmation";
 
 interface MachineOption {
   id: string;
@@ -203,9 +204,13 @@ export function SessionEditor({
     move(clientId, event.key === "ArrowUp" ? -1 : 1);
   }
 
-  function remove(clientId: string) {
+  async function remove(clientId: string) {
     const exercise = draft.find((item) => item.clientId === clientId);
-    if (!exercise || !window.confirm(`Retirer « ${exercise.nom} » de cette séance ?`)) return;
+    if (!exercise || !(await demanderConfirmation({
+      titre: `Retirer « ${exercise.nom} » de cette séance ?`,
+      action: "Retirer l’exercice",
+      destructif: true,
+    }))) return;
     setDraft((current) => current.filter((item) => item.clientId !== clientId));
     if (editingId === clientId) setEditingId(null);
   }

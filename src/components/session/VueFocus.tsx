@@ -6,6 +6,7 @@ import { ListeCompacte } from "./ListeCompacte";
 import type { ExercicePrescrit } from "./types";
 import type { AvancementExercice } from "@/lib/live/vue-live";
 import type { SerieValidee } from "./useSaisieSeries";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 
 /**
  * Un exercice à la fois — la séance telle qu'on la vit devant la machine.
@@ -59,6 +60,7 @@ export function VueFocus({
   reportes = [],
 }: Props) {
   const [listeOuverte, setListeOuverte] = useState(false);
+  const glisse = useGlisserPourFermer<HTMLDivElement>(() => setListeOuverte(false));
   /*
    * Le sens du dernier changement d'exercice, pour que la carte arrive du bon
    * côté : de la droite vers le suivant, de la gauche vers le précédent. Rien
@@ -155,7 +157,7 @@ export function VueFocus({
             aria-label="Fermer"
             onClick={() => setListeOuverte(false)}
           />
-          <div className="focus-feuille-panneau">
+          <div className="focus-feuille-panneau" ref={glisse}>
             <header>
               <p className="eyebrow">Séance</p>
               <button

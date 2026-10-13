@@ -9,6 +9,7 @@ import {
 import { prudenceSymptomes } from "@/lib/engine/symptome-general";
 import { arreterEnConsignant } from "./incident-en-vol";
 import type { ExerciceRestant } from "@/lib/sos/types";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 
 /**
  * Un symptôme général qui apparaît en pleine séance.
@@ -47,6 +48,8 @@ interface Props {
 export function SOSSymptome({
   exercicesRestants, onClose, onAlleger, onStopSeance, onIncident,
 }: Props) {
+  // Tirer la feuille vers le bas la ferme, comme la croix.
+  const glisse = useGlisserPourFermer<HTMLDivElement>(onClose);
   const [symptome, setSymptome] = useState<SymptomeGeneral | null>(null);
   const [intensite, setIntensite] = useState(3);
   const [note, setNote] = useState("");
@@ -114,7 +117,8 @@ export function SOSSymptome({
 
   return (
     <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
-      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85vh] overflow-y-auto">
+      <div ref={glisse}
+        className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-encre">Qu&apos;est-ce que tu ressens ?</h2>
           <button onClick={onClose} className="p-2" aria-label="Fermer">

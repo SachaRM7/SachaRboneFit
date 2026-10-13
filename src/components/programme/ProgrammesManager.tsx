@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Plus, Trash2 } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { CreationBlocForm } from "./CreationBlocForm";
+import { demanderConfirmation } from "@/components/ui/confirmation";
 
 export interface ProgrammeResume {
   id: string;
@@ -50,7 +51,12 @@ export function ProgrammesManager({
     const suite = programme.actif
       ? " Un autre programme prendra automatiquement le relais s'il en reste un."
       : "";
-    if (!confirm(`Supprimer « ${programme.nom} » ? Ses séances passées resteront dans ton historique.${suite}`)) {
+    if (!(await demanderConfirmation({
+      titre: `Supprimer « ${programme.nom} » ?`,
+      message: `Ses séances passées resteront dans ton historique.${suite}`,
+      action: "Supprimer le programme",
+      destructif: true,
+    }))) {
       return;
     }
 

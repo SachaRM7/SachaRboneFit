@@ -5,6 +5,7 @@ import "./live-session.css";
 import "./live-focus.css";
 import "./overview.css";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
+import { ConfirmationGlobale } from "@/components/ui/confirmation";
 
 // Polices variables auto-hébergées par Next pour toute l'interface.
 const heading = Outfit({
@@ -54,7 +55,10 @@ export default function RootLayout({
       className={`${heading.variable} ${body.variable}`}
     >
       <body className="bg-papier text-encre min-h-screen antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          {children}
+          <ConfirmationGlobale />
+        </ThemeProvider>
       </body>
     </html>
   );

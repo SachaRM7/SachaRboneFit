@@ -5,6 +5,7 @@ import { X, Check } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { machineOccupee } from "@/lib/sos/machine-occupee";
 import type { ExerciseInstanceWithExercise, SubstituteResult } from "@/lib/engine/substitutions";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 
 interface ExerciceDeLaSeance {
   id: string;
@@ -40,6 +41,8 @@ export function SOSMachineOccupee({
   onDefer,
   onSubstitute,
 }: SOSMachineOccupeeProps) {
+  // Tirer la feuille vers le bas la ferme, comme la croix.
+  const glisse = useGlisserPourFermer<HTMLDivElement>(onClose);
   const [reponse, setReponse] = useState<{ id: string; substituts: SubstituteResult[]; message: string } | null>(null);
 
   // Les exercices qu'il reste à faire : ceux-là seuls peuvent être occupés.
@@ -62,7 +65,8 @@ export function SOSMachineOccupee({
 
   return (
     <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center" role="dialog" aria-modal="true" aria-label="Machine occupée">
-      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85dvh] overflow-y-auto">
+      <div ref={glisse}
+        className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85dvh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <div><p className="eyebrow">Machine occupée</p><h2 className="text-lg font-semibold">{exerciceOccupe?.nom ?? "Cet exercice"}</h2></div>
           <button onClick={onClose} className="h-11 w-11 grid place-items-center" aria-label="Fermer machine occupée"><X aria-hidden /></button>

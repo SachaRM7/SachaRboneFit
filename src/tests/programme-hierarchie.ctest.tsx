@@ -37,7 +37,6 @@ describe("hiérarchie des programmes", () => {
     const user = userEvent.setup();
     const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
     vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal("confirm", vi.fn(() => true));
 
     render(
       <ProgrammesManager
