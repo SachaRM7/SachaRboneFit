@@ -1,6 +1,7 @@
 "use client";
 import { DeclarerContexte, ActionsCoachLive, useCoach } from "@/components/coach/ContexteCoach";
 import { Suspense, useCallback, useEffect, useState } from "react";
+import { flushSync } from "react-dom";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore, type DraftSet } from "@/stores/sessionStore";
 import { Button } from "@/components/ui/button";
@@ -564,6 +565,33 @@ function ContenuSeanceLive() {
     else skipRest();
   };
 
+  /**
+   * Le repos se replie en pastille, et la séance redevient accessible.
+   *
+   * La feuille couvrait tout l'écran pendant deux minutes : impossible de
+   * relire la série d'avant ou d'ouvrir la technique sans écourter le repos.
+   * Toucher le voile la replie désormais en un minuteur rond.
+   *
+   * On retient le DÉBUT du repos replié plutôt qu'un simple booléen : un
+   * nouveau repos a un autre début, et remonte donc en grand de lui-même.
+   *
+   * La métamorphose passe par les View Transitions quand le navigateur les
+   * connaît (feuille et pastille portent le même `view-transition-name`) ;
+   * sinon la pastille apparaît avec sa propre animation.
+   */
+  const [reposReduitDepuis, setReposReduitDepuis] = useState<number | null>(null);
+  const reposReduit = active?.restStartTimestamp != null && reposReduitDepuis === active.restStartTimestamp;
+  const basculerRepos = (reduire: boolean) => {
+    const appliquer = () => setReposReduitDepuis(reduire ? (active?.restStartTimestamp ?? null) : null);
+    const doc = document as Document & { startViewTransition?: (maj: () => void) => unknown };
+    const mouvementReduit = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (doc.startViewTransition && !mouvementReduit) {
+      doc.startViewTransition(() => flushSync(appliquer));
+    } else {
+      appliquer();
+    }
+  };
+
   /*
    * Consigner un incident, sans jamais retenir personne.
    *
@@ -1100,7 +1128,13 @@ function ContenuSeanceLive() {
           l'application — et non plus une boîte posée au milieu d'un voile. La
           logique du minuteur, elle, n'a pas changé. */}
       {timerVisible && active?.restDurationSeconds && (
-        <div className="repos-feuille">
+        <div
+          className="repos-feuille"
+          data-reduit={reposReduit || undefined}
+          onClick={(e) => {
+            if (!reposReduit && e.target === e.currentTarget) basculerRepos(true);
+          }}
+        >
           <div className="repos-panneau">
             {/* Elle accompagne le compte à rebours sans jamais le masquer, ni
                 « Passer », ni « +30 s ». Voir `.repos-mascotte`. */}
@@ -1112,6 +1146,9 @@ function ContenuSeanceLive() {
               onComplete={playBeep}
               onSkip={passerRepos}
               onExtend={extendRest}
+              reduit={reposReduit}
+              onReduire={() => basculerRepos(true)}
+              onAgrandir={() => basculerRepos(false)}
             />
           </div>
         </div>

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MascotteCoach } from "@/components/coach/MascotteCoach";
 import { Button } from "@/components/ui/button";
+import { ChevronDown } from "@/components/ui/icons";
 
 interface RestTimerProps {
   durationSeconds: number;
@@ -18,6 +19,16 @@ interface RestTimerProps {
    * par l'écran de séance qui connaît déjà la série suivante.
    */
   prochaine?: string | null;
+  /**
+   * Le repos replié en pastille ronde : la séance redevient accessible derrière.
+   *
+   * Le minuteur reste MONTÉ dans les deux formes — c'est lui qui déclenche le
+   * bip. Le démonter pendant qu'il est replié ferait perdre le signal, et le
+   * remonter le rejouerait une seconde fois.
+   */
+  reduit?: boolean;
+  onReduire?: () => void;
+  onAgrandir?: () => void;
 }
 
 /** « 1 min 20 » plutôt que « 80 s » : c'est ce qu'on lit d'un coup d'œil. */
@@ -36,6 +47,9 @@ export function RestTimer({
   onSkip,
   onExtend,
   prochaine,
+  reduit = false,
+  onReduire,
+  onAgrandir,
 }: RestTimerProps) {
   const [elapsed, setElapsed] = useState(0);
   // Ref plutot qu'un state : sert uniquement a ne declencher onComplete qu'une fois.
@@ -109,8 +123,45 @@ export function RestTimer({
   const isOvertime = elapsed >= durationSeconds;
   const overtimeSeconds = isOvertime ? elapsed - durationSeconds : 0;
 
+  if (reduit) {
+    const rayon = 25;
+    const perimetre = 2 * Math.PI * rayon;
+    return (
+      <button
+        type="button"
+        className="repos-pastille"
+        data-depasse={isOvertime || undefined}
+        onClick={onAgrandir}
+        aria-label={isOvertime ? "Repos atteint — rouvrir le minuteur" : `Repos : ${timeDisplay} restantes — rouvrir le minuteur`}
+      >
+        <svg viewBox="0 0 60 60" aria-hidden>
+          <circle cx="30" cy="30" r={rayon} fill="none" className="text-filet" stroke="currentColor" strokeWidth="4" />
+          <circle
+            cx="30"
+            cy="30"
+            r={rayon}
+            fill="none"
+            className={isOvertime ? "text-gain" : "text-primary"}
+            stroke="currentColor"
+            strokeWidth="4"
+            strokeLinecap="round"
+            strokeDasharray={perimetre}
+            strokeDashoffset={perimetre * (1 - progress)}
+            transform="rotate(-90 30 30)"
+          />
+        </svg>
+        <span className="chiffres">{isOvertime ? "Prêt" : timeDisplay}</span>
+      </button>
+    );
+  }
+
   return (
-    <div className="rest-v2 flex flex-col items-center gap-5 p-6">
+    <div className="rest-v2 relative flex flex-col items-center gap-5 p-6">
+      {onReduire && (
+        <button type="button" className="repos-reduire" onClick={onReduire} aria-label="Réduire le minuteur">
+          <ChevronDown className="size-5" aria-hidden />
+        </button>
+      )}
       <p className="eyebrow">{exerciceTermine ? "Exercice terminé · repos" : "Repos"}</p>
       {exerciceTermine && <p className="text-sm font-medium">{exerciceTermine}</p>}
       {/* SVG Circular Timer */}

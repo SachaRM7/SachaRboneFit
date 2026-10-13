@@ -48,6 +48,28 @@ describe("repos : la durée suit le départ mémorisé", () => {
     expect(screen.getByRole("button", { name: "Continuer" })).toBeVisible();
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
+  it("se replie en pastille sans perdre l'horloge ni rejouer le signal", async () => {
+    vi.useFakeTimers(); vi.setSystemTime(100_000);
+    const onComplete = vi.fn();
+    const onReduire = vi.fn();
+    const onAgrandir = vi.fn();
+    const props = { durationSeconds: 60, startedAt: 90_000, onComplete, onSkip: () => {}, onExtend: () => {}, onReduire, onAgrandir };
+    const { rerender } = render(<RestTimer {...props} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+    act(() => { screen.getByRole("button", { name: "Réduire le minuteur" }).click(); });
+    expect(onReduire).toHaveBeenCalledTimes(1);
+
+    rerender(<RestTimer {...props} reduit />);
+    expect(screen.queryByRole("button", { name: "Écourter le repos" })).not.toBeInTheDocument();
+    const pastille = screen.getByRole("button", { name: /rouvrir le minuteur/ });
+    expect(pastille).toHaveTextContent("50");
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(55_000); });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: /rouvrir le minuteur/ })).toHaveTextContent("Prêt");
+    act(() => { screen.getByRole("button", { name: /rouvrir le minuteur/ }).click(); });
+    expect(onAgrandir).toHaveBeenCalledTimes(1);
+  });
 });
 
 it("le débrief complet reste disponible derrière le résumé, sans génération automatique", async () => {

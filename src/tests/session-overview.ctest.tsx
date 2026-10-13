@@ -1,8 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { FournisseurCoach } from "@/components/coach/ContexteCoach";
 import { SessionOverview } from "@/components/session-composer/SessionOverview";
 import type { SeanceProgrammeDetail } from "@/services/seance-template";
+
+const { replace, refresh } = vi.hoisted(() => ({ replace: vi.fn(), refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace, refresh }) }));
+
+beforeEach(() => {
+  replace.mockReset(); refresh.mockReset();
+  // La feuille d'actions (vaul) capture le pointeur ; jsdom ne l'implémente pas.
+  Element.prototype.setPointerCapture ??= () => {};
+  Element.prototype.releasePointerCapture ??= () => {};
+});
+afterEach(() => { vi.unstubAllGlobals(); });
 
 const detail: SeanceProgrammeDetail = {
   id: "template-push",
@@ -67,5 +79,25 @@ describe("vue de consultation d'une séance", () => {
     expect(container.querySelector(".session-overview-actions")).toHaveStyle({
       bottom: "var(--barre-nav)",
     });
+  });
+});
+
+describe("les « … » de la séance", () => {
+  it("proposent de supprimer la séance, avec une confirmation, puis ramènent à la liste", async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetcher);
+    render(
+      <FournisseurCoach>
+        <SessionOverview detail={detail} defaultGymId="" />
+      </FournisseurCoach>,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Actions pour Push" }));
+    await userEvent.click(await screen.findByRole("button", { name: /Supprimer la séance/ }));
+    expect(fetcher).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /Oui, supprimer la séance/ }));
+    expect(fetcher).toHaveBeenCalledWith("/api/programme/seances/template-push", { method: "DELETE" });
+    expect(replace).toHaveBeenCalledWith("/sessions/new");
   });
 });
