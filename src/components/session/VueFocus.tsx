@@ -59,6 +59,19 @@ export function VueFocus({
   reportes = [],
 }: Props) {
   const [listeOuverte, setListeOuverte] = useState(false);
+  /*
+   * Le sens du dernier changement d'exercice, pour que la carte arrive du bon
+   * côté : de la droite vers le suivant, de la gauche vers le précédent. Rien
+   * au premier affichage — la séance n'a pas « changé » en s'ouvrant.
+   * Ajustement pendant le rendu plutôt qu'un effet : c'est le motif React pour
+   * dériver un état de la valeur précédente d'une prop.
+   */
+  const [indexAffiche, setIndexAffiche] = useState(courant);
+  const [sens, setSens] = useState<"suivant" | "precedent" | null>(null);
+  if (courant !== indexAffiche) {
+    setIndexAffiche(courant);
+    setSens(courant > indexAffiche ? "suivant" : "precedent");
+  }
   const exercice = exercices[courant];
 
   if (!exercice) {
@@ -74,7 +87,7 @@ export function VueFocus({
   };
 
   return (
-    <div className="focus-v2">
+    <div className="focus-v2" data-sens={sens ?? undefined}>
       {/*
         Où l'on est dans la séance — porté par le rang de l'exercice plutôt que
         par un contrôle utilitaire posé à côté. Les flèches encadrent le

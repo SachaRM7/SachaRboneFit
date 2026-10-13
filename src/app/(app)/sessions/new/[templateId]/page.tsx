@@ -10,6 +10,7 @@ import { Zap, X } from "@/components/ui/icons";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { EnteteLive } from "@/components/session/EnteteLive";
 import { RestTimer } from "@/components/session/RestTimer";
+import { useEcranAllume } from "@/components/session/useEcranAllume";
 import { type ExercicePrescrit } from "@/components/session/types";
 import { VueFocus } from "@/components/session/VueFocus";
 import { ListeCompacte } from "@/components/session/ListeCompacte";
@@ -142,6 +143,8 @@ function ContenuSeanceLive() {
   // le premier qui s'est produit.
   const [echecLecture, setEchecLecture] = useState(false);
   const timerVisible = Boolean(active?.restDurationSeconds);
+  // L'écran ne se verrouille pas pendant la séance — sinon le repos se fige et le bip se perd.
+  useEcranAllume(Boolean(active));
   /* Le tiroir du Coach : ouvert par un geste, jamais par un événement. */
   const { ouvrir: ouvrirCoach } = useCoach();
   /*

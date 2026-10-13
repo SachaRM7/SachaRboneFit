@@ -255,7 +255,7 @@ export function LecteurExercice({
           ------------------------------------------------------------------ */}
       {faites.length > 0 && (
         <details className="live-completed-sets">
-          <summary><Check aria-hidden /> {faites.length} série{faites.length > 1 ? "s" : ""} validée{faites.length > 1 ? "s" : ""} · Voir / modifier</summary>
+          <summary><Check key={faites.length} className="pop-valide" aria-hidden /> {faites.length} série{faites.length > 1 ? "s" : ""} validée{faites.length > 1 ? "s" : ""} · Voir / modifier</summary>
         <ul className="lecteur-faites">
           {faites.map((numero) => {
             const v = valeurs(numero);
