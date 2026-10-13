@@ -82,6 +82,57 @@
   font-size: 1.15rem;
   font-weight: 700;
 }
+.live-session-terminee {
+  text-align: center;
+  animation: cloture-arrive 420ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.cloture-embleme {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 0.6rem;
+}
+.cloture-embleme > svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.cloture-anneau,
+.cloture-coche {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+}
+.cloture-anneau {
+  stroke: var(--gain);
+  stroke-width: 4;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  animation: cloture-trace 700ms 150ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.cloture-coche {
+  stroke: var(--gain);
+  stroke-width: 5;
+  animation: cloture-trace 320ms 750ms ease-out both;
+}
+.cloture-mascotte {
+  position: absolute;
+  right: -30px;
+  bottom: -6px;
+}
+@keyframes cloture-trace {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+@keyframes cloture-arrive {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-session-terminee,
+  .cloture-anneau,
+  .cloture-coche { animation: none; }
+}
 
 /* ---------------------------------------------------------------------------
    L'EN-TÊTE COLLANT — et son invariant

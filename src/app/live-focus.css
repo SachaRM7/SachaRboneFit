@@ -199,3 +199,45 @@
   .focus-exercise-metrics > div > span { font-size: 11px; }
   .live-list-content > strong { font-size: 16px; }
 }
+
+/* ===========================================================================
+   LE MOUVEMENT — discret, et seulement quand quelque chose a lieu
+   =========================================================================== */
+
+/* Changer d'exercice : la carte arrive du côté où l'on va. La navigation, elle,
+   reste immobile — c'est le repère. */
+.focus-v2 { overflow-x: clip; }
+.focus-v2[data-sens] .focus-exercise-card > :not(.focus-nav),
+.focus-v2[data-sens] .focus-carte > :not(.focus-exercise-card) {
+  animation: focus-glisse 280ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.focus-v2[data-sens="precedent"] { --glisse-depuis: -22px; }
+@keyframes focus-glisse {
+  from { opacity: 0; transform: translateX(var(--glisse-depuis, 22px)); }
+}
+
+/* Une série validée se sent : la coche « tape », la ligne se fige en douceur. */
+.pop-valide { animation: pop-valide 360ms cubic-bezier(0.3, 1.6, 0.5, 1); }
+.live-serie[data-etat="validee"] .live-serie-resume { animation: serie-figee 260ms ease; }
+@keyframes pop-valide {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.25); opacity: 1; }
+}
+@keyframes serie-figee {
+  from { opacity: 0; transform: translateY(3px); }
+}
+
+/* Les gestes principaux s'enfoncent sous le pouce. */
+.serie-valider, .live-serie-geste, .repos-pastille, .rest-v2 button {
+  transition: transform 120ms ease;
+}
+.serie-valider:active:not(:disabled), .live-serie-geste:active, .repos-pastille:active, .rest-v2 button:active {
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-v2[data-sens] .focus-exercise-card > :not(.focus-nav),
+  .focus-v2[data-sens] .focus-carte > :not(.focus-exercise-card),
+  .pop-valide,
+  .live-serie[data-etat="validee"] .live-serie-resume { animation: none; }
+}

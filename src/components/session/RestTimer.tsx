@@ -123,6 +123,17 @@ export function RestTimer({
   const isOvertime = elapsed >= durationSeconds;
   const overtimeSeconds = isOvertime ? elapsed - durationSeconds : 0;
 
+  // Le compte à rebours dans le titre de l'onglet : lisible depuis la barre
+  // d'onglets de Safari quand on regarde autre chose. Rendu au départ.
+  const titreRepos = isOvertime ? "Repos atteint" : `${timeDisplay} · Repos`;
+  useEffect(() => {
+    const titreInitial = document.title;
+    return () => { document.title = titreInitial; };
+  }, []);
+  useEffect(() => {
+    document.title = titreRepos;
+  }, [titreRepos]);
+
   if (reduit) {
     const rayon = 25;
     const perimetre = 2 * Math.PI * rayon;
