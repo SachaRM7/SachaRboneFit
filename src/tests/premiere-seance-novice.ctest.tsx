@@ -138,7 +138,7 @@ describe("cas 1 — première machine sans historique", () => {
       },
     } as never);
     expect(screen.getByLabelText("Charge série 1")).toHaveValue("5");
-    await ouvrirTechnique();
+    // Sur la carte, sans ouvrir « Technique & réglages » : c'est l'info du geste.
     const estimation = screen.getByTestId("charge-essai");
     expect(within(estimation).getByText("Point de départ")).toBeInTheDocument();
     expect(within(estimation).getByText("5 kg")).toBeInTheDocument();
@@ -192,8 +192,8 @@ describe("cas 1 — première machine sans historique", () => {
     await user.type(screen.getByLabelText("Charge série 1"), "20");
     await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "5 ou plus, très facile" }));
-    await ouvrirTechnique(user);
-    expect(screen.getByText(/essaie 25 kg, le cran suivant/)).toBeInTheDocument();
+    // Le conseil apparaît sur la carte dès le ressenti, sans ouvrir la feuille.
+    expect(screen.getByText(/essaie 25 kg, le cran suivant/)).toBeVisible();
   });
 });
 

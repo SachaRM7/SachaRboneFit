@@ -46,14 +46,25 @@ export function libellesPremiereCharge(estimation: ChargeAffichable) {
   };
 }
 
-export function GuidagePremiereSerie({
+/**
+ * Ce que la première série doit montrer SUR LA CARTE, pas dans une feuille.
+ *
+ * La refonte compacte du Focus avait rangé tout le guidage dans « Technique &
+ * réglages ». Les explications peuvent y vivre ; pas les deux informations dont
+ * on a besoin au moment du geste : la charge par laquelle commencer, et — une
+ * fois le ressenti donné — le cran vers lequel aller. Sans elles, une première
+ * séance se faisait à l'aveugle.
+ */
+export function RepereEnCarte({
   exercice,
   rpeReduction,
   valeurs,
+  avantPremiereSerie,
 }: {
   exercice: ExercicePrescrit;
   rpeReduction: number;
   valeurs: Brouillon | null;
+  avantPremiereSerie: boolean;
 }) {
   const config = configurationDeLExercice(exercice);
   const reserveCible = rpeVersReserve(effortPropose(exercice.rpeCible, rpeReduction));
@@ -65,6 +76,43 @@ export function GuidagePremiereSerie({
     reserveCible,
     config,
   });
+  const depart = avantPremiereSerie && exercice.premiereCharge?.charge != null
+    ? { charge: exercice.premiereCharge.charge, ...libellesPremiereCharge(exercice.premiereCharge) }
+    : null;
+
+  if (!depart && !conseil) return null;
+
+  return (
+    <section className="premier-repere premier-repere-carte" aria-label="Repère de charge">
+      {depart && (
+        <div className="premier-repere-estimation" data-testid="charge-essai">
+          <div>
+            <span>{depart.titre}</span>
+            <strong>{depart.charge} kg</strong>
+          </div>
+          <small>{depart.badge}</small>
+          <p>{depart.explication}</p>
+        </div>
+      )}
+      {conseil && (
+        <p key={conseil.message} className="premier-repere-conseil" data-etat={conseil.etat} role="status">
+          {conseil.message}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Le guide complet, dans « Technique & réglages » : le pourquoi et le comment. */
+export function GuidagePremiereSerie({
+  exercice,
+  rpeReduction,
+}: {
+  exercice: ExercicePrescrit;
+  rpeReduction: number;
+}) {
+  const config = configurationDeLExercice(exercice);
+  const reserveCible = rpeVersReserve(effortPropose(exercice.rpeCible, rpeReduction));
   const premierCran = premierCranConnu(config);
   const consigne = consigneDeSaisie(
     exercice.conventionCharge,
@@ -82,18 +130,6 @@ export function GuidagePremiereSerie({
         </div>
       </div>
 
-      {exercice.premiereCharge?.charge != null && (() => {
-        const libelles = libellesPremiereCharge(exercice.premiereCharge);
-        return <div className="premier-repere-estimation" data-testid="charge-essai">
-          <div>
-            <span>{libelles.titre}</span>
-            <strong>{exercice.premiereCharge.charge} kg</strong>
-          </div>
-          <small>{libelles.badge}</small>
-          <p>{libelles.explication}</p>
-        </div>;
-      })()}
-
       {consigne && <p className="premier-repere-convention">{consigne}</p>}
       <p>
         Fais {exercice.fourchetteRepsMin}–{exercice.fourchetteRepsMax} répétitions
@@ -103,12 +139,6 @@ export function GuidagePremiereSerie({
         <p className="premier-repere-cible">
           <span>Objectif</span>
           Environ {reserveCible} répétition{reserveCible > 1 ? "s" : ""} en réserve
-        </p>
-      )}
-
-      {conseil && (
-        <p className="premier-repere-conseil" data-etat={conseil.etat} role="status">
-          {conseil.message}
         </p>
       )}
 

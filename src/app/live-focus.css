@@ -241,3 +241,12 @@
   .pop-valide,
   .live-serie[data-etat="validee"] .live-serie-resume { animation: none; }
 }
+
+/* Le repère de première série, sur la carte : compact, et le conseil arrive
+   en douceur quand le ressenti vient d'être donné. */
+.premier-repere-carte { margin: 0; padding: 10px 13px; gap: 8px; }
+.premier-repere-carte .premier-repere-estimation { margin: 0; }
+.premier-repere-carte .premier-repere-conseil { margin: 0; animation: serie-figee 260ms ease; }
+@media (prefers-reduced-motion: reduce) {
+  .premier-repere-carte .premier-repere-conseil { animation: none; }
+}

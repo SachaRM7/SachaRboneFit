@@ -35,7 +35,7 @@ import {
   consigneDeSaisie,
   libelleChampCharge,
 } from "@/lib/validators/exercise-instance";
-import { GuidagePremiereSerie, PreparationMachine } from "./GuidagePremiereSerie";
+import { GuidagePremiereSerie, PreparationMachine, RepereEnCarte } from "./GuidagePremiereSerie";
 import { phasesDuTempo, tempoAvecSecondes } from "./execution-client";
 import { ecrireTempo, lireTempo } from "@/lib/engine/execution";
 import { libellesMusclesLive } from "./presentation-live";
@@ -159,11 +159,7 @@ export function LecteurExercice({
       )}
 
       {sansRepere && modeReserve && (
-        <GuidagePremiereSerie
-          exercice={exercice}
-          rpeReduction={rpeReduction}
-          valeurs={valeursDuDernierEssai}
-        />
+        <GuidagePremiereSerie exercice={exercice} rpeReduction={rpeReduction} />
       )}
 
       </div>
@@ -331,6 +327,17 @@ export function LecteurExercice({
           ecrire={(champ, valeur) => ecrire(serieCourante, champ, valeur)}
           alerte={alerte}
           onValider={() => { basculer(serieCourante); setSerieEditee(null); }}
+        />
+      )}
+
+      {/* Le point de départ, puis le cran suivant : sur la carte, au moment du
+          geste. Les explications restent dans « Technique & réglages ». */}
+      {sansRepere && modeReserve && (
+        <RepereEnCarte
+          exercice={exercice}
+          rpeReduction={rpeReduction}
+          valeurs={valeursDuDernierEssai}
+          avantPremiereSerie={faites.length === 0}
         />
       )}
 

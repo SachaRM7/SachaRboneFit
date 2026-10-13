@@ -15,7 +15,7 @@ import {
   libelleChampCharge,
 } from "@/lib/validators/exercise-instance";
 import { useSaisieSeries, type SerieValidee } from "./useSaisieSeries";
-import { GuidagePremiereSerie, PreparationMachine } from "./GuidagePremiereSerie";
+import { GuidagePremiereSerie, PreparationMachine, RepereEnCarte } from "./GuidagePremiereSerie";
 import { phasesDuTempo, tempoAvecSecondes } from "./execution-client";
 import { ecrireTempo, lireTempo } from "@/lib/engine/execution";
 
@@ -228,11 +228,15 @@ export function TableauSeries({
       )}
 
       {afficheGuidagePremierRepere && (
-        <GuidagePremiereSerie
-          exercice={exercice}
-          rpeReduction={rpeReduction}
-          valeurs={valeursDuDernierEssai}
-        />
+        <>
+          <GuidagePremiereSerie exercice={exercice} rpeReduction={rpeReduction} />
+          <RepereEnCarte
+            exercice={exercice}
+            rpeReduction={rpeReduction}
+            valeurs={valeursDuDernierEssai}
+            avantPremiereSerie={faites.length === 0}
+          />
+        </>
       )}
 
       {/*
