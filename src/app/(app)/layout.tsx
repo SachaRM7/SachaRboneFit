@@ -6,6 +6,7 @@ import { ServiceWorkerRegister } from "@/components/layout/ServiceWorkerRegister
 import { OfflineIndicator } from "@/components/ui/OfflineIndicator";
 import { FournisseurCoach } from "@/components/coach/ContexteCoach";
 import { BoutonCoach } from "@/components/coach/BoutonCoach";
+import { SuiviNavigation } from "@/components/layout/SuiviNavigation";
 import { getAuthenticatedUserId } from "@/lib/supabase/auth-helper";
 import { onboardingTermine } from "@/services/profil-cache";
 import { nommerTrace, phase, publier } from "@/lib/mesure/trace";
@@ -73,6 +74,7 @@ export default async function AppLayout({
       </main>
       <BottomNav />
       <BoutonCoach />
+      <SuiviNavigation />
     </FournisseurCoach>
   );
 }

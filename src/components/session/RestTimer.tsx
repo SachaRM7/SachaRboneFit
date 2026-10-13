@@ -261,26 +261,31 @@ export function RestTimer({
       )}
 
       {/* Control buttons */}
-      <div className="flex gap-4">
+      <div className="flex w-full max-w-sm flex-col gap-3">
         <Button
-          className="h-14 px-5 text-base bg-encre text-papier"
+          className="h-14 w-full px-5 text-base bg-encre text-papier"
           onClick={onSkip}
         >
           {isOvertime ? "Continuer" : "Écourter le repos"}
         </Button>
         {/*
-          « +30 s » n'a qu'une utilité, et elle est réelle : repousser le signal
-          sonore quand on décide de récupérer plus longtemps. Sans lui, le bip
-          tombe pendant qu'on souffle encore. Il ne modifie aucune prescription
-          et n'invente aucune donnée — c'est l'instant du rappel qui bouge.
+          Ajuster le repos n'a qu'une utilité, et elle est réelle : déplacer le
+          signal sonore. Sans « + », le bip tombe pendant qu'on souffle encore ;
+          sans « − », on attend un bip dont on n'a plus besoin. Rien ne modifie
+          la prescription ni n'invente de donnée — c'est l'instant du rappel
+          qui bouge. « − » disparaît quand il ne reste plus 30 s à retirer.
         */}
-        <Button
-          variant="outline"
-          className="h-14 px-5 text-base bg-papier-2 border-filet text-encre"
-          onClick={() => onExtend(30)}
-        >
-          +30 s de récup
-        </Button>
+        <div className="repos-ajuster" role="group" aria-label="Ajuster le repos">
+          <button type="button" onClick={() => onExtend(-30)} disabled={isOvertime || remaining <= 30} aria-label="Retirer 30 secondes de repos">
+            −30 s
+          </button>
+          <button type="button" onClick={() => onExtend(30)} aria-label="Ajouter 30 secondes de repos">
+            +30 s
+          </button>
+          <button type="button" onClick={() => onExtend(60)} aria-label="Ajouter 1 minute de repos">
+            +1 min
+          </button>
+        </div>
       </div>
     </div>
   );

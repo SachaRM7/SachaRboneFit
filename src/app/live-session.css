@@ -1202,6 +1202,26 @@
   .repos-pastille { animation: none; }
 }
 
+/* Ajuster le repos : trois boutons égaux, sous le geste principal. */
+.repos-ajuster {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.repos-ajuster > button {
+  min-height: 46px;
+  border: 1px solid var(--filet);
+  border-radius: 999px;
+  background: var(--papier-2);
+  color: var(--encre);
+  font-size: 15px;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
+  transition: transform 120ms ease, opacity 150ms ease;
+}
+.repos-ajuster > button:active:not(:disabled) { transform: scale(0.96); }
+.repos-ajuster > button:disabled { opacity: 0.35; }
+
 /* Ce qui vient après le repos — la raison pour laquelle on attend. */
 .repos-prochaine {
   display: grid;

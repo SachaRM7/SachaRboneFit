@@ -1152,7 +1152,8 @@ h3,
     margin-left: 232px;
     max-width: none;
   }
-  .app-main > div:not(.app-topbar) {
+  .app-main > div:not(.app-topbar):not(.page-entree),
+  .app-main > .page-entree > div {
     max-width: 1280px;
     margin-inline: auto;
   }
@@ -1318,6 +1319,13 @@ h3,
   .readiness-section {
     margin-top: 28px;
   }
+}
+/* L'arrivée d'un écran — voir `app/(app)/template.tsx`. */
+.page-entree {
+  animation: page-entree 180ms ease-out;
+}
+@keyframes page-entree {
+  from { opacity: 0; }
 }
 @keyframes arrive {
   from {

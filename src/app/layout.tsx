@@ -6,6 +6,7 @@ import "./live-focus.css";
 import "./overview.css";
 import { ThemeProvider } from "@/components/layout/ThemeProvider";
 import { ConfirmationGlobale } from "@/components/ui/confirmation";
+import { Toaster } from "@/components/ui/sonner";
 
 // Polices variables auto-hébergées par Next pour toute l'interface.
 const heading = Outfit({
@@ -58,6 +59,10 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <ConfirmationGlobale />
+          {/* Les `toast()` de l'app n'avaient nulle part où s'afficher : ce
+              composant n'avait jamais été monté. En haut, pour ne masquer ni
+              « Valider la série » ni la barre de navigation. */}
+          <Toaster position="top-center" offset={{ top: "calc(env(safe-area-inset-top) + 12px)" }} mobileOffset={{ top: "calc(env(safe-area-inset-top) + 12px)" }} />
         </ThemeProvider>
       </body>
     </html>
