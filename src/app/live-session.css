@@ -1071,6 +1071,86 @@
     padding-bottom: 0;
   }
 }
+/* Le repos replié — une pastille ronde, la séance redevient accessible.
+   Même arbre DOM que la feuille (le minuteur reste monté et garde son bip) :
+   seuls le voile et le panneau s'effacent, sans intercepter les touchers. */
+.repos-feuille { cursor: pointer; }
+.repos-feuille > .repos-panneau { cursor: auto; view-transition-name: repos-minuteur; }
+.repos-feuille[data-reduit] {
+  inset: auto;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(var(--marge-bas) + 20px);
+  background: transparent;
+  pointer-events: none;
+}
+.repos-feuille[data-reduit] > .repos-panneau {
+  width: auto;
+  max-height: none;
+  overflow: visible;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  view-transition-name: none;
+}
+.repos-reduire {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--encre-3);
+}
+.repos-pastille {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: var(--papier);
+  border: 1px solid var(--filet);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--encre) 22%, transparent);
+  pointer-events: auto;
+  cursor: pointer;
+  view-transition-name: repos-minuteur;
+}
+.repos-pastille > svg {
+  position: absolute;
+  inset: 4px;
+  width: calc(100% - 8px);
+  height: calc(100% - 8px);
+}
+.repos-pastille > span {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--encre);
+}
+.repos-pastille[data-depasse] > span { color: var(--gain); font-size: 13px; }
+@keyframes pastille-arrive {
+  from { transform: scale(2.4) translateY(-40%); opacity: 0; border-radius: 28px; }
+}
+/* Avec les View Transitions, c'est le navigateur qui métamorphose la feuille
+   en pastille ; sans elles, la pastille arrive d'elle-même. */
+@supports not (view-transition-name: none) {
+  .repos-pastille { animation: pastille-arrive 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+}
+::view-transition-group(repos-minuteur) {
+  animation-duration: 0.38s;
+  animation-timing-function: cubic-bezier(0.3, 0.9, 0.25, 1);
+}
+::view-transition-old(repos-minuteur),
+::view-transition-new(repos-minuteur) {
+  height: 100%;
+  object-fit: cover;
+}
+@media (prefers-reduced-motion: reduce) {
+  .repos-pastille { animation: none; }
+}
+
 /* Ce qui vient après le repos — la raison pour laquelle on attend. */
 .repos-prochaine {
   display: grid;

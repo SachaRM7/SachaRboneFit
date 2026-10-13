@@ -6,9 +6,9 @@ import {
   Clock3,
   Dumbbell,
   Edit3,
-  MoreHorizontal,
 } from "@/components/ui/icons";
 import { IllustrationExercice } from "@/components/exercises/IllustrationExercice";
+import { MenuSeance } from "./MenuSeance";
 import { DeclarerContexte } from "@/components/coach/ContexteCoach";
 import { libelleMuscle } from "@/lib/referentiels/libelles";
 import { libelleCibleEffort } from "@/components/programme/cible-effort";
@@ -40,14 +40,7 @@ export function SessionOverview({
           <p className="text-sm text-encre-2">Séances</p>
           <h1 className="truncate font-heading text-xl font-semibold">{detail.nom}</h1>
         </div>
-        <Link
-          href={`/sessions/new/${detail.id}/edit`}
-          prefetch={false}
-          aria-label={`Modifier ${detail.nom}`}
-          className="grid size-11 shrink-0 place-items-center rounded-full border border-filet bg-carte text-encre-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-encre"
-        >
-          <MoreHorizontal className="size-5" aria-hidden />
-        </Link>
+        <MenuSeance seanceId={detail.id} nom={detail.nom} />
       </header>
 
       <section className="mt-5 space-y-1" aria-labelledby="session-overview-title">
