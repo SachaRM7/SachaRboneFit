@@ -282,7 +282,7 @@ describe("vocabulaire des cycles", () => {
   });
 
   it("se contente d'un libellé neutre sans type de cycle", () => {
-    expect(libelleCycle(null).libelle).toBe("Cycle en cours");
+    expect(libelleCycle(null).libelle).toBe("Programme en cours");
     expect(libelleCycle("").herite).toBe(false);
   });
 });
