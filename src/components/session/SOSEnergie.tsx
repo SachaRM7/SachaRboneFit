@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { energieChute } from "@/lib/sos/energie-chute";
 import type { ExerciceRestant } from "@/lib/sos/types";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 
 interface SOSEnergieProps {
   exercicesRestants: ExerciceRestant[];
@@ -34,6 +35,8 @@ interface SOSEnergieProps {
 export function SOSEnergie({
   exercicesRestants, onClose, onApply, onStopSeance, onIncident,
 }: SOSEnergieProps) {
+  // Tirer la feuille vers le bas la ferme, comme la croix.
+  const glisse = useGlisserPourFermer<HTMLDivElement>(onClose);
   const [energie, setEnergie] = useState(5);
   const [confirme, setConfirme] = useState(false);
 
@@ -67,7 +70,8 @@ export function SOSEnergie({
 
   return (
     <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center">
-      <div className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85vh] overflow-y-auto">
+      <div ref={glisse}
+        className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85vh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-encre">Où en est ton énergie ?</h2>
           <button onClick={onClose} className="p-2" aria-label="Fermer">

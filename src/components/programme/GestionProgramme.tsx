@@ -19,6 +19,7 @@ import {
   libelleCibleEffort,
 } from "./cible-effort";
 import { ArrowDown, ArrowUp, Copy, Ellipsis, MoveRight, Pencil, Plus, Trash2 } from "@/components/ui/icons";
+import { demanderConfirmation } from "@/components/ui/confirmation";
 
 export interface ExerciceProgramme {
   ligneId: string;
@@ -459,7 +460,12 @@ export function GestionProgramme({ bloc, programmes, seances, machines }: Props)
   };
 
   const supprimerSeance = async (seance: SeanceProgramme) => {
-    if (!confirm(`Supprimer « ${seance.nom} » du programme ? Les séances déjà réalisées resteront dans ton historique.`)) {
+    if (!(await demanderConfirmation({
+      titre: `Supprimer « ${seance.nom} » du programme ?`,
+      message: "Les séances déjà réalisées resteront dans ton historique.",
+      action: "Supprimer la séance",
+      destructif: true,
+    }))) {
       return;
     }
     setEnvoi(true);
@@ -507,7 +513,11 @@ export function GestionProgramme({ bloc, programmes, seances, machines }: Props)
   };
 
   const retirer = async (ligne: ExerciceProgramme) => {
-    if (!confirm(`Retirer « ${ligne.exerciceNom} » de la séance ?`)) return;
+    if (!(await demanderConfirmation({
+      titre: `Retirer « ${ligne.exerciceNom} » de la séance ?`,
+      action: "Retirer l’exercice",
+      destructif: true,
+    }))) return;
     try {
       const res = await fetch(`/api/programme/exercices/${ligne.ligneId}`, { method: "DELETE" });
       if (!res.ok) throw new Error();

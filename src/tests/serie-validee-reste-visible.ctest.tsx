@@ -439,7 +439,6 @@ describe("série supplémentaire — même vérité en Focus et Liste", () => {
     await user.click(screen.getByRole("button", { name: "Valider la série" }));
     await user.click(screen.getByRole("button", { name: "Enregistrer la série" }));
 
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     await user.click(screen.getByRole("button", { name: "Supprimer la série 3" }));
     expect(useSessionStore.getState().active?.sets.some((s) => s.numeroSerie === 3)).toBe(false);
     expect(useSessionStore.getState().active?.additionalSetCounts?.[A]).toBe(0);

@@ -89,7 +89,6 @@ beforeEach(() => {
   appels = [];
   refresh.mockReset();
   push.mockReset();
-  vi.stubGlobal("confirm", vi.fn(() => true));
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     appels.push({
       url: String(url),

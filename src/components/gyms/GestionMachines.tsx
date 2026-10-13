@@ -9,6 +9,7 @@ import { IllustrationExercice } from "@/components/exercises/IllustrationExercic
 import { MachineForm, type ExerciceSelectionnable, type MachineExistante } from "./MachineForm";
 import { LIBELLES_CONVENTION, LIBELLES_POULIE } from "@/lib/validators/exercise-instance";
 import { Plus, Pencil, Trash2 } from "@/components/ui/icons";
+import { demanderConfirmation } from "@/components/ui/confirmation";
 
 export interface MachineAffichee extends MachineExistante {
   exerciseId: string;
@@ -43,7 +44,11 @@ export function GestionMachines({ gymId, machines, exercices, lectureSeule = fal
   };
 
   const supprimer = async (m: MachineAffichee) => {
-    if (!confirm(`Retirer « ${m.machineNom} » de cette salle ?`)) return;
+    if (!(await demanderConfirmation({
+      titre: `Retirer « ${m.machineNom} » de cette salle ?`,
+      action: "Retirer de la salle",
+      destructif: true,
+    }))) return;
     setSuppression(m.id);
     try {
       const res = await fetch(`/api/exercise-instances/${m.id}`, { method: "DELETE" });

@@ -6,6 +6,7 @@ import { findSubstitutes, type ExerciseInstanceWithExercise, type SubstituteResu
 import { toast } from "sonner";
 import { FicheExecution } from "./FicheExecution";
 import type { ContexteExecutionClient } from "./execution-client";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 
 /**
  * Remplacer CET exercice, depuis sa carte.
@@ -97,6 +98,8 @@ export function RemplacerExercice({
     setRaison(null);
     setEviter(false);
   };
+  // Tirer la feuille vers le bas la ferme, comme « Annuler ».
+  const glisse = useGlisserPourFermer<HTMLDivElement>(fermer);
 
   const appliquer = async (choix: SubstituteResult) => {
     if (!raison || envoi) return;
@@ -147,6 +150,7 @@ export function RemplacerExercice({
       {ouvert && (
         <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center" role="dialog" aria-modal="true">
           <div
+            ref={glisse}
             className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85dvh] overflow-y-auto"
             style={{ paddingBottom: "calc(1rem + var(--marge-bas))" }}
           >

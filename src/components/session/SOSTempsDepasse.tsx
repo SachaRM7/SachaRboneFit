@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { tempsDepasse } from "@/lib/sos/temps-depasse";
 import { formaterEcoulee } from "@/lib/engine/duree-seance";
 import type { ExerciceRestant } from "@/lib/sos/types";
+import { useGlisserPourFermer } from "@/components/ui/useGlisserPourFermer";
 
 interface SOSTempsDepasseProps {
   dureeActuelleMin: number;
@@ -31,6 +32,8 @@ export function SOSTempsDepasse({
   onApply,
   onIncident,
 }: SOSTempsDepasseProps) {
+  // Tirer la feuille vers le bas la ferme, comme la croix.
+  const glisse = useGlisserPourFermer<HTMLDivElement>(onClose);
   const [minutes, setMinutes] = useState<number | null>(null);
   const [personnalise, setPersonnalise] = useState("");
   const budget = minutes === -1 ? Number.parseInt(personnalise, 10) : minutes;
@@ -69,6 +72,7 @@ export function SOSTempsDepasse({
   return (
     <div className="fixed inset-0 z-50 bg-encre/80 flex items-end justify-center" role="dialog" aria-modal="true">
       <div
+        ref={glisse}
         className="bg-carte rounded-t-2xl w-full max-w-md p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 max-h-[85dvh] overflow-y-auto"
         style={{ paddingBottom: "calc(1rem + var(--marge-bas))" }}
       >
