@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles } from "@/components/ui/icons";
+import { animerMascotte } from "@/lib/coach/mascotte-motion";
 import {
   ASSETS_MASCOTTE,
   LARGEURS_MASCOTTE,
@@ -43,6 +44,8 @@ interface Props {
   presence?: "discrete" | "normale" | "forte";
   /** Une apparition douce, une seule fois. Coupée si le système la refuse. */
   anime?: boolean;
+  /** Présence Rossark sur ready/repos/encouragement, dès 72 px. */
+  vivante?: boolean;
   className?: string;
   /**
    * Forcer un texte alternatif.
@@ -61,6 +64,7 @@ export function MascotteCoach({
   taille = "normal",
   presence = "normale",
   anime = false,
+  vivante = true,
   className = "",
   alt,
 }: Props) {
@@ -72,6 +76,17 @@ export function MascotteCoach({
    * l'image absente. Voir le test `mascotte-assets`.
    */
   const [echec, setEchec] = useState(false);
+  const image = useRef<HTMLImageElement>(null);
+  const mouvement = vivante && presence !== "discrete"
+    && (etat === "ready" || etat === "repos" || etat === "encouragement")
+    ? etat : null;
+
+  useEffect(() => {
+    const element = image.current;
+    if (!element || !mouvement || echec) return;
+    const animation = animerMascotte(element, element, mouvement);
+    return () => animation.detruire();
+  }, [mouvement, echec, taille]);
 
   const cote = TAILLE_PRESENCE[presence];
   const texte = alt ?? ASSETS_MASCOTTE[etat].alt;
@@ -108,6 +123,7 @@ export function MascotteCoach({
      */
     // eslint-disable-next-line @next/next/no-img-element
     <img
+      ref={image}
       src={urlMascotte(etat, taille)}
       alt={texte}
       width={LARGEURS_MASCOTTE[taille]}
@@ -117,10 +133,11 @@ export function MascotteCoach({
       loading="lazy"
       decoding="async"
       onError={() => setEchec(true)}
-      className={`mascotte ${anime ? "mascotte-entre" : ""} ${className}`}
+      className={`mascotte ${anime && !mouvement ? "mascotte-entre" : ""} ${className}`}
       style={{ ...boite, objectFit: "contain" }}
       aria-hidden={decorative || undefined}
       data-etat={etat}
+      data-mouvement={mouvement ?? undefined}
     />
   );
 }
