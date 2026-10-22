@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { MascottePouce } from "./MascottePouce";
 import { Sparkles } from "@/components/ui/icons";
 import { animerMascotte } from "@/lib/coach/mascotte-motion";
 import {
@@ -76,11 +77,13 @@ export function MascotteCoach({
    * l'image absente. Voir le test `mascotte-assets`.
    */
   const [echec, setEchec] = useState(false);
+  const signalerEchec = useCallback(() => setEchec(true), []);
   const image = useRef<HTMLImageElement>(null);
   // Le souffle neutre accompagne aussi calibration/planification/training…
   // Le dessin et son sens restent choisis par le résolveur de la surface.
-  const mouvement = !vivante || etat === "beast" ? null
-    : etat === "repos" || etat === "encouragement" ? etat : "ready";
+  const articulee = vivante && etat === "encouragement";
+  const mouvement = !vivante || etat === "beast" || articulee ? null
+    : etat === "repos" ? etat : "ready";
 
   useEffect(() => {
     const element = image.current;
@@ -113,6 +116,11 @@ export function MascotteCoach({
         <Sparkles style={{ width: cote * 0.45, height: cote * 0.45 }} aria-hidden />
       </span>
     );
+  }
+
+  if (articulee) {
+    return <MascottePouce source={urlMascotte(etat, taille)} texte={texte}
+      className={className} style={boite} onError={signalerEchec} />;
   }
 
   return (
