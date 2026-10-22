@@ -108,7 +108,7 @@
 
 ## Part 2. This project
 
-Essai du 22 octobre 2026, sans activation sur les surfaces de production.
+Essai du 22 octobre 2026, activé dans l'application à la demande du propriétaire.
 Source : https://github.com/rossark0/rossark-motion-skill, commit
 `9b20964e32f07f8ac7e2948cd175746fa4a7712f` (MIT ; licence jointe).
 
@@ -117,8 +117,11 @@ Source : https://github.com/rossark0/rossark-motion-skill, commit
 - **Motion engine:** `src/lib/coach/mascotte-motion.ts`, adaptation de `flow`
   et de la respiration périodique. Une animation Web Animations API par image,
   interpolée par le navigateur, sans rendu React par frame. Aucun paquet ajouté.
-- **Composant opt-in:** `src/components/coach/EssaiMascotteMotion.tsx` enveloppe
-  `MascotteCoach` ; aucune page de l'application ne l'importe.
+- **Composant:** `src/components/coach/MascotteCoach.tsx` active les trois
+  mouvements aux tailles normale/forte. Les présences discrètes restent fixes.
+  `vivante={false}` permet de désactiver explicitement le mouvement.
+- **Comparatif en ligne:** `/mascotte` rend les mêmes composants que l'app,
+  sans données utilisateur. Le prototype HTML autonome reste reproductible.
 - **Art:** treize PNG aplatis dans `assets/coach-mascot/masters`, dérivés WebP
   dans `public/coach-mascot/w`. Essai sur ready, repos, encouragement uniquement.
 - **Aperçu:** `npx tsx src/scripts/apercu-mascotte-motion.mts` produit
@@ -128,6 +131,8 @@ Source : https://github.com/rossark0/rossark-motion-skill, commit
 ### The owner's rules
 - Demande du 22/10/2026 : « Test https://github.com/rossark0/rossark-motion-skill
   pour ma mascotte sur SachaRbone Fit ».
+- Suite du 22/10/2026 : « Alors déploie prod ». Activation des trois mouvements
+  testés et publication via main, en conservant les résolveurs d'états existants.
 - Les commentaires de `MascotteCoach` et du registre font foi : aucun choix
   métier dans le rendu, aucune information uniquement portée par l'image,
   dimensions réservées et repli conservés. Ne pas activer beast.
@@ -152,7 +157,8 @@ Source : https://github.com/rossark0/rossark-motion-skill, commit
 - Types : `npx tsc --noEmit` ; lint ciblé sur les fichiers de cet essai.
 - Fonctions : `npx vitest run src/lib/coach/mascotte-motion.test.ts
   src/lib/coach/mascotte-assets.test.ts src/lib/coach/resoudre-mascotte.test.ts`.
-- Composants existants : `npm run test:composants -- src/tests/mascotte-coach.ctest.tsx`.
+- Composants : `npm run test:composants -- src/tests/mascotte-coach.ctest.tsx
+  src/tests/mascotte-motion.ctest.tsx`.
 - Navigateur : `npx tsx src/scripts/verifier-mascotte-motion.mts` après génération.
   Vérifie mouvement, pause/reprise, sortie de champ, onglet masqué,
   mouvement réduit, fin de la scène, dimensions et absence d'appels réseau.
