@@ -16,59 +16,79 @@ try {
   const response=await page.goto(base+'/mascotte',{waitUntil:'networkidle'});
   assert.equal(response.status(),200);
   await page.getByRole('heading',{name:'Ton coach prend vie.'}).waitFor();
-  const fixed=page.locator('[data-comparaison="fixe"] img');
-  const motion=page.locator('[data-comparaison="animee"] img');
-  await page.waitForFunction(()=>document.querySelector('[data-comparaison="animee"] img')?.getAnimations().length===1);
+  const fixed=page.locator('[data-comparaison="fixe"] .mascotte');
+  const motion=page.locator('[data-comparaison="animee"] .mascotte');
+  const replay=()=>page.getByRole('button',{name:'Rejouer',exact:true}).click();
+  const state=s=>page.waitForFunction(s=>document.querySelector('[data-comparaison="animee"] .mascotte')?.dataset.motion===s,s);
+  const pose=()=>motion.evaluate(svg=>({
+    coude:svg.querySelector('[data-partie="coude"]').getAttribute('transform'),
+    pouce:svg.querySelector('[data-partie="pouce"]').getAttribute('transform'),
+    corps:svg.querySelector('[data-partie="rig"] > use').getAttribute('transform'),
+    global:getComputedStyle(svg).transform,
+  }));
+  assert.equal(await motion.getAttribute('data-geste'),'pouce');
   assert.equal(await fixed.evaluate(img=>img.getAnimations().length),0);
-  assert.ok(await motion.evaluate(img=>img.naturalWidth>0));
-  const before=await motion.evaluate(img=>getComputedStyle(img).transform);
-  await page.waitForTimeout(600);
-  assert.notEqual(await motion.evaluate(img=>getComputedStyle(img).transform),before);
-  await page.getByRole('checkbox',{name:'Activer les animations'}).uncheck();
-  assert.equal(await motion.evaluate(img=>img.getAnimations().length),0);
-  await page.getByRole('checkbox',{name:'Activer les animations'}).check();
-  await page.getByRole('button',{name:'Repos',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('[data-comparaison="animee"] img')?.dataset.motion==='actif');
-  assert.equal(await motion.getAttribute('data-mouvement'),'repos');
-  await page.screenshot({path:'apercus/mascotte-app.png',fullPage:true});
-  // Vérifier le déplacement du dessin aux tailles de l'app, pas seulement une matrice différente.
-  for (const size of ['discrete','normale','forte']) {
+  assert.ok(await fixed.evaluate(img=>img.naturalWidth>0));
+  for (const [size,width] of [['discrete',40],['normale',72],['forte',120]]) {
     await page.getByLabel('Taille de la mascotte').selectOption(size);
-    for (const scene of ['Prêt','Repos','Bien joué']) {
-      await page.getByRole('button',{name:scene,exact:true}).click();
-      await page.getByRole('button',{name:'Rejouer',exact:true}).click();
-      await page.waitForFunction(()=>document.querySelector('[data-comparaison="animee"] img')?.getAnimations().length===1);
-      const displacement=await motion.evaluate(async img=>{
-        const a=img.getAnimations()[0];a.pause();await a.ready;
-        const duration=Number(a.effect.getTiming().duration);
-        const height=img.offsetHeight;
-        const points=[];
-        for(let i=0;i<=16;i++){
-          a.currentTime=duration*i/16;
-          const m=new DOMMatrix(getComputedStyle(img).transform);
-          const p=new DOMPoint(0,-height*.7).matrixTransform(m);
-          points.push(Math.hypot(p.x,p.y+height*.7));
-        }
-        a.currentTime=0;a.play();
-        return Math.max(...points);
-      });
-      assert.ok(displacement>1.6,`${scene}/${size}: ${displacement}px`);
-    }
+    await replay();await state('actif');
+    const debut=await pose();
+    await page.waitForTimeout(1150);
+    const fin=await pose();
+    assert.notEqual(debut.coude,fin.coude,`bras immobile à ${width}px`);
+    assert.notEqual(debut.pouce,fin.pouce,`pouce immobile à ${width}px`);
+    assert.equal(fin.corps,null);assert.equal(fin.global,'none');
+    assert.equal(Math.round((await motion.boundingBox()).width),width);
+    await page.screenshot({path:`apercus/pouce-${engine.name()}-${width}.png`,fullPage:true});
+    await state('termine');
+    assert.equal(await motion.locator('[data-partie="rig"]').evaluate(e=>getComputedStyle(e).display),'none');
+    assert.notEqual(await motion.locator('[data-partie="fixe"]').evaluate(e=>getComputedStyle(e).display),'none');
   }
-  await page.getByRole('button',{name:'Bien joué',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('[data-comparaison="animee"] img')?.dataset.motion==='termine');
-  await page.getByRole('button',{name:'Rejouer',exact:true}).click();
-  await page.waitForFunction(()=>document.querySelector('[data-comparaison="animee"] img')?.dataset.motion==='actif');
-  await page.emulateMedia({reducedMotion:'reduce'});
-  await page.waitForFunction(()=>document.querySelector('[data-comparaison="animee"] img')?.dataset.motion==='reduit');
-  assert.equal(await motion.evaluate(img=>img.getAnimations().length),0);
+  // Sortie de champ : le geste reprend là où il était, sans boucle cachée.
+  await replay();await state('actif');
+  await motion.evaluate(e=>e.style.transform='translateY(2000px)');
+  await state('pause');const suspendu=await pose();
+  await page.waitForTimeout(250);assert.equal((await pose()).coude,suspendu.coude);
+  await motion.evaluate(e=>e.style.transform='');await state('actif');
+  await page.waitForTimeout(350);assert.notEqual((await pose()).coude,suspendu.coude);
+  // Onglet masqué : même pause, test du signal navigateur sans session utilisateur.
+  await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+  await state('pause');const masque=await pose();
+  await page.waitForTimeout(250);assert.equal((await pose()).coude,masque.coude);
+  await page.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});
+  await state('actif');
+  await page.getByRole('checkbox',{name:'Activer les animations'}).uncheck();
+  assert.equal(await motion.evaluate(e=>e.tagName),'IMG');
+  assert.equal(await motion.evaluate(e=>e.getAnimations().length),0);
+  await page.getByRole('checkbox',{name:'Activer les animations'}).check();await state('actif');
+  await page.emulateMedia({reducedMotion:'reduce'});await state('reduit');
+  assert.equal(await motion.locator('[data-partie="rig"]').evaluate(e=>getComputedStyle(e).display),'none');
   assert.ok(await page.getByRole('status').filter({hasText:'Ton appareil'}).isVisible());
+  assert.ok(await page.getByRole('button',{name:'Rejouer',exact:true}).isDisabled());
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  // Les respirations des autres états restent fonctionnelles.
+  for(const scene of ['Prêt','Repos']) {
+    await page.getByRole('button',{name:scene,exact:true}).click();await state('actif');
+    const avant=await motion.evaluate(e=>getComputedStyle(e).transform);
+    await page.waitForTimeout(350);
+    assert.notEqual(await motion.evaluate(e=>getComputedStyle(e).transform),avant);
+  }
   for(const width of [320,390,1280]) {
     await page.setViewportSize({width,height:900});
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   }
+  // L'image manquante garde sa place et ne fait pas planter la surface.
+  const failure=await browser.newPage();
+  await failure.context().addCookies(await page.context().cookies());
+  failure.on('pageerror',e=>errors.push(e.message));
+  await failure.route('**/coach-encouragement-hero.webp',route=>route.abort());
+  await failure.goto(base+'/mascotte');
+  const fallback=failure.locator('[data-comparaison="animee"] .mascotte-repli');
+  await fallback.waitFor();
+  assert.equal(Math.round((await fallback.boundingBox()).width),120);
+  await failure.close();
   assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({engine:engine.name(),url:base+'/mascotte',status:response.status(),checks:['hydration','assets','mouvement visible à 40/72/120 px','comparatif fixe','désactivation','repos','encouragement unique','rejouer','mouvement réduit','320/390/1280 px','aucune erreur JS']}));
+  console.log(JSON.stringify({engine:engine.name(),url:base+'/mascotte',status:response.status(),checks:['bras et pouce articulés à 40/72/120 px','corps immobile','pose finale originale','pause hors écran et onglet masqué','désactivation','respirations','rejouer','mouvement réduit','320/390/1280 px','repli image manquante','aucune erreur JS']}));
 } finally {
   await browser.close();
 }

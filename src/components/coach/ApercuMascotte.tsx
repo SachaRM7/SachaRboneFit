@@ -8,7 +8,7 @@ import type { MouvementMascotte } from "@/lib/coach/mascotte-motion";
 const SITUATIONS = [
   { etat: "ready", titre: "Prêt", message: "Prêt pour ta séance.", detail: "Une respiration discrète, une légère inclinaison." },
   { etat: "repos", titre: "Repos", message: "Souffle. Tu récupères.", detail: "Une respiration lente pour accompagner la récupération." },
-  { etat: "encouragement", titre: "Bien joué", message: "Bien joué, Sacha.", detail: "Un petit mouvement de soutien, une seule fois." },
+  { etat: "encouragement", titre: "Bien joué", message: "Bien joué, Sacha.", detail: "Le bras se relève, puis le pouce se déplie. Un geste, une seule fois." },
 ] as const;
 
 const preference = () => window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -26,7 +26,7 @@ const reductionServeur = () => false;
 
 /** Les vrais composants de l'application, sans données ni session utilisateur. */
 export function ApercuMascotte() {
-  const [etat, setEtat] = useState<MouvementMascotte>("ready");
+  const [etat, setEtat] = useState<MouvementMascotte>("encouragement");
   const [vivante, setVivante] = useState(true);
   const [reprise, setReprise] = useState(0);
   const [presence, setPresence] = useState<"discrete" | "normale" | "forte">("forte");
@@ -57,7 +57,9 @@ export function ApercuMascotte() {
           <figure key={String(animee)} className="min-w-0 rounded-2xl border border-filet bg-carte p-3 sm:p-6" data-comparaison={animee ? "animee" : "fixe"}>
             <figcaption className="text-xs text-encre-2">{animee ? "Avec animation" : "Image fixe"}</figcaption>
             <div className="flex h-52 items-center justify-center">
-              <MascotteCoach key={`${etat}-${reprise}`} etat={etat} taille="hero" presence={presence} vivante={animee && vivante} />
+              <MascotteCoach key={`${etat}-${reprise}`} etat={etat}
+                taille={presence === "discrete" ? "compact" : presence === "normale" ? "normal" : "hero"}
+                presence={presence} vivante={animee && vivante} />
             </div>
             <p className="text-sm font-medium text-encre">{situation.message}</p>
           </figure>
@@ -79,7 +81,7 @@ export function ApercuMascotte() {
         </label>
       </div>
       {reduction && <p role="status" className="mt-4 rounded-xl border border-filet bg-carte p-3 text-sm text-encre">Ton appareil demande de réduire les animations : la mascotte reste fixe. Pour voir le mouvement, désactive ce réglage dans les options d’accessibilité de ton appareil.</p>}
-      <p className="mt-6 text-xs text-encre-2">Le réglage « réduire les animations » de ton appareil est toujours respecté. Les yeux et les membres conservent leur dessin d’origine.</p>
+      <p className="mt-6 text-xs text-encre-2">Le réglage « réduire les animations » de ton appareil est toujours respecté.</p>
     </main>
   );
 }

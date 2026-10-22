@@ -139,36 +139,45 @@ Source : https://github.com/rossark0/rossark-motion-skill, commit
   dimensions réservées et repli conservés. Ne pas activer beast.
 
 ### Rig limits
-- Pas de tête, yeux, bras, ombre ou accessoires séparés. Le clignement de
-  l'encouragement est déjà dessiné ; il n'est pas animé par cet essai.
-- Aucune découpe ou reconstruction artificielle du robot. La respiration et
-  l'inclinaison touchent l'image entière, y compris ses accessoires. C'est un
-  essai de présence, pas une animation articulée comparable aux démos Rossark.
-- Correction du 22/10 après retour utilisateur : les amplitudes initiales
-  étaient sous le pixel à l'accueil et le filtre 40 px excluait le Live.
 - Ready/veille : respiration 4 %, inclinaison ±2,4°, boucle 3,6 s.
   Repos : respiration 6 %, inclinaison ±0,6°, boucle 4 s.
-  Encouragement : respiration 6 %, inclinaison jusqu'à −6°, une fois en 1,4 s.
-  Le pivot reste près des pieds, la boîte de mise en page reste fixe.
-- Le comparatif permet de choisir 40/72/120 px et indique explicitement
-  quand le réglage système réduit les mouvements.
-- Les poses neutres aux extrémités correspondent à l'image originale.
-  Aucune alternance automatique entre dessins. La réduction de mouvement
-  affiche l'image originale. Pause hors écran, onglet masqué, image non chargée.
-- Une vraie animation du visage/des membres nécessite une source en calques
-  avec pivots, puis une validation de fidélité avant toute activation.
+- Encouragement : geste articulé de 1,8 s dans `MascottePouce`, intégré à
+  `MascotteCoach`, donc également à l'en-tête Live en 40 px. Le corps, le visage
+  et les pieds restent fixes. Le coude passe de −95° à 0°, puis le pouce de
+  145° à 0°. Le pouce émerge derrière les doigts ; des raccords arrondis
+  maintiennent la continuité au coude et à la main.
+- Le geste utilise la texture WebP existante, composée dans un SVG avec
+  groupes, clips et masques. Aucun master, dérivé ou appel de génération
+  n'est ajouté. Les proportions sont conservées (`xMidYMid meet`). Il s'agit
+  d'une articulation 2D issue d'une seule projection, pas d'un modèle 3D.
+- Une seule horloge requestAnimationFrame, aucune mise à jour React par image.
+  Départ après chargement et entrée dans le champ ; pause hors écran et onglet
+  masqué ; nettoyage au démontage. Pas de boucle du geste.
+- Le rendu serveur, la fin du geste et la réduction de mouvement affichent
+  directement la texture originale. Les dimensions sont réservées et le repli
+  en cas d'image manquante conserve exactement la même boîte.
+- Le comparatif public `/mascotte` commence sur « Bien joué » et permet de
+  rejouer le vrai composant, de choisir 40/72/120 px et de le désactiver.
 
 ### How changes are checked
-- Types : `npx tsc --noEmit` ; lint ciblé sur les fichiers de cet essai.
+- Types : `npx tsc --noEmit` ; lint ciblé.
 - Fonctions : `npx vitest run src/lib/coach/mascotte-motion.test.ts
   src/lib/coach/mascotte-assets.test.ts src/lib/coach/resoudre-mascotte.test.ts`.
 - Composants : `npm run test:composants -- src/tests/mascotte-coach.ctest.tsx
-  src/tests/mascotte-motion.ctest.tsx`.
-- Navigateur : `npx tsx src/scripts/verifier-mascotte-motion.mts` après génération.
-  Vérifie mouvement, pause/reprise, sortie de champ, onglet masqué,
-  mouvement réduit, fin de la scène, dimensions et absence d'appels réseau.
-- Comparatif Next réel : `node src/scripts/verifier-mascotte-app.mjs URL`.
-  `MOTION_BROWSER=webkit` pour WebKit. Mesure le déplacement du haut du dessin
-  (> 1,6 px même à 40 px), teste les trois tailles, les contrôles et le message
-  de réduction système. Chromium et WebKit automatisés, 320/390/1280 px.
-  Pas de test sur téléphone physique.
+  src/tests/mascotte-motion.ctest.tsx`. Vérifie notamment le vrai en-tête Live,
+  le rendu articulé et la destruction de son moteur à la désactivation.
+- Navigateur : `node src/scripts/verifier-mascotte-app.mjs URL`.
+  `MOTION_BROWSER=webkit` pour WebKit. Bras et pouce indépendants aux trois
+  tailles, corps fixe, pose finale originale, reprise après pause hors écran
+  et signal d'onglet masqué, mouvement réduit, repli sur erreur de chargement,
+  contrôles, absence d'erreur JS et de débordement à 320/390/1280 px.
+- Inspection visuelle des poses intermédiaires du composant réel, agrandi et
+  aux tailles d'usage. Chromium et WebKit automatisés ; pas de téléphone
+  physique ni de session authentifiée de l'utilisateur dans cet environnement.
+
+### Clarification du geste attendu — 22/10/2026
+
+Le propriétaire attend des gestes articulés : relever l'avant-bras et déplier
+le pouce. Le balancement de l'image entière ne répondait pas à cette demande.
+Après le premier prototype local, demande explicite : « Ok affine puis
+ déploie ». L'encouragement utilise désormais le geste articulé décrit ici.
