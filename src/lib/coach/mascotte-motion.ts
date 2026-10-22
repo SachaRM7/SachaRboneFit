@@ -8,9 +8,9 @@ export type MouvementMascotte = "ready" | "repos" | "encouragement";
 type PoseCle = readonly [number, number];
 
 export const MOUVEMENTS_MASCOTTE = {
-  ready: { duree: 6400, respiration: 0.007, origine: "50% 97%", boucle: true },
-  repos: { duree: 4800, respiration: 0.012, origine: "50% 92%", boucle: true },
-  encouragement: { duree: 1800, respiration: 0.018, origine: "50% 97%", boucle: false },
+  ready: { duree: 3600, respiration: 0.04, origine: "50% 97%", boucle: true },
+  repos: { duree: 4000, respiration: 0.06, origine: "50% 92%", boucle: true },
+  encouragement: { duree: 1400, respiration: 0.06, origine: "50% 97%", boucle: false },
 } as const;
 
 /** Cubique monotone : traverse les poses sans arrêt artificiel ni dépassement. */
@@ -46,9 +46,9 @@ function flow(t: number, keys: readonly PoseCle[]): number {
 }
 
 const INCLINAISON = {
-  ready: [[0, 0], [1600, -0.35], [3200, 0], [4800, 0.25], [6400, 0]],
-  repos: [[0, 0], [4800, 0]],
-  encouragement: [[0, 0], [300, 0.4], [850, -1.4], [1250, -0.7], [1800, 0]],
+  ready: [[0, 0], [900, -2.4], [1800, 0], [2700, 2.4], [3600, 0]],
+  repos: [[0, 0], [1000, -0.6], [2000, 0], [3000, 0.6], [4000, 0]],
+  encouragement: [[0, 0], [240, 1.5], [650, -6], [1000, -2], [1400, 0]],
 } as const;
 
 export function poseMascotte(mouvement: MouvementMascotte, temps: number) {
@@ -83,7 +83,7 @@ export function animerMascotte(
   const origine = image.style.transformOrigin;
   const media = window.matchMedia("(prefers-reduced-motion: reduce)");
   let animation: Animation | undefined;
-  let visible = false;
+  let visible = typeof IntersectionObserver !== "function";
   let pause = false;
   let reductionForcee = false;
   let detruit = false;
@@ -136,7 +136,9 @@ export function animerMascotte(
       synchroniser();
     }, { threshold: 0 }) : null;
   observateur?.observe(cadre);
-  media.addEventListener("change", synchroniser);
+  // Les anciens WebView Safari ne proposent que addListener/removeListener.
+  if (typeof media.addEventListener === "function") media.addEventListener("change", synchroniser);
+  else media.addListener(synchroniser);
   document.addEventListener("visibilitychange", synchroniser);
   image.addEventListener("load", synchroniser);
   image.addEventListener("error", synchroniser);
@@ -154,7 +156,8 @@ export function animerMascotte(
       detruit = true;
       animation?.cancel();
       observateur?.disconnect();
-      media.removeEventListener("change", synchroniser);
+      if (typeof media.removeEventListener === "function") media.removeEventListener("change", synchroniser);
+      else media.removeListener(synchroniser);
       document.removeEventListener("visibilitychange", synchroniser);
       image.removeEventListener("load", synchroniser);
       image.removeEventListener("error", synchroniser);

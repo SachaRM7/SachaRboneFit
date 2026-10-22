@@ -118,12 +118,13 @@ Source : https://github.com/rossark0/rossark-motion-skill, commit
   et de la respiration périodique. Une animation Web Animations API par image,
   interpolée par le navigateur, sans rendu React par frame. Aucun paquet ajouté.
 - **Composant:** `src/components/coach/MascotteCoach.tsx` active les trois
-  mouvements aux tailles normale/forte. Les présences discrètes restent fixes.
+  mouvements dès 40 px, y compris repos/encouragement dans le Live.
+  Les autres dessins (hors beast) utilisent la respiration neutre de ready.
   `vivante={false}` permet de désactiver explicitement le mouvement.
 - **Comparatif en ligne:** `/mascotte` rend les mêmes composants que l'app,
   sans données utilisateur. Le prototype HTML autonome reste reproductible.
 - **Art:** treize PNG aplatis dans `assets/coach-mascot/masters`, dérivés WebP
-  dans `public/coach-mascot/w`. Essai sur ready, repos, encouragement uniquement.
+  dans `public/coach-mascot/w`. Trois mouvements : veille (ready), repos, encouragement.
 - **Aperçu:** `npx tsx src/scripts/apercu-mascotte-motion.mts` produit
   `apercus/mascotte-motion.html`, autonome, avec les vrais WebP et le même moteur.
   Ouvrir dans un navigateur. Choix de situation, taille, pause et mouvement réduit.
@@ -143,10 +144,14 @@ Source : https://github.com/rossark0/rossark-motion-skill, commit
 - Aucune découpe ou reconstruction artificielle du robot. La respiration et
   l'inclinaison touchent l'image entière, y compris ses accessoires. C'est un
   essai de présence, pas une animation articulée comparable aux démos Rossark.
-- Ready : respiration 0,7 %, inclinaison −0,35° / +0,25°, boucle 6,4 s.
-  Repos : respiration 1,2 %, boucle 4,8 s, sans inclinaison.
-  Encouragement : respiration 1,8 %, inclinaison jusqu'à −1,4°, une seule fois
-  en 1,8 s. Pas de saut ni de faux déplacement des pieds.
+- Correction du 22/10 après retour utilisateur : les amplitudes initiales
+  étaient sous le pixel à l'accueil et le filtre 40 px excluait le Live.
+- Ready/veille : respiration 4 %, inclinaison ±2,4°, boucle 3,6 s.
+  Repos : respiration 6 %, inclinaison ±0,6°, boucle 4 s.
+  Encouragement : respiration 6 %, inclinaison jusqu'à −6°, une fois en 1,4 s.
+  Le pivot reste près des pieds, la boîte de mise en page reste fixe.
+- Le comparatif permet de choisir 40/72/120 px et indique explicitement
+  quand le réglage système réduit les mouvements.
 - Les poses neutres aux extrémités correspondent à l'image originale.
   Aucune alternance automatique entre dessins. La réduction de mouvement
   affiche l'image originale. Pause hors écran, onglet masqué, image non chargée.
@@ -162,4 +167,8 @@ Source : https://github.com/rossark0/rossark-motion-skill, commit
 - Navigateur : `npx tsx src/scripts/verifier-mascotte-motion.mts` après génération.
   Vérifie mouvement, pause/reprise, sortie de champ, onglet masqué,
   mouvement réduit, fin de la scène, dimensions et absence d'appels réseau.
-- Chromium automatisé, vues 390 px / 1280 px. Pas de test sur téléphone physique.
+- Comparatif Next réel : `node src/scripts/verifier-mascotte-app.mjs URL`.
+  `MOTION_BROWSER=webkit` pour WebKit. Mesure le déplacement du haut du dessin
+  (> 1,6 px même à 40 px), teste les trois tailles, les contrôles et le message
+  de réduction système. Chromium et WebKit automatisés, 320/390/1280 px.
+  Pas de test sur téléphone physique.
