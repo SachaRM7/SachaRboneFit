@@ -985,6 +985,30 @@ h3,
 .nav-active-dot {
   display: none;
 }
+.nav-pending {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid transparent;
+  border-radius: 50%;
+}
+.nav-pending[data-pending] {
+  border-color: var(--filet);
+  border-top-color: var(--primary);
+  animation: nav-attente 700ms linear infinite;
+}
+.nav-item:has(.nav-pending[data-pending]) {
+  background: var(--papier-2);
+  color: var(--encre);
+}
+@keyframes nav-attente {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-pending[data-pending] { animation: none; }
+}
 .nav-item:hover {
   background: var(--papier-2);
 }

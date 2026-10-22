@@ -44,7 +44,7 @@ interface Props {
   presence?: "discrete" | "normale" | "forte";
   /** Une apparition douce, une seule fois. Coupée si le système la refuse. */
   anime?: boolean;
-  /** Présence Rossark sur ready/repos/encouragement, dès 72 px. */
+  /** Respiration, même en petit format ; encouragement joué une seule fois. */
   vivante?: boolean;
   className?: string;
   /**
@@ -77,9 +77,10 @@ export function MascotteCoach({
    */
   const [echec, setEchec] = useState(false);
   const image = useRef<HTMLImageElement>(null);
-  const mouvement = vivante && presence !== "discrete"
-    && (etat === "ready" || etat === "repos" || etat === "encouragement")
-    ? etat : null;
+  // Le souffle neutre accompagne aussi calibration/planification/training…
+  // Le dessin et son sens restent choisis par le résolveur de la surface.
+  const mouvement = !vivante || etat === "beast" ? null
+    : etat === "repos" || etat === "encouragement" ? etat : "ready";
 
   useEffect(() => {
     const element = image.current;

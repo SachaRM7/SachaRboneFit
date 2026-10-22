@@ -1351,9 +1351,9 @@
 /*
    Une apparition, une seule fois.
 
-   Les états ready/repos/encouragement de 72 px et plus utilisent le mouvement
-   discret Rossark dans MascotteCoach. Cette apparition reste réservée aux
-   autres états afin de ne pas superposer deux animations de transform.
+   MascotteCoach utilise le mouvement Rossark dès 40 px. Cette apparition
+   reste réservée aux images dont le mouvement est désactivé, afin de ne
+   pas superposer deux animations de transform.
    `prefers-reduced-motion` coupe les deux mécanismes.
 */
 @keyframes mascotte-arrive {

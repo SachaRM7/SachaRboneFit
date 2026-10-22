@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { Fragment } from "react";
 import { usePathname } from "next/navigation";
 import {
@@ -36,6 +36,14 @@ const RATTACHEMENTS: Record<string, string> = {
   "/contraintes": "/settings",
   "/session": "/sessions/new",
 };
+
+function AttenteOnglet({ label }: { label: string }) {
+  const { pending } = useLinkStatus();
+  return <span className="nav-pending" data-pending={pending || undefined} role="status">
+    {pending && <span className="sr-only">Ouverture de {label}…</span>}
+  </span>;
+}
+
 export function BottomNav() {
   const chemin = usePathname();
   const { contexte } = useCoach();
@@ -67,13 +75,16 @@ export function BottomNav() {
             )}
             <Link
               href={href}
-              prefetch={false}
+              // Préchargement partiel Next : quatre destinations fixes seulement.
+              // Aucun plan de séance ni lien de liste n'est anticipé.
+              prefetch={enSeance || chemin === href ? false : null}
               aria-current={actif(href) ? "page" : undefined}
               className="nav-item"
             >
               <Icone size={21} strokeWidth={1.8} aria-hidden />
               <span>{label}</span>
               <span className="nav-active-dot" />
+              <AttenteOnglet label={label} />
             </Link>
           </Fragment>
         ))}

@@ -1,30 +1,9 @@
 /**
- * Ce qui s'affiche pendant qu'un écran se prépare.
- *
- * Il n'existait AUCUN `loading.tsx` dans l'application, et c'est la cause la
- * plus directe des quatre secondes ressenties à chaque première navigation.
- *
- * Deux effets, et le second est le plus important :
- *
- * 1. Sans limite de suspension, un clic sur un onglet ne produit RIEN tant que
- *    le serveur n'a pas fini de rendre la page entière. L'écran précédent
- *    reste affiché, figé, sans le moindre signe que quelque chose se passe. Le
- *    bouton Retour, lui, paraissait rapide parce qu'il lit le cache de routes
- *    du client et n'attend aucun serveur.
- *
- * 2. Les liens de la navigation et de l'accueil optent explicitement hors du
- *    préchargement : chaque route de ce groupe est dynamique et peut déclencher
- *    plusieurs lectures SQL. La limite reste utile pour la navigation demandée
- *    par l'utilisateur : elle montre ce squelette pendant que la page arrive,
- *    sans lancer de travail serveur en arrière-plan.
- *
- * Ce fichier crée cette limite pour tout le groupe. La barre de navigation et
- * l'en-tête vivent dans le layout : ils restent affichés et cliquables pendant
- * le chargement. Seul le contenu est remplacé.
- *
- * Ce n'est pas une optimisation à soi seul — un squelette de quatre secondes
- * reste quatre secondes d'attente. Il rend la navigation immédiate ; le temps
- * serveur, lui, se traite ailleurs.
+ * Limite de suspension commune aux écrans. Les quatre onglets principaux
+ * préchargent le layout et ce squelette (mode partiel Next), afin de pouvoir
+ * afficher une transition avant le retour des données. Les listes et les
+ * liens secondaires ne lancent aucune préparation en arrière-plan.
+ * Le chargement reste interruptible ; la navigation vit dans le layout.
  */
 export default function Chargement() {
   return (

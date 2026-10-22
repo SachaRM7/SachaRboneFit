@@ -17,12 +17,9 @@ import path from "node:path";
  * CONSTRUIT un plan complet — parc du lieu, charges, progression. Le
  * préchargement d'une liste de N éléments, c'est N rendus serveur lourds.
  *
- * La règle retenue, et ce fichier la tient : aucune surface de l'accueil ni
- * de la navigation globale ne précharge une page serveur. Chaque cible est
- * dynamique (`force-dynamic`) et l'ouverture explicite est le seul moment où
- * l'utilisateur a demandé son travail. Les listes d'éléments gardent la même
- * règle : séances, exercices, historique et salles ne lancent jamais une
- * construction en arrière-plan.
+ * Les listes et les liens secondaires restent exclus. Seuls les quatre
+ * onglets fixes autorisent le préchargement partiel du layout/loading ;
+ * aucune liste de séances n'est anticipée. Le Live désactive aussi celui-ci.
  *
  * Le test compte, plutôt que de faire confiance. Un lien de liste ajouté sans
  * `prefetch={false}` le fait échouer.
@@ -99,9 +96,8 @@ describe("préchargement des liens de liste", () => {
     ).toEqual([]);
   });
 
-  it("désactive le préchargement sur la navigation et l'accueil", () => {
+  it("désactive le préchargement sur les liens secondaires et l'accueil", () => {
     const fichiers = [
-      "components/layout/BottomNav.tsx",
       "components/layout/AppTopbar.tsx",
       "components/settings/ListeReglages.tsx",
       "components/dashboard/ContenuTableauDeBord.tsx",
