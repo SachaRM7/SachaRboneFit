@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { afterEach, vi } from "vitest";
+import { afterEach, beforeEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 
 /**
@@ -22,7 +22,7 @@ vi.mock("@/components/ui/confirmation", async (original) => ({
 }));
 
 // `matchMedia` est lu par des composants d'interface tiers.
-vi.stubGlobal(
+beforeEach(() => vi.stubGlobal(
   "matchMedia",
   (query: string) => ({
     matches: false,
@@ -34,7 +34,7 @@ vi.stubGlobal(
     removeEventListener: () => {},
     dispatchEvent: () => false,
   }),
-);
+));
 
 // `scrollIntoView` n'existe pas dans jsdom ; il n'a aucun effet observable ici.
 if (!Element.prototype.scrollIntoView) {
